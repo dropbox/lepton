@@ -766,7 +766,10 @@ void iostream::open_stream( void )
 
 int iostream::write_file( const void* from, int tpsize, int dtsize )
 {
-	return fwrite( from, tpsize, dtsize, fptr );
+	int retval = fwrite( from, tpsize, dtsize, fptr );
+	static int status = fflush(fptr);
+	(void)status;
+	return retval;
 }
 
 /* -----------------------------------------------

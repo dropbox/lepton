@@ -188,7 +188,10 @@ bool write_file( const char* base, const char* ext, void* data, int bpv, int siz
 bool write_errfile( void );
 bool write_info( void );
 bool write_pgm( void );
-
+clock_t pre_byte = 0;
+clock_t post_byte = 0;
+clock_t read_done = 0;
+clock_t overall_start = 0;
 struct MergeJpegProgress {
 	//unsigned int   len ; // length of current marker segment
 	unsigned int   hpos; // current position in header
@@ -664,8 +667,10 @@ void process_file( void )
 		switch ( action )
 		{
 			case comp:
+				overall_start = clock();
 				execute( read_ujpg ); // replace with decompression function!
 				execute( adapt_icos );
+				read_done = clock();
 				execute( recode_jpeg );
                 if (!do_streaming) {
                     execute( merge_jpeg );
@@ -1329,9 +1334,11 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                 int len = 2 + B_SHORT( hdrdata[ progress.hpos + 2 ], hdrdata[progress.hpos + 3 ] );
                 progress.hpos += len;
             }
-            
             // write header data to file
             str_out->write( hdrdata + tmp, 1, ( progress.hpos - tmp ) );
+            if (post_byte == 0) {
+                post_byte = clock();
+            }
 		
             // get out if last marker segment type was not SOS
             if ( type != 0xDA ) break;
@@ -1396,7 +1403,16 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
 	
 	// get filesize
 	jpgfilesize = str_out->getsize();
-	
+	clock_t final = clock();
+	fprintf(stderr, "TIMING (recode): %f to first byte %f total\n",
+	        (post_byte - pre_byte)/(double)CLOCKS_PER_SEC,
+	        (final - pre_byte)/(double)CLOCKS_PER_SEC);
+	fprintf(stderr, "TIMING(overall): %f to first byte %f total\n",
+	        (post_byte - overall_start)/(double)CLOCKS_PER_SEC,
+	        (final - overall_start)/(double)CLOCKS_PER_SEC);
+	fprintf(stderr, "Read took: %f\n",
+	        (read_done - overall_start)/(double)CLOCKS_PER_SEC);
+
 	return STREAMING_SUCCESS;
 
 }
@@ -1838,6 +1854,7 @@ bool decode_jpeg( void )
 
 bool recode_jpeg( void )
 {
+	pre_byte = clock();
 	abitwriter*  huffw; // bitwise writer for image data
 	abytewriter* storw; // bytewise writer for storage of correction bits
 	
