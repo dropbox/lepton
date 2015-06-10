@@ -185,6 +185,15 @@ unsigned char* abitwriter::getptr( void )
 }
 
 /* -----------------------------------------------
+	gets data array from abitwriter
+	----------------------------------------------- */	
+
+const unsigned char* abitwriter::peekptr( void ) const
+{
+	return data;
+}
+
+/* -----------------------------------------------
 	gets size of data array from abitwriter
 	----------------------------------------------- */	
 
@@ -550,7 +559,7 @@ int iostream::read( void* to, int tpsize, int dtsize )
 	generic write function
 	----------------------------------------------- */
 
-int iostream::write( void* from, int tpsize, int dtsize )
+int iostream::write( const void* from, int tpsize, int dtsize )
 {
 	return ( srct == 0 ) ? write_file( from, tpsize, dtsize ) : write_mem( from, tpsize, dtsize );
 }
@@ -755,7 +764,7 @@ void iostream::open_stream( void )
 	write function for files
 	----------------------------------------------- */
 
-int iostream::write_file( void* from, int tpsize, int dtsize )
+int iostream::write_file( const void* from, int tpsize, int dtsize )
 {
 	return fwrite( from, tpsize, dtsize, fptr );
 }
@@ -773,7 +782,7 @@ int iostream::read_file( void* to, int tpsize, int dtsize )
 	write function for memory
 	----------------------------------------------- */
 	
-int iostream::write_mem( void* from, int tpsize, int dtsize )
+int iostream::write_mem( const void* from, int tpsize, int dtsize )
 {
 	int n = tpsize * dtsize;
 	

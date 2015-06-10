@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <fcntl.h>
+#include <assert.h>
 #include <ctime>
 
 #if defined(UNIX) || defined (__LINUX__)
@@ -96,6 +97,8 @@ void show_help( void );
 	
 bool check_file( void );
 bool read_jpeg( void );
+struct MergeJpegProgress;
+bool merge_jpeg_streaming( MergeJpegProgress * prog, int num_scans);
 bool merge_jpeg( void );
 bool decode_jpeg( void );
 bool recode_jpeg( void );
@@ -167,8 +170,8 @@ float idct_2d_fst_8x1( int cmp, int dpos, int ix, int iy );
 	function declarations: miscelaneous helpers
 	----------------------------------------------- */
 
-char* create_filename( char* base, char* extension );
-void set_extension( char* destination, char* origin, char* extension );
+char* create_filename( const char* base, const char* extension );
+void set_extension( char* destination, const char* origin, const char* extension );
 void add_underscore( char* filename );
 
 
@@ -181,15 +184,51 @@ void add_underscore( char* filename );
 bool write_hdr( void );
 bool write_huf( void );
 bool write_coll( void );
-bool write_file( char* base, char* ext, void* data, int bpv, int size );
+bool write_file( const char* base, const char* ext, void* data, int bpv, int size );
 bool write_errfile( void );
 bool write_info( void );
 bool write_pgm( void );
 
+struct MergeJpegProgress {
+	//unsigned int   len ; // length of current marker segment
+	unsigned int   hpos; // current position in header
+	unsigned int   ipos; // current position in imagedata
+	unsigned int   rpos; // current restart marker position
+	unsigned int   cpos; // in scan corrected rst marker position
+	unsigned int   scan; // number of current scan
+	unsigned char  type; // type of current marker segment
+    bool within_scan;
+    MergeJpegProgress *parent;
+    MergeJpegProgress() {
+        //len  = 0; // length of current marker segment
+        hpos = 0; // current position in header
+        ipos = 0; // current position in imagedata
+        rpos = 0; // current restart marker position
+        cpos = 0; // in scan corrected rst marker position
+        scan = 1; // number of current scan
+        type = 0x00; // type of current marker segment
+        within_scan = false;
+        parent = NULL;   
+    }
+    MergeJpegProgress(MergeJpegProgress*par) {
+        memcpy(this, par, sizeof(MergeJpegProgress));
+        parent = par;
+    }
+    ~MergeJpegProgress() {
+        if (parent != NULL) {
+            memcpy(parent, this, sizeof(MergeJpegProgress));
+        }
+    }
+private:
+        MergeJpegProgress(const MergeJpegProgress&other); // disallow copy construction
+        MergeJpegProgress& operator=(const MergeJpegProgress&other); // disallow gets
+};
 
 /* -----------------------------------------------
 	global variables: data storage
 	----------------------------------------------- */
+
+bool do_streaming = false;
 
 unsigned short qtables[4][64];				// quantization tables
 huffCodes      hcodes[2][4];				// huffman codes
@@ -199,6 +238,7 @@ unsigned char  htset[2][4];					// 1 if huffman table is set
 unsigned char* grbgdata			= 	NULL;	// garbage data
 unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
+MergeJpegProgress streaming_progress;
 int            hufs             =    0  ;   // size of huffman data
 int            hdrs             =    0  ;   // size of header
 int            grbs             =    0  ;   // size of garbage
@@ -211,7 +251,7 @@ int            rsti             =    0  ;   // restart interval
 char           padbit           =    -1 ;   // padbit (for huffman coding)
 unsigned char* rst_err			=   NULL;   // number of wrong-set RST markers per scan
 
-signed short*  colldata[4][64]  = { NULL }; // collection sorted DCT coefficients
+signed short*  colldata[4][64]  = {{ NULL }}; // collection sorted DCT coefficients
 
 float icos_base_8x8[ 8 * 8 ];				// precalculated base dct elements (8x1)
 
@@ -413,7 +453,7 @@ int main( int argc, char** argv )
 /* -----------------------------------------------
 	reads in commandline arguments
 	----------------------------------------------- */
-	
+char g_dash[] = "-";	
 void initialize_options( int argc, char** argv )
 {
 	char** tmp_flp;
@@ -444,6 +484,9 @@ void initialize_options( int argc, char** argv )
 		}
 		else if ( strcmp((*argv), "-p" ) == 0 ) {
 			err_tresh = 2;
+		}
+		else if ( strcmp((*argv), "-stream" ) == 0 || strcmp((*argv), "-s" ) == 0 )  {
+			do_streaming = true;
 		}
 		else if ( strcmp((*argv), "-d" ) == 0 ) {
 			disc_meta = true;
@@ -485,7 +528,7 @@ void initialize_options( int argc, char** argv )
 				setmode( fileno( stdout ), O_BINARY );
 			#endif
 			// use "-" as placeholder for stdin
-			*(tmp_flp++) = "-";
+			*(tmp_flp++) = g_dash;
 		}
 		else {
 			// if argument is not switch, it's a filename
@@ -584,7 +627,9 @@ void process_file( void )
 					execute( read_ujpg );
 					execute( adapt_icos );
 					execute( recode_jpeg );
-					execute( merge_jpeg );
+                    if (!do_streaming) {
+                        execute( merge_jpeg );
+                    }
 					execute( compare_output );
 				}
 				break;
@@ -622,7 +667,9 @@ void process_file( void )
 				execute( read_ujpg ); // replace with decompression function!
 				execute( adapt_icos );
 				execute( recode_jpeg );
-				execute( merge_jpeg );
+                if (!do_streaming) {
+                    execute( merge_jpeg );
+                }
 				if ( verify_lv > 0 ) { // verify
 					execute( reset_buffers );
 					execute( swap_streams );
@@ -673,10 +720,11 @@ void process_file( void )
 	if ( str_str != NULL ) delete( str_str ); str_str = NULL;
 	// delete if broken or if output not needed
 	if ( ( !pipe_on ) && ( ( errorlevel >= err_tresh ) || ( action != comp ) ) ) {
-		if ( filetype == JPEG )
+		if ( filetype == JPEG ) {
 			if ( access( ujgfilename, 0 ) == 0 ) remove( ujgfilename );
-		else if ( filetype == UJG )
+		} else if ( filetype == UJG ) {
 			if ( access( jpgfilename, 0 ) == 0 ) remove( jpgfilename );
+        }
 	}
 	// remove temp file
 	if ( ( access( tmpfilename, 0 ) == 0 ) &&
@@ -1240,6 +1288,120 @@ bool read_jpeg( void )
 }
 
 
+enum MergeJpegStreamingStatus{
+    STREAMING_ERROR = 0,
+    STREAMING_SUCCESS = 1,
+    STREAMING_NEED_DATA = 2,
+    STREAMING_DISABLED = 3
+};
+
+MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress, const unsigned char * local_huff_data, unsigned int max_byte_coded,
+                                              bool flush) {
+    if (!do_streaming) return STREAMING_DISABLED;
+    //fprintf(stderr, "Running straming data until byte %d\n", max_byte_coded);
+    MergeJpegProgress progress(stored_progress);
+	unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
+	unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
+	unsigned char mrk = 0xFF; // marker start
+	unsigned char stv = 0x00; // 0xFF stuff value
+	unsigned char rst = 0xD0; // restart marker
+	
+	unsigned char  type = 0x00; // type of current marker segment
+
+    if (progress.ipos == 0 && progress.hpos == 0 && progress.scan == 1 && progress.within_scan == false) {
+        // write SOI
+        str_out->write( SOI, 1, 2 );
+    }
+	
+	// JPEG writing loop
+	while ( true )
+	{		
+        if (!progress.within_scan) {
+            progress.within_scan = true;
+            // store current header position
+            unsigned int   tmp; // temporary storage variable
+            tmp = progress.hpos;
+            
+            // seek till start-of-scan
+            for ( type = 0x00; type != 0xDA; ) {
+                if ( ( int ) progress.hpos >= hdrs ) break;
+                type = hdrdata[ progress.hpos + 1 ];
+                int len = 2 + B_SHORT( hdrdata[ progress.hpos + 2 ], hdrdata[progress.hpos + 3 ] );
+                progress.hpos += len;
+            }
+            
+            // write header data to file
+            str_out->write( hdrdata + tmp, 1, ( progress.hpos - tmp ) );
+		
+            // get out if last marker segment type was not SOS
+            if ( type != 0xDA ) break;
+		
+            // (re)set corrected rst pos
+            progress.cpos = 0;
+            progress.ipos = scnp[ progress.scan - 1 ];
+		}
+        if ((int)progress.scan > scnc + 1) { // don't want to go beyond our known number of scans (FIXME: danielrh@ is this > or >= )
+            break;
+        }		
+		// write & expand huffman coded image data
+		for ( ; progress.ipos < max_byte_coded && (scnp[ progress.scan ] == 0 || progress.ipos < scnp[ progress.scan ]); progress.ipos++ ) {
+			// write current byte
+			str_out->write( local_huff_data + progress.ipos, 1, 1 );
+			// check current byte, stuff if needed
+			if ( local_huff_data[ progress.ipos ] == 0xFF )
+				str_out->write( &stv, 1, 1 );
+			// insert restart markers if needed
+			if ( rstp != NULL ) {
+				if ( progress.ipos == rstp[ progress.rpos ] ) {
+					rst = 0xD0 + ( progress.cpos % 8 );
+					str_out->write( &mrk, 1, 1 );
+					str_out->write( &rst, 1, 1 );
+					progress.rpos++; progress.cpos++;
+				}
+			}
+		}
+        if (scnp[progress.scan] == 0 && !flush) {
+            return STREAMING_NEED_DATA;
+        }
+        if (progress.ipos >= max_byte_coded && progress.ipos != scnp[progress.scan] && !flush) {
+            return STREAMING_NEED_DATA;
+        }
+		// insert false rst markers at end if needed
+		if ( rst_err != NULL ) {
+			while ( rst_err[ progress.scan - 1 ] > 0 ) {
+				rst = 0xD0 + ( progress.cpos % 8 );
+				str_out->write( &mrk, 1, 1 );
+				str_out->write( &rst, 1, 1 );
+				progress.cpos++;	rst_err[ progress.scan - 1 ]--;
+			}
+		}
+        progress.within_scan = false;
+		// proceed with next scan
+		progress.scan++;
+	}
+	
+	// write EOI
+	str_out->write( EOI, 1, 2 );
+	
+	// write garbage if needed
+	if ( grbs > 0 )
+		str_out->write( grbgdata, 1, grbs );
+	
+	// errormessage if write error
+	if ( str_out->chkerr() ) {
+		sprintf( errormessage, "write error, possibly drive is full" );
+		errorlevel = 2;		
+		return STREAMING_ERROR;
+	}
+	
+	// get filesize
+	jpgfilesize = str_out->getsize();
+	
+	return STREAMING_SUCCESS;
+
+}
+
+
 /* -----------------------------------------------
 	Merges header & image data to jpeg
 	----------------------------------------------- */
@@ -1259,8 +1421,7 @@ bool merge_jpeg( void )
 	unsigned int   rpos = 0; // current restart marker position
 	unsigned int   cpos = 0; // in scan corrected rst marker position
 	unsigned int   scan = 1; // number of current scan
-	unsigned int   tmp; // temporary storage variable
-	
+	unsigned int   tmp  = 0;
 	
 	// write SOI
 	str_out->write( SOI, 1, 2 );
@@ -1393,8 +1554,8 @@ bool decode_jpeg( void )
 		// check if huffman tables are available
 		for ( csc = 0; csc < cs_cmpc; csc++ ) {
 			cmp = cs_cmp[ csc ];
-			if ( ( cs_sal == 0 ) && ( htset[ 0 ][ cmpnfo[cmp].huffdc ] == 0 ) ||
-				 ( cs_sah >  0 ) && ( htset[ 1 ][ cmpnfo[cmp].huffac ] == 0 ) ) {
+			if ( (( cs_sal == 0 ) && ( htset[ 0 ][ cmpnfo[cmp].huffdc ] == 0 )) ||
+                 (( cs_sah >  0 ) && ( htset[ 1 ][ cmpnfo[cmp].huffac ] == 0 )) ) {
 				sprintf( errormessage, "huffman table missing in scan%i", scnc );
 				delete huffr;
 				errorlevel = 2;
@@ -1745,6 +1906,9 @@ bool recode_jpeg( void )
 				( mcuc / rsti ) : ( cmpnfo[ cs_cmp[ 0 ] ].bc / rsti ) );
 			if ( rstp == NULL ) rstp = ( unsigned int* ) calloc( tmp + 1, sizeof( int ) );
 			else rstp = ( unsigned int* ) realloc( rstp, ( tmp + 1 ) * sizeof( int ) );
+            for (int i = rstc; i <= tmp; ++i) {
+                rstp[i] = -1; // make sure that ipos is never equal to rstp[rpos]
+            }
 			if ( rstp == NULL ) {
 				sprintf( errormessage, MEM_ERRMSG );
 				errorlevel = 2;
@@ -1761,7 +1925,7 @@ bool recode_jpeg( void )
 		
 		// store scan position
 		scnp[ scnc ] = huffw->getpos();
-		
+		scnp[ scnc + 1 ] = 0; // danielrh@ avoid uninitialized memory when doing progressive writeout
 		// JPEG imagedata encoding routines
 		while ( true )
 		{
@@ -1803,6 +1967,9 @@ bool recode_jpeg( void )
 						// check for errors, proceed if no error encountered
 						if ( eob < 0 ) sta = -1;
 						else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if (sta == 0 && huffw->no_remainder()) {
+                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
 					}
 				}
 				else if ( cs_sah == 0 ) {
@@ -1822,6 +1989,9 @@ bool recode_jpeg( void )
 						// next mcupos if no error happened
 						if ( sta != -1 )
 							sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if (sta == 0 && huffw->no_remainder()) {
+                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
 					}
 				}
 				else {
@@ -1837,6 +2007,10 @@ bool recode_jpeg( void )
 						// next mcupos if no error happened
 						if ( sta != -1 )
 							sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if (sta == 0 && huffw->no_remainder()) {
+                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
+
 					}
 				}
 			}
@@ -1862,6 +2036,10 @@ bool recode_jpeg( void )
 						// check for errors, proceed if no error encountered
 						if ( eob < 0 ) sta = -1;
 						else sta = next_mcuposn( &cmp, &dpos, &rstw );	
+                        if (sta == 0 && huffw->no_remainder()) {
+                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
+
 					}
 				}
 				else if ( cs_to == 0 ) {
@@ -1882,6 +2060,10 @@ bool recode_jpeg( void )
 							// check for errors, increment dpos otherwise
 							if ( sta != -1 )
 								sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if (sta == 0 && huffw->no_remainder()) {
+                                merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                            }
+
 						}
 					}
 					else {
@@ -1898,6 +2080,9 @@ bool recode_jpeg( void )
 							if ( sta != -1 )
 								sta = next_mcuposn( &cmp, &dpos, &rstw );
 						}
+                        if (sta == 0 && huffw->no_remainder()) {
+                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
 					}
 				}
 				else {
@@ -1918,12 +2103,16 @@ bool recode_jpeg( void )
 							// check for errors, proceed if no error encountered
 							if ( eob < 0 ) sta = -1;
 							else sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if (sta == 0 && huffw->no_remainder()) {
+                                merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                            }
 						}						
 						
 						// encode remaining eobrun
 						encode_eobrun( huffw,
 							&(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
 							&eobrun );
+
 					}
 					else {
 						// ---> progressive non interleaved AC encoding <---
@@ -1942,6 +2131,10 @@ bool recode_jpeg( void )
 							// check for errors, proceed if no error encountered
 							if ( eob < 0 ) sta = -1;
 							else sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if (sta == 0 && huffw->no_remainder()) {
+                                merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                            }
+
 						}						
 						
 						// encode remaining eobrun
@@ -1974,6 +2167,11 @@ bool recode_jpeg( void )
 				if ( rsti > 0 ) // store rstp & stay in the loop
 					rstp[ rstc++ ] = huffw->getpos() - 1;
 			}
+            assert(huffw->no_remainder() && "this should have been padded");
+            if (huffw->no_remainder()) {
+                merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+            }
+                            
 		}
 	}
 	
@@ -1988,6 +2186,8 @@ bool recode_jpeg( void )
 	// get data into huffdata
 	huffdata = huffw->getptr();
 	hufs = huffw->getpos();	
+    assert(huffw->no_remainder() && "this should have been padded");
+    merge_jpeg_streaming(&streaming_progress, huffdata, hufs, true);
 	delete huffw;
 	
 	// remove storage writer
@@ -4022,7 +4222,7 @@ float idct_2d_fst_1x8( int cmp, int dpos, int ix, int iy )
 /* -----------------------------------------------
 	creates filename, callocs memory for it
 	----------------------------------------------- */	
-char* create_filename( char* base, char* extension )
+char* create_filename( const char* base, const char* extension )
 {
 	int len = strlen(base);
 	int tol = 8;
@@ -4036,7 +4236,7 @@ char* create_filename( char* base, char* extension )
 /* -----------------------------------------------
 	changes extension of filename
 	----------------------------------------------- */	
-void set_extension( char* destination, char* origin, char* extension )
+void set_extension( char* destination, const char* origin, const char* extension )
 {
 	int i;
 	
@@ -4101,7 +4301,7 @@ void add_underscore( char* filename )
 	----------------------------------------------- */
 bool write_hdr( void )
 {
-	char* ext = "hdr";
+	const char* ext = "hdr";
 	char* basename = basfilename;
 	
 	if ( !write_file( basename, ext, hdrdata, 1, hdrs ) )
@@ -4116,7 +4316,7 @@ bool write_hdr( void )
 	----------------------------------------------- */
 bool write_huf( void )
 {
-	char* ext = "huf";
+	const char* ext = "huf";
 	char* basename = basfilename;
 	
 	if ( !write_file( basename, ext, huffdata, 1, hufs ) )
@@ -4134,7 +4334,7 @@ bool write_coll( void )
 	FILE* fp;
 	
 	char* fn;
-	char* ext[4];
+	const char* ext[4];
 	char* base;
 	int cmp, bpos, dpos;
 	int i, j;
@@ -4211,7 +4411,7 @@ bool write_coll( void )
 /* -----------------------------------------------
 	Writes to file
 	----------------------------------------------- */
-bool write_file( char* base, char* ext, void* data, int bpv, int size )
+bool write_file( const char* base, const char* ext, void* data, int bpv, int size )
 {	
 	FILE* fp;
 	char* fn;
@@ -4372,7 +4572,7 @@ bool write_pgm( void )
 	
 	FILE* fp;
 	char* fn;
-	char* ext[4];
+	const char* ext[4];
 	
 	int cmp, dpos;
 	int pix_v;

@@ -49,7 +49,11 @@ public:
 	void write( unsigned int val, int nbits );
 	void pad ( unsigned char fillbit );
 	unsigned char* getptr( void );
+	const unsigned char* peekptr( void )const;
 	int getpos( void );
+    bool no_remainder() const {
+        return cbit == 8;
+    }
 	bool error;	
 	unsigned char fillbit;
 	
@@ -125,7 +129,7 @@ public:
 	~iostream( void );
 	void switch_mode( void );
 	int read( void* to, int tpsize, int dtsize );
-	int write( void* from, int tpsize, int dtsize );
+	int write( const void* from, int tpsize, int dtsize );
 	int flush( void );
 	int rewind( void );
 	int getpos( void );
@@ -139,9 +143,9 @@ private:
 	void open_mem( void );
 	void open_stream( void );
 	
-	int write_file( void* from, int tpsize, int dtsize );
+	int write_file( const void* from, int tpsize, int dtsize );
 	int read_file( void* to, int tpsize, int dtsize );
-	int write_mem( void* from, int tpsize, int dtsize );
+	int write_mem( const void* from, int tpsize, int dtsize );
 	int read_mem( void* to, int tpsize, int dtsize );
 	
 	FILE* fptr;

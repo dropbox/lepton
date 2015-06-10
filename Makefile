@@ -5,14 +5,20 @@
 CC      = gcc
 CPP     = g++
 RC      = windres
-CFLAGS  = -I. -O3 -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
-LDFLAGS = -s
+CFLAGS  = -Wno-write-strings -DUNIX -I. -g -Wall
+# -O3 -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
+LDFLAGS = -g
 DEPS    = bitops.h htables.h
 OBJ     = bitops.o jpgcoder.o
 BIN     = uncmpJPG
+all: clean $(BIN)
 
 %.o: %.cpp $(DEPS)
 	$(CPP) -c -o $@ $< $(CFLAGS)
 
 $(BIN): $(OBJ) $(RES)
 	$(CPP) -o $@ $^ $(LDFLAGS)
+
+clean:
+	rm -f -- *.o $(BIN)
+
