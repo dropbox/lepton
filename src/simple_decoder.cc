@@ -1,8 +1,8 @@
-#include "bitops.h"
-#include "component_info.h"
-#include "uncompressed_components.h"
-#include "jpgcoder.h"
-#include "simple_decoder.h"
+#include "bitops.hh"
+#include "component_info.hh"
+#include "uncompressed_components.hh"
+#include "jpgcoder.hh"
+#include "simple_decoder.hh"
 SimpleComponentDecoder::SimpleComponentDecoder() {
     for (int i = 0; i < 4; ++i) {
         cur_read_batch[i] = 0;

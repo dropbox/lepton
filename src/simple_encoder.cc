@@ -1,8 +1,8 @@
-#include "bitops.h"
-#include "component_info.h"
-#include "uncompressed_components.h"
-#include "jpgcoder.h"
-#include "simple_encoder.h"
+#include "bitops.hh"
+#include "component_info.hh"
+#include "uncompressed_components.hh"
+#include "jpgcoder.hh"
+#include "simple_encoder.hh"
 void SimpleComponentEncoder::simple_full_encoder(UncompressedComponents* colldata, iostream *str_out) {
 	char ujpg_mrk[ 64 ];
 	// write actual decompressed coefficient data to file

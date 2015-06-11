@@ -12,12 +12,12 @@
 	#include <io.h>
 #endif 
 
-#include "bitops.h"
-#include "htables.h"
-#include "component_info.h"
-#include "uncompressed_components.h"
-#include "simple_decoder.h"
-#include "simple_encoder.h"
+#include "bitops.hh"
+#include "htables.hh"
+#include "component_info.hh"
+#include "uncompressed_components.hh"
+#include "simple_decoder.hh"
+#include "simple_encoder.hh"
 
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )

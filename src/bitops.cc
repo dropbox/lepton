@@ -6,13 +6,7 @@ reading and writing of arrays
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <assert.h>
-#include "bitops.h"
+#include "bitops.hh"
 
 #define BUFFER_SIZE 1024 * 1024
 
@@ -435,12 +429,12 @@ int abytereader::getpos( void )
 
 iostream::iostream( void* src, int srctype, int srcsize, int iomode )
 {
-	fptr = -1;
 	// locally copy source, source type # and io mode #
 	source = src;
 	srct   = srctype;
 	srcs   = srcsize;
 	mode   = iomode;
+	
 	// don't free memory when reading - this will be useful if switching occurs
 	free_mem_sw = false;
 	
@@ -489,8 +483,8 @@ iostream::~iostream( void )
 	
 	// free all buffers
 	if ( srct == 0 ) {
-		if ( fptr != -1 )
-			close( fptr );
+		if ( fptr != NULL )
+			fclose( fptr );
 	}
 	else if ( mode == 0 ) {
 		if ( free_mem_sw )
@@ -515,8 +509,8 @@ void iostream::switch_mode( void )
 		// WARNING: when switching from reading to writing, information might be lost forever
 		switch ( srct ) {
 			case 0:
-				close( fptr );
-				fptr = open( ( char* ) source, O_WRONLY );
+				fclose( fptr );
+				fptr = fopen( ( char* ) source, "wb" );
 				break;
 			case 1:
 			case 2:
@@ -534,8 +528,8 @@ void iostream::switch_mode( void )
 		// switching from writing to reading is a bit more complicated
 		switch ( srct ) {
 			case 0:
-				close( fptr );
-				fptr = open( ( char* ) source, O_RDONLY);
+				fclose( fptr );
+				fptr = fopen( ( char* ) source, "rb" );
 				break;
 			case 1:
 			case 2:
@@ -576,6 +570,9 @@ int iostream::write( const void* from, int tpsize, int dtsize )
 
 int iostream::flush( void )
 {
+	if ( srct == 0 )
+		fflush( fptr );
+	
 	return getpos();
 }
 
@@ -587,8 +584,7 @@ int iostream::rewind( void )
 {
 	// WARNING: when writing, rewind might lose all your data
 	if ( srct == 0 )
-        assert(false && "UNIMPL");
-//		fseek( fptr, 0, SEEK_SET );
+		fseek( fptr, 0, SEEK_SET );
 	else if ( mode == 0 )
 		mrdr->seek( 0 );
 	else
@@ -606,7 +602,7 @@ int iostream::getpos( void )
 	int pos;
 	
 	if ( srct == 0 )
-		pos = lseek(fptr, 0, SEEK_CUR);
+		pos = ftell( fptr );
 	else if ( mode == 0 )
 		pos = mrdr->getpos();
 	else
@@ -621,13 +617,15 @@ int iostream::getpos( void )
 
 int iostream::getsize( void )
 {
+	int pos;
 	int siz;
 	
 	if ( mode == 0 ) {
 		if ( srct == 0 ) {
-            struct stat buf;
-            fstat(fptr, &buf);
-            return buf.st_size;
+			pos = ftell( fptr );
+			fseek( fptr, 0, SEEK_END );
+			siz = ftell( fptr );
+			fseek( fptr, pos, SEEK_SET );
 		}
 		else {
 			siz = mrdr->getsize();
@@ -668,9 +666,10 @@ bool iostream::chkerr( void )
 	
 	// check for io errors
 	if ( srct == 0 ) {
-		if ( fptr == -1 ) {
+		if ( fptr == NULL )
 			error = true;
-        }
+		else if ( ferror( fptr ) )
+			error = true;
 	}
 	else if ( mode == 0 ) {
 		if ( mrdr == NULL )			
@@ -695,7 +694,7 @@ bool iostream::chkerr( void )
 bool iostream::chkeof( void )
 {
 	if ( mode == 0 )
-		return ( srct == 0 ) ? assert(false&&"UNIMPL"),false : mrdr->eof;
+		return ( srct == 0 ) ? feof( fptr ) : mrdr->eof;
 	else
 		return false;
 }
@@ -709,10 +708,7 @@ void iostream::open_file( void )
 	char* fn = (char*) source;
 	
 	// open file for reading / writing
-	fptr = ::open( fn, O_RDWR, 0664);
-    if (fptr == -1) {
-        fptr = ::creat( fn, 0664);
-    }
+	fptr = fopen( fn, ( mode == 0 ) ? "rb" : "wb" );
 }
 
 /* -----------------------------------------------
@@ -770,19 +766,10 @@ void iostream::open_stream( void )
 
 int iostream::write_file( const void* from, int tpsize, int dtsize )
 {
-    int written = 0;
-    while (written < tpsize * dtsize) {
-        int retval = ::write( fptr, (char*)from + written, tpsize * dtsize - written);
-        if (retval == 0) {
-            return written / tpsize;
-        } else if (retval < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-        }
-        written += retval;
-    }
-	return written / tpsize;
+	int retval = fwrite( from, tpsize, dtsize, fptr );
+	static int status = fflush(fptr);
+	(void)status;
+	return retval;
 }
 
 /* -----------------------------------------------
@@ -791,19 +778,7 @@ int iostream::write_file( const void* from, int tpsize, int dtsize )
 
 int iostream::read_file( void* to, int tpsize, int dtsize )
 {
-    int readed = 0;
-    while (readed < tpsize * dtsize) {
-        int retval = ::read( fptr, (char*)to + readed, tpsize * dtsize - readed);
-        if (retval == 0) {
-            return readed / tpsize;
-        } else if (retval < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-        }
-        readed += retval;
-    }
-	return readed/tpsize;
+	return fread( to, tpsize, dtsize, fptr );
 }
 
 /* -----------------------------------------------

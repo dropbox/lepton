@@ -1,6 +1,6 @@
 #include <thread>
-#include "uncompressed_components.h"
-#include "component_info.h"
+#include "uncompressed_components.hh"
+#include "component_info.hh"
 
 void UncompressedComponents::init(componentInfo cmpinfo[ 4 ], int cmpc) {
         allocated_ = 0;
