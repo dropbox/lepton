@@ -3,12 +3,12 @@
 # Working with JFE & GCC (May 27 2004)
 
 CC      = gcc
-CPP     = g++
+CPP     = g++-4.8
 RC      = windres
-CFLAGS  = -std=c++0x -Wno-write-strings -DUNIX -I. -g -Wall -O3 -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
-LDFLAGS = -g
-DEPS    = bitops.h htables.h
-OBJ     = bitops.o jpgcoder.o
+CFLAGS  = -std=c++11 -Wno-write-strings -DUNIX -I. -g -Wall -O3 -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
+LDFLAGS = -g -lpthread
+DEPS    = bitops.h htables.h component_info.h uncompressed_components.h jpgcoder.h simple_decoder.h
+OBJ     = bitops.o jpgcoder.o simple_decoder.o uncompressed_components.o
 BIN     = uncmpJPG
 all: clean $(BIN)
 

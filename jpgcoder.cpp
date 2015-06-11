@@ -16,7 +16,7 @@
 #include "htables.h"
 #include "component_info.h"
 #include "uncompressed_components.h"
-
+#include "simple_decoder.h"
 
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -239,7 +239,7 @@ unsigned char* rst_err			=   NULL;   // number of wrong-set RST markers per scan
 
 
 
-CollData colldata; // collection sorted DCT coefficients
+UncompressedComponents colldata; // baseline sorted DCT coefficients
 
 
 float icos_base_8x8[ 8 * 8 ];				// precalculated base dct elements (8x1)
@@ -314,7 +314,7 @@ int    file_no  = 0;		// number of current file
 char statusmessage[ 128 ];
 char errormessage [ 128 ];
 bool (*errorfunction)();
-int  errorlevel;
+std::atomic<int> errorlevel(0);
 // meaning of errorlevel:
 // -1 -> wrong input
 // 0 -> no error
@@ -376,7 +376,7 @@ int main( int argc, char** argv )
 	int speed, bpms;
 	float cr;
 	
-	errorlevel = 0;
+	errorlevel.store(0);
 	
 	
 	// read options from command line
@@ -405,10 +405,10 @@ int main( int argc, char** argv )
 	begin = clock();
 	for ( file_no = 0; file_no < file_cnt; file_no++ ) {		
 		process_file();
-		if ( errorlevel >= err_tresh ) error_cnt++;
+		if ( errorlevel.load() >= err_tresh ) error_cnt++;
 		else {
-			if ( errorlevel == 1 ) warn_cnt++;
-			if ( errorlevel < err_tresh ) {
+			if ( errorlevel.load() == 1 ) warn_cnt++;
+			if ( errorlevel.load() < err_tresh ) {
 				acc_jpgsize += jpgfilesize;
 				acc_ujgsize += ujgfilesize;
 			}
@@ -544,7 +544,7 @@ void process_file( void )
 	
 	
 	errorfunction = NULL;
-	errorlevel = 0;
+	errorlevel.store(0);
 	jpgfilesize = 0;
 	ujgfilesize = 0;	
 	
@@ -681,10 +681,11 @@ void process_file( void )
 				execute( write_huf );
 				break;
 				
-			case coll:
+			case coll:/*
 				execute( read_ujpg );
 				execute( adapt_icos );	
-				execute( write_coll );
+				execute( write_coll );*/
+                assert(false && "fixme: make this sync with worker task");
 				break;
 			
 			case info:
@@ -700,7 +701,7 @@ void process_file( void )
 		}
 	}
 	// write error file if verify lv > 1
-	if ( ( verify_lv > 1 ) && ( errorlevel >= err_tresh ) )
+	if ( ( verify_lv > 1 ) && ( errorlevel.load() >= err_tresh ) )
 		write_errfile();
 	// reset buffers
 	reset_buffers();
@@ -710,7 +711,7 @@ void process_file( void )
 	if ( str_out != NULL ) delete( str_out ); str_out = NULL;
 	if ( str_str != NULL ) delete( str_str ); str_str = NULL;
 	// delete if broken or if output not needed
-	if ( ( !pipe_on ) && ( ( errorlevel >= err_tresh ) || ( action != comp ) ) ) {
+	if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp ) ) ) {
 		if ( filetype == JPEG ) {
 			if ( access( ujgfilename, 0 ) == 0 ) remove( ujgfilename );
 		} else if ( filetype == UJG ) {
@@ -719,7 +720,7 @@ void process_file( void )
 	}
 	// remove temp file
 	if ( ( access( tmpfilename, 0 ) == 0 ) &&
-		!( ( verify_lv > 1 ) && ( errorlevel >= err_tresh ) && ( errorfunction == compare_output ) ) )
+         !( ( verify_lv > 1 ) && ( errorlevel.load() >= err_tresh ) && ( errorfunction == compare_output ) ) )
 		remove( tmpfilename );
 	
 	end = clock();
@@ -734,35 +735,35 @@ void process_file( void )
 	switch ( verbosity )
 	{
 		case 0:
-			if ( errorlevel < err_tresh ) {
+          if ( errorlevel.load() < err_tresh ) {
 				if ( action == comp )
 					fprintf( msgout,  "%.2f%%", cr );
 				else fprintf( msgout,  "DONE" );
 			}
 			else fprintf( msgout,  "ERROR" );
-			if ( errorlevel > 0 )
+          if ( errorlevel.load() > 0 )
 				fprintf( msgout,  "\n" );
 			break;
 		
 		case 1:
-			if ( errorlevel < err_tresh ) fprintf( msgout,  "DONE\n" );
+          if ( errorlevel.load() < err_tresh ) fprintf( msgout,  "DONE\n" );
 			else fprintf( msgout,  "ERROR\n" );
 			break;
 		
 		case 2:
 			fprintf( msgout,  "\n----------------------------------------\n" );
-			if ( errorlevel < err_tresh ) fprintf( msgout,  "-> %s OK\n", actionmsg );
+			if ( errorlevel.load() < err_tresh ) fprintf( msgout,  "-> %s OK\n", actionmsg );
 			break;
 	}
 	
-	switch ( errorlevel )
+	switch ( errorlevel.load() )
 	{
 		case 0:
 			errtypemsg = "none";
 			break;
 			
 		case 1:
-			if ( errorlevel < err_tresh )
+            if ( errorlevel.load() < err_tresh )
 				errtypemsg = "warning (ignored)";
 			else
 				errtypemsg = "warning (skipped file)";
@@ -773,7 +774,7 @@ void process_file( void )
 			break;
 	}
 	
-	if ( errorlevel > 0 )
+	if ( errorlevel.load() > 0 )
 	{
 		get_status( errorfunction );
 		fprintf( stderr, " %s -> %s:\n", statusmessage, errtypemsg  );
@@ -781,7 +782,7 @@ void process_file( void )
 		if ( verbosity > 1 )
 			fprintf( stderr, " (in file \"%s\")\n", filelist[ file_no ] );
 	}
-	if ( (verbosity > 0) && (errorlevel < err_tresh) )
+	if ( (verbosity > 0) && (errorlevel.load() < err_tresh) )
 	if ( action == comp )
 	{
 		fprintf( msgout,  " time taken  : %7i msec\n", speed );
@@ -805,7 +806,7 @@ void execute( bool (*function)() )
 	int i;
 	
 	
-	if ( errorlevel < err_tresh )
+	if ( errorlevel.load() < err_tresh )
 	{
 		// get statusmessage
 		get_status( function );
@@ -823,7 +824,7 @@ void execute( bool (*function)() )
 		// set endtime
 		end = clock();
 		
-		if ( ( errorlevel > 0 ) && ( errorfunction == NULL ) )
+		if ( ( errorlevel.load() > 0 ) && ( errorfunction == NULL ) )
 			errorfunction = function;
 		
 		// write statusmessage
@@ -955,7 +956,7 @@ bool check_file( void )
 	str_in = new iostream( (void*) filelist[ file_no ], ( !pipe_on ) ? 0 : 2, 0, 0 );
 	if ( str_in->chkerr() ) {
 		sprintf( errormessage, FRD_ERRMSG, filelist[ file_no ] );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -974,7 +975,7 @@ bool check_file( void )
 	if ( str_in->read( fileid, 1, 2 ) != 2 ) { 
 		filetype = UNK;
 		sprintf( errormessage, "file doesn't contain enough data" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -1017,7 +1018,7 @@ bool check_file( void )
 		str_out = new iostream( (void*) ujgfilename, ( !pipe_on ) ? 0 : 2, 0, 1 );
 		if ( str_out->chkerr() ) {
 			sprintf( errormessage, FWR_ERRMSG, ujgfilename );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 	}
@@ -1044,7 +1045,7 @@ bool check_file( void )
 		str_out = new iostream( (void*) jpgfilename, ( !pipe_on ) ? 0 : 2, 0, 1 );
 		if ( str_out->chkerr() ) {
 			sprintf( errormessage, FWR_ERRMSG, jpgfilename );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 	}
@@ -1052,7 +1053,7 @@ bool check_file( void )
 		// file is neither
 		filetype = UNK;
 		sprintf( errormessage, "filetype of file \"%s\" is unknown", filelist[ file_no ] );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;		
 	}
 	
@@ -1095,7 +1096,7 @@ bool read_jpeg( void )
 	segment = ( unsigned char* ) calloc( ssize, sizeof( char ) );
 	if ( segment == NULL ) {
 		sprintf( errormessage, MEM_ERRMSG );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -1141,7 +1142,7 @@ bool read_jpeg( void )
 								rst_err = (unsigned char*) calloc( scnc + 1, sizeof( char ) );
 								if ( rst_err == NULL ) {
 									sprintf( errormessage, MEM_ERRMSG );
-									errorlevel = 2;
+									errorlevel.store(2);
 									return false;
 								}
 							}
@@ -1151,12 +1152,12 @@ bool read_jpeg( void )
 							rst_err = ( unsigned char* ) realloc( rst_err, ( scnc + 1 ) * sizeof( char ) );
 							if ( rst_err == NULL ) {
 								sprintf( errormessage, MEM_ERRMSG );
-								errorlevel = 2;
+								errorlevel.store(2);
 								return false;
 							}
 							if ( crst > 255 ) {
 								sprintf( errormessage, "Severe false use of RST markers (%i)", crst );
-								errorlevel = 1;
+								errorlevel.store(1);
 								crst = 255;
 							}
 							rst_err[ scnc ] = crst;							
@@ -1181,12 +1182,12 @@ bool read_jpeg( void )
 			if ( segment[ 0 ] != 0xFF ) {
 				// ugly fix for incorrect marker segment sizes
 				sprintf( errormessage, "size mismatch in marker segment FF %2X", type );
-				errorlevel = 2;
+				errorlevel.store(2);
 				if ( type == 0xFE ) { //  if last marker was COM try again
 					if ( str_in->read( segment, 1, 2 ) != 2 ) break;
-					if ( segment[ 0 ] == 0xFF ) errorlevel = 1;
+					if ( segment[ 0 ] == 0xFF ) errorlevel.store(1);
 				}
-				if ( errorlevel == 2 ) {
+				if ( errorlevel.load() == 2 ) {
 					delete ( hdrw );
 					delete ( huffw );
 					free ( segment );
@@ -1220,7 +1221,7 @@ bool read_jpeg( void )
 			segment = ( unsigned char* ) realloc( segment, len );
 			if ( segment == NULL ) {
 				sprintf( errormessage, MEM_ERRMSG );
-				errorlevel = 2;
+				errorlevel.store(2);
 				delete ( hdrw );
 				delete ( huffw );
 				return false;
@@ -1242,7 +1243,7 @@ bool read_jpeg( void )
 	// check if everything went OK
 	if ( ( hdrs == 0 ) || ( hufs == 0 ) ) {
 		sprintf( errormessage, "unexpected end of data encountered" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -1250,7 +1251,7 @@ bool read_jpeg( void )
 	grbs = str_in->read( &tmp, 1, 1 );	
 	if ( grbs > 0 ) {
 		// sprintf( errormessage, "data after EOI - last bytes: FF D9 %2X", tmp );
-		// errorlevel = 1;		
+		// errorlevel.store(1);		
 		grbgw = new abytewriter( 1024 );
 		grbgw->write( tmp );
 		while( true ) {
@@ -1383,7 +1384,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
 		sprintf( errormessage, "write error, possibly drive is full" );
-		errorlevel = 2;		
+		errorlevel.store(2);		
 		return STREAMING_ERROR;
 	}
 	
@@ -1493,7 +1494,7 @@ bool merge_jpeg( void )
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
 		sprintf( errormessage, "write error, possibly drive is full" );
-		errorlevel = 2;		
+		errorlevel.store(2);		
 		return false;
 	}
 	
@@ -1560,7 +1561,7 @@ bool decode_jpeg( void )
                  (( cs_sah >  0 ) && ( htset[ 1 ][ cmpnfo[cmp].huffac ] == 0 )) ) {
 				sprintf( errormessage, "huffman table missing in scan%i", scnc );
 				delete huffr;
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 		}
@@ -1610,7 +1611,7 @@ bool decode_jpeg( void )
 						
 						// copy to colldata
 						for ( bpos = 0; bpos < eob; bpos++ )
-							colldata( cmp , bpos , dpos ) = block[ bpos ];
+							colldata.set( cmp , bpos , dpos ) = block[ bpos ];
 						
 						// check for errors, proceed if no error encountered
 						if ( eob < 0 ) sta = -1;
@@ -1626,11 +1627,11 @@ bool decode_jpeg( void )
 							block );
 						
 						// fix dc for diff coding
-						colldata(cmp,0,dpos) = block[0] + lastdc[ cmp ];
-						lastdc[ cmp ] = colldata(cmp,0,dpos);
+						colldata.set(cmp,0,dpos) = block[0] + lastdc[ cmp ];
+						lastdc[ cmp ] = colldata.set(cmp,0,dpos);
 						
 						// bitshift for succesive approximation
-						colldata(cmp,0,dpos) <<= cs_sal;
+						colldata.set(cmp,0,dpos) <<= cs_sal;
 						
 						// next mcupos if no error happened
 						if ( sta != -1 )
@@ -1646,7 +1647,7 @@ bool decode_jpeg( void )
 							block );
 						
 						// shift in next bit
-						colldata(cmp,0,dpos) += block[0] << cs_sal;
+						colldata.set(cmp,0,dpos) += block[0] << cs_sal;
 						
 						// next mcupos if no error happened
 						if ( sta != -1 )
@@ -1671,7 +1672,7 @@ bool decode_jpeg( void )
 						
 						// copy to colldata
 						for ( bpos = 0; bpos < eob; bpos++ )
-							colldata( cmp , bpos , dpos ) = block[ bpos ];
+							colldata.set( cmp , bpos , dpos ) = block[ bpos ];
 						
 						// check for errors, proceed if no error encountered
 						if ( eob < 0 ) sta = -1;
@@ -1688,11 +1689,11 @@ bool decode_jpeg( void )
 								block );
 								
 							// fix dc for diff coding
-							colldata(cmp,0,dpos) = block[0] + lastdc[ cmp ];
-							lastdc[ cmp ] = colldata(cmp,0,dpos);
+							colldata.set(cmp,0,dpos) = block[0] + lastdc[ cmp ];
+							lastdc[ cmp ] = colldata.set(cmp,0,dpos);
 							
 							// bitshift for succesive approximation
-							colldata(cmp,0,dpos) <<= cs_sal;
+							colldata.set(cmp,0,dpos) <<= cs_sal;
 							
 							// check for errors, increment dpos otherwise
 							if ( sta != -1 )
@@ -1708,7 +1709,7 @@ bool decode_jpeg( void )
 								block );
 							
 							// shift in next bit
-							colldata(cmp,0,dpos) += block[0] << cs_sal;
+							colldata.set(cmp,0,dpos) += block[0] << cs_sal;
 							
 							// check for errors, increment dpos otherwise
 							if ( sta != -1 )
@@ -1732,12 +1733,12 @@ bool decode_jpeg( void )
 								hcodes[ 1 ][ cmpnfo[cmp].huffac ].max_eobrun - 1 ) ) {
 								sprintf( errormessage,
 									"reconstruction of non optimal coding not supported" );
-								errorlevel = 1;
+								errorlevel.store(1);
 							}
 							
 							// copy to colldata
 							for ( bpos = cs_from; bpos < eob; bpos++ )
-								colldata( cmp , bpos , dpos ) = block[ bpos ] << cs_sal;
+								colldata.set( cmp , bpos , dpos ) = block[ bpos ] << cs_sal;
 							
 							// check for errors
 							if ( eob < 0 ) sta = -1;
@@ -1754,7 +1755,7 @@ bool decode_jpeg( void )
 						while ( sta == 0 ) {
 							// copy from colldata
 							for ( bpos = cs_from; bpos <= cs_to; bpos++ )
-								block[ bpos ] = colldata( cmp , bpos , dpos );
+								block[ bpos ] = colldata.set( cmp , bpos , dpos );
 							
 							if ( eobrun == 0 ) {
 								// decode block (long routine)
@@ -1768,7 +1769,7 @@ bool decode_jpeg( void )
 									hcodes[ 1 ][ cmpnfo[cmp].huffac ].max_eobrun - 1 ) ) {
 									sprintf( errormessage,
 										"reconstruction of non optimal coding not supported" );
-									errorlevel = 1;
+									errorlevel.store(1);
 								}
 								
 								// store eobrun
@@ -1782,7 +1783,7 @@ bool decode_jpeg( void )
 								
 							// copy back to colldata
 							for ( bpos = cs_from; bpos <= cs_to; bpos++ )
-								colldata( cmp , bpos , dpos ) += block[ bpos ] << cs_sal;
+								colldata.set( cmp , bpos , dpos ) += block[ bpos ] << cs_sal;
 							
 							// proceed only if no error encountered
 							if ( eob < 0 ) sta = -1;
@@ -1797,7 +1798,7 @@ bool decode_jpeg( void )
 				if ( padbit != huffr->unpad( padbit ) ) {
 					sprintf( errormessage, "inconsistent use of padbits" );
 					padbit = 1;
-					errorlevel = 1;
+					errorlevel.store(1);
 				}
 			}
 			else {
@@ -1809,7 +1810,7 @@ bool decode_jpeg( void )
 				sprintf( errormessage, "decode error in scan%i / mcu%i",
 					scnc, ( cs_cmpc > 1 ) ? mcu : dpos );
 				delete huffr;
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			else if ( sta == 2 ) { // status 2/3 means done
@@ -1823,7 +1824,7 @@ bool decode_jpeg( void )
 	// check for unneeded data
 	if ( !huffr->eof ) {
 		sprintf( errormessage, "unneeded data found after coded image data" );
-		errorlevel = 1;
+		errorlevel.store(1);
 	}
 			
 	// clean up
@@ -1899,7 +1900,7 @@ bool recode_jpeg( void )
 		else scnp = ( unsigned int* ) realloc( scnp, ( scnc + 2 ) * sizeof( int ) );
 		if ( scnp == NULL ) {
 			sprintf( errormessage, MEM_ERRMSG );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 		
@@ -1914,7 +1915,7 @@ bool recode_jpeg( void )
             }
 			if ( rstp == NULL ) {
 				sprintf( errormessage, MEM_ERRMSG );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 		}		
@@ -1955,11 +1956,11 @@ bool recode_jpeg( void )
 					while ( sta == 0 ) {
 						// copy from colldata
 						for ( bpos = 0; bpos < 64; bpos++ )
-							block[ bpos ] = colldata( cmp , bpos , dpos );
+							block[ bpos ] = colldata.at( cmp , bpos , dpos );
 						
 						// diff coding for dc
 						block[ 0 ] -= lastdc[ cmp ];
-						lastdc[ cmp ] = colldata( cmp , 0 , dpos );
+						lastdc[ cmp ] = colldata.at( cmp , 0 , dpos );
 						
 						// encode block
 						eob = encode_block_seq( huffw,
@@ -1980,7 +1981,7 @@ bool recode_jpeg( void )
 					// ---> succesive approximation first stage <---
 					while ( sta == 0 ) {
 						// diff coding & bitshifting for dc 
-						tmp = colldata( cmp , 0 , dpos ) >> cs_sal;
+						tmp = colldata.at( cmp , 0 , dpos ) >> cs_sal;
 						block[ 0 ] = tmp - lastdc[ cmp ];
 						lastdc[ cmp ] = tmp;
 						
@@ -2002,7 +2003,7 @@ bool recode_jpeg( void )
 					// ---> succesive approximation later stage <---
 					while ( sta == 0 ) {
 						// fetch bit from current bitplane
-						block[ 0 ] = BITN( colldata( cmp , 0 , dpos ), cs_sal );
+						block[ 0 ] = BITN( colldata.at( cmp , 0 , dpos ), cs_sal );
 						
 						// encode dc correction bit
 						sta = encode_dc_prg_sa( huffw, block );
@@ -2024,11 +2025,11 @@ bool recode_jpeg( void )
 					while ( sta == 0 ) {
 						// copy from colldata
 						for ( bpos = 0; bpos < 64; bpos++ )
-							block[ bpos ] = colldata( cmp , bpos , dpos );
+							block[ bpos ] = colldata.at( cmp , bpos , dpos );
 						
 						// diff coding for dc
 						block[ 0 ] -= lastdc[ cmp ];
-						lastdc[ cmp ] = colldata( cmp , 0 , dpos );
+						lastdc[ cmp ] = colldata.at( cmp , 0 , dpos );
 						
 						// encode block
 						eob = encode_block_seq( huffw,
@@ -2051,7 +2052,7 @@ bool recode_jpeg( void )
 						// ---> succesive approximation first stage <---
 						while ( sta == 0 ) {
 							// diff coding & bitshifting for dc 
-							tmp = colldata( cmp , 0 , dpos ) >> cs_sal;
+							tmp = colldata.at( cmp , 0 , dpos ) >> cs_sal;
 							block[ 0 ] = tmp - lastdc[ cmp ];
 							lastdc[ cmp ] = tmp;
 							
@@ -2074,7 +2075,7 @@ bool recode_jpeg( void )
 						// ---> succesive approximation later stage <---
 						while ( sta == 0 ) {
 							// fetch bit from current bitplane
-							block[ 0 ] = BITN( colldata( cmp , 0 , dpos ), cs_sal );
+							block[ 0 ] = BITN( colldata.at( cmp , 0 , dpos ), cs_sal );
 							
 							// encode dc correction bit
 							sta = encode_dc_prg_sa( huffw, block );
@@ -2096,7 +2097,7 @@ bool recode_jpeg( void )
 							// copy from colldata
 							for ( bpos = cs_from; bpos <= cs_to; bpos++ )
 								block[ bpos ] =
-									FDIV2( colldata( cmp , bpos , dpos ), cs_sal );
+									FDIV2( colldata.at( cmp , bpos , dpos ), cs_sal );
 							
 							// encode block
 							eob = encode_ac_prg_fs( huffw,
@@ -2124,7 +2125,7 @@ bool recode_jpeg( void )
 							// copy from colldata
 							for ( bpos = cs_from; bpos <= cs_to; bpos++ )
 								block[ bpos ] =
-									FDIV2( colldata( cmp , bpos , dpos ), cs_sal );
+									FDIV2( colldata.at( cmp , bpos , dpos ), cs_sal );
 							
 							// encode block
 							eob = encode_ac_prg_sa( huffw, storw,
@@ -2159,7 +2160,7 @@ bool recode_jpeg( void )
 				sprintf( errormessage, "encode error in scan%i / mcu%i",
 					scnc, ( cs_cmpc > 1 ) ? mcu : dpos );
 				delete huffw;
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			else if ( sta == 2 ) { // status 2 means done
@@ -2182,7 +2183,7 @@ bool recode_jpeg( void )
 	if ( huffw->error ) {
 		delete huffw;
 		sprintf( errormessage, MEM_ERRMSG );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2248,11 +2249,11 @@ bool check_value_range( void )
 	for ( bpos = 0; bpos < 64; bpos++ ) {		
 		absmax = MAX_V( cmp, bpos );
 		for ( dpos = 0; dpos < cmpnfo[cmp].bc; dpos++ )
-            if ( ( colldata(cmp,bpos,dpos) > absmax ) ||
-                 ( colldata(cmp,bpos,dpos) < -absmax ) ) {
+            if ( ( colldata.at_nosync(cmp,bpos,dpos) > absmax ) ||
+                 ( colldata.at_nosync(cmp,bpos,dpos) < -absmax ) ) {
 			sprintf( errormessage, "value out of range error: cmp%i, frq%i, val %i, max %i",
-                     cmp, bpos, colldata(cmp,bpos,dpos), absmax );
-			errorlevel = 2;
+                     cmp, bpos, colldata.at_nosync(cmp,bpos,dpos), absmax );
+			errorlevel.store(2);
 			return false;
 		}
 	}
@@ -2326,14 +2327,14 @@ bool write_ujpg( void )
 		sprintf( ujpg_mrk, "CMP%i", cmp );
 		str_out->write( (void*) ujpg_mrk, 1, 4 );
 		// data: coefficient data in zigzag collection order
-        str_out->write( (void*) colldata.full_component( cmp ), sizeof( short ), colldata.component_size_in_shorts(cmp));
+        str_out->write( (void*) colldata.full_component_write( cmp ), sizeof( short ), colldata.component_size_in_shorts(cmp));
 	}
 
 	
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
 		sprintf( errormessage, "write error, possibly drive is full" );
-		errorlevel = 2;		
+		errorlevel.store(2);		
 		return false;
 	}
 	
@@ -2351,16 +2352,16 @@ bool write_ujpg( void )
 	
 bool read_ujpg( void )
 {
+//    colldata.start_decoder_worker_thread(std::bind(&simple_decoder, &colldata, str_in));
 	char ujpg_mrk[ 64 ];
-	int cmp;
-	
+	// this is where we will enable seccomp, before reading user data
 	
 	// check version number
 	str_in->read( ujpg_mrk, 1, 1 );
 	if ( ujpg_mrk[ 0 ] != ujgversion ) {
 		sprintf( errormessage, "incompatible file, use %s v%i.%i",
 			appname, ujpg_mrk[ 0 ] / 10, ujpg_mrk[ 0 ] % 10 );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2374,7 +2375,7 @@ bool read_ujpg( void )
 		hdrdata = (unsigned char*) calloc( hdrs, sizeof( char ) );
 		if ( hdrdata == NULL ) {
 			sprintf( errormessage, MEM_ERRMSG );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 		// read hdrdata
@@ -2382,7 +2383,7 @@ bool read_ujpg( void )
 	}
 	else {
 		sprintf( errormessage, "HDR marker not found" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2401,7 +2402,7 @@ bool read_ujpg( void )
 	}
 	else {
 		sprintf( errormessage, "PAD marker not found" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2414,7 +2415,7 @@ bool read_ujpg( void )
 			rst_err = (unsigned char*) calloc( scnc, sizeof( char ) );
 			if ( rst_err == NULL ) {
 				sprintf( errormessage, MEM_ERRMSG );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			// read data
@@ -2426,7 +2427,7 @@ bool read_ujpg( void )
 			grbgdata = (unsigned char*) calloc( grbs, sizeof( char ) );
 			if ( grbgdata == NULL ) {
 				sprintf( errormessage, MEM_ERRMSG );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			// read garbage data
@@ -2437,34 +2438,13 @@ bool read_ujpg( void )
                 break;
             } else {
                 sprintf( errormessage, "unknown data found" );
-                errorlevel = 2;
+                errorlevel.store(2);
             }
 			return false;
 		}
 	}
-
-	// read actual decompressed coefficient data from file
-	for ( cmp = 0; cmp < cmpc; cmp++ ) {
-        if (cmp != 0) {
-            str_in->read( ujpg_mrk, 1, 4 );
-        } else {
-            str_in->read( ujpg_mrk + 3, 1, 1 );
-        }
-		// check marker
-		if ( strncmp( ujpg_mrk, "CMP", 3 ) == 0 ) {
-			// read coefficient data from file
-			if ( str_in->read( colldata.full_component( cmp ), int(sizeof( short )), colldata.component_size_in_shorts(cmp)) != (int)colldata.component_size_in_shorts(cmp)) {
-				sprintf( errormessage, "unexpected end of file" );
-				errorlevel = 2;
-				return false;
-			}
-		}
-		else {
-			sprintf( errormessage, "CMP%i marker not found", cmp );
-			errorlevel = 2;
-			return false;
-		}
-	}
+    colldata.signal_worker_should_begin();
+    colldata.start_decoder_worker_thread(std::bind(&SimpleComponentDecoder::simple_continuous_decoder, &colldata, str_in));
 	
 	// get filesize
 	ujgfilesize = str_in->getsize();
@@ -2483,6 +2463,7 @@ bool swap_streams( void )
 	
 	// store input stream
 	str_str = str_in;
+    assert(false &&  "unimpl");
 	str_str->rewind();
 	
 	// replace input stream by output stream / switch mode for reading / read first bytes
@@ -2494,7 +2475,7 @@ bool swap_streams( void )
 	str_out = new iostream( (void*) tmpfilename, 0, 0, 1 );
 	if ( str_out->chkerr() ) {
 		sprintf( errormessage, "error opening comparison stream" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2521,7 +2502,7 @@ bool compare_output( void )
 	buff_cmp = ( unsigned char* ) calloc( bsize, sizeof( char ) );
 	if ( ( buff_ori == NULL ) || ( buff_cmp == NULL ) ) {
 		sprintf( errormessage, MEM_ERRMSG );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2535,7 +2516,7 @@ bool compare_output( void )
 		else if ( str_str->chkerr() )
 			sprintf( errormessage, "error in input stream" );
 		else break;
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2543,7 +2524,7 @@ bool compare_output( void )
 	dsize = str_str->getsize();
 	if ( str_out->getsize() != dsize ) {
 		sprintf( errormessage, "file sizes do not match" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	
@@ -2556,7 +2537,7 @@ bool compare_output( void )
 		}
 		if ( buff_ori[ b ] != buff_cmp[ b ] ) {
 			sprintf( errormessage, "difference found at 0x%X", i );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 	}
@@ -2678,7 +2659,7 @@ bool setup_imginfo_jpg( void )
 	// check if information is complete
 	if ( cmpc == 0 ) {
 		sprintf( errormessage, "header contains incomplete information" );
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	for ( cmp = 0; cmp < cmpc; cmp++ ) {
@@ -2688,7 +2669,7 @@ bool setup_imginfo_jpg( void )
 			 ( cmpnfo[cmp].qtable[0] == 0 ) ||
 			 ( jpegtype == 0 ) ) {
 			sprintf( errormessage, "header information is incomplete" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 	}
@@ -2765,7 +2746,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			if ( hpos != len ) {
 				// if we get here, something went wrong
 				sprintf( errormessage, "size mismatch in dht marker" );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			return true;
@@ -2798,7 +2779,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			if ( hpos != len ) {
 				// if we get here, something went wrong
 				sprintf( errormessage, "size mismatch in dqt marker" );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			return true;
@@ -2814,7 +2795,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			if ( cs_cmpc > cmpc ) {
 				sprintf( errormessage, "%i components in scan, only %i are allowed",
 							cs_cmpc, cmpc );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			hpos++;
@@ -2822,7 +2803,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 				for ( cmp = 0; ( segment[ hpos ] != cmpnfo[ cmp ].jid ) && ( cmp < cmpc ); cmp++ );
 				if ( cmp == cmpc ) {
 					sprintf( errormessage, "component id mismatch in start-of-scan" );
-					errorlevel = 2;
+					errorlevel.store(2);
 					return false;
 				}
 				cs_cmp[ i ] = cmp;
@@ -2831,7 +2812,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 				if ( ( cmpnfo[ cmp ].huffdc < 0 ) || ( cmpnfo[ cmp ].huffdc >= 4 ) ||
 					 ( cmpnfo[ cmp ].huffac < 0 ) || ( cmpnfo[ cmp ].huffac >= 4 ) ) {
 					sprintf( errormessage, "huffman table number mismatch" );
-					errorlevel = 2;
+					errorlevel.store(2);
 					return false;
 				}
 				hpos += 2;
@@ -2843,12 +2824,12 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			// check for errors
 			if ( ( cs_from > cs_to ) || ( cs_from > 63 ) || ( cs_to > 63 ) ) {
 				sprintf( errormessage, "spectral selection parameter out of range" );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			if ( ( cs_sah >= 12 ) || ( cs_sal >= 12 ) ) {
 				sprintf( errormessage, "successive approximation parameter out of range" );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			return true;
@@ -2872,7 +2853,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			lval = segment[ hpos ];
 			if ( lval != 8 ) {
 				sprintf( errormessage, "%i bit data precision is not supported", lval );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			
@@ -2882,7 +2863,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			cmpc      = segment[ hpos + 5 ];
 			if ( cmpc > 4 ) {
 				sprintf( errormessage, "image has %i components, max 4 are supported", cmpc );
-				errorlevel = 2;
+				errorlevel.store(2);
 				return false;
 			}
 			
@@ -2901,61 +2882,61 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 		case 0xC3: // SOF3 segment
 			// coding process: lossless sequential
 			sprintf( errormessage, "sof3 marker found, image is coded lossless" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		
 		case 0xC5: // SOF5 segment
 			// coding process: differential sequential DCT
 			sprintf( errormessage, "sof5 marker found, image is coded diff. sequential" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		
 		case 0xC6: // SOF6 segment
 			// coding process: differential progressive DCT
 			sprintf( errormessage, "sof6 marker found, image is coded diff. progressive" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		
 		case 0xC7: // SOF7 segment
 			// coding process: differential lossless
 			sprintf( errormessage, "sof7 marker found, image is coded diff. lossless" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		case 0xC9: // SOF9 segment
 			// coding process: arithmetic extended sequential DCT
 			sprintf( errormessage, "sof9 marker found, image is coded arithm. sequential" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		case 0xCA: // SOF10 segment
 			// coding process: arithmetic extended sequential DCT
 			sprintf( errormessage, "sof10 marker found, image is coded arithm. progressive" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		case 0xCB: // SOF11 segment
 			// coding process: arithmetic extended sequential DCT
 			sprintf( errormessage, "sof11 marker found, image is coded arithm. lossless" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		case 0xCD: // SOF13 segment
 			// coding process: arithmetic differntial sequential DCT
 			sprintf( errormessage, "sof13 marker found, image is coded arithm. diff. sequential" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		case 0xCE: // SOF14 segment
 			// coding process: arithmetic differential progressive DCT
 			sprintf( errormessage, "sof14 marker found, image is coded arithm. diff. progressive" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		
 		case 0xCF: // SOF15 segment
 			// coding process: arithmetic differntial lossless
 			sprintf( errormessage, "sof15 marker found, image is coded arithm. diff. lossless" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		case 0xE0: // APP0 segment	
@@ -2988,25 +2969,25 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 		case 0xD7: // RST7 segment
 			// return errormessage - RST is out of place here
 			sprintf( errormessage, "rst marker found out of place" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		
 		case 0xD8: // SOI segment
 			// return errormessage - start-of-image is out of place here
 			sprintf( errormessage, "soi marker found out of place" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		
 		case 0xD9: // EOI segment
 			// return errormessage - end-of-image is out of place here
 			sprintf( errormessage, "eoi marker found out of place" );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 			
 		default: // unknown marker segment
 			// return warning
 			sprintf( errormessage, "unknown marker found: FF %2X", type );
-			errorlevel = 1;
+			errorlevel.store(1);
 			return true;
 	}
 }
@@ -4081,70 +4062,70 @@ float idct_2d_fst_8x8( int cmp, int dpos, int ix, int iy )
 	ixy = ( ( iy * 8 ) + ix ) * 64;
 	
 	// begin transform
-	idct += colldata( cmp ,  0 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 0 ];
-	idct += colldata( cmp ,  1 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 1 ];
-	idct += colldata( cmp ,  5 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 2 ];
-	idct += colldata( cmp ,  6 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 3 ];
-	idct += colldata( cmp , 14 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 4 ];
-	idct += colldata( cmp , 15 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 5 ];
-	idct += colldata( cmp , 27 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 6 ];
-	idct += colldata( cmp , 28 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 7 ];
-	idct += colldata( cmp ,  2 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 8 ];
-	idct += colldata( cmp ,  4 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 9 ];
-	idct += colldata( cmp ,  7 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 10 ];
-	idct += colldata( cmp , 13 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 11 ];
-	idct += colldata( cmp , 16 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 12 ];
-	idct += colldata( cmp , 26 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 13 ];
-	idct += colldata( cmp , 29 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 14 ];
-	idct += colldata( cmp , 42 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 15 ];
-	idct += colldata( cmp ,  3 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 16 ];
-	idct += colldata( cmp ,  8 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 17 ];
-	idct += colldata( cmp , 12 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 18 ];
-	idct += colldata( cmp , 17 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 19 ];
-	idct += colldata( cmp , 25 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 20 ];
-	idct += colldata( cmp , 30 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 21 ];
-	idct += colldata( cmp , 41 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 22 ];
-	idct += colldata( cmp , 43 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 23 ];
-	idct += colldata( cmp ,  9 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 24 ];
-	idct += colldata( cmp , 11 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 25 ];
-	idct += colldata( cmp , 18 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 26 ];
-	idct += colldata( cmp , 24 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 27 ];
-	idct += colldata( cmp , 31 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 28 ];
-	idct += colldata( cmp , 40 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 29 ];
-	idct += colldata( cmp , 44 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 30 ];
-	idct += colldata( cmp , 53 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 31 ];
-	idct += colldata( cmp , 10 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 32 ];
-	idct += colldata( cmp , 19 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 33 ];
-	idct += colldata( cmp , 23 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 34 ];
-	idct += colldata( cmp , 32 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 35 ];
-	idct += colldata( cmp , 39 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 36 ];
-	idct += colldata( cmp , 45 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 37 ];
-	idct += colldata( cmp , 52 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 38 ];
-	idct += colldata( cmp , 54 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 39 ];
-	idct += colldata( cmp , 20 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 40 ];
-	idct += colldata( cmp , 22 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 41 ];
-	idct += colldata( cmp , 33 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 42 ];
-	idct += colldata( cmp , 38 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 43 ];
-	idct += colldata( cmp , 46 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 44 ];
-	idct += colldata( cmp , 51 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 45 ];
-	idct += colldata( cmp , 55 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 46 ];
-	idct += colldata( cmp , 60 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 47 ];
-	idct += colldata( cmp , 21 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 48 ];
-	idct += colldata( cmp , 34 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 49 ];
-	idct += colldata( cmp , 37 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 50 ];
-	idct += colldata( cmp , 47 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 51 ];
-	idct += colldata( cmp , 50 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 52 ];
-	idct += colldata( cmp , 56 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 53 ];
-	idct += colldata( cmp , 59 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 54 ];
-	idct += colldata( cmp , 61 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 55 ];
-	idct += colldata( cmp , 35 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 56 ];
-	idct += colldata( cmp , 36 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 57 ];
-	idct += colldata( cmp , 48 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 58 ];
-	idct += colldata( cmp , 49 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 59 ];
-	idct += colldata( cmp , 57 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 60 ];
-	idct += colldata( cmp , 58 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 61 ];
-	idct += colldata( cmp , 62 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 62 ];
-	idct += colldata( cmp , 63 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 63 ];
+	idct += colldata.at_nosync( cmp ,  0 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 0 ];
+	idct += colldata.at_nosync( cmp ,  1 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 1 ];
+	idct += colldata.at_nosync( cmp ,  5 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 2 ];
+	idct += colldata.at_nosync( cmp ,  6 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 3 ];
+	idct += colldata.at_nosync( cmp , 14 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 4 ];
+	idct += colldata.at_nosync( cmp , 15 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 5 ];
+	idct += colldata.at_nosync( cmp , 27 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 6 ];
+	idct += colldata.at_nosync( cmp , 28 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 7 ];
+	idct += colldata.at_nosync( cmp ,  2 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 8 ];
+	idct += colldata.at_nosync( cmp ,  4 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 9 ];
+	idct += colldata.at_nosync( cmp ,  7 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 10 ];
+	idct += colldata.at_nosync( cmp , 13 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 11 ];
+	idct += colldata.at_nosync( cmp , 16 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 12 ];
+	idct += colldata.at_nosync( cmp , 26 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 13 ];
+	idct += colldata.at_nosync( cmp , 29 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 14 ];
+	idct += colldata.at_nosync( cmp , 42 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 15 ];
+	idct += colldata.at_nosync( cmp ,  3 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 16 ];
+	idct += colldata.at_nosync( cmp ,  8 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 17 ];
+	idct += colldata.at_nosync( cmp , 12 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 18 ];
+	idct += colldata.at_nosync( cmp , 17 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 19 ];
+	idct += colldata.at_nosync( cmp , 25 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 20 ];
+	idct += colldata.at_nosync( cmp , 30 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 21 ];
+	idct += colldata.at_nosync( cmp , 41 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 22 ];
+	idct += colldata.at_nosync( cmp , 43 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 23 ];
+	idct += colldata.at_nosync( cmp ,  9 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 24 ];
+	idct += colldata.at_nosync( cmp , 11 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 25 ];
+	idct += colldata.at_nosync( cmp , 18 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 26 ];
+	idct += colldata.at_nosync( cmp , 24 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 27 ];
+	idct += colldata.at_nosync( cmp , 31 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 28 ];
+	idct += colldata.at_nosync( cmp , 40 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 29 ];
+	idct += colldata.at_nosync( cmp , 44 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 30 ];
+	idct += colldata.at_nosync( cmp , 53 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 31 ];
+	idct += colldata.at_nosync( cmp , 10 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 32 ];
+	idct += colldata.at_nosync( cmp , 19 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 33 ];
+	idct += colldata.at_nosync( cmp , 23 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 34 ];
+	idct += colldata.at_nosync( cmp , 32 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 35 ];
+	idct += colldata.at_nosync( cmp , 39 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 36 ];
+	idct += colldata.at_nosync( cmp , 45 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 37 ];
+	idct += colldata.at_nosync( cmp , 52 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 38 ];
+	idct += colldata.at_nosync( cmp , 54 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 39 ];
+	idct += colldata.at_nosync( cmp , 20 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 40 ];
+	idct += colldata.at_nosync( cmp , 22 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 41 ];
+	idct += colldata.at_nosync( cmp , 33 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 42 ];
+	idct += colldata.at_nosync( cmp , 38 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 43 ];
+	idct += colldata.at_nosync( cmp , 46 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 44 ];
+	idct += colldata.at_nosync( cmp , 51 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 45 ];
+	idct += colldata.at_nosync( cmp , 55 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 46 ];
+	idct += colldata.at_nosync( cmp , 60 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 47 ];
+	idct += colldata.at_nosync( cmp , 21 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 48 ];
+	idct += colldata.at_nosync( cmp , 34 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 49 ];
+	idct += colldata.at_nosync( cmp , 37 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 50 ];
+	idct += colldata.at_nosync( cmp , 47 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 51 ];
+	idct += colldata.at_nosync( cmp , 50 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 52 ];
+	idct += colldata.at_nosync( cmp , 56 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 53 ];
+	idct += colldata.at_nosync( cmp , 59 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 54 ];
+	idct += colldata.at_nosync( cmp , 61 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 55 ];
+	idct += colldata.at_nosync( cmp , 35 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 56 ];
+	idct += colldata.at_nosync( cmp , 36 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 57 ];
+	idct += colldata.at_nosync( cmp , 48 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 58 ];
+	idct += colldata.at_nosync( cmp , 49 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 59 ];
+	idct += colldata.at_nosync( cmp , 57 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 60 ];
+	idct += colldata.at_nosync( cmp , 58 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 61 ];
+	idct += colldata.at_nosync( cmp , 62 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 62 ];
+	idct += colldata.at_nosync( cmp , 63 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 63 ];
 	
 	
 	return idct;
@@ -4164,14 +4145,14 @@ float idct_2d_fst_8x1( int cmp, int dpos, int ix, int iy )
 	ixy = ix * 8;
 	
 	// begin transform
-	idct += colldata( cmp ,  0 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 0 ];
-	idct += colldata( cmp ,  1 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 1 ];
-	idct += colldata( cmp ,  5 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 2 ];
-	idct += colldata( cmp ,  6 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 3 ];
-	idct += colldata( cmp , 14 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 4 ];
-	idct += colldata( cmp , 15 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 5 ];
-	idct += colldata( cmp , 27 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 6 ];
-	idct += colldata( cmp , 28 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 7 ];
+	idct += colldata.at_nosync( cmp ,  0 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 0 ];
+	idct += colldata.at_nosync( cmp ,  1 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 1 ];
+	idct += colldata.at_nosync( cmp ,  5 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 2 ];
+	idct += colldata.at_nosync( cmp ,  6 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 3 ];
+	idct += colldata.at_nosync( cmp , 14 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 4 ];
+	idct += colldata.at_nosync( cmp , 15 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 5 ];
+	idct += colldata.at_nosync( cmp , 27 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 6 ];
+	idct += colldata.at_nosync( cmp , 28 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 7 ];
 	
 	
 	return idct;
@@ -4191,14 +4172,14 @@ float idct_2d_fst_1x8( int cmp, int dpos, int ix, int iy )
 	ixy = iy * 8;
 	
 	// begin transform
-	idct += colldata( cmp ,  0 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 0 ];
-	idct += colldata( cmp ,  2 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 1 ];
-	idct += colldata( cmp ,  3 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 2 ];
-	idct += colldata( cmp ,  9 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 3 ];
-	idct += colldata( cmp , 10 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 4 ];
-	idct += colldata( cmp , 20 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 5 ];
-	idct += colldata( cmp , 21 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 6 ];
-	idct += colldata( cmp , 35 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 7 ];
+	idct += colldata.at_nosync( cmp ,  0 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 0 ];
+	idct += colldata.at_nosync( cmp ,  2 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 1 ];
+	idct += colldata.at_nosync( cmp ,  3 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 2 ];
+	idct += colldata.at_nosync( cmp ,  9 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 3 ];
+	idct += colldata.at_nosync( cmp , 10 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 4 ];
+	idct += colldata.at_nosync( cmp , 20 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 5 ];
+	idct += colldata.at_nosync( cmp , 21 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 6 ];
+	idct += colldata.at_nosync( cmp , 35 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 7 ];
 	
 	
 	return idct;
@@ -4346,7 +4327,7 @@ bool write_coll( void )
 		fp = fopen( fn, "wb" );
 		if ( fp == NULL ){
 			sprintf( errormessage, FWR_ERRMSG, fn);
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 		free( fn );
@@ -4356,12 +4337,13 @@ bool write_coll( void )
 			case 0: // standard collections
 				for ( bpos = 0; bpos < 64; bpos++ )
                     for ( dpos = 0; dpos < cmpnfo[cmp].bc; ++dpos) {
-						fwrite( &colldata(cmp,bpos,dpos), sizeof( short ), 1, fp );
+                        signed short val = colldata.at_nosync(cmp,bpos,dpos);
+						fwrite( &val, sizeof( short ), 1, fp );
                     }
 				break;
 				
 			case 1: // sequential order collections, 'dhufs'
-                fwrite( colldata.full_component(cmp), colldata.component_size_in_bytes(cmp), 1, fp );
+                fwrite( colldata.full_component_nosync(cmp), colldata.component_size_in_bytes(cmp), 1, fp );
 				break;
 				
 			case 2: // square collections
@@ -4369,7 +4351,8 @@ bool write_coll( void )
 				for ( i = 0; i < 64; ) {
 					bpos = zigzag[ i++ ];
                     for ( j = 0; j < cmpnfo[cmp].bch; ++j) {
-                        fwrite( &(colldata(cmp,bpos,dpos + j)), sizeof( short ),
+                        signed short val = colldata.at_nosync(cmp,bpos,dpos + j);
+                        fwrite( &(val), sizeof( short ),
                                 cmpnfo[cmp].bch, fp );
                     }
 					if ( ( i % 8 ) == 0 ) {
@@ -4389,7 +4372,8 @@ bool write_coll( void )
 				for ( j = 0; j < ( cmpnfo[cmp].bch * 8 ); j++ ) {
 					bpos = zigzag[ ( ( i % 8 ) * 8 ) + ( j % 8 ) ];
 					dpos = ( ( i / 8 ) * cmpnfo[cmp].bch ) + ( j / 8 );
-					fwrite( &(colldata(cmp,bpos,dpos)), sizeof( short ), 1, fp );
+                    signed short val = colldata.at_nosync(cmp,bpos,dpos);
+					fwrite( &(val), sizeof( short ), 1, fp );
 				}
 				break;
 		}
@@ -4416,7 +4400,7 @@ bool write_file( const char* base, const char* ext, void* data, int bpv, int siz
 	fp = fopen( fn, "wb" );	
 	if ( fp == NULL ) {
 		sprintf( errormessage, FWR_ERRMSG, fn);
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	free( fn );
@@ -4453,13 +4437,13 @@ bool write_errfile( void )
 	fp = fopen( fn, "w" );
 	if ( fp == NULL ){
 		sprintf( errormessage, FWR_ERRMSG, fn);
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	free( fn );
 	
 	// write status and errormessage to file
-	fprintf( fp, "--> error (level %i) in file \"%s\" <--\n", errorlevel, basfilename );
+	fprintf( fp, "--> error (level %i) in file \"%s\" <--\n", errorlevel.load(), basfilename );
 	fprintf( fp, "\n" );
 	// write error specification to file
 	get_status( errorfunction );
@@ -4498,7 +4482,7 @@ bool write_info( void )
 	fp = fopen( fn, "w" );
 	if ( fp == NULL ){
 		sprintf( errormessage, FWR_ERRMSG, fn);
-		errorlevel = 2;
+		errorlevel.store(2);
 		return false;
 	}
 	free( fn );
@@ -4588,7 +4572,7 @@ bool write_pgm( void )
 		fp = fopen( fn, "wb" );		
 		if ( fp == NULL ){
 			sprintf( errormessage, FWR_ERRMSG, fn );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 		free( fn );
@@ -4597,7 +4581,7 @@ bool write_pgm( void )
 		imgdata = (unsigned char*) calloc ( cmpnfo[cmp].bc * 64, sizeof( char ) );
 		if ( imgdata == NULL ) {
 			sprintf( errormessage, MEM_ERRMSG );
-			errorlevel = 2;
+			errorlevel.store(2);
 			return false;
 		}
 		
