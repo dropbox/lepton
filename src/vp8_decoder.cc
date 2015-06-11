@@ -7,21 +7,32 @@
 #include "jpgcoder.hh"
 #include "vp8_decoder.hh"
 VP8ComponentDecoder::VP8ComponentDecoder() {
+    str_in = NULL;
     for (int i = 0; i < 4; ++i) {
         cur_read_batch[i] = 0;
         started_scan[i] = false;
     }
     cmp = 0;
 }
+
+void VP8ComponentDecoder::initialize(iostream *input) {
+    str_in = input;
+}
+
+CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents *dst) {
+    return vp8_decoder(dst, str_in);
+}
+
 void VP8ComponentDecoder::vp8_continuous_decoder(UncompressedComponents* colldata, iostream *str_in) {
     colldata->worker_wait_for_begin_signal();
 
     VP8ComponentDecoder scd;
-    while(scd.vp8_decoder(colldata, str_in) == DECODER_PARTIAL) {
+    scd.initialize(str_in);
+    while(scd.decode_chunk(colldata) == CODING_PARTIAL) {
         
     }
 }
-DecoderReturnValue VP8ComponentDecoder::vp8_decoder(UncompressedComponents* colldata, iostream *str_in) {
+CodingReturnValue VP8ComponentDecoder::vp8_decoder(UncompressedComponents* colldata, iostream *str_in) {
     
 	char ujpg_mrk[ 64 ] = "CMP";
     int batch_size = 1600;
@@ -39,7 +50,7 @@ DecoderReturnValue VP8ComponentDecoder::vp8_decoder(UncompressedComponents* coll
         if (strncmp( ujpg_mrk, "CMP", 3 ) != 0) {
             sprintf( errormessage, "CMP%i marker not found", cmp );
             errorlevel = 2;    
-            return DECODER_ERROR;
+            return CODING_ERROR;
         }
     }
     {
@@ -52,19 +63,19 @@ DecoderReturnValue VP8ComponentDecoder::vp8_decoder(UncompressedComponents* coll
             if (retval != cur_read_size) {
                 sprintf( errormessage, "unexpected end of file blocks %ld !=  %d", retval, cur_read_size);
                 errorlevel = 2;
-                return DECODER_ERROR;
+                return CODING_ERROR;
             }
             cur_read_batch[cmp] += cur_read_size;
             colldata->worker_update_cmp_progress(cmp, cur_read_size);
             if (cur_read_batch[cmp] < target) {
-                return DECODER_PARTIAL;
+                return CODING_PARTIAL;
             }
         }
     }
     if (cmp < cmpc) {
         ++cmp;
-        return DECODER_PARTIAL;
+        return CODING_PARTIAL;
     } else {
-        return DECODER_DONE;
+        return CODING_DONE;
     }
 }

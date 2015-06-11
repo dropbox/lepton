@@ -301,6 +301,9 @@ int    ujgfilesize;			// size of UJG file
 int    jpegtype = 0;		// type of JPEG coding: 0->unknown, 1->sequential, 2->progressive
 F_TYPE filetype;			// type of current file
 
+BaseEncoder *g_encoder = NULL;
+BaseDecoder *g_decoder = NULL;
+
 iostream* str_in  = NULL;	// input stream
 iostream* str_out = NULL;	// output stream
 iostream* str_str = NULL;	// storage stream
@@ -365,6 +368,8 @@ static const char   ujg_header[] = { 'U', 'J' };
 
 int main( int argc, char** argv )
 {	
+    g_encoder = new VP8ComponentEncoder;
+    g_decoder = new VP8ComponentDecoder;
 	sprintf( statusmessage, "no statusmessage specified" );
 	sprintf( errormessage, "no errormessage specified" );
 	
@@ -2322,9 +2327,10 @@ bool write_ujpg( void )
 		// data: garbage data
 		str_out->write( (void*) grbgdata, sizeof( char ), grbs );
 	}
-	
-    VP8ComponentEncoder::vp8_full_encoder(&colldata, str_out);
-
+	{
+        while (g_encoder->encode_chunk(&colldata, str_out) == CODING_PARTIAL) {
+        }
+    }
 	
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
@@ -2439,7 +2445,9 @@ bool read_ujpg( void )
 		}
 	}
     colldata.signal_worker_should_begin();
-    colldata.start_decoder_worker_thread(std::bind(&VP8ComponentDecoder::vp8_continuous_decoder, &colldata, str_in));
+    g_decoder->initialize(str_in);
+    colldata.start_decoder_worker_thread(std::bind(&BaseDecoder::generic_continuous_decoder,
+                                                   g_decoder, &colldata));
 	
 	// get filesize
 	ujgfilesize = str_in->getsize();

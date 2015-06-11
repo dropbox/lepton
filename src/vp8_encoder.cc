@@ -11,6 +11,10 @@
 
 using namespace std;
 
+CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input, ::iostream *output) {
+    vp8_full_encoder(input, output);
+    return CODING_DONE;
+}
 void VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                             ::iostream * const str_out)
 {

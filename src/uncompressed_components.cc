@@ -21,7 +21,7 @@ void UncompressedComponents::init(componentInfo cmpinfo[ 4 ], int cmpc) {
         }
 }
 
-void UncompressedComponents::start_decoder_worker_thread(const std::function<void()> &f) {
+void UncompressedComponents::start_decoder_worker_thread(const std::function<CodingReturnValue()> &f) {
     std::thread thread(f);
 //    thread.detach();
     thread.join();

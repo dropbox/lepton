@@ -4,6 +4,7 @@
 #include <functional>
 #include <string.h>
 #include <mutex>
+#include "base_coders.hh"
 struct componentInfo;
 enum DecoderReturnValue {
     DECODER_ERROR,
@@ -60,7 +61,7 @@ public:
         }
     }
     void init(componentInfo cmpinfo[ 4 ], int cmpc);
-    void start_decoder_worker_thread(const std::function<void()> &decoder_worker);
+    void start_decoder_worker_thread(const std::function<CodingReturnValue()> &decoder_worker);
     void wait_for_worker(int cmp, int bpos, int dpos, int bit=15) {
         if (bpos < last_band_progress_ && dpos < last_component_progress_[cmp] && bit < last_bit_progress_) {
             return;

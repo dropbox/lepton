@@ -2,7 +2,7 @@
 #include "base_coders.hh"
 class iostream;
 
-class SimpleComponentDecoder : BaseDecoder {
+class SimpleComponentDecoder : public BaseDecoder {
     bool started_scan[4];
     int cmp;
     int cur_read_batch[4];
