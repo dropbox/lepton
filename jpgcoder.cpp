@@ -5,8 +5,8 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <ctime>
-
-#if defined(UNIX) || defined (__LINUX__)
+#include <atomic>
+#ifndef _WIN32
 	#include <unistd.h>
 #else
 	#include <io.h>
@@ -14,7 +14,8 @@
 
 #include "bitops.h"
 #include "htables.h"
-
+#include "component_info.h"
+#include "uncompressed_components.h"
 
 
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
@@ -50,23 +51,6 @@ enum ACTION { 	comp  =  1, split =  2, coll  =  3,
 				info  =  4,	pgm   =  8	};
 				
 enum F_TYPE {   JPEG = 0, UJG = 1, UNK = 2		};
-
-struct componentInfo {
-	unsigned short* qtable; // quantization table
-	int huffdc; // no of huffman table (DC)
-	int huffac; // no of huffman table (AC)
-	int sfv; // sample factor vertical
-	int sfh; // sample factor horizontal	
-	int mbs; // blocks in mcu		
-	int bcv; // block count vertical (interleaved)
-	int bch; // block count horizontal (interleaved)
-	int bc;  // block count (all) (interleaved)
-	int ncv; // block count vertical (non interleaved)
-	int nch; // block count horizontal (non interleaved)
-	int nc;  // block count (all) (non interleaved)
-	int sid; // statistical identity
-	int jid; // jpeg internal id
-};
 
 struct huffCodes {
 	unsigned short cval[ 256 ];
@@ -237,7 +221,6 @@ unsigned short qtables[4][64];				// quantization tables
 huffCodes      hcodes[2][4];				// huffman codes
 huffTree       htrees[2][4];				// huffman decoding trees
 unsigned char  htset[2][4];					// 1 if huffman table is set
-
 unsigned char* grbgdata			= 	NULL;	// garbage data
 unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
@@ -255,88 +238,6 @@ char           padbit           =    -1 ;   // padbit (for huffman coding)
 unsigned char* rst_err			=   NULL;   // number of wrong-set RST markers per scan
 
 
-class CollData {
-    signed short *cmpoffset_[4]; // pointers to the beginning of each component
-    int bch_[4];
-    int bcv_[4];
-    signed short *colldata_; // we may want to swizzle this for locality
-    int allocated_;
-    CollData(const CollData&);// not implemented
-    CollData&operator=(const CollData&);// not implemented
-public:
-    CollData() {
-        colldata_ = NULL;
-        allocated_ = 0;
-        memset(bch_, 0, sizeof(int) * 4);
-        memset(bcv_, 0, sizeof(int) * 4);
-        memset(cmpoffset_, 0, sizeof(signed short*) * 4);
-    }
-    void init(componentInfo cmpinfo[ 4 ], int cmpc) {
-        allocated_ = 0;
-        for (int cmp = 0; cmp < cmpc; cmp++) {
-            bch_[cmp] = cmpinfo[cmp].bch;
-            bcv_[cmp] = cmpinfo[cmp].bcv;
-            allocated_ += cmpinfo[cmp].bc * 64;
-        }
-        colldata_ = new signed short[allocated_];
-        int total = 0;
-        for (int cmp = 0; cmp < 4; cmp++) {
-            cmpoffset_[cmp] = colldata_ + total;
-            if (cmp < cmpc) {
-                total += cmpinfo[cmp].bc * 64;
-            }
-        }
-    }
-    unsigned int component_size_in_bytes(int cmp) {
-        return sizeof(short) * bch_[cmp] * bcv_[cmp] * 64;
-    }
-    unsigned int component_size_in_shorts(int cmp) {
-        return bch_[cmp] * bcv_[cmp] * 64;
-    }
-    signed short&operator()(int cmp, int bpos, int x, int y) {
-        return cmpoffset_[cmp][64 * (y * bch_[cmp] + x) + bpos]; // fixme: do we care bout nch?
-    }
-    signed short* full_component(int cmp) {
-        return cmpoffset_[cmp];
-    }
-    const signed short* full_component(int cmp) const{
-        return cmpoffset_[cmp];
-    }
-/*
-    signed short* block(int cmp, int x, int y) {
-        return &cmpoffset_[cmp][(y * bch_[cmp] + x) * 64]; // fixme: do we care bout nch?
-    }
-    const signed short* block(int cmp, int x, int y) const {
-        return &cmpoffset_[cmp][(y * bch_[cmp] + x) * 64]; // fixme: do we care bout nch?
-    }
-    const signed short* block(int cmp, int dpos) const{
-        return &cmpoffset_[cmp][dpos * 64];
-    }
-    signed short* block(int cmp, int dpos) {
-        return &cmpoffset_[cmp][dpos * 64];
-    }
-*/
-    signed short operator()(int cmp, int bpos, int x, int y) const {
-        return cmpoffset_[cmp][64 * (y * bch_[cmp] + x) + bpos]; // fixme: do we care bout nch?
-    }
-    signed short&operator()(int cmp, int bpos, int dpos) {
-        return cmpoffset_[cmp][dpos * 64 + bpos];
-    }
-    signed short operator()(int cmp, int bpos, int dpos) const{
-        return cmpoffset_[cmp][dpos * 64 + bpos];
-    }
-    void reset() {
-        if (colldata_) {
-            delete []colldata_;
-        }
-        colldata_ = NULL;
-    }
-    ~CollData() {
-        if (colldata_) {
-            delete []colldata_;
-        }
-    }
-};
 
 CollData colldata; // collection sorted DCT coefficients
 
@@ -611,7 +512,7 @@ void initialize_options( int argc, char** argv )
 		else if ( strcmp((*argv), "-") == 0 ) {			
 			msgout = stderr;
 			// set binary mode for stdin & stdout
-			#if !defined( unix )				
+			#ifdef _WIN32
 				setmode( fileno( stdin ), O_BINARY );
 				setmode( fileno( stdout ), O_BINARY );
 			#endif

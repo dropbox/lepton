@@ -5,7 +5,7 @@
 CC      = gcc
 CPP     = g++
 RC      = windres
-CFLAGS  = -Wno-write-strings -DUNIX -I. -g -Wall -O3 -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
+CFLAGS  = -std=c++0x -Wno-write-strings -DUNIX -I. -g -Wall -O3 -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
 LDFLAGS = -g
 DEPS    = bitops.h htables.h
 OBJ     = bitops.o jpgcoder.o

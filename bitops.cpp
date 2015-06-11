@@ -439,7 +439,7 @@ iostream::iostream( void* src, int srctype, int srcsize, int iomode )
 	free_mem_sw = false;
 	
 	// set binary mode for streams
-	#if !defined( unix )				
+	#ifdef _WIN32
 		setmode( fileno( stdin ), O_BINARY );
 		setmode( fileno( stdout ), O_BINARY );
 	#endif
