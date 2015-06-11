@@ -11,4 +11,10 @@ common_source = bitops.cc bitops.hh \
 	vp8_encoder.hh vp8_encoder.cc
 
 bin_PROGRAMS = lepton
+
+check_PROGRAMS = tester
+tester_SOURCES = test.cc
 lepton_SOURCES = $(common_source)
+TESTS = tester
+
+dist_check_SCRIPTS = tester

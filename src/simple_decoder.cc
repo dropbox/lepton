@@ -5,6 +5,7 @@
 #include "uncompressed_components.hh"
 #include "jpgcoder.hh"
 #include "simple_decoder.hh"
+#include <algorithm>
 SimpleComponentDecoder::SimpleComponentDecoder() {
     for (int i = 0; i < 4; ++i) {
         cur_read_batch[i] = 0;
