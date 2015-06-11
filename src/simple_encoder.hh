@@ -1,6 +1,7 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-
-class SimpleComponentEncoder {
+#include "base_coders.hh"
+class SimpleComponentEncoder : BaseEncoder {
 public:
-    static void simple_full_encoder(UncompressedComponents* colldata, iostream *str_out);
+    CodingReturnValue encode_chunk(const UncompressedComponents *input, iostream *output);
+    ~SimpleComponentEncoder();
 };

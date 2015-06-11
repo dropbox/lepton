@@ -7,22 +7,25 @@
 #include "simple_decoder.hh"
 #include <algorithm>
 SimpleComponentDecoder::SimpleComponentDecoder() {
+    str_in = NULL;
     for (int i = 0; i < 4; ++i) {
         cur_read_batch[i] = 0;
         started_scan[i] = false;
     }
     cmp = 0;
 }
+void SimpleComponentDecoder::initialize(iostream *strin) {
+    str_in = strin;
+}
 void SimpleComponentDecoder::simple_continuous_decoder(UncompressedComponents* colldata, iostream *str_in) {
     colldata->worker_wait_for_begin_signal();
 
     SimpleComponentDecoder scd;
-    while(scd.simple_decoder(colldata, str_in) == DECODER_PARTIAL) {
-        
+    scd.initialize(str_in);
+    while(scd.decode_chunk(colldata) == CODING_PARTIAL) {
     }
 }
-DecoderReturnValue SimpleComponentDecoder::simple_decoder(UncompressedComponents* colldata, iostream *str_in) {
-    
+CodingReturnValue SimpleComponentDecoder::decode_chunk(UncompressedComponents* colldata) {
 	char ujpg_mrk[ 64 ] = "CMP";
     int batch_size = 1600;
     colldata->worker_update_band_progress(64); // we are optimizing for baseline only atm
@@ -39,7 +42,7 @@ DecoderReturnValue SimpleComponentDecoder::simple_decoder(UncompressedComponents
         if (strncmp( ujpg_mrk, "CMP", 3 ) != 0) {
             sprintf( errormessage, "CMP%i marker not found", cmp );
             errorlevel = 2;    
-            return DECODER_ERROR;
+            return CODING_ERROR;
         }
     }
     {
@@ -52,19 +55,22 @@ DecoderReturnValue SimpleComponentDecoder::simple_decoder(UncompressedComponents
             if (retval != cur_read_size) {
                 sprintf( errormessage, "unexpected end of file blocks %ld !=  %d", retval, cur_read_size);
                 errorlevel = 2;
-                return DECODER_ERROR;
+                return CODING_ERROR;
             }
             cur_read_batch[cmp] += cur_read_size;
             colldata->worker_update_cmp_progress(cmp, cur_read_size);
             if (cur_read_batch[cmp] < target) {
-                return DECODER_PARTIAL;
+                return CODING_PARTIAL;
             }
         }
     }
     if (cmp < cmpc) {
         ++cmp;
-        return DECODER_PARTIAL;
+        return CODING_PARTIAL;
     } else {
-        return DECODER_DONE;
+        return CODING_DONE;
     }
+}
+SimpleComponentDecoder::~SimpleComponentDecoder() {
+
 }

@@ -5,7 +5,8 @@
 #include "uncompressed_components.hh"
 #include "jpgcoder.hh"
 #include "simple_encoder.hh"
-void SimpleComponentEncoder::simple_full_encoder(UncompressedComponents* colldata, iostream *str_out) {
+CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedComponents* colldata,
+                                                       iostream *str_out) {
 	char ujpg_mrk[ 64 ];
 	// write actual decompressed coefficient data to file
 	for ( int cmp = 0; cmp < cmpc; cmp++ ) {
@@ -14,5 +15,9 @@ void SimpleComponentEncoder::simple_full_encoder(UncompressedComponents* colldat
 		// data: coefficient data in zigzag collection order
         str_out->write( (void*) colldata->full_component_write( cmp ), sizeof( short ), colldata->component_size_in_shorts(cmp));
 	}
-    
+    return CODING_DONE;
+}
+
+SimpleComponentEncoder::~SimpleComponentEncoder() {
+
 }
