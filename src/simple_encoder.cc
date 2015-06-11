@@ -1,3 +1,5 @@
+/* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+
 #include "bitops.hh"
 #include "component_info.hh"
 #include "uncompressed_components.hh"

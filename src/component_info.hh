@@ -1,3 +1,5 @@
+/* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+
 struct componentInfo {
 	unsigned short* qtable; // quantization table
 	int huffdc; // no of huffman table (DC)
