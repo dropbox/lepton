@@ -2390,16 +2390,6 @@ bool write_ujpg( void )
 	str_out->write( (void*) &hdrs, sizeof( int ), 1 );
 	// data: data from header
 	str_out->write( (void*) hdrdata, sizeof( char ), hdrs );
-	
-	// write actual decompressed coefficient data to file
-	for ( cmp = 0; cmp < cmpc; cmp++ ) {
-		// marker: "CMP" + [number of component]
-		sprintf( ujpg_mrk, "CMP%i", cmp );
-		str_out->write( (void*) ujpg_mrk, 1, 4 );
-		// data: coefficient data in zigzag collection order
-        str_out->write( (void*) colldata.full_component( cmp ), sizeof( short ), colldata.component_size_in_shorts(cmp));
-	}
-
 	// beginning here: recovery information (needed for exact JPEG recovery)
 	
 	// write huffman coded data padbit
@@ -2428,6 +2418,16 @@ bool write_ujpg( void )
 		// data: garbage data
 		str_out->write( (void*) grbgdata, sizeof( char ), grbs );
 	}
+	
+	// write actual decompressed coefficient data to file
+	for ( cmp = 0; cmp < cmpc; cmp++ ) {
+		// marker: "CMP" + [number of component]
+		sprintf( ujpg_mrk, "CMP%i", cmp );
+		str_out->write( (void*) ujpg_mrk, 1, 4 );
+		// data: coefficient data in zigzag collection order
+        str_out->write( (void*) colldata.full_component( cmp ), sizeof( short ), colldata.component_size_in_shorts(cmp));
+	}
+
 	
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
@@ -2489,25 +2489,6 @@ bool read_ujpg( void )
 	if ( !setup_imginfo_jpg() )
 		return false;
 
-	// read actual decompressed coefficient data from file
-	for ( cmp = 0; cmp < cmpc; cmp++ ) {
-		str_in->read( ujpg_mrk, 1, 4 );
-		// check marker
-		if ( strncmp( ujpg_mrk, "CMP", 3 ) == 0 ) {
-			// read coefficient data from file
-			if ( str_in->read( colldata.full_component( cmp ), int(sizeof( short )), colldata.component_size_in_shorts(cmp)) != (int)colldata.component_size_in_shorts(cmp)) {
-				sprintf( errormessage, "unexpected end of file" );
-				errorlevel = 2;
-				return false;
-			}
-		}
-		else {
-			sprintf( errormessage, "CMP%i marker not found", cmp );
-			errorlevel = 2;
-			return false;
-		}
-	}
-	
 	// beginning here: recovery information (needed for exact JPEG recovery)
 	
 	// read padbit information from file
@@ -2551,11 +2532,39 @@ bool read_ujpg( void )
 			str_in->read( grbgdata, sizeof( char ), grbs );
 		}
 		else {
-			sprintf( errormessage, "unknown data found" );
+            if (strncmp(ujpg_mrk, "CMP", 3) == 0 ) {
+                break;
+            } else {
+                sprintf( errormessage, "unknown data found" );
+                errorlevel = 2;
+            }
+			return false;
+		}
+	}
+
+	// read actual decompressed coefficient data from file
+	for ( cmp = 0; cmp < cmpc; cmp++ ) {
+        if (cmp != 0) {
+            str_in->read( ujpg_mrk, 1, 4 );
+        } else {
+            str_in->read( ujpg_mrk + 3, 1, 1 );
+        }
+		// check marker
+		if ( strncmp( ujpg_mrk, "CMP", 3 ) == 0 ) {
+			// read coefficient data from file
+			if ( str_in->read( colldata.full_component( cmp ), int(sizeof( short )), colldata.component_size_in_shorts(cmp)) != (int)colldata.component_size_in_shorts(cmp)) {
+				sprintf( errormessage, "unexpected end of file" );
+				errorlevel = 2;
+				return false;
+			}
+		}
+		else {
+			sprintf( errormessage, "CMP%i marker not found", cmp );
 			errorlevel = 2;
 			return false;
 		}
 	}
+	
 	// get filesize
 	ujgfilesize = str_in->getsize();
 	
