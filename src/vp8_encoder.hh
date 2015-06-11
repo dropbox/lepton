@@ -2,5 +2,6 @@
 
 class VP8ComponentEncoder {
 public:
-    static void vp8_full_encoder(UncompressedComponents* colldata, iostream *str_out);
+    static void vp8_full_encoder( const UncompressedComponents * const colldata,
+                                  iostream * const str_out );
 };

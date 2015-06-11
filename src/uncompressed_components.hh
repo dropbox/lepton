@@ -125,16 +125,16 @@ public:
         }
         std::atomic_thread_fence(std::memory_order_acquire);
     }
-    unsigned int component_size_in_bytes(int cmp) {
+    unsigned int component_size_in_bytes(int cmp) const {
         return sizeof(short) * bch_[cmp] * bcv_[cmp] * 64;
     }
-    unsigned int component_size_in_shorts(int cmp) {
+    unsigned int component_size_in_shorts(int cmp) const {
         return bch_[cmp] * bcv_[cmp] * 64;
     }
-    unsigned int component_size_in_blocks(int cmp) {
+    unsigned int component_size_in_blocks(int cmp) const {
         return bch_[cmp] * bcv_[cmp];
     }
-    signed short* full_component_write(int cmp) {
+    signed short* full_component_write(int cmp) const {
         return cmpoffset_[cmp];
     }
     const signed short* full_component_nosync(int cmp) {
