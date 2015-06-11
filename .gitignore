@@ -18,3 +18,4 @@ Makefile.in
 /missing
 /stamp-h1
 /compile
+/test-driver
