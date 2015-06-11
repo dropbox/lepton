@@ -18,8 +18,8 @@
 #include "htables.hh"
 #include "component_info.hh"
 #include "uncompressed_components.hh"
-#include "simple_decoder.hh"
-#include "simple_encoder.hh"
+#include "vp8_decoder.hh"
+#include "vp8_encoder.hh"
 
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -2323,7 +2323,7 @@ bool write_ujpg( void )
 		str_out->write( (void*) grbgdata, sizeof( char ), grbs );
 	}
 	
-    SimpleComponentEncoder::simple_full_encoder(&colldata, str_out);
+    VP8ComponentEncoder::vp8_full_encoder(&colldata, str_out);
 
 	
 	// errormessage if write error
@@ -2439,7 +2439,7 @@ bool read_ujpg( void )
 		}
 	}
     colldata.signal_worker_should_begin();
-    colldata.start_decoder_worker_thread(std::bind(&SimpleComponentDecoder::simple_continuous_decoder, &colldata, str_in));
+    colldata.start_decoder_worker_thread(std::bind(&VP8ComponentDecoder::vp8_continuous_decoder, &colldata, str_in));
 	
 	// get filesize
 	ujgfilesize = str_in->getsize();
