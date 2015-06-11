@@ -7,10 +7,10 @@ CPP     = g++-4.8
 RC      = windres
 CFLAGS  = -std=c++11 -Wno-write-strings -DUNIX -I. -g -Wall -O3 -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
 LDFLAGS = -g -lpthread
-DEPS    = bitops.h htables.h component_info.h uncompressed_components.h jpgcoder.h simple_decoder.h
-OBJ     = bitops.o jpgcoder.o simple_decoder.o uncompressed_components.o
+DEPS    = bitops.h htables.h component_info.h uncompressed_components.h jpgcoder.h simple_decoder.h simple_encoder.h
+OBJ     = bitops.o jpgcoder.o simple_decoder.o uncompressed_components.o simple_encoder.o
 BIN     = uncmpJPG
-all: clean $(BIN)
+#all: clean $(BIN)
 
 %.o: %.cpp $(DEPS)
 	$(CPP) -c -o $@ $< $(CFLAGS)

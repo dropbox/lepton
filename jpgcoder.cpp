@@ -17,6 +17,7 @@
 #include "component_info.h"
 #include "uncompressed_components.h"
 #include "simple_decoder.h"
+#include "simple_encoder.h"
 
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -2270,7 +2271,6 @@ bool check_value_range( void )
 bool write_ujpg( void )
 {
 	char ujpg_mrk[ 64 ];
-	int cmp;
 	
 	
 	// UJG-Header
@@ -2321,14 +2321,7 @@ bool write_ujpg( void )
 		str_out->write( (void*) grbgdata, sizeof( char ), grbs );
 	}
 	
-	// write actual decompressed coefficient data to file
-	for ( cmp = 0; cmp < cmpc; cmp++ ) {
-		// marker: "CMP" + [number of component]
-		sprintf( ujpg_mrk, "CMP%i", cmp );
-		str_out->write( (void*) ujpg_mrk, 1, 4 );
-		// data: coefficient data in zigzag collection order
-        str_out->write( (void*) colldata.full_component_write( cmp ), sizeof( short ), colldata.component_size_in_shorts(cmp));
-	}
+    SimpleComponentEncoder::simple_full_encoder(&colldata, str_out);
 
 	
 	// errormessage if write error

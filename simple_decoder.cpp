@@ -2,7 +2,6 @@
 #include "component_info.h"
 #include "uncompressed_components.h"
 #include "jpgcoder.h"
-#include <mutex>
 #include "simple_decoder.h"
 SimpleComponentDecoder::SimpleComponentDecoder() {
     for (int i = 0; i < 4; ++i) {
