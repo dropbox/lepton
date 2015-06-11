@@ -4138,7 +4138,9 @@ float idct_2d_fst_8x8( int cmp, int dpos, int ix, int iy )
 /* -----------------------------------------------
 	inverse DCT transform using precalc tables (fast)
 	----------------------------------------------- */
-float idct_2d_fst_8x1( int cmp, int dpos, int ix, int iy )
+float idct_2d_fst_8x1( int cmp, int dpos,
+                       int ix,
+                       int iy __attribute((unused)) )
 {
 	float idct = 0;
 	int ixy;
@@ -4165,7 +4167,9 @@ float idct_2d_fst_8x1( int cmp, int dpos, int ix, int iy )
 /* -----------------------------------------------
 	inverse DCT transform using precalc tables (fast)
 	----------------------------------------------- */
-float idct_2d_fst_1x8( int cmp, int dpos, int ix, int iy )
+float idct_2d_fst_1x8( int cmp, int dpos,
+                       int ix __attribute((unused)),
+                       int iy )
 {
 	float idct = 0;
 	int ixy;
