@@ -4,12 +4,15 @@
 class VP8ComponentDecoder : public BaseDecoder {
     iostream * str_in {};
 
-    std::array<bool, 4> started_scan_ {{}};
     unsigned char current_component_ {};
+    std::array<bool, 4> started_scan_ {{}};
     std::array<int, 4> cur_read_batch_ {{}};
 
     bool started_scan() const;
-    void set_started_scan();
+    bool & mutable_started_scan();
+
+    int cur_read_batch() const;
+    int & mutable_cur_read_batch();
 
 public:
     VP8ComponentDecoder() {}
