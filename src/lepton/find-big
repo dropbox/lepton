@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my @totals;
+
+while (<>) {
+  my ( @counts ) = m{\( (\d+ , \d+) \)}g;
+  for ( my $index = 0; $index < $#counts; $index++ ) {
+    my ( $false, $true ) = split / , /, $counts[ $index ];
+    $totals[ $index ]{ 'total' } += $false + $true;
+    $totals[ $index ]{ 'false' } += $false;
+    $totals[ $index ]{ 'true' } += $true;
+  }
+}
+
+for ( my $index = 0; $index < $#totals; $index++ ) {
+  my $totalref = $totals[ $index ];
+  my $implied_prob = int( 256 * ($totalref->{ false } + 1) / ($totalref->{ false } + $totalref->{ true } + 2) );
+  print "token $index => [ total = $totalref->{ total }, false = $totalref->{ false }, true = $totalref->{ true }, prob = $implied_prob ]\n";
+}

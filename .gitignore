@@ -10,6 +10,7 @@ Makefile.in
 /autom4te.cache
 /config.h
 /config.h.in
+/config.h.in~
 /config.log
 /config.status
 /configure
@@ -19,3 +20,7 @@ Makefile.in
 /stamp-h1
 /compile
 /test-driver
+
+/images/*_.jpg
+/images/*.lep
+/images/*.ujg
