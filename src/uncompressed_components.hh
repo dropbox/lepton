@@ -159,7 +159,7 @@ public:
         wait_for_worker(cmp, bpos, dpos);
         return cmpoffset_[cmp][dpos * 64 + bpos];
     }
-    signed short at_nosync(int cmp, int bpos, int dpos) {
+    signed short at_nosync(int cmp, int bpos, int dpos) const {
         return cmpoffset_[cmp][dpos * 64 + bpos];
     }
 /*

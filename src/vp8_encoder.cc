@@ -30,8 +30,13 @@ void VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const
 		str_out->write( ujpg_mark.data(), 1, 4 );
 		// data: coefficient data in zigzag collection order
 
-        str_out->write( colldata->full_component_write( cmp ),
-                        sizeof( short ),
-                        colldata->component_size_in_shorts( cmp ) );
+        for ( unsigned int block = 0;
+              block < colldata->component_size_in_blocks( cmp );
+              block++ ) {
+            for ( unsigned int component = 0; component < 64; component++ ) {
+                const short value = colldata->at_nosync( cmp, component, block );
+                str_out->write( &value, sizeof( short ), 1 );
+            }
+        }
 	}
 }
