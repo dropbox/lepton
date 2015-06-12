@@ -202,7 +202,8 @@ std::vector<unsigned char> load(const char *filename) {
     size_t where = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     std::vector<unsigned char> retval(where);
-    fread(retval.data(), where, 1, fp);
+    size_t readd = fread(retval.data(), where, 1, fp);
+    assert(readd == where);
     fclose(fp);
     return retval;
 }
@@ -211,7 +212,10 @@ int main(int argc, char **argv) {
     for (int i = int(strlen(argv[0])) - 1; i > 0; --i) {
         if (argv[0][i] == '/' || argv[0][i] == '\\') {
             argv[0][i] = '\0';
-            chdir(argv[0]);
+            int status = 0;
+            do {
+                status = chdir(argv[0]);
+            } while (status == -1 && errno == EINTR);
             break;
         }
     }
