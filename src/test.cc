@@ -87,7 +87,8 @@ void check_out(int output, const unsigned char *data, size_t data_size, bool *ok
         }
     }
 }
-int main() {
+
+int run_test(const std::vector<unsigned char> &testImage) {
     int encode_stdin[2];
     int encode_stdout[2];
     int status = pipe(encode_stdin);
@@ -150,13 +151,13 @@ int main() {
         do {
             status = dup(decode_stdin[0]);
         } while (status == -1 && errno == EINTR);
-        assert(status >= 0 && "WTF");
+        assert(status >= 0);
         close(decode_stdin[1]);
         fclose(stdout);
         do {
             status = dup(decode_stdout[1]);
         } while (status == -1 && errno == EINTR);
-        assert(status >= 0 && "WTF");
+        assert(status >= 0);
         close(decode_stdout[0]);
         execlp("./lepton", "-s", "-", NULL);
     }
@@ -169,7 +170,7 @@ int main() {
     bool fileSame = false;
     size_t size = 0;
     std::thread first_pipe(std::bind(&pipe_between, encode_stdout[0], decode_stdin[1], &size));
-    std::vector<unsigned char> testImage(abstractJpeg, abstractJpeg+sizeof(abstractJpeg));
+
     std::thread round_trip(std::bind(&check_out, decode_stdout[0], testImage.data(), testImage.size(), &fileSame));
     ssize_t ret = write_until(encode_stdin[1], testImage.data(), testImage.size());
     if (ret != sizeof(abstractJpeg)) {
@@ -193,4 +194,74 @@ int main() {
         return encoder_exit;
     }
     return decoder_exit;
+
+}
+std::vector<unsigned char> load(const char *filename) {
+    FILE * fp = fopen(filename, "rb");
+    fseek(fp, 0, SEEK_END);
+    size_t where = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    std::vector<unsigned char> retval(where);
+    fread(retval.data(), where, 1, fp);
+    fclose(fp);
+    return retval;
+}
+int main(int argc, char **argv) {
+    assert(argc > 0);
+    for (int i = int(strlen(argv[0])) - 1; i > 0; --i) {
+        if (argv[0][i] == '/' || argv[0][i] == '\\') {
+            argv[0][i] = '\0';
+            chdir(argv[0]);
+            break;
+        }
+    }
+    std::vector<unsigned char> testImage(abstractJpeg, abstractJpeg+sizeof(abstractJpeg));
+    int retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    testImage = load("../images/iphone.jpg");
+    fprintf(stderr, "Loading iPhone\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    testImage = load("../images/iphonecity.jpg");
+    fprintf(stderr, "Loading iPhone city\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    testImage = load("../images/andoird.jpg");
+    fprintf(stderr, "Loading Android\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    testImage = load("../images/slrhills.jpg");
+    fprintf(stderr, "Loading SLR Hills\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+
+    testImage = load("../images/slrindoor.jpg");
+    fprintf(stderr, "Loading SLR Indoor\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    testImage = load("../images/slrcity.jpg");
+    fprintf(stderr, "Loading SLR City\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    testImage = load("../images/hq.jpg");
+    fprintf(stderr, "Loading High Quality\n");
+    retval = run_test(testImage);
+    if (retval) {
+        return retval;
+    }
+    return 0;
 }
