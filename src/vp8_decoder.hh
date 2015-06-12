@@ -1,4 +1,5 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+#include <array>
 #include "base_coders.hh"
 
 class VP8ComponentDecoder : public BaseDecoder {

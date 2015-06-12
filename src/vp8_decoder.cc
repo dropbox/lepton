@@ -68,11 +68,11 @@ CodingReturnValue VP8ComponentDecoder::vp8_decoder( UncompressedComponents * con
     if ( not started_scan() ) {
         mutable_started_scan() = true;
 
-        array<char, 4> expected_mark { 'C', 'M', 'P', '_' }, mark {{}};
+        array<char, 4> expected_mark {{ 'C', 'M', 'P', '_' }}, mark {{}};
         expected_mark.at( 3 ) = current_component_ + 0x30;
 
         if ( current_component_ == 0 ) {
-            mark = { 'C', 'M', 'P', '_' };
+            mark = {{ 'C', 'M', 'P', '_' }};
             str_in->read( &mark.at( 3 ), 1, 1 );
         } else {
             str_in->read( &mark.at( 0 ), 1, 4 );
