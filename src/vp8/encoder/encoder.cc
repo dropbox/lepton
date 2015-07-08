@@ -11,81 +11,6 @@
 using namespace std;
 
 
-/*
-static pair<uint64_t, uint64_t> natural_coefficient_to_variable_encoding(uint16_t token_value) {
-    
-    switch(token_value) {
-      case 1:
-        return {0, 1};
-      case 2:
-        return {1, 7};
-      case 3:
-        return {1 | 4, 0xf};
-      case 4:
-        return {1 | 4 | 8, 0xf};
-      default:
-        break;
-    }
-    uint64_t bits_used = 3;
-    uint64_t bits_set = 3;
-    uint64_t cur_bit = 4;
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder1::base_value ) { // category 1, 5..6 
-      return {1 | 2 | (token_value == 6 ? 0x10 : 0), 0x1f};
-  } 
-  if ( token_value < TokenDecoderEnsemble::TokenDecoder1::upper_limit ) { // category 1, 5..6 
-      return {1 | 2 | 8 | (TokenDecoderEnsemble::TokenDecoder1::encode_bits(token_value) << 4),
-              ((1 << 4) - 1) | ((TokenDecoderEnsemble::TokenDecoder1::num_bits  - 1 )<< 4)};
-  }
-
-}
-*//*
-uint8_t context_from_value_bits_id_min_max(uint16_t value,
-                                           const BitsAndLivenessFromEncoding& bits,
-                                           unsigned int token_id, uint16_t min, uint16_t max) {
-    uint8_t context = 0;
-    if (value < min) {
-        context = 2;
-    } else if (value > max) {
-        context = 3;
-    } else if ((1 << token_id) & bits.bits()) {
-        context = 1;
-    }
-    return context;
-}
-//FIXME: these are quite the approximation
-uint16_t min_from_entropy_node_index(int index) {
-    switch(index) {
-      case 12:
-      case 0:
-        return 0;
-      case 1:
-        return 0;
-      case 2:
-        return 1;
-      case 3:
-      case 4:
-      case 5:
-        return 2;
-      case 6:
-      case 7:
-      case 11:
-        return std::min((int)TokenDecoderEnsemble::TokenDecoder1::base_value, 5); // this was 5
-      case 8:
-      case 9:
-        return TokenDecoderEnsemble::TokenDecoder1::upper_limit;
-      case 10:
-        return TokenDecoderEnsemble::TokenDecoder3::upper_limit;
-      default:
-        assert(false && "Entropy node");
-    }    
-}
-uint16_t max_from_entropy_node_index(int index) {
-    if (index == 11) {
-        return 6; // should this be 7?
-    }
-    return 2048;// should this be 2049?
-}
-*/
 template <class ParentContext> struct PerBitEncoderState : public ParentContext{
     BoolEncoder *encoder_;
 
@@ -132,7 +57,6 @@ void Block::serialize_tokens( BoolEncoder & encoder,
 			      ProbabilityTables & probability_tables ) const
 {
   /* serialize the EOB bin */
-  //const int16_t eob_bin = min( uint8_t(EOB_BINS-1), coded_length_ );
   const int16_t num_zeros = min( uint8_t(NUM_ZEROS_BINS-1), num_zeros_ );
   const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
 
@@ -175,14 +99,6 @@ void Block::serialize_tokens( BoolEncoder & encoder,
 
   for ( unsigned int index = 0; index <= min( uint8_t(63), coded_length_ ); index++ ) {
     /* select the tree probabilities based on the prediction context */
-#ifdef LEGACY_CONTEXT
-    uint8_t token_context = 0;
-    if ( context().above.initialized() &&  context().left.initialized() ) {
-/*        token_context += 1 + combine_priors(context().above.get()->coefficients().at( jpeg_zigzag.at( index ) ),
-                                            context().left.get()->coefficients().at( jpeg_zigzag.at( index ) ) );
-*/
-    }
-#endif
     Optional<int16_t> above_neighbor_context;
     Optional<int16_t> left_neighbor_context;
     if ( context().above.initialized() ) {
@@ -191,54 +107,17 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     if ( context().left.initialized() ) {
         left_neighbor_context = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
     }
-#ifdef LEGACY_CONTEXT
-    uint16_t neighbor_context = std::min(8, skew_log<3, 4>((abs(above_neighbor_context.get_or(0))
-                                                            + abs(left_neighbor_context.get_or(0))) / 2));
-    (void)neighbor_context;
-    (void)token_context;
-#endif
     uint8_t coord = jpeg_zigzag.at( index );
-/*
-    if (index > 1) {
-        token_context = 0;
-        if (coord % 8 == 0) {
-            token_context = 1 + skew_log<8, 8>(abs(coefficients().at( coord - 8)));
-        } else if (coord > 8) {
-            token_context += 1 + combine_priors(coefficients().at( coord - 1),
-                                                coefficients().at( coord - 8) );
-        } else {
-            token_context = 1 + skew_log<8, 8>(abs(coefficients().at( coord - 1)));
-        }
-    }
-*/
     Optional<int16_t> left_coef;
     Optional<int16_t> above_coef;
     if (index > 1) {
-#ifdef LEGACY_CONTEXT
-        token_context = 0;
-#endif
         if (coord % 8 == 0) {
             above_coef = coefficients().at(coord - 8);
-#ifdef LEGACY_CONTEXT
-            token_context = 1 + std::min(7, skew_log<3, 2>(abs(above_coef.get_or(0))));
-#endif
         } else if (coord > 8) {
             left_coef = coefficients().at(coord - 1);
             above_coef = coefficients().at(coord - 8);
-#ifdef LEGACY_CONTEXT
-            uint8_t coord_x = coord % 8;
-            uint8_t coord_y = coord / 8;
-            if (coord_x > coord_y) {
-                token_context = 1 + std::min(7,skew_log<3, 2>(abs(left_coef.get_or(0))));// + 8 * std::min(skew_log<3, 2>(abs(coefficients().at( coord - 8))),7);
-            } else {
-                token_context = 1 + std::min(7, skew_log<3, 2>(abs(above_coef.get_or(0))));
-            }
-#endif
         } else {
             left_coef = coefficients().at(coord - 1);
-#ifdef LEGACY_CONTEXT
-            token_context = 1 + std::min(7, skew_log<3, 2>(abs(left_coef.get_or(0))));
-#endif
         }
     }
     auto & prob = probability_tables.branch_array(std::min((unsigned int)type_,
@@ -361,9 +240,8 @@ ProbabilityTables::ProbabilityTables( const Slice & slice )
   : model_( new Model )
 {
   const size_t expected_size = sizeof( *model_ );
-  if ( slice.size() != expected_size ) {
-    throw runtime_error( "unexpected model file size. expecting " + to_string( expected_size ) );
-  }
+  assert(slice.size() == expected_size && "unexpected model file size.");
+
 
   memcpy( model_.get(), slice.buffer(), slice.size() );
 }
@@ -381,5 +259,4 @@ inline void BoolEncoder::put( const bool value, Branch & branch )
   } else {
     branch.record_false_and_update();
   }
-  //branch.optimize();
 }

@@ -25,11 +25,10 @@ CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents
                                                     Sirikata::
                                                     SwitchableCompressionWriter<Sirikata::
                                                                                 DecoderCompressionWriter> *output) {
-    vp8_full_encoder(input, output);
-    return CODING_DONE;
+    return vp8_full_encoder(input, output);
 }
 
-void VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
+CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                             Sirikata::
                                             SwitchableCompressionWriter<Sirikata::
                                                                         DecoderCompressionWriter> *str_out)
@@ -37,7 +36,8 @@ void VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const
     /* cmpc is a global variable with the component count */
     /* verify JFIF is Y'CbCr only (no grayscale images allowed) */
     if ( cmpc != 3 ) {
-        throw runtime_error( "JPEG/JFIF was not a three-component Y'CbCr image" );
+        std::cerr << "JPEG/JFIF was not a three-component Y'CbCr image" << std::endl;
+        return CODING_ERROR;
     }
 
     /* construct 8x8 "VP8" blocks to hold 8x8 JPEG blocks */
@@ -94,10 +94,12 @@ void VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const
 
         std::ofstream model_file { out_model_name };
         if ( not model_file.good() ) {
-            throw runtime_error( "error writing to " + string( out_model_name ) );
+            std::cerr << "error writing to " + string( out_model_name ) << std::endl;
+            return CODING_ERROR;
         }
 
         probability_tables.optimize();
         probability_tables.serialize( model_file );
     }
+    return CODING_DONE;
 }

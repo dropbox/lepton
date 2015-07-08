@@ -1,6 +1,7 @@
 #ifndef _SLICE_HH
 #define _SLICE_HH
 
+#include <assert.h>
 #include <string>
 #include <stdexcept>
 #ifdef __APPLE__
@@ -28,15 +29,13 @@ private:
 
   void bounds_check( const uint64_t & length ) const
   {
-    if ( length > size_ ) {
-      throw std::out_of_range( "attempted to read past end of chunk" );
-    }
+    assert(length <= size_ && "attempted to read past end of chunk");
   }
 
   static uint64_t bit_mask( const uint64_t & n )
   {
     if ( n > 63 ) {
-      throw std::out_of_range( "bit mask size is unsupported" );
+      assert(false && "bit mask size is unsupported");
     }
     return ( 1 << n ) - 1;
   }
@@ -96,7 +95,7 @@ public:
     const uint64_t byte_len = 1 + ( bit_offset + bit_length - 1 ) / 8;
     bounds_check( byte_len );
     if ( byte_len > sizeof( uint64_t ) ) {
-      throw std::out_of_range( "bit offset and length not supported" );
+        assert(false && "bit offset and length not supported");
     }
 
     uint64_t val = 0;

@@ -4,10 +4,10 @@
 
 class VP8ComponentEncoder : public BaseEncoder {
 public:
-    static void vp8_full_encoder( const UncompressedComponents * const colldata,
-                                   Sirikata::
-                                   SwitchableCompressionWriter<Sirikata::
-                                                               DecoderCompressionWriter> *);
+    static CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
+                                               Sirikata::
+                                               SwitchableCompressionWriter<Sirikata::
+                                                                           DecoderCompressionWriter> *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    Sirikata::
                                    SwitchableCompressionWriter<Sirikata::

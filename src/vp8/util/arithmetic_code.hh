@@ -113,7 +113,8 @@ struct arithmetic_code {
       }
       if (range < min_range) {
         if (range == 0) {
-          throw std::runtime_error("Encoder error: emitted a zero-probability symbol.");
+            assert(false && "Encoder error: emitted a zero-probability symbol.");
+            abort();
         }
         size_t emitted_before = get_bytes_emitted();
         while (range < max_range/digit_base) {
