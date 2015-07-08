@@ -1,7 +1,7 @@
 #include "../vp8/decoder/coefs.hh"
 #include "../vp8/encoder/bool_encoder.hh"
 #include "../vp8/encoder/encoder.hh"
-
+#include "../vp8/model/numeric.hh"
 int main() {
     int16_t min = std::numeric_limits<int16_t>::min();
     int16_t max = std::numeric_limits<int16_t>::max();

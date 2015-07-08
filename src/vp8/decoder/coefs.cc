@@ -1,7 +1,8 @@
 #include "coefs.hh"
 #include "bool_decoder.hh"
 #include "fixed_array.hh"
-#include "decoder.hh"
+#include "numeric.hh"
+#include "model.hh"
 #include "block.hh"
 //fixme: pull out the put_one_unsigned into a separate common file
 #include "../encoder/bool_encoder.hh"
@@ -10,10 +11,6 @@
 
 using namespace std;
 
-void ProbabilityTables::optimize()
-{
-  model_->forall( [&] ( Branch & x ) { x.optimize(); } );
-}
 
 template <unsigned int length, uint16_t base_value_, uint16_t prob_offset_> template <class ProbabilityFunctor>
 uint16_t TokenDecoder<length, base_value_, prob_offset_>::decode( BoolDecoder & data, const ProbabilityFunctor& probAt)

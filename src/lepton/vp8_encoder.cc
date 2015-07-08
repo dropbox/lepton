@@ -13,8 +13,9 @@
 
 #include "block.hh"
 #include "bool_encoder.hh"
-#include "decoder.hh"
 #include "coefs.hh"
+#include "model.hh"
+#include "numeric.hh"
 
 #include "encoder.cc"
 #include "../io/SwitchableCompression.hh"

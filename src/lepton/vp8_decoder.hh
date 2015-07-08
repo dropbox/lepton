@@ -3,7 +3,7 @@
 #include "base_coders.hh"
 
 #include "option.hh"
-#include "decoder.hh"
+#include "model.hh"
 #include "plane.hh"
 #include "block.hh"
 

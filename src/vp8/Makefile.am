@@ -1,1 +1,1 @@
-SUBDIRS = util decoder encoder
+SUBDIRS = util model decoder encoder

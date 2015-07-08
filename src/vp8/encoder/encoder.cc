@@ -2,7 +2,8 @@
 #include "coefs.hh"
 #include "jpeg_meta.hh"
 #include "block.hh"
-#include "decoder.hh"
+#include "numeric.hh"
+#include "model.hh"
 #include "mmap.hh"
 #include "encoder.hh"
 #include <fstream>
@@ -330,11 +331,6 @@ ProbabilityTables ProbabilityTables::get_probability_tables()
     model_tables.normalize();
     return model_tables;
   }
-}
-
-void ProbabilityTables::serialize( std::ofstream & output ) const
-{
-  output.write( reinterpret_cast<char*>( model_.get() ), sizeof( *model_ ) );
 }
 
 ProbabilityTables::ProbabilityTables()

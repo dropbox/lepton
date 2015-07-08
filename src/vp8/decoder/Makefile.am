@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(srcdir)/../util $(CXX11_FLAGS)
+AM_CPPFLAGS = -I$(srcdir)/../util -I$(srcdir)/../model $(CXX11_FLAGS)
 AM_CXXFLAGS = $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 noinst_LIBRARIES = libleptondecoder.a

@@ -2,7 +2,8 @@
 #include <iostream>
 
 #include "mmap.hh"
-#include "decoder.hh"
+#include "coefs.hh"
+#include "model.hh"
 
 using namespace std;
 

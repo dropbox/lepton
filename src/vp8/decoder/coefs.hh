@@ -2,7 +2,7 @@
 #define _COEFS_HH
 
 #include "bool_decoder.hh"
-#include "decoder.hh"
+#include "model.hh"
 #include <limits>
 class BoolEncoder;
 

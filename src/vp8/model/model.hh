@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 
-#include "fixed_array.hh"
+#include "../util/fixed_array.hh"
 #include "jpeg_meta.hh"
 
 class BoolEncoder;
