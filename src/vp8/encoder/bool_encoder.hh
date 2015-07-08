@@ -5,6 +5,8 @@
 #include <iostream>
 
 #include "../util/arithmetic_code.hh"
+#include <assert.h>
+#include "branch.hh"
 
 typedef uint8_t Probability;
 class Branch;

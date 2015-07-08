@@ -1,14 +1,9 @@
 #include "coefs.hh"
 #include "bool_decoder.hh"
 #include "fixed_array.hh"
-#include "numeric.hh"
 #include "model.hh"
 #include "block.hh"
-//fixme: pull out the put_one_unsigned into a separate common file
-#include "../encoder/bool_encoder.hh"
-
-#include "../encoder/encoder.hh"
-
+#include "context.hh"
 using namespace std;
 
 
@@ -22,50 +17,6 @@ uint16_t TokenDecoder<length, base_value_, prob_offset_>::decode( BoolDecoder & 
   return base_value_ + increment;
 }
 
-TokenDecoderEnsemble::TokenDecoderEnsemble( ) {
-}
-
-static BitContexts helper_context_from(bool missing,
-                                   int32_t signed_value,
-                                   const BitsAndLivenessFromEncoding& bits,
-                                   unsigned int token_id, uint16_t min, uint16_t max) {
-    if (missing) {
-        return CONTEXT_UNSET;
-    }
-    uint16_t unsigned_value = abs(signed_value);
-    BitContexts context = CONTEXT_BIT_ZERO;
-    if (unsigned_value < min) {
-        context = CONTEXT_LESS_THAN;
-    } else if (unsigned_value > max) {
-        context = CONTEXT_GREATER_THAN;
-    } else {
-        uint64_t bit_to_check = 1ULL;
-        bit_to_check <<= token_id;
-        if (bit_to_check & bits.bits()) {
-            context = CONTEXT_BIT_ONE;
-        }
-    }
-    return context;
-}
-BitContexts context_from_value_bits_id_min_max(Optional<int16_t> value,
-                                           const BitsAndLivenessFromEncoding& bits,
-                                           unsigned int token_id, uint16_t min, uint16_t max) {
-    return helper_context_from(!value.initialized(),
-                               value.get_or(0),
-                               bits,
-                               token_id,
-                               min, max);
-}
-
-BitContexts context_from_value_bits_id_min_max(Optional<uint16_t> value,
-                                           const BitsAndLivenessFromEncoding& bits,
-                                           unsigned int token_id, uint16_t min, uint16_t max) {
-    return helper_context_from(!value.initialized(),
-                               value.get_or(0),
-                               bits,
-                               token_id,
-                               min, max);
-}
 
 
 template <class ParentContext> struct PerBitDecoderState : public ParentContext{

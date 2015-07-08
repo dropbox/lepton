@@ -4,6 +4,7 @@
 
 #include "../util/arithmetic_code.hh"
 typedef uint8_t Probability;
+#include "model.hh"
 
 class Branch;
 
@@ -31,7 +32,15 @@ public:
     return ret;
   }
 
-  bool get( Branch & branch );
+  bool get( Branch & branch ) {
+  bool retval = get( branch.prob() );
+  if (retval) {
+      branch.record_true_and_update();
+  } else {
+      branch.record_false_and_update();
+  }
+  return retval;
+}
   
 };
 

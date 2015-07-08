@@ -5,10 +5,12 @@
 #include <memory>
 
 #include "../util/fixed_array.hh"
-#include "jpeg_meta.hh"
-
+#include "../util/option.hh"
+#include "numeric.hh"
+#include "branch.hh"
 class BoolEncoder;
 class Slice;
+
 
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int EOB_BINS           = 4;
@@ -21,6 +23,45 @@ constexpr unsigned int NEIGHBOR_COEF_CONTEXTS = 25;
 
 constexpr unsigned int ENTROPY_NODES      = 40;
 constexpr unsigned int NUM_ZEROS_EOB_PRIORS = 65;
+
+enum BitContexts : uint8_t {
+    CONTEXT_BIT_ZERO,
+    CONTEXT_BIT_ONE,
+    CONTEXT_LESS_THAN,
+    CONTEXT_GREATER_THAN,
+    CONTEXT_UNSET,
+    NUM_BIT_CONTEXTS
+};
+
+BitContexts context_from_value_bits_id_min_max(Optional<int16_t> value,
+                                           const BitsAndLivenessFromEncoding& bits,
+                                           unsigned int token_id, uint16_t min, uint16_t max);
+BitContexts context_from_value_bits_id_min_max(Optional<uint16_t> value,
+                                           const BitsAndLivenessFromEncoding& bits,
+                                           unsigned int token_id, uint16_t min, uint16_t max);
+
+inline int index_to_cat(int index) {
+    return index;
+/*
+        int where = unzigzag[index];
+        int x = where % 8;
+        int y = where / 8;
+        if (x == y) {
+            return 1;
+        }
+        if (x == 0) {
+            return 2;
+        }
+        if (y == 0) {
+            return 3;
+        }
+        if (x > y) {
+            return 4;
+        }
+        return 5;
+*/
+}
+
 
 
 struct Model
@@ -90,6 +131,7 @@ struct Model
   }
 
 };
+class Chunk;
 
 class ProbabilityTables
 {

@@ -6,6 +6,7 @@
 #include "model.hh"
 #include "plane.hh"
 #include "block.hh"
+#include "bool_decoder.hh"
 
 class VP8ComponentDecoder : public BaseDecoder {
     Sirikata::SwitchableDecompressionReader<Sirikata::

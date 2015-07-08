@@ -1,5 +1,160 @@
 #ifndef _VP8_MODEL_NUMERIC_HH_
 #define _VP8_MODEL_NUMERIC_HH_
+//for uint16_t
+#include <cstdint>
+//for pair
+#include <utility>
+// for std::min
+#include <algorithm>
+#include <assert.h>
+class BoolEncoder;
+class BoolDecoder;
+
+template < unsigned int length , uint16_t base_value_, uint16_t prob_offset_>
+struct TokenDecoder
+{
+    enum {
+        prob_offset = prob_offset_,
+        bits = length,
+        base_value = base_value_,
+        upper_limit = base_value_ + (1 << length)
+    };
+    template <class ProbabilityFunctor> static uint16_t decode( BoolDecoder & data, const ProbabilityFunctor &probAt);
+    template <class ProbabilityFunctor> static void encode( BoolEncoder & encoder, const uint16_t value, const ProbabilityFunctor& probAt);
+    static std::pair<uint64_t, uint64_t> bits_and_liveness(const uint16_t value);
+};
+
+enum class TokenNodeNot : uint8_t {
+    EOB = 0,
+    ZERO = 1,
+    ONE = 2,
+    TWO_THREE_OR_FOUR = 3,
+    TWO = 4,
+    THREE = 5,
+    FIVE_SIX_OR_ENSEMBLE1 =6,
+    FIVE_SIX = 7,
+    ENSEMBLE2_OR_ENSEMBLE3 = 8,
+    ENSEMBLE2 = 9,
+    ENSEMBLE4 = 10,
+    FIVE = 11,
+    POSITIVE = 12,
+    BaseOffset // do not use
+};
+
+struct TokenDecoderEnsemble
+{
+    typedef TokenDecoder<2, 7, (uint16_t)TokenNodeNot::BaseOffset> TokenDecoder1;
+    typedef TokenDecoder<3,
+                         TokenDecoder1::base_value + (1 << TokenDecoder1::bits),
+                         TokenDecoder1::prob_offset + TokenDecoder1::bits> TokenDecoder2;
+    typedef TokenDecoder<5, 
+                         TokenDecoder2::base_value + (1 << TokenDecoder2::bits),
+                         TokenDecoder2::prob_offset + TokenDecoder2::bits> TokenDecoder3;
+    typedef TokenDecoder<7,
+                         TokenDecoder3::base_value + (1 << TokenDecoder3::bits),
+                         TokenDecoder3::prob_offset + TokenDecoder3::bits> TokenDecoder4;
+    typedef TokenDecoder<10,
+                         TokenDecoder4::base_value + (1 << TokenDecoder4::bits),
+                         TokenDecoder4::prob_offset + TokenDecoder4::bits> TokenDecoder5;
+    TokenDecoder1 token_decoder_1;
+    TokenDecoder2 token_decoder_2;
+    TokenDecoder3 token_decoder_3;
+    TokenDecoder4 token_decoder_4;
+    TokenDecoder5 token_decoder_5;
+
+};
+
+class BitsAndLivenessFromEncoding {
+    uint64_t bits_;
+    uint64_t liveness_;
+public:
+   BitsAndLivenessFromEncoding() {
+        bits_ = 0;
+        liveness_ = 0;
+    }
+    void encode_one(bool value, int entropy_node_index) {
+        liveness_ |= (1 << entropy_node_index);
+        if (value) {
+            bits_ |= (1 << entropy_node_index);
+        }
+    }
+    void encode_one(bool value, TokenNodeNot entropy_node_index) {
+        encode_one(value, (int)entropy_node_index);
+    }
+    void encode_ensemble1(uint16_t value) {
+        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder1::bits_and_liveness(value);
+        bits_ |= bl.first;
+        liveness_ |= bl.second;
+    }
+    void encode_ensemble2(uint16_t value) {
+        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder2::bits_and_liveness(value);
+        bits_ |= bl.first;
+        liveness_ |= bl.second;
+    }
+    void encode_ensemble3(uint16_t value) {
+        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder3::bits_and_liveness(value);
+        bits_ |= bl.first;
+        liveness_ |= bl.second;
+    }
+    void encode_ensemble4(uint16_t value) {
+        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder4::bits_and_liveness(value);
+        bits_ |= bl.first;
+        liveness_ |= bl.second;
+    }
+    void encode_ensemble5(uint16_t value) {
+        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder5::bits_and_liveness(value);
+        bits_ |= bl.first;
+        liveness_ |= bl.second;
+    }
+    uint64_t bits()const {
+        return bits_;
+    }
+    uint64_t liveness()const {
+        return liveness_;
+    }
+};
+
+inline uint16_t min_from_entropy_node_index(int index) {
+    switch(index) {
+      case 0:
+        return 0;
+      case 1:
+        return 0;
+      case 12:
+      case 2:
+        return 1;
+      case 3:
+      case 4:
+        return 2;
+      case 5:
+        return 3;
+      case 6:
+      case 7:
+      case 11:
+        return std::min((int)TokenDecoderEnsemble::TokenDecoder1::base_value, 5); // this was 5
+      case 8:
+      case 9:
+        return TokenDecoderEnsemble::TokenDecoder1::upper_limit;
+      case 10:
+        return TokenDecoderEnsemble::TokenDecoder3::upper_limit;
+      default:
+        assert(false && "Entropy node");
+    }    
+}
+
+constexpr uint16_t max_from_entropy_node_index_inclusive(int index) {
+    return index == 11 ? 
+        6
+        : (index == 7 ?
+           10
+           : (index == 9 ?
+              50
+              :
+              ((index == 4 || index == 5) ?
+               4
+               : 1024)));
+}
+
 template<class EncoderT> void put_one_natural_coefficient( EncoderT &e,
                                                            const uint16_t token_value )
 {

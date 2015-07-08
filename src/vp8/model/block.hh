@@ -17,6 +17,7 @@ static constexpr FixedArray< uint8_t, 64 > jpeg_zigzag = {{
 
 struct ProbabilityTables;
 class BoolEncoder;
+class BoolDecoder;
 
 enum BlockType { Y, Cb, Cr };
 
