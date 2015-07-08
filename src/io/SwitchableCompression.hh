@@ -103,6 +103,9 @@ class SIRIKATA_EXPORT UncloseableWriterWrapper : public Sirikata::DecoderWriter 
     void ResetBase() {
         mBaseClosed = false;
     }
+    void UnignoredClose() {
+        mBase->Close();
+    }
     DecoderWriter* writer() {
         return mBase;
     }
@@ -110,40 +113,32 @@ class SIRIKATA_EXPORT UncloseableWriterWrapper : public Sirikata::DecoderWriter 
 
 template<class VarDecompressionWriter> class SwitchableCompressionWriter : public DecoderWriter {
     UncloseableWriterWrapper mBase;
-    VarDecompressionWriter mCompressBase;
+    std::unique_ptr<VarDecompressionWriter> mCompressBase;
     JpegAllocator<uint8_t> mAllocator;
     uint8_t mLevel;
-    bool compressing;
-    bool has_compressed;
 public:
     SwitchableCompressionWriter(DecoderWriter *base, uint8_t compression_level, const JpegAllocator<uint8_t> &alloc) :
-        mBase(base),
-        mCompressBase(&mBase, compression_level, alloc), mAllocator(alloc) {
+        mBase(base), mAllocator(alloc) {
         mLevel = compression_level;
-        compressing = false;
-        has_compressed = false;
     }
     void EnableCompression() {
         mBase.ResetBase();
-        if (has_compressed && !compressing) {
-            mCompressBase.~VarDecompressionWriter();
-            new(&mCompressBase)VarDecompressionWriter(&mBase, mLevel, mAllocator);
+        if (!mCompressBase) {
+            mCompressBase.reset(new VarDecompressionWriter(&mBase, mLevel, mAllocator));
         }
-        has_compressed = true;
-        compressing = true;
     }
     void DisableCompression() {
-        mCompressBase.Close();
-        compressing = false;
+        mCompressBase->Close();
+        mCompressBase.reset();
     }
     DecoderWriter *getBase() {
         return mBase.writer();
     }
     std::pair<unsigned int, JpegError> Write(const Sirikata::uint8*data, unsigned int size) {
-        if (compressing) {
+        if (mCompressBase) {
             //static unsigned int cumulative_count = 0;
             //fprintf(stderr, "Writing %d compressed bytes (%d so far)\n", size, cumulative_count += size);
-            return mCompressBase.Write(data, size);
+            return mCompressBase->Write(data, size);
         } else {
             //static unsigned int ucumulative_count = 0;
             //fprintf(stderr, "Writing %d uncompressed bytes (%d so far)\n", size, ucumulative_count += size);
@@ -153,12 +148,11 @@ public:
         }
     }
     void Close() {
-        if (compressing) {
-            mCompressBase.Close();
+        if (mCompressBase) {
+            mCompressBase->Close();
         }
-        compressing = false;
         mBase.Close();
-        mBase.writer()->Close();
+        mBase.UnignoredClose();
     }
 };
 template<class VarDecompressionReader> class SwitchableDecompressionReader : public DecoderReader {

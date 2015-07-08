@@ -2539,7 +2539,7 @@ bool write_ujpg( )
 	// store version number
 	ujpg_mrk[ 0 ] = ujgversion;
 	ujg_out->Write( ujpg_mrk, 1 );
-    //ujg_out->EnableCompression();
+    ujg_out->EnableCompression();
 	
 	// discard meta information from header if needed
 	if ( disc_meta )
@@ -2640,7 +2640,7 @@ bool read_ujpg( void )
 		errorlevel.store(2);
 		return false;
 	}
-	//str_in->EnableCompression();
+	str_in->EnableCompression();
     grbs = sizeof(EOI);
     grbgdata = EOI; // if we don't have any garbage, assume FFD9 EOI
 	// read header from file
