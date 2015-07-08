@@ -251,7 +251,7 @@ Branch::Branch()
   optimize();
 }
 
-inline void BoolEncoder::put( const bool value, Branch & branch )
+inline void VP8BoolEncoder::put( const bool value, Branch & branch )
 {
   put( value, branch.prob() );
   if ( value ) {

@@ -73,7 +73,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     }
 
     /* get coded output */
-    const vector<uint8_t> stream = bool_encoder.finish();
+    const auto stream = bool_encoder.finish();
 
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );

@@ -1,6 +1,9 @@
 /lepton
 /print-model
 /test_[^hcdi]*
+/test_invariants
+/test_iphone
+/test_iphone_ujg
 /test_hq*
 /test-suite.log
 /test_custom_table.sh.log

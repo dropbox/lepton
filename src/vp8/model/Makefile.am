@@ -3,4 +3,4 @@ AM_CXXFLAGS = $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 noinst_LIBRARIES = libleptonmodel.a
 
-libleptonmodel_a_SOURCES = model.cc numeric.cc
+libleptonmodel_a_SOURCES = model.cc numeric.cc JpegArithmeticCoder.cc

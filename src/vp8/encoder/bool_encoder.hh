@@ -7,11 +7,30 @@
 #include "../util/arithmetic_code.hh"
 #include <assert.h>
 #include "branch.hh"
+#include "../../io/Reader.hh"
+#include "JpegArithmeticCoder.hh"
+
+/* Routines taken from ISO/IEC 10918-1 : 1993(E) */
+
+class JpegBoolEncoder : public Sirikata::MemReadWriter {
+    Sirikata::ArithmeticCoder jpeg_coder_;
+public:
+    JpegBoolEncoder(const Sirikata::JpegAllocator<unsigned char>&alloc=Sirikata::JpegAllocator<unsigned char>())
+        : MemReadWriter(alloc), jpeg_coder_(true) {
+    }
+    void put( const bool value, Branch & branch ) {
+        jpeg_coder_.arith_encode(this, &branch.probability_, value);
+    }
+    std::vector< uint8_t, Sirikata::JpegAllocator<unsigned char> > finish( void ) {
+        jpeg_coder_.finish_encode(this);
+        return buffer();
+    }
+};
 
 typedef uint8_t Probability;
 class Branch;
 
-class BoolEncoder
+class VP8BoolEncoder
 {
 private:
   std::vector< uint8_t > output_;
@@ -19,7 +38,7 @@ private:
 
 
 public:
-  BoolEncoder()
+  VP8BoolEncoder()
     : inner(std::back_insert_iterator<std::vector<uint8_t> >(output_)) {
   }
 
@@ -38,9 +57,14 @@ public:
   {
     inner.finish();
     std::vector< uint8_t > ret( move( output_ ) );
-    *this = BoolEncoder();
+    *this = VP8BoolEncoder();
     return ret;
   }
 };
+#ifdef JPEG_ENCODER
+class BoolEncoder : public JpegBoolEncoder{};
+#else
+class BoolEncoder : public VP8BoolEncoder{};
 
+#endif
 #endif /* BOOL_ENCODER_HH */

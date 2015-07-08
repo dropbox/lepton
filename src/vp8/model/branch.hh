@@ -1,13 +1,15 @@
 #ifndef _BRANCH_HH_
 #define _BRANCH_HH_
 typedef uint8_t Probability;
-
+// #define JPEG_ENCODER
+// ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
 class Branch
 {
 private:
   Probability probability_ = 255;
   uint32_t false_count_ = 0, true_count_ = 0;
-
+  friend class JpegBoolDecoder;
+  friend class JpegBoolEncoder;
 public:
   Probability prob() const { return probability_; }
 
