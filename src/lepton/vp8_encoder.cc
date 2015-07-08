@@ -13,7 +13,6 @@
 
 #include "block.hh"
 #include "bool_encoder.hh"
-#include "coefs.hh"
 #include "model.hh"
 #include "numeric.hh"
 

@@ -12,8 +12,6 @@
 
 #include "mmap.hh"
 
-#include "coefs.cc"
-#include "slice.hh"
 #include "../io/SwitchableCompression.hh"
 using namespace std;
 

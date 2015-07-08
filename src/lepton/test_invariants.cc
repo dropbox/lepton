@@ -1,4 +1,5 @@
-#include "../vp8/decoder/coefs.hh"
+#include "../vp8/model/numeric.hh"
+#include "../vp8/model/model.hh"
 #include "../vp8/encoder/bool_encoder.hh"
 #include "../vp8/encoder/encoder.hh"
 #include "../vp8/model/numeric.hh"
@@ -32,12 +33,12 @@ int main() {
         if (min_from_entropy_node_index(i) != min_for_token_index[i]) {
             fprintf(stderr, "Invalid min for entropy node index %d  f(%d) != %d\n", (int)i, 
                     min_from_entropy_node_index(i), (int)min_for_token_index[i]);
-            //failed = true;
+            failed = true;
         }
         if (max_from_entropy_node_index_inclusive(i) != max_for_token_index[i]) {
             fprintf(stderr, "Invalid max for entropy node index %d  f(%d) != %d\n", (int)i, 
                     max_from_entropy_node_index_inclusive(i), (int)max_for_token_index[i]);
-            //failed = true;
+            failed = true;
         }
     }   
     return failed ? 1 : 0;

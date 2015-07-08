@@ -1,4 +1,3 @@
-#include "coefs.hh"
 #include "bool_decoder.hh"
 #include "fixed_array.hh"
 #include "model.hh"
@@ -211,7 +210,9 @@ void Block::parse_tokens( BoolDecoder & data,
 	index < 64;
 	index++ ) {
     /* select the tree probabilities based on the prediction context */
+#ifdef LEGACY_CONTEXT
     uint8_t token_context = 0;
+#endif
     Optional<int16_t> above_neighbor_context;
     Optional<int16_t> left_neighbor_context;
     if ( context().left.initialized() ) {
@@ -220,20 +221,26 @@ void Block::parse_tokens( BoolDecoder & data,
     if ( context().above.initialized() ) {
         above_neighbor_context = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
     }
+#ifdef LEGACY_CONTEXT
     uint16_t neighbor_context = std::min(8, skew_log<3, 4>((abs(above_neighbor_context.get_or(0))
                                                             + abs(left_neighbor_context.get_or(0))) / 2));
-
+#endif
     Optional<int16_t> left_coef;
     Optional<int16_t> above_coef;
     uint8_t coord = jpeg_zigzag.at( index );
     if (index > 1) {
+#ifdef LEGACY_CONTEXT
         token_context = 0;
+#endif
         if (coord % 8 == 0) {
             above_coef = coefficients().at( coord - 8);
+#ifdef LEGACY_CONTEXT
             token_context = 1 + std::min(7, skew_log<3, 2>(abs(above_coef.get_or(0))));
+#endif
         } else if (coord > 8) {
             left_coef = coefficients().at( coord - 1);
             above_coef = coefficients().at( coord - 8);
+#ifdef LEGACY_CONTEXT
             uint8_t coord_x = coord % 8;
             uint8_t coord_y = coord / 8;
             if (coord_x > coord_y) {
@@ -241,9 +248,12 @@ void Block::parse_tokens( BoolDecoder & data,
             } else {
                 token_context = 1 + std::min(7, skew_log<3, 2>(abs(above_coef.get_or(0))));
             }
+#endif
         } else {
             left_coef = coefficients().at( coord - 1);
+#ifdef LEGACY_CONTEXT
             token_context = 1 + std::min(7, skew_log<3, 2>(abs(left_coef.get_or(0))));
+#endif
         }
     }
     
@@ -260,8 +270,10 @@ void Block::parse_tokens( BoolDecoder & data,
         }
     }
 */
+#ifdef LEGACY_CONTEXT
     (void) token_context;
     (void) neighbor_context;
+#endif
     auto & prob = probability_tables.branch_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
                                                    num_zeros,
                                                    eob_bin,
