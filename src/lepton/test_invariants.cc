@@ -13,9 +13,6 @@ int main() {
     min = -1024;
     max = 1024;
     for (int16_t value = min; ; ++value) {
-        if (value + 1 >= max) {
-            fprintf(stderr, "TESTING %d\n", value);
-        }
         BitsAndLivenessFromEncoding value_bits;
         put_one_signed_coefficient(value_bits, false, false, value);
         for (size_t i = 0; i < (size_t)TokenNodeNot::BaseOffset; ++i) {

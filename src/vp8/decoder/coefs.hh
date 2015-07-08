@@ -244,11 +244,11 @@ constexpr uint16_t max_from_entropy_node_index_inclusive(int index) {
         : (index == 7 ?
            10
            : (index == 9 ?
-              34
+              50
               :
               ((index == 4 || index == 5) ?
                4
-               : 2048)));
+               : 1024)));
 }
 enum BitContexts : uint8_t {
     CONTEXT_BIT_ZERO,
