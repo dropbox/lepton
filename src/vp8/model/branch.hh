@@ -1,7 +1,7 @@
 #ifndef _BRANCH_HH_
 #define _BRANCH_HH_
 typedef uint8_t Probability;
-// #define JPEG_ENCODER
+//#define JPEG_ENCODER
 // ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
 class Branch
 {
@@ -39,11 +39,12 @@ public:
   }
   void normalize() 
   {
+#ifndef JPEG_ENCODER
       while (true_count() + false_count() > 250) {
           true_count_ = true_count_ / 2 + (true_count_ & 1);
           false_count_ = false_count_ / 2 + (false_count_ & 1);
       }
-
+#endif
       /*    
      if (probability_ > 204) {
           true_count_ = 0;
@@ -71,12 +72,14 @@ public:
   }
   void optimize()
   {
+#ifndef JPEG_ENCODER
     const int prob = 256 * (false_count() + 1) / (false_count() + true_count() + 2);
 
     assert( prob >= 0 );
     assert( prob <= 255 );
 
     probability_ = prob;
+#endif
   }
 
   Branch();
