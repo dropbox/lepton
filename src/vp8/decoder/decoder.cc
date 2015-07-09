@@ -261,19 +261,19 @@ void Block::parse_tokens( BoolDecoder & data,
 
   const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
 
-  for ( unsigned int index = 0;
-        index <= std::min((uint8_t)63, coded_length_);
-	index++ ) {
+  for ( int index = std::min((uint8_t)63, coded_length_);
+        index >= 0 ;
+	index-- ) {
     /* select the tree probabilities based on the prediction context */
-      if (0 == (nonzero_bitmap & 1)) {
-          nonzero_bitmap /= 2;
+      uint64_t nonzero_check = 1UL;
+      nonzero_check <<= index;
+      if (0 == (nonzero_bitmap & nonzero_check)) {
 #ifdef DEBUGDECODE
           fprintf(stderr,"XXB\n");
 #endif
           coefficients_.at( jpeg_zigzag.at( index ) ) = 0;          
           continue;
       }
-      nonzero_bitmap /= 2;
       Optional<int16_t> above_neighbor_context;
       Optional<int16_t> left_neighbor_context;
       if ( context().left.initialized() ) {
@@ -285,14 +285,14 @@ void Block::parse_tokens( BoolDecoder & data,
       Optional<int16_t> left_coef;
       Optional<int16_t> above_coef;
       uint8_t coord = jpeg_zigzag.at( index );
-      if (index > 1) {
-          if (coord % 8 == 0) {
-              above_coef = coefficients().at( coord - 8);
-          } else if (coord > 8) {
-              left_coef = coefficients().at( coord - 1);
-              above_coef = coefficients().at( coord - 8);
+      if (index < 63) {
+          if (coord % 8 == 7 ) {
+              above_coef = coefficients().at(coord + 8);
+          } else if (coord < 64 - 8) {
+              left_coef = coefficients().at(coord + 1);
+              above_coef = coefficients().at(coord + 8);
           } else {
-              left_coef = coefficients().at( coord - 1);
+              left_coef = coefficients().at(coord + 1);
           }
       }
       auto & prob = probability_tables.branch_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),

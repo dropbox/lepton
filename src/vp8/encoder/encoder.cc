@@ -133,7 +133,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
       last_was_zero = (coefficient == 0);
   }
   
-  for ( unsigned int index = 0; index <= last_block_element_index; index++ ) {
+  for ( int index = last_block_element_index; index >= 0; --index ) {
     const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
     if (!coefficient) {
 #ifdef DEBUGDECODE
@@ -153,14 +153,14 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     uint8_t coord = jpeg_zigzag.at( index );
     Optional<int16_t> left_coef;
     Optional<int16_t> above_coef;
-    if (index > 1) {
-        if (coord % 8 == 0) {
-            above_coef = coefficients().at(coord - 8);
-        } else if (coord > 8) {
-            left_coef = coefficients().at(coord - 1);
-            above_coef = coefficients().at(coord - 8);
+    if (index < 63) {
+        if (coord % 8 == 7 ) {
+            above_coef = coefficients().at(coord + 8);
+        } else if (coord < 64 - 8) {
+            left_coef = coefficients().at(coord + 1);
+            above_coef = coefficients().at(coord + 8);
         } else {
-            left_coef = coefficients().at(coord - 1);
+            left_coef = coefficients().at(coord + 1);
         }
     }
     auto & prob = probability_tables.branch_array(std::min((unsigned int)type_,
