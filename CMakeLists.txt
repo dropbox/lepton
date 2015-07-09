@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
 SET(CMAKE_CXX_FLAGS "-std=c++11")
-#find_path(LIBLZMA_INCLUDE_DIR lzma.h )
-#find_library(LIBLZMA_LIBRARY lzma)
+
+IF(APPLE)
+# not widely supported on linux yet
 find_package(LibLZMA REQUIRED)
-#find_library(LZMA_LIBRARY lzma)
+ELSE()
+find_path(LIBLZMA_INCLUDE_DIRS lzma.h )
+find_library(LIBLZMA_LIBRARIES lzma)
+ENDIF()
 
 include_directories(
     ${LIBLZMA_INCLUDE_DIRS}
