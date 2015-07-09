@@ -27,7 +27,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef __linux
+#if defined (__linux) || defined (__APPLE__)
 #define SIRIKATA_FUNCTION_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_PLUGIN_EXPORT __attribute__ ((visibility("default")))

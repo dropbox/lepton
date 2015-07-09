@@ -17,14 +17,6 @@ public:
 
   Optional(T && other) : content_(std::move(other)), initted_(true) {}
 
-  Optional(Optional<T> && other)
-    : initted_(other.initted_)
-  {
-    if (initted_) {
-      new(&content_) T(std::move(other.content_));
-    }
-  }
-
   Optional(const Optional<T> & other)
     : initted_(other.initted_)
   {

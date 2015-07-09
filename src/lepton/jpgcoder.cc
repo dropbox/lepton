@@ -432,7 +432,8 @@ void timing_operation_start( char operation ) {
     memset(&current_operation_first_byte, 0, sizeof(current_operation_first_byte));
     memset(&current_operation_end, 0, sizeof(current_operation_end));
 #endif
-    fprintf(stderr,"START ACHIEVED %ld %ld", current_operation_begin.tv_sec, current_operation_begin.tv_usec );
+    fprintf(stderr,"START ACHIEVED %ld %ld",
+            (long)current_operation_begin.tv_sec, (long)current_operation_begin.tv_usec );
 }
 void timing_operation_first_byte( char operation ) {
     assert(current_operation == operation);
@@ -444,7 +445,9 @@ void timing_operation_first_byte( char operation ) {
     if (current_operation_first_byte.tv_sec == 0 && 
         current_operation_first_byte.tv_usec == 0) {
         gettimeofday(&current_operation_first_byte, NULL);
-        fprintf(stderr,"FIRST BYTE ACHIEVED %ld %ld", current_operation_first_byte.tv_sec, current_operation_first_byte.tv_usec );
+        fprintf(stderr,"FIRST BYTE ACHIEVED %ld %ld",
+                (long)current_operation_first_byte.tv_sec,
+                (long)current_operation_first_byte.tv_usec );
     }
 
 #endif
@@ -667,7 +670,8 @@ void initialize_options( int argc, char** argv )
 	}
 	
 	// count number of files (or filenames) in filelist
-	for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ );	
+	for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
+    }
     if (file_cnt == 2) {
         file_cnt = 1;
         ofilename = filelist[1];

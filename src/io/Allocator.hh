@@ -28,6 +28,7 @@
  */
 #ifndef _SIRIKATA_JPEG_ARHC_ALLOCATOR_HPP_
 #define _SIRIKATA_JPEG_ARHC_ALLOCATOR_HPP_
+#include <stdlib.h>
 #include "DecoderPlatform.hh"
 namespace Sirikata {
 

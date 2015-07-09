@@ -3,9 +3,9 @@
 
 #include <vector>
 #include <type_traits>
-
+#ifndef __APPLE__
 #include <endian.h>
-
+#endif
 
 
 #endif
