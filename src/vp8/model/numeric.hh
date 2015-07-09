@@ -259,6 +259,14 @@ template<class EncoderT> void put_one_signed_coefficient( EncoderT &e,
   put_one_natural_coefficient(e, abs(coefficient));
 }
 
+template<class EncoderT> void put_one_signed_nonzero_coefficient( EncoderT &e,
+                                 const int16_t coefficient )
+{
+    const bool coefficient_sign = coefficient < 0;
+    e.encode_one( coefficient_sign, TokenNodeNot::POSITIVE );
+    put_one_natural_coefficient(e, abs(coefficient));
+}
+
 template<class EncoderT> void put_one_unsigned_coefficient( EncoderT &e,
                                                             const uint16_t coefficient )
 {

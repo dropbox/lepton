@@ -56,48 +56,91 @@ typedef PerBitEncoderState<PerBitContext4s> PerBitEncoderState4s;
 void Block::serialize_tokens( BoolEncoder & encoder,
 			      ProbabilityTables & probability_tables ) const
 {
-  /* serialize the EOB bin */
-  const int16_t num_zeros = min( uint8_t(NUM_ZEROS_BINS-1), num_zeros_ );
+  /* serialize the num zeros bitmap */
+  int slice = BLOCK_SLICE;
+  uint8_t divided_num_zeros = num_zeros_ / slice;
+  if (divided_num_zeros == (64/slice)) divided_num_zeros--;
+  assert(divided_num_zeros < 64/slice);
+
+  const int16_t num_zeros = min( uint8_t(NUM_ZEROS_BINS-1), divided_num_zeros );
   const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
 
-  uint16_t above_num_zeros = context().above.initialized() ? context().above.get()->num_zeros() : 0;
-  uint16_t left_num_zeros = context().left.initialized() ? context().left.get()->num_zeros() : 0;
+  uint16_t above_num_zeros = context().above.initialized() ? context().above.get()->num_zeros() + 1: 0;
+  uint16_t left_num_zeros = context().left.initialized() ? context().left.get()->num_zeros() + 1: 0;
 
-  assert( above_num_zeros < NUM_ZEROS_BINS );
-  assert( left_num_zeros < NUM_ZEROS_BINS );
 
-  Optional<uint16_t> above_coded_length;
-  Optional<uint16_t> left_coded_length;
+  uint16_t above_coded_length = 65;
+  uint16_t left_coded_length = 65;
   if (context().left.initialized()) {
       left_coded_length = context().left.get()->coded_length();
-      assert( left_coded_length.get() < NUM_ZEROS_EOB_PRIORS );
   }
   if (context().above.initialized()) {
       above_coded_length = context().above.get()->coded_length();
-      assert( above_coded_length.get() < NUM_ZEROS_EOB_PRIORS );
   }
-
-  FixedArray<Branch, LOG_NUM_ZEROS_BINS> & num_zeros_prob
+#ifdef DEBUGDECODE
+  fprintf(stderr, "XXY %d %d %d %d\n", left_num_zeros,
+          above_num_zeros,
+          left_coded_length,
+          above_coded_length);
+#endif
+  auto & num_zeros_prob
       = probability_tables.num_zeros_array(left_num_zeros,
                                            above_num_zeros,
-                                           left_coded_length.get_or(0),
-                                           above_coded_length.get_or(0));
+                                           left_coded_length,
+                                           above_coded_length);
 
-  for (unsigned int i = 0; i < LOG_NUM_ZEROS_BINS; ++i) {
-      encoder.put( (( 1 << i) & num_zeros) ? true : false, num_zeros_prob.at(i) );
-  }
-
-  auto & eob_prob = probability_tables.eob_array(num_zeros);
-  PerBitEncoderState2u eob_encoder_state(&encoder, &eob_prob,
-                                         left_coded_length.initialized()
-                                         ? left_coded_length.get() / (64 / EOB_BINS) : left_coded_length,
-                                         above_coded_length.initialized()
-                                         ? above_coded_length.get() / (64/EOB_BINS): above_coded_length);
-  put_one_unsigned_coefficient( eob_encoder_state, eob_bin );
-  
+  uint8_t last_block_element_index = min( uint8_t(63), coded_length_ );
   bool last_was_zero = false;
-
-  for ( unsigned int index = 0; index <= min( uint8_t(63), coded_length_ ); index++ ) {
+  for (unsigned int index = 0; index <= last_block_element_index; ++index) {
+      uint8_t above_neighbor_is_zero = 0;
+      uint8_t left_neighbor_is_zero = 0;
+      if ( context().above.initialized() ) {
+          uint16_t above_coef = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
+          if (!above_coef) {
+              if (index + 1< above_coded_length) {
+                  above_neighbor_is_zero = 1;
+              } else {
+                  above_neighbor_is_zero = 2; // eob context
+              }
+          } else {
+              above_neighbor_is_zero = 0;
+          }
+      }
+      if ( context().left.initialized() ) {
+          uint16_t left_coef = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
+          if (!left_coef) {
+              if (index + 1< left_coded_length) {
+                  left_neighbor_is_zero = 1;
+              } else {
+                  left_neighbor_is_zero = 2; // eob context
+              }
+          } else {
+              left_neighbor_is_zero = 0;
+          }
+      }
+      const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
+#ifdef DEBUGDECODE
+      fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 0, coefficient? 0 : 1);
+#endif
+      encoder.put( coefficient ? false : true, num_zeros_prob.at(index).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(0) );
+      if (!last_was_zero) {
+#ifdef DEBUGDECODE
+          fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 1, index < last_block_element_index ? 0 : 1);
+#endif
+          encoder.put( index < last_block_element_index ? false : true,
+                       num_zeros_prob.at(index>0).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(1) );
+      }
+      last_was_zero = (coefficient == 0);
+  }
+  
+  for ( unsigned int index = 0; index <= last_block_element_index; index++ ) {
+    const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
+    if (!coefficient) {
+#ifdef DEBUGDECODE
+        fprintf(stderr,"XXB\n");
+#endif
+        continue;
+    }
     /* select the tree probabilities based on the prediction context */
     Optional<int16_t> above_neighbor_context;
     Optional<int16_t> left_neighbor_context;
@@ -125,21 +168,19 @@ void Block::serialize_tokens( BoolEncoder & encoder,
                                                   num_zeros,
                                                   eob_bin,
                                                   index_to_cat(index));
-
+#ifdef DEBUGDECODE
+      fprintf(stderr, "XXA %d %d(%d) %d %d => %d\n",
+              std::min((unsigned int)type_, BLOCK_TYPES - 1),
+              (int)num_zeros, (int)num_zeros_,
+              (int)eob_bin,
+              (int)index_to_cat(index),
+              coefficients_.at( jpeg_zigzag.at( index ) )
+          );
+#endif
     PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
                                            left_neighbor_context, above_neighbor_context,
                                            left_coef, above_coef);
-
-    if ( index < coded_length_ ) {
-      const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
-      put_one_signed_coefficient( dct_encoder_state, last_was_zero, false, coefficients_.at( jpeg_zigzag.at( index ) ) );
-      last_was_zero = coefficient == 0;
-    } else {
-      assert( index == coded_length_ );
-      assert( index < 64 );
-      assert( last_was_zero == false );
-      put_one_signed_coefficient( dct_encoder_state, last_was_zero, true, 0 );
-    }
+    put_one_signed_nonzero_coefficient( dct_encoder_state, coefficients_.at( jpeg_zigzag.at( index ) ));
   }
 }
 

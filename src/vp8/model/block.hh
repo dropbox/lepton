@@ -65,10 +65,6 @@ public:
           ++num_zeros_;
       }
     }
-    int slice = BLOCK_SLICE;
-    num_zeros_/=slice;
-    if (num_zeros_ == (64/slice)) num_zeros_--;
-    assert(num_zeros_ < 64/slice);
 #ifndef USE_ZEROS
 //    num_zeros_ = coded_length_; FIXME
 #endif

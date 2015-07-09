@@ -131,6 +131,16 @@ template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
 
 /* The unfolded token decoder is not pretty, but it is considerably faster
    than using a tree decoder */
+template<class DecoderT>int16_t get_one_signed_nonzero_coefficient( DecoderT &d )
+{
+    
+    bool invert_sign = d.decode_one(TokenNodeNot::POSITIVE);
+    int16_t value = get_one_natural_coefficient(d);
+    return (invert_sign ? -value : value);
+}
+
+/* The unfolded token decoder is not pretty, but it is considerably faster
+   than using a tree decoder */
 
 template<class DecoderT> pair<bool, int16_t> get_one_signed_coefficient( DecoderT &d,
                                                                          const bool last_was_zero )
@@ -160,98 +170,150 @@ template<class DecoderT> uint16_t get_one_unsigned_coefficient( DecoderT & d) {
 }
 
 void Block::parse_tokens( BoolDecoder & data,
-			  ProbabilityTables & probability_tables )
+                          ProbabilityTables & probability_tables )
 {
   /* read which EOB bin we're in */
-  uint8_t above_num_zeros = context().above.initialized() ? context().above.get()->num_zeros() : 0;
-  uint8_t left_num_zeros = context().left.initialized() ? context().left.get()->num_zeros() : 0;
+  uint8_t above_num_zeros = context().above.initialized() ? context().above.get()->num_zeros() + 1 : 0;
+  uint8_t left_num_zeros = context().left.initialized() ? context().left.get()->num_zeros() + 1 : 0;
 
-  assert( above_num_zeros < NUM_ZEROS_BINS );
-  assert( left_num_zeros < NUM_ZEROS_BINS );
+  uint16_t above_coded_length = 65;
+  uint16_t left_coded_length = 65;
 
-  Optional<uint16_t> above_coded_length;
-  Optional<uint16_t> left_coded_length;
   if (context().left.initialized()) {
       left_coded_length = context().left.get()->coded_length();
-      assert( left_coded_length.get() < NUM_ZEROS_EOB_PRIORS );
+      assert( left_coded_length < AVG_EOB );
   }
   if (context().above.initialized()) {
       above_coded_length = context().above.get()->coded_length();
-      assert( above_coded_length.get() < NUM_ZEROS_EOB_PRIORS );
+      assert( above_coded_length < AVG_EOB );
   }
+#ifdef DEBUGDECODE
+  fprintf(stderr, "XXY %d %d %d %d\n", left_num_zeros,
+          above_num_zeros,
+          left_coded_length,
+          above_coded_length);
+#endif
+  auto & num_zeros_prob
+      = probability_tables.num_zeros_array((int)left_num_zeros,
+                                           (int)above_num_zeros,
+                                           (int)left_coded_length,
+                                           (int)above_coded_length);
 
-
-  
-  FixedArray<Branch, LOG_NUM_ZEROS_BINS> & num_zeros_prob
-      = probability_tables.num_zeros_array(left_num_zeros,
-                                           above_num_zeros,
-                                           left_coded_length.get_or(0),
-                                           above_coded_length.get_or(0));
-
-  static_assert(NUM_ZEROS_BINS == 64/Block::BLOCK_SLICE, "Block constants must match decoder");
-  uint16_t num_zeros = 0;
-  for (unsigned int i = 0; i < LOG_NUM_ZEROS_BINS; ++i) {
-      num_zeros |= data.get( num_zeros_prob.at(i) ) * ( 1 << i);
-  }
-  DecoderState2u::NestedProbabilityArray & eob_prob = probability_tables.eob_array( num_zeros );
-  DecoderState2u eob_decoder_state(&data, &eob_prob,
-                                   left_coded_length.initialized()
-                                   ? left_coded_length.get() / (64/EOB_BINS) : left_coded_length,
-                                   above_coded_length.initialized()
-                                   ? above_coded_length.get() / (64/EOB_BINS) : above_coded_length);
-  uint16_t eob_bin = get_one_unsigned_coefficient( eob_decoder_state );
-
-  assert(eob_bin < int(EOB_BINS) && "invalid eob value" );
-  
+  uint64_t nonzero_bitmap = 0;
+  coded_length_ = 0;
+  num_zeros_ = 64;
   bool last_was_zero = false;
+  for (unsigned int index = 0; index < 64; ++index) {  
+      uint8_t above_neighbor_is_zero = 0;
+      uint8_t left_neighbor_is_zero = 0;
+      if ( context().above.initialized() ) { // FIXME: unify the bottom code with the encoder
+          uint16_t above_coef = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
+          if (!above_coef) {
+              if (index + 1< above_coded_length) {
+                  above_neighbor_is_zero = 1;
+              } else {
+                  above_neighbor_is_zero = 2; // eob context
+              }
+          } else {
+              above_neighbor_is_zero = 0;
+          }
+      }
+      if ( context().left.initialized() ) {
+          uint16_t left_coef = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
+          if (!left_coef) {
+              if (index + 1< left_coded_length) {
+                  left_neighbor_is_zero = 1;
+              } else {
+                  left_neighbor_is_zero = 2; // eob context
+              }
+          } else {
+              left_neighbor_is_zero = 0;
+          }
+      }
+      bool cur_zero = data.get( num_zeros_prob.at(index).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(0) );
+#ifdef DEBUGDECODE
+      fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 0, cur_zero ? 1 : 0);
+#endif
+      if (!cur_zero) {
+          uint64_t to_shift = 1UL;
+          to_shift <<= index;
+          nonzero_bitmap |= to_shift;
+          coded_length_ = index + 1;
+          --num_zeros_;
+      }
+      if (!last_was_zero) {
+          bool cur_eob = data.get( num_zeros_prob.at(index>0).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(1) );
+#ifdef DEBUGDECODE
+          fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 1, cur_eob ? 1 : 0);
+#endif
+          if (cur_eob) {
+              break; // EOB reached
+          }
+      }
+      last_was_zero = cur_zero;
+  }
+  int slice = BLOCK_SLICE;
+  uint8_t divided_num_zeros = num_zeros_ / slice;
+  if (divided_num_zeros == (64/slice)) divided_num_zeros--;
+  assert(divided_num_zeros < 64/slice);
+
+  const int16_t num_zeros = min( uint8_t(NUM_ZEROS_BINS-1), divided_num_zeros );
+
+  const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
 
   for ( unsigned int index = 0;
-	index < 64;
+        index <= std::min((uint8_t)63, coded_length_);
 	index++ ) {
     /* select the tree probabilities based on the prediction context */
-#ifdef LEGACY_CONTEXT
-    uint8_t token_context = 0;
+      if (0 == (nonzero_bitmap & 1)) {
+          nonzero_bitmap /= 2;
+#ifdef DEBUGDECODE
+          fprintf(stderr,"XXB\n");
 #endif
-    Optional<int16_t> above_neighbor_context;
-    Optional<int16_t> left_neighbor_context;
-    if ( context().left.initialized() ) {
-        left_neighbor_context = Optional<int16_t>(context().left.get()->coefficients().at( jpeg_zigzag.at( index ) ));
-    }
-    if ( context().above.initialized() ) {
-        above_neighbor_context = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
-    }
-    Optional<int16_t> left_coef;
-    Optional<int16_t> above_coef;
-    uint8_t coord = jpeg_zigzag.at( index );
-    if (index > 1) {
-        if (coord % 8 == 0) {
-            above_coef = coefficients().at( coord - 8);
-        } else if (coord > 8) {
-            left_coef = coefficients().at( coord - 1);
-            above_coef = coefficients().at( coord - 8);
-        } else {
-            left_coef = coefficients().at( coord - 1);
-        }
-    }
-    
-    auto & prob = probability_tables.branch_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
-                                                   num_zeros,
-                                                   eob_bin,
-                                                   index_to_cat(index));
-    DecoderState4s dct_decoder_state(&data, &prob,
-                                     left_neighbor_context, above_neighbor_context,
-                                     left_coef, above_coef);
-    bool eob = false;
-    int16_t value;
-    tie( eob, value ) = get_one_signed_coefficient( dct_decoder_state, last_was_zero );
-    if ( eob ) {
-      break;
-    }
-    last_was_zero = value == 0;
-
-    /* assign to block storage */
-    coefficients_.at( jpeg_zigzag.at( index ) ) = value;
+          coefficients_.at( jpeg_zigzag.at( index ) ) = 0;          
+          continue;
+      }
+      nonzero_bitmap /= 2;
+      Optional<int16_t> above_neighbor_context;
+      Optional<int16_t> left_neighbor_context;
+      if ( context().left.initialized() ) {
+          left_neighbor_context = Optional<int16_t>(context().left.get()->coefficients().at( jpeg_zigzag.at( index ) ));
+      }
+      if ( context().above.initialized() ) {
+          above_neighbor_context = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
+      }
+      Optional<int16_t> left_coef;
+      Optional<int16_t> above_coef;
+      uint8_t coord = jpeg_zigzag.at( index );
+      if (index > 1) {
+          if (coord % 8 == 0) {
+              above_coef = coefficients().at( coord - 8);
+          } else if (coord > 8) {
+              left_coef = coefficients().at( coord - 1);
+              above_coef = coefficients().at( coord - 8);
+          } else {
+              left_coef = coefficients().at( coord - 1);
+          }
+      }
+      auto & prob = probability_tables.branch_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
+                                                     num_zeros,
+                                                     eob_bin,
+                                                     index_to_cat(index));
+      DecoderState4s dct_decoder_state(&data, &prob,
+                                       left_neighbor_context, above_neighbor_context,
+                                       left_coef, above_coef);
+      int16_t value= get_one_signed_nonzero_coefficient( dct_decoder_state );
+      
+      /* assign to block storage */
+      coefficients_.at( jpeg_zigzag.at( index ) ) = value;
+#ifdef DEBUGDECODE
+      fprintf(stderr, "XXA %d %d(%d) %d %d => %d\n",
+              std::min((unsigned int)type_, BLOCK_TYPES - 1),
+              (int)num_zeros,(int)num_zeros_,
+              (int)eob_bin,
+              (int)index_to_cat(index),
+              value);
+#endif
   }
-
   recalculate_coded_length();
 }

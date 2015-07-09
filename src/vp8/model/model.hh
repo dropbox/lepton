@@ -22,8 +22,10 @@ constexpr unsigned int PREV_COEF_CONTEXTS = 25;
 constexpr unsigned int NEIGHBOR_COEF_CONTEXTS = 25;
 
 constexpr unsigned int ENTROPY_NODES      = 40;
-constexpr unsigned int NUM_ZEROS_EOB_PRIORS = 65;
-
+constexpr unsigned int NUM_ZEROS_EOB_PRIORS = 66;
+constexpr unsigned int ZERO_OR_EOB = 3;
+constexpr unsigned int AVG_ZEROS_EOB_PRIORS = 66;
+constexpr unsigned int AVG_EOB = 66;
 enum BitContexts : uint8_t {
     CONTEXT_BIT_ZERO,
     CONTEXT_BIT_ONE,
@@ -42,24 +44,31 @@ BitContexts context_from_value_bits_id_min_max(Optional<uint16_t> value,
 
 inline int index_to_cat(int index) {
     return index;
-/*
+    const int unzigzag[] =
+{
+	 0,  1,  8, 16,  9,  2,  3, 10,
+	17, 24, 32, 25, 18, 11,  4,  5,
+	12, 19, 26, 33, 40, 48, 41, 34,
+	27, 20, 13,  6,  7, 14, 21, 28,
+	35, 42, 49, 56, 57, 50, 43, 36,
+	29, 22, 15, 23, 30, 37, 44, 51,
+	58, 59, 52, 45, 38, 31, 39, 46,
+	53, 60, 61, 54, 47, 55, 62, 63
+};
+
         int where = unzigzag[index];
         int x = where % 8;
         int y = where / 8;
         if (x == y) {
+            return 0;
+        }
+        if (x == 0 || y == 0) {
             return 1;
         }
-        if (x == 0) {
+        if (x > y) {
             return 2;
         }
-        if (y == 0) {
-            return 3;
-        }
-        if (x > y) {
-            return 4;
-        }
-        return 5;
-*/
+        return 3;
 }
 
 
@@ -84,11 +93,12 @@ struct Model
 
   EOBCounts eob_counts_;
 
-  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, LOG_NUM_ZEROS_BINS>,
-                              NUM_ZEROS_EOB_PRIORS>,
-                          NUM_ZEROS_EOB_PRIORS>,
-                    NUM_ZEROS_BINS>,
-                    NUM_ZEROS_BINS> NumZeroCounts;
+  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero, eob
+                                                  ZERO_OR_EOB>,
+                                        ZERO_OR_EOB>,
+                              COEF_BANDS>,
+//                          AVG_EOB>,
+                  AVG_ZEROS_EOB_PRIORS> NumZeroCounts;
 
   NumZeroCounts num_zero_counts_;
   
@@ -156,22 +166,34 @@ public:
   {
       return model_->eob_counts_.at(num_zeros);
   }
-
-  const FixedArray<Branch, LOG_NUM_ZEROS_BINS> & num_zeros_array( const int8_t num_zeros_above,
-                                                            const int8_t num_zeros_left,
-                                                      const int16_t eob_bin_above,
-                                                      const int16_t eob_bin_left) const
-  {
-      return model_->num_zero_counts_.at(num_zeros_above).at(num_zeros_left).at( eob_bin_above ).at( eob_bin_left );
+  const FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
+                            ZERO_OR_EOB>,
+                            ZERO_OR_EOB>, COEF_BANDS>& num_zeros_array( const int8_t num_zeros_above,
+                                                          const int8_t num_zeros_left,
+                                                          const int16_t /*eob_above*/,
+                                                          const int16_t /*eob_left*/) const {
+      if (num_zeros_above && num_zeros_left) {
+          return model_->num_zero_counts_.at((num_zeros_above + num_zeros_left) / 2);
+      } else if (num_zeros_above) {
+          return model_->num_zero_counts_.at(num_zeros_above);
+      } else {
+          return model_->num_zero_counts_.at(num_zeros_left);
+      }
   }
 
-  FixedArray<Branch, LOG_NUM_ZEROS_BINS> & num_zeros_array( const int8_t num_zeros_above,
+    FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
+                        ZERO_OR_EOB>,
+              ZERO_OR_EOB>, COEF_BANDS> & num_zeros_array( const int8_t num_zeros_above,
                                                       const int8_t num_zeros_left,
-                                                      const int16_t eob_bin_above,
-                                                      const int16_t eob_bin_left
-                                                )
-  {
-      return model_->num_zero_counts_.at(num_zeros_above).at(num_zeros_left).at( eob_bin_above ).at( eob_bin_left );
+                                                      const int16_t /*eob_above*/,
+                                                      const int16_t /*eob_left*/) {
+      if (num_zeros_above && num_zeros_left) {
+          return model_->num_zero_counts_.at((num_zeros_above + num_zeros_left) / 2);
+      } else if (num_zeros_above) {
+          return model_->num_zero_counts_.at(num_zeros_above);
+      } else {
+          return model_->num_zero_counts_.at(num_zeros_left);
+      }
   }
 
     const FixedArray<FixedArray<FixedArray<Branch,
