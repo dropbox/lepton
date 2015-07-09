@@ -12,6 +12,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/src/vp8/model
     ${PROJECT_SOURCE_DIR}/src/vp8/encoder
     ${PROJECT_SOURCE_DIR}/src/vp8/decoder)
+
 add_executable(lepton
    src/lepton/base_coders.hh
    src/lepton/simple_encoder.hh
@@ -65,6 +66,15 @@ add_executable(lepton
                )
 target_link_libraries(lepton ${LIBLZMA_LIBRARIES})
 
-#   src/lepton/print-model.cc
-#   src/lepton/test_harness.cc
-#   src/lepton/test_invariants.cc
+add_executable(print-model
+   src/lepton/print-model.cc
+   src/vp8/util/mmap.cc
+   src/vp8/util/mmap.hh
+   src/vp8/model/model.cc
+   src/vp8/encoder/encoder.cc
+   src/vp8/decoder/decoder.cc
+   src/vp8/model/numeric.cc
+  )
+add_executable(test_invariants
+   src/lepton/test_invariants.cc
+ )

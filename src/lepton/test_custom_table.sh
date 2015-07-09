@@ -5,10 +5,10 @@ if [ $# -eq 0 ]; then
 else
     export INPUT_TO_TEST=$1
 fi
-export LEPTON_COMPRESSION_MODEL_OUT="`mktemp`"
-export TEST_MODEL="`mktemp`"
-export COMPRESSED_LEPTON="`mktemp`"
-export ORIGINAL="`mktemp`"
+export LEPTON_COMPRESSION_MODEL_OUT="`mktemp /tmp/temp.XXXXXX`"
+export TEST_MODEL="`mktemp /tmp/temp.XXXXXX`"
+export COMPRESSED_LEPTON="`mktemp /tmp/temp.XXXXXX`"
+export ORIGINAL="`mktemp /tmp/temp.XXXXXX`"
 if [ $# -lt 2 ]; then
     ./lepton - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
     cp "$LEPTON_COMPRESSION_MODEL_OUT" "$TEST_MODEL"
@@ -25,7 +25,7 @@ else
 fi
 LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
 LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton - < "$COMPRESSED_LEPTON" > "$ORIGINAL"
-md5sum "$ORIGINAL" "$INPUT_TO_TEST"
+md5sum "$ORIGINAL" "$INPUT_TO_TEST" 2> /dev/null || md5 "$ORIGINAL" "$INPUT_TO_TEST"
     if diff -q "$ORIGINAL" "$INPUT_TO_TEST" ; then
     rm -- "$LEPTON_COMPRESSION_MODEL_OUT"
     rm -- "$TEST_MODEL"

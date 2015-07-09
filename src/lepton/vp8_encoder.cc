@@ -15,8 +15,7 @@
 #include "bool_encoder.hh"
 #include "model.hh"
 #include "numeric.hh"
-
-#include "encoder.cc"
+#include "slice.hh"
 #include "../io/SwitchableCompression.hh"
 
 using namespace std;
