@@ -1,6 +1,7 @@
 AM_CPPFLAGS = $(CXX11_FLAGS) -I$(srcdir)/../vp8/util -I$(srcdir)/../vp8/model -I$(srcdir)/../vp8/decoder -I$(srcdir)/../vp8/encoder $(shell pkg-config liblzma --cflags || echo -DNO_XZ)
 AM_CXXFLAGS = $(PICKY_CXXFLAGS)
-LDADD = -lpthread ../vp8/util/libleptonutil.a ../vp8/encoder/libleptonencoder.a ../vp8/decoder/libleptondecoder.a ../vp8/encoder/libleptonencoder.a ../vp8/model/libleptonmodel.a ../io/libio.a $(liblzma_LIBS)
+LDADD = -lpthread ../vp8/encoder/libleptonencoder.a ../vp8/decoder/libleptondecoder.a ../vp8/encoder/libleptonencoder.a ../vp8/model/libleptonmodel.a ../io/libio.a ../vp8/util/libleptonutil.a $(liblzma_LIBS)
+
 lepton_CXXFLAGS=$(liblzma_CFLAGS)
 lepton_LDFLAGS=
 
