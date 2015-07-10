@@ -11,8 +11,8 @@ int main() {
     for (size_t i = 0; i < (size_t)TokenNodeNot::BaseOffset; ++i) {
         min_for_token_index[i] = max;
     }
-    min = -1024;
-    max = 1024;
+    min = -2048;
+    max = 2048;
     for (int16_t value = min; ; ++value) {
         BitsAndLivenessFromEncoding value_bits;
         put_one_signed_coefficient(value_bits, false, false, value);
