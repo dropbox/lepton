@@ -88,47 +88,25 @@ void Block::serialize_tokens( BoolEncoder & encoder,
                                            above_num_zeros,
                                            left_coded_length,
                                            above_coded_length);
-
   uint8_t last_block_element_index = min( uint8_t(63), coded_length_ );
   bool last_was_zero = false;
+  int written_num_zeros = 0;
   for (unsigned int index = 0; index <= last_block_element_index; ++index) {
-      uint8_t above_neighbor_is_zero = 0;
-      uint8_t left_neighbor_is_zero = 0;
-      if ( context().above.initialized() ) {
-          uint16_t above_coef = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
-          if (!above_coef) {
-              if (index + 1< above_coded_length) {
-                  above_neighbor_is_zero = 1;
-              } else {
-                  above_neighbor_is_zero = 2; // eob context
-              }
-          } else {
-              above_neighbor_is_zero = 0;
-          }
-      }
-      if ( context().left.initialized() ) {
-          uint16_t left_coef = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
-          if (!left_coef) {
-              if (index + 1< left_coded_length) {
-                  left_neighbor_is_zero = 1;
-              } else {
-                  left_neighbor_is_zero = 2; // eob context
-              }
-          } else {
-              left_neighbor_is_zero = 0;
-          }
-      }
       const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
+      int num_zeros_context = std::max(15 - written_num_zeros, 0);
 #ifdef DEBUGDECODE
-      fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 0, coefficient? 0 : 1);
+      fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 0, coefficient? 0 : 1);
 #endif
-      encoder.put( coefficient ? false : true, num_zeros_prob.at(index).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(0) );
+      encoder.put( coefficient ? false : true, num_zeros_prob.at(index).at(num_zeros_context).at(0).at(0) );
       if (!last_was_zero) {
 #ifdef DEBUGDECODE
-          fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 1, index < last_block_element_index ? 0 : 1);
+          fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 1, index < last_block_element_index ? 0 : 1);
 #endif
           encoder.put( index < last_block_element_index ? false : true,
-                       num_zeros_prob.at(index>0).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(1) );
+                       num_zeros_prob.at(index>0).at(num_zeros_context).at(0).at(1) );
+      }
+      if (!coefficient) {
+          written_num_zeros++;
       }
       last_was_zero = (coefficient == 0);
   }

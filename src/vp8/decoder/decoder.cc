@@ -202,37 +202,13 @@ void Block::parse_tokens( BoolDecoder & data,
   uint64_t nonzero_bitmap = 0;
   coded_length_ = 0;
   num_zeros_ = 64;
+  int num_zeros_read = 0;
   bool last_was_zero = false;
   for (unsigned int index = 0; index < 64; ++index) {  
-      uint8_t above_neighbor_is_zero = 0;
-      uint8_t left_neighbor_is_zero = 0;
-      if ( context().above.initialized() ) { // FIXME: unify the bottom code with the encoder
-          uint16_t above_coef = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
-          if (!above_coef) {
-              if (index + 1< above_coded_length) {
-                  above_neighbor_is_zero = 1;
-              } else {
-                  above_neighbor_is_zero = 2; // eob context
-              }
-          } else {
-              above_neighbor_is_zero = 0;
-          }
-      }
-      if ( context().left.initialized() ) {
-          uint16_t left_coef = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
-          if (!left_coef) {
-              if (index + 1< left_coded_length) {
-                  left_neighbor_is_zero = 1;
-              } else {
-                  left_neighbor_is_zero = 2; // eob context
-              }
-          } else {
-              left_neighbor_is_zero = 0;
-          }
-      }
-      bool cur_zero = data.get( num_zeros_prob.at(index).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(0) );
+      int num_zeros_context = std::max(15 - num_zeros_read, 0);
+      bool cur_zero = data.get( num_zeros_prob.at(index).at(num_zeros_context).at(0).at(0) );
 #ifdef DEBUGDECODE
-      fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 0, cur_zero ? 1 : 0);
+      fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 0, cur_zero ? 1 : 0);
 #endif
       if (!cur_zero) {
           uint64_t to_shift = 1UL;
@@ -240,11 +216,13 @@ void Block::parse_tokens( BoolDecoder & data,
           nonzero_bitmap |= to_shift;
           coded_length_ = index + 1;
           --num_zeros_;
+      } else {
+          ++num_zeros_read;
       }
       if (!last_was_zero) {
-          bool cur_eob = data.get( num_zeros_prob.at(index>0).at(left_neighbor_is_zero).at(above_neighbor_is_zero).at(1) );
+          bool cur_eob = data.get( num_zeros_prob.at(index>0).at(num_zeros_context).at(0).at(1) );
 #ifdef DEBUGDECODE
-          fprintf(stderr, "XXZ %d %d %d %d => %d\n", (int)index, (int)left_neighbor_is_zero,(int)above_neighbor_is_zero, 1, cur_eob ? 1 : 0);
+          fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 1, cur_eob ? 1 : 0);
 #endif
           if (cur_eob) {
               break; // EOB reached

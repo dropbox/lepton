@@ -94,8 +94,8 @@ struct Model
   EOBCounts eob_counts_;
 
   typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero, eob
-                                                  ZERO_OR_EOB>,
-                                        ZERO_OR_EOB>,
+                                                  1>,
+                                        16>,
                               COEF_BANDS>,
 //                          AVG_EOB>,
                   AVG_ZEROS_EOB_PRIORS> NumZeroCounts;
@@ -167,8 +167,8 @@ public:
       return model_->eob_counts_.at(num_zeros);
   }
   const FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
-                            ZERO_OR_EOB>,
-                            ZERO_OR_EOB>, COEF_BANDS>& num_zeros_array( const int8_t num_zeros_above,
+                            1>,
+                            16>, COEF_BANDS>& num_zeros_array( const int8_t num_zeros_above,
                                                           const int8_t num_zeros_left,
                                                           const int16_t /*eob_above*/,
                                                           const int16_t /*eob_left*/) const {
@@ -182,8 +182,8 @@ public:
   }
 
     FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
-                        ZERO_OR_EOB>,
-              ZERO_OR_EOB>, COEF_BANDS> & num_zeros_array( const int8_t num_zeros_above,
+                        1>,
+              16>, COEF_BANDS> & num_zeros_array( const int8_t num_zeros_above,
                                                       const int8_t num_zeros_left,
                                                       const int16_t /*eob_above*/,
                                                       const int16_t /*eob_left*/) {
