@@ -20,8 +20,7 @@ constexpr unsigned int NUM_ZEROS_COEF_BINS     =  4;
 constexpr unsigned int COEF_BANDS         = 64;
 constexpr unsigned int PREV_COEF_CONTEXTS = 25;
 constexpr unsigned int NEIGHBOR_COEF_CONTEXTS = 25;
-
-constexpr unsigned int ENTROPY_NODES      = 40;
+constexpr unsigned int ENTROPY_NODES      = 41;
 constexpr unsigned int NUM_ZEROS_EOB_PRIORS = 66;
 constexpr unsigned int ZERO_OR_EOB = 3;
 constexpr unsigned int AVG_ZEROS_EOB_PRIORS = 66;
@@ -41,6 +40,7 @@ BitContexts context_from_value_bits_id_min_max(Optional<int16_t> value,
 BitContexts context_from_value_bits_id_min_max(Optional<uint16_t> value,
                                            const BitsAndLivenessFromEncoding& bits,
                                            unsigned int token_id, uint16_t min, uint16_t max);
+
 
 inline int index_to_cat(int index) {
     return index;
@@ -78,7 +78,7 @@ struct Model
   typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch,
                                 NEIGHBOR_COEF_CONTEXTS>,
 						    PREV_COEF_CONTEXTS>,
-				        ENTROPY_NODES>,
+				        ENTROPY_NODES + 2>,
 					COEF_BANDS>,
 			      EOB_BINS>,
                 NUM_ZEROS_COEF_BINS>,
@@ -199,7 +199,7 @@ public:
     const FixedArray<FixedArray<FixedArray<Branch,
                                 NEIGHBOR_COEF_CONTEXTS>,
 						    PREV_COEF_CONTEXTS>,
-				        ENTROPY_NODES> & branch_array( const unsigned int block_type,
+				        ENTROPY_NODES+2> & branch_array( const unsigned int block_type,
                                                          const unsigned int zeros_bin,
                                                          const unsigned int eob_bin,
                                                          const unsigned int band) const
@@ -210,7 +210,7 @@ public:
   FixedArray<FixedArray<FixedArray<Branch,
                                 NEIGHBOR_COEF_CONTEXTS>,
 						    PREV_COEF_CONTEXTS>,
-				        ENTROPY_NODES> & branch_array( const unsigned int block_type,
+				        ENTROPY_NODES+2> & branch_array( const unsigned int block_type,
                                                    const unsigned int zeros_bin,
                                                    const unsigned int eob_bin,
                                                    const unsigned int band)

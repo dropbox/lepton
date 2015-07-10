@@ -54,7 +54,7 @@ struct PerBitContext4s {
     typedef FixedArray<FixedArray<FixedArray<Branch,
                                           NUM_BIT_CONTEXTS * NUM_BIT_CONTEXTS>,
                                 NUM_BIT_CONTEXTS * NUM_BIT_CONTEXTS>,
-                      ENTROPY_NODES > NestedProbabilityArray;
+                      ENTROPY_NODES+2 > NestedProbabilityArray;
     NestedProbabilityArray *probability_;
 public:
     Branch& operator()(unsigned int token_id, uint16_t min, uint16_t max) const {

@@ -111,7 +111,13 @@ void Block::serialize_tokens( BoolEncoder & encoder,
       last_was_zero = (coefficient == 0);
   }
   
-  for ( int index = last_block_element_index; index >= 0; --index ) {
+  for (
+#ifdef BLOCK_ENCODE_BACKWARDS
+      int index = last_block_element_index; index >= 0; --index 
+#else
+      unsigned int index = 0; index <= last_block_element_index; ++index
+#endif
+      ) {
     const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
     if (!coefficient) {
 #ifdef DEBUGDECODE
@@ -129,18 +135,8 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         left_neighbor_context = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
     }
     uint8_t coord = jpeg_zigzag.at( index );
-    Optional<int16_t> left_coef;
-    Optional<int16_t> above_coef;
-    if (index < 63) {
-        if (coord % 8 == 7 ) {
-            above_coef = coefficients().at(coord + 8);
-        } else if (coord < 64 - 8) {
-            left_coef = coefficients().at(coord + 1);
-            above_coef = coefficients().at(coord + 8);
-        } else {
-            left_coef = coefficients().at(coord + 1);
-        }
-    }
+    std::pair<Optional<int16_t>,
+              Optional<int16_t> > intra_block_neighbors = get_near_coefficients(coord);
     auto & prob = probability_tables.branch_array(std::min((unsigned int)type_,
                                                            BLOCK_TYPES - 1),
                                                   num_zeros,
@@ -155,10 +151,54 @@ void Block::serialize_tokens( BoolEncoder & encoder,
               coefficients_.at( jpeg_zigzag.at( index ) )
           );
 #endif
+      int16_t coef = coefficients_.at( jpeg_zigzag.at( index ));
     PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
                                            left_neighbor_context, above_neighbor_context,
-                                           left_coef, above_coef);
-    put_one_signed_nonzero_coefficient( dct_encoder_state, coefficients_.at( jpeg_zigzag.at( index ) ));
+                                           intra_block_neighbors.first, intra_block_neighbors.second);
+    if (index == 0) {
+        if (false && left_neighbor_context.initialized() && above_neighbor_context.initialized()) {
+            int16_t tl = context().above.get()->context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
+            
+            int16_t a = coef - left_neighbor_context.get();
+            int16_t b = coef - above_neighbor_context.get();
+            int16_t c = coef - tl;
+            
+            if (abs(a) < abs(b)) {
+                if (abs(a) < abs(c)) {
+                    encoder.put( true,
+                                 prob.at(ENTROPY_NODES).at(0).at(0));
+                    coef = a;
+                } else {
+                    encoder.put( false,
+                                 prob.at(ENTROPY_NODES).at(0).at(0));
+                    encoder.put( false,
+                                 prob.at(ENTROPY_NODES+1).at(0).at(0));
+                    coef = c;
+                }
+            } else {
+                if (abs(b) < abs(c)) {
+                    encoder.put( false,
+                                 prob.at(ENTROPY_NODES).at(0).at(0));
+                    encoder.put( true,
+                                 prob.at(ENTROPY_NODES+1).at(0).at(0));
+                    coef = b;
+                } else {
+                    encoder.put( false,
+                                 prob.at(ENTROPY_NODES).at(0).at(0));
+                    encoder.put( false,
+                                 prob.at(ENTROPY_NODES+1).at(0).at(0));
+                    coef = c;
+                }
+            }
+        }else if (left_neighbor_context.initialized()) {
+            coef = coef - left_neighbor_context.get();
+        } else if (above_neighbor_context.initialized()) {
+            coef = coef - above_neighbor_context.get();
+        }
+        put_one_signed_coefficient( dct_encoder_state, true, false, coef );
+    } else {
+        put_one_signed_nonzero_coefficient( dct_encoder_state, coef );
+    }
   }
 }
 

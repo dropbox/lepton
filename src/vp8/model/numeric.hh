@@ -54,7 +54,7 @@ struct TokenDecoderEnsemble
     typedef TokenDecoder<7,
                          TokenDecoder3::base_value + (1 << TokenDecoder3::bits),
                          TokenDecoder3::prob_offset + TokenDecoder3::bits> TokenDecoder4;
-    typedef TokenDecoder<10,
+    typedef TokenDecoder<11,
                          TokenDecoder4::base_value + (1 << TokenDecoder4::bits),
                          TokenDecoder4::prob_offset + TokenDecoder4::bits> TokenDecoder5;
     TokenDecoder1 token_decoder_1;
@@ -153,7 +153,7 @@ constexpr uint16_t max_from_entropy_node_index_inclusive(int index) {
               :
               ((index == 4 || index == 5) ?
                4
-               : 1024)));
+               : 2048)));
 }
 
 template<class EncoderT> void put_one_natural_coefficient( EncoderT &e,
@@ -230,7 +230,7 @@ template<class EncoderT> void put_one_natural_coefficient( EncoderT &e,
         e.encode_ensemble5(token_value);
         return;
     }
-    
+    fprintf(stderr, "Trying to encode value %d\n", token_value);
     assert(false && "token encoder; value too large" );
 }
 template<class EncoderT> void put_one_signed_coefficient( EncoderT &e,

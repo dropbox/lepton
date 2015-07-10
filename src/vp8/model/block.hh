@@ -4,7 +4,7 @@
 #include "plane.hh"
 #include "fixed_array.hh"
 #include "jpeg_meta.hh"
-
+#define BLOCK_ENCODE_BACKWARDS
 static constexpr FixedArray< uint8_t, 64 > jpeg_zigzag = {{
     0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
@@ -80,6 +80,34 @@ public:
     //num_zeros_=std::min(coded_length_, (unsigned char)31U);
   }
   
+    std::pair<Optional<int16_t>,
+              Optional<int16_t> > get_near_coefficients(uint8_t unzigzag_coord) const {
+        std::pair<Optional<int16_t> , Optional<int16_t> > retval;
+#ifdef BLOCK_ENCODE_BACKWARDS
+        if (unzigzag_coord < 63) {
+            if (unzigzag_coord % 8 == 7 ) {
+                retval.second = coefficients().at(unzigzag_coord + 8);
+            } else if (unzigzag_coord < 64 - 8) {
+                retval.first = coefficients().at(unzigzag_coord + 1);
+                retval.second = coefficients().at(unzigzag_coord + 8);
+            } else {
+                retval.first = coefficients().at(unzigzag_coord + 1);
+            }
+        }
+#else
+        if (index > 0) {
+            if (unzigzag_coord % 8 == 0 ) {
+                retval.second = coefficients().at(unzigzag_coord - 8);
+            } else if (unzigzag_coord > 8) {
+                retval.first = coefficients().at(unzigzag_coord - 1);
+                retval.second = coefficients().at(unzigzag_coord - 8);
+            } else {
+                retval.first = coefficients().at(unzigzag_coord - 1);
+            }
+        }
+#endif
+        return retval;
+  }
   void serialize_tokens( BoolEncoder & data,
 			 ProbabilityTables & probability_tables ) const;
 

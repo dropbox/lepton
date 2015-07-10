@@ -239,9 +239,13 @@ void Block::parse_tokens( BoolDecoder & data,
 
   const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
 
-  for ( int index = std::min((uint8_t)63, coded_length_);
-        index >= 0 ;
-	index-- ) {
+  for (
+#ifdef BLOCK_ENCODE_BACKWARDS
+      int index = std::min((uint8_t)63, coded_length_); index >= 0 ; --index
+#else
+      unsigned int index = 0; index <= std::min((uint8_t)63, coded_length_); ++index
+#endif
+      ) {
     /* select the tree probabilities based on the prediction context */
       uint64_t nonzero_check = 1UL;
       nonzero_check <<= index;
@@ -260,28 +264,28 @@ void Block::parse_tokens( BoolDecoder & data,
       if ( context().above.initialized() ) {
           above_neighbor_context = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
       }
-      Optional<int16_t> left_coef;
-      Optional<int16_t> above_coef;
       uint8_t coord = jpeg_zigzag.at( index );
-      if (index < 63) {
-          if (coord % 8 == 7 ) {
-              above_coef = coefficients().at(coord + 8);
-          } else if (coord < 64 - 8) {
-              left_coef = coefficients().at(coord + 1);
-              above_coef = coefficients().at(coord + 8);
-          } else {
-              left_coef = coefficients().at(coord + 1);
-          }
-      }
+      std::pair<Optional<int16_t>,
+                Optional<int16_t> > intra_block_neighbors = 
+          get_near_coefficients(coord);
       auto & prob = probability_tables.branch_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
                                                      num_zeros,
                                                      eob_bin,
                                                      index_to_cat(index));
       DecoderState4s dct_decoder_state(&data, &prob,
                                        left_neighbor_context, above_neighbor_context,
-                                       left_coef, above_coef);
-      int16_t value= get_one_signed_nonzero_coefficient( dct_decoder_state );
-      
+                                       intra_block_neighbors.first, intra_block_neighbors.second);
+      int16_t value;
+      if (index == 0) {// DC coefficient
+          value = get_one_signed_coefficient( dct_decoder_state , true).second;
+          if (left_neighbor_context.initialized()) {
+              value += left_neighbor_context.get();
+          } else if (above_neighbor_context.initialized()) {
+              value += above_neighbor_context.get();
+          }
+      } else { // AC coefficient
+          value= get_one_signed_nonzero_coefficient( dct_decoder_state );
+      }
       /* assign to block storage */
       coefficients_.at( jpeg_zigzag.at( index ) ) = value;
 #ifdef DEBUGDECODE
