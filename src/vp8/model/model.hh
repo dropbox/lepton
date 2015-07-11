@@ -33,6 +33,31 @@ enum BitContexts : uint8_t {
     CONTEXT_UNSET,
     NUM_BIT_CONTEXTS
 };
+template<typename intt> intt log2(intt v) {
+    constexpr int loop_max = (int)(sizeof(intt) == 1 ? 2
+                                   : (sizeof(intt) == 2 ? 3
+                                      : (sizeof(intt) == 4 ? 4
+                                         : 5)));
+    const intt b[] = {0x2,
+                      0xC,
+                      0xF0,
+                      (intt)0xFF00,
+                      (intt)0xFFFF0000U,
+                      std::numeric_limits<intt>::max() - (intt)0xFFFFFFFFU};
+    const intt S[] = {1, 2, 4, 8, 16, 32};
+
+    register intt r = 0; // result of log2(v) will go here
+    
+    for (signed int i = loop_max; i >= 0; i--) // unroll for speed...
+    {
+        if (v & b[i])
+        {
+            v >>= S[i];
+            r |= S[i];
+        } 
+    }
+    return r;
+}
 
 BitContexts context_from_value_bits_id_min_max(Optional<int16_t> value,
                                            const BitsAndLivenessFromEncoding& bits,

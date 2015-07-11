@@ -27,28 +27,13 @@ template <class ParentContext> struct PerBitDecoderState : public ParentContext{
         ParentContext(std::forward<Targs>(Fargs)...),
         decoder_(decoder) {
     }
-    bool decode_one(TokenNodeNot index) {
+    bool decode_one(TokenNode index) {
         return decode_one((int)index);
     }
     bool decode_one(int index) {
         return decoder_->get((*this)(index,
                                      min_from_entropy_node_index(index),
                                      max_from_entropy_node_index_inclusive(index)));
-    }
-    uint16_t decode_ensemble1() {
-        return TokenDecoderEnsemble::TokenDecoder1::decode(*decoder_, *this);
-    }
-    uint16_t decode_ensemble2() {
-        return TokenDecoderEnsemble::TokenDecoder2::decode(*decoder_, *this);
-    }
-    uint16_t decode_ensemble3() {
-        return TokenDecoderEnsemble::TokenDecoder3::decode(*decoder_, *this);
-    }
-    uint16_t decode_ensemble4() {
-        return TokenDecoderEnsemble::TokenDecoder4::decode(*decoder_, *this);
-    }
-    uint16_t decode_ensemble5() {
-        return TokenDecoderEnsemble::TokenDecoder5::decode(*decoder_, *this);
     }
 };
 
@@ -85,47 +70,26 @@ typedef PerBitDecoderState<DefaultContext> DecoderState;
 typedef PerBitDecoderState<PerBitContext2u> DecoderState2u;
 typedef PerBitDecoderState<PerBitContext4s> DecoderState4s;
 
-
-template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
-    uint16_t value = 0;
-    if ( not d.decode_one(TokenNodeNot::ONE) ) {
-        value = 1;
-    } else {
-        if ( not d.decode_one(TokenNodeNot::TWO_THREE_OR_FOUR) ) {
-            if ( not d.decode_one(TokenNodeNot::TWO) ) {
-                value = 2;
-            } else {
-                if ( not d.decode_one(TokenNodeNot::THREE)) {
-                    value = 3;
-                } else {
-                    value = 4;
-                }
-            }
-        } else {
-            if ( not d.decode_one(TokenNodeNot::FIVE_SIX_OR_ENSEMBLE1)) {
-                if ( not d.decode_one(TokenNodeNot::FIVE_SIX)) {
-                    value = (d.decode_one(TokenNodeNot::FIVE) ? 6 : 5); /* new bit! */
-                } else {
-                    value = d.decode_ensemble1();
-                }
-            } else {
-                if ( not d.decode_one(TokenNodeNot::ENSEMBLE2_OR_ENSEMBLE3)) {
-                    if ( not d.decode_one(TokenNodeNot::ENSEMBLE2)) {
-                        value = d.decode_ensemble2();
-                    } else {
-                        value = d.decode_ensemble3();
-                    }
-                } else {
-                    if ( not d.decode_one(TokenNodeNot::ENSEMBLE4)) {
-                        value = d.decode_ensemble4();
-                    } else {
-                        value = d.decode_ensemble5();
-                    }
-                }
-            }
-        }
+template<class DecoderT> uint8_t get_ceil_log2_coefficient(DecoderT& d) {
+    bool l0 = d.decode_one(TokenNode::LENGTH0);
+    bool l1 = d.decode_one(TokenNode::LENGTH1);
+    if (l0 == false && l1 == false) {
+        return 1;
     }
-
+    bool l2 = d.decode_one(TokenNode::LENGTH2);
+    if (l0 == true && l1 == false && l2 == false) {
+        return 2;
+    }
+    bool l3 = d.decode_one(TokenNode::LENGTH3);
+    uint8_t prefix_coded_length = (l0 ? 1 : 0) + (l1 ? 2 : 0) + (l2 ? 4 : 0) + (l3 ? 8 : 0);
+    return 3 + (l2 ? 1 : 0) + (l3 ? 2 : 0) + (l0? 4 : 0);
+}
+template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
+    uint8_t length = get_ceil_log2_coefficient(d);
+    uint16_t value = (1 << (length - 1));
+    for (uint8_t i = 0; i + 1 < length; ++i) {
+        value += (1 << i) * d.decode_one((int)TokenNode::VAL0 + i);
+    }
     return value;
 }
 
@@ -134,8 +98,8 @@ template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
 template<class DecoderT>int16_t get_one_signed_nonzero_coefficient( DecoderT &d )
 {
     
-    bool invert_sign = d.decode_one(TokenNodeNot::POSITIVE);
     int16_t value = get_one_natural_coefficient(d);
+    bool invert_sign = d.decode_one(TokenNode::NEGATIVE);
     return (invert_sign ? -value : value);
 }
 
@@ -148,22 +112,22 @@ template<class DecoderT> pair<bool, int16_t> get_one_signed_coefficient( Decoder
     
     // decode the token
     if ( not last_was_zero ) {
-        if ( not d.decode_one(TokenNodeNot::EOB)) {
+        if ( d.decode_one(TokenNode::EOB)) {
           // EOB
           return { true, 0 };
       }
     }
 
-    if ( not d.decode_one(TokenNodeNot::ZERO)) {
+    if ( d.decode_one(TokenNode::ZERO)) {
       return { false, 0 };
     }
-    bool invert_sign = d.decode_one(TokenNodeNot::POSITIVE);
     int16_t value = get_one_natural_coefficient(d);
+    bool invert_sign = d.decode_one(TokenNode::NEGATIVE);
     return {false, (invert_sign ? -value : value)};
 }
 template<class DecoderT> uint16_t get_one_unsigned_coefficient( DecoderT & d) {
 
-    if ( not d.decode_one(TokenNodeNot::ZERO)) {
+    if ( d.decode_one(TokenNode::ZERO)) {
       return 0;
     }
     return get_one_natural_coefficient(d);
@@ -276,7 +240,7 @@ void Block::parse_tokens( BoolDecoder & data,
                                        left_neighbor_context, above_neighbor_context,
                                        intra_block_neighbors.first, intra_block_neighbors.second);
       int16_t value;
-      if (index == 0) {// DC coefficient
+      if (false && index == 0) {// DC coefficient
           value = get_one_signed_coefficient( dct_decoder_state , true).second;
           if (left_neighbor_context.initialized()) {
               value += left_neighbor_context.get();

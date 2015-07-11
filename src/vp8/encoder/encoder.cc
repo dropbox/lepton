@@ -22,31 +22,13 @@ public:
     }
 
     // boiler-plate implementations
-    void encode_one(bool value, TokenNodeNot index) {
+    void encode_one(bool value, TokenNode index) {
         encode_one(value,(int)index);
     }
     void encode_one(bool value, int index) {
         encoder_->put(value, (*this)(index,
                                      min_from_entropy_node_index(index),
                                      max_from_entropy_node_index_inclusive(index)));
-    }
-    template<class TokenDecoderEnsembleNum> void encode_ensemble(uint16_t value) {
-        TokenDecoderEnsembleNum::encode(*encoder_, value, *this);
-    }
-    void encode_ensemble1(uint16_t value) {
-        TokenDecoderEnsemble::TokenDecoder1::encode(*encoder_, value, *this);
-    }
-    void encode_ensemble2(uint16_t value) {
-        TokenDecoderEnsemble::TokenDecoder2::encode(*encoder_, value, *this);
-    }
-    void encode_ensemble3(uint16_t value) {
-        TokenDecoderEnsemble::TokenDecoder3::encode(*encoder_, value, *this);
-    }
-    void encode_ensemble4(uint16_t value) {
-        TokenDecoderEnsemble::TokenDecoder4::encode(*encoder_, value, *this);
-    }
-    void encode_ensemble5(uint16_t value) {
-        TokenDecoderEnsemble::TokenDecoder5::encode(*encoder_, value, *this);
     }
 };
 
@@ -119,6 +101,13 @@ void Block::serialize_tokens( BoolEncoder & encoder,
 #endif
       ) {
     const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
+      if (0 == std::min((unsigned int)type_, BLOCK_TYPES - 1) &&
+          2 == (int)num_zeros && 34 == (int)num_zeros_
+          && 2 == (int)eob_bin
+          && 1 == (int)index_to_cat(index) && coefficient == -187){
+          fprintf(stderr, "ABOUT TO ERR\n");
+      }
+
     if (!coefficient) {
 #ifdef DEBUGDECODE
         fprintf(stderr,"XXB\n");
@@ -155,7 +144,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
                                            left_neighbor_context, above_neighbor_context,
                                            intra_block_neighbors.first, intra_block_neighbors.second);
-    if (index == 0) {
+    if (false && index == 0) {
         if (false && left_neighbor_context.initialized() && above_neighbor_context.initialized()) {
             int16_t tl = context().above.get()->context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
             

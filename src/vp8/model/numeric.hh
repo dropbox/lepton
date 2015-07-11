@@ -25,44 +25,24 @@ struct TokenDecoder
     static std::pair<uint64_t, uint64_t> bits_and_liveness(const uint16_t value);
 };
 
-enum class TokenNodeNot : uint8_t {
-    EOB = 0,
-    ZERO = 1,
-    ONE = 2,
-    TWO_THREE_OR_FOUR = 3,
-    TWO = 4,
-    THREE = 5,
-    FIVE_SIX_OR_ENSEMBLE1 =6,
-    FIVE_SIX = 7,
-    ENSEMBLE2_OR_ENSEMBLE3 = 8,
-    ENSEMBLE2 = 9,
-    ENSEMBLE4 = 10,
-    FIVE = 11,
-    POSITIVE = 12,
+enum class TokenNode : uint8_t {
+    ZERO,
+    LENGTH0,//[0,0] = 1      [0,1,0,1] = 5 [1,1,0,1] = 9
+    LENGTH1,//[1,0,0] = 2    [0,1,1,1] = 6 [1,1,1,1] = 10
+    LENGTH2,//[0,1,0,0] = 3  [1,1,0,0] = 7
+    LENGTH3,//[0,1,1,0] = 4  [1,1,1,0] = 8
+    VAL0,
+    VAL1,
+    VAL2,
+    VAL3,
+    VAL4,
+    VAL5,
+    VAL6,
+    VAL7,
+    VAL8,
+    NEGATIVE,
+    EOB,
     BaseOffset // do not use
-};
-
-struct TokenDecoderEnsemble
-{
-    typedef TokenDecoder<2, 7, (uint16_t)TokenNodeNot::BaseOffset> TokenDecoder1;
-    typedef TokenDecoder<3,
-                         TokenDecoder1::base_value + (1 << TokenDecoder1::bits),
-                         TokenDecoder1::prob_offset + TokenDecoder1::bits> TokenDecoder2;
-    typedef TokenDecoder<5, 
-                         TokenDecoder2::base_value + (1 << TokenDecoder2::bits),
-                         TokenDecoder2::prob_offset + TokenDecoder2::bits> TokenDecoder3;
-    typedef TokenDecoder<7,
-                         TokenDecoder3::base_value + (1 << TokenDecoder3::bits),
-                         TokenDecoder3::prob_offset + TokenDecoder3::bits> TokenDecoder4;
-    typedef TokenDecoder<11,
-                         TokenDecoder4::base_value + (1 << TokenDecoder4::bits),
-                         TokenDecoder4::prob_offset + TokenDecoder4::bits> TokenDecoder5;
-    TokenDecoder1 token_decoder_1;
-    TokenDecoder2 token_decoder_2;
-    TokenDecoder3 token_decoder_3;
-    TokenDecoder4 token_decoder_4;
-    TokenDecoder5 token_decoder_5;
-
 };
 
 class BitsAndLivenessFromEncoding {
@@ -79,33 +59,8 @@ public:
             bits_ |= (1 << entropy_node_index);
         }
     }
-    void encode_one(bool value, TokenNodeNot entropy_node_index) {
+    void encode_one(bool value, TokenNode entropy_node_index) {
         encode_one(value, (int)entropy_node_index);
-    }
-    void encode_ensemble1(uint16_t value) {
-        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder1::bits_and_liveness(value);
-        bits_ |= bl.first;
-        liveness_ |= bl.second;
-    }
-    void encode_ensemble2(uint16_t value) {
-        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder2::bits_and_liveness(value);
-        bits_ |= bl.first;
-        liveness_ |= bl.second;
-    }
-    void encode_ensemble3(uint16_t value) {
-        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder3::bits_and_liveness(value);
-        bits_ |= bl.first;
-        liveness_ |= bl.second;
-    }
-    void encode_ensemble4(uint16_t value) {
-        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder4::bits_and_liveness(value);
-        bits_ |= bl.first;
-        liveness_ |= bl.second;
-    }
-    void encode_ensemble5(uint16_t value) {
-        std::pair<uint64_t, uint64_t> bl = TokenDecoderEnsemble::TokenDecoder5::bits_and_liveness(value);
-        bits_ |= bl.first;
-        liveness_ |= bl.second;
     }
     uint64_t bits()const {
         return bits_;
@@ -116,122 +71,76 @@ public:
 };
 
 inline uint16_t min_from_entropy_node_index(int index) {
-    switch(index) {
-      case 0:
+    switch((TokenNode)index) {
+      case TokenNode::EOB:
         return 0;
-      case 1:
-        return 0;
-      case 12:
-      case 2:
+      case TokenNode::LENGTH0:
+      case TokenNode::LENGTH1:
         return 1;
-      case 3:
-      case 4:
+      case TokenNode::LENGTH2:
         return 2;
-      case 5:
-        return 3;
-      case 6:
-      case 7:
-      case 11:
-        return std::min((int)TokenDecoderEnsemble::TokenDecoder1::base_value, 5); // this was 5
-      case 8:
-      case 9:
-        return TokenDecoderEnsemble::TokenDecoder1::upper_limit;
-      case 10:
-        return TokenDecoderEnsemble::TokenDecoder3::upper_limit;
+      case TokenNode::LENGTH3:
+        return 4;
+      case TokenNode::VAL0:
+        return 2;
+      case TokenNode::VAL1:
+      case TokenNode::VAL2:
+      case TokenNode::VAL3:
+      case TokenNode::VAL4:
+      case TokenNode::VAL5:
+      case TokenNode::VAL6:
+      case TokenNode::VAL7:
+      case TokenNode::VAL8:
+        return 1+ (1 << (1 + index - (int)TokenNode::VAL0));
+      case TokenNode::NEGATIVE:
+        return 1;
+      case TokenNode::ZERO:
+        return 0;
       default:
         assert(false && "Entropy node");
     }    
 }
 
 constexpr uint16_t max_from_entropy_node_index_inclusive(int index) {
-    return index == 11 ? 
-        6
-        : (index == 7 ?
-           10
-           : (index == 9 ?
-              50
-              :
-              ((index == 4 || index == 5) ?
-               4
-               : 2048)));
+    return 2048;
 }
+
+template<class EncoderT> uint8_t put_ceil_log_coefficient( EncoderT &e,
+                                                        const uint16_t token_value ) {
+    if (token_value == 1) {
+        e.encode_one(false, TokenNode::LENGTH0);
+        e.encode_one(false, TokenNode::LENGTH1);
+        return 1;
+    }
+    if (token_value < 4) {
+        e.encode_one(true, TokenNode::LENGTH0);
+        e.encode_one(false, TokenNode::LENGTH1);
+        e.encode_one(false, TokenNode::LENGTH2);
+        return 2;
+    }
+    uint8_t length = log2(token_value);
+    ++length;
+    uint8_t prefix_coded_length =
+        2 //offset
+        + (((length - 3)&4)>>2) // 3 + length
+        + 4*((length - 3) & 3); //  3-6 or 7-10
+     e.encode_one((prefix_coded_length&1) ? true : false, TokenNode::LENGTH0);
+     e.encode_one((prefix_coded_length&2) ? true : false, TokenNode::LENGTH1);
+     e.encode_one((prefix_coded_length&4) ? true : false, TokenNode::LENGTH2);
+     e.encode_one((prefix_coded_length&8) ? true : false, TokenNode::LENGTH3);
+    return length;
+}
+
 
 template<class EncoderT> void put_one_natural_coefficient( EncoderT &e,
                                                            const uint16_t token_value )
 {
-    if ( token_value == 1 ) {
-        e.encode_one(false, TokenNodeNot::ONE);
-        return;
+    assert(token_value < 1024);// don't support higher than this yet
+    uint8_t length = put_ceil_log_coefficient(e, token_value);
+    for (uint8_t i = 0; i + 1 < length; ++i) {
+        e.encode_one((token_value&(1 << i)), (TokenNode)((int)TokenNode::VAL0 + i));
     }
-
-    e.encode_one(true, TokenNodeNot::ONE);
-
-    if ( token_value == 2 ) {
-        e.encode_one(false, TokenNodeNot::TWO_THREE_OR_FOUR);
-        e.encode_one(false, TokenNodeNot::TWO);
-        return;
-    }
-    
-    if ( token_value == 3 ) {
-        e.encode_one(false, TokenNodeNot::TWO_THREE_OR_FOUR);
-        e.encode_one(true, TokenNodeNot::TWO);
-        e.encode_one(false, TokenNodeNot::THREE);
-        return;
-    }
-
-    if ( token_value == 4 ) {
-        e.encode_one(false, TokenNodeNot::TWO_THREE_OR_FOUR);
-        e.encode_one(true, TokenNodeNot::TWO);
-        e.encode_one(true, TokenNodeNot::THREE);
-        return;
-    }
-    e.encode_one(true, TokenNodeNot::TWO_THREE_OR_FOUR);
-
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder1::base_value ) { /* category 1, 5..6 */
-        e.encode_one(false, TokenNodeNot::FIVE_SIX_OR_ENSEMBLE1);
-        e.encode_one(false, TokenNodeNot::FIVE_SIX);
-        e.encode_one(token_value == 5 ? false : true, TokenNodeNot::FIVE);
-        return;
-    }
-
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder1::upper_limit ) { /* category 2, 7..10 */
-        e.encode_one(false, TokenNodeNot::FIVE_SIX_OR_ENSEMBLE1);
-        e.encode_one(true, TokenNodeNot::FIVE_SIX);
-        e.encode_ensemble1(token_value);
-        return;
-    }
-
-    e.encode_one( true, TokenNodeNot::FIVE_SIX_OR_ENSEMBLE1);
-
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder2::upper_limit ) { /* category 3, 11..18 */
-        e.encode_one( false, TokenNodeNot::ENSEMBLE2_OR_ENSEMBLE3);
-        e.encode_one( false, TokenNodeNot::ENSEMBLE2);
-        e.encode_ensemble2(token_value);
-        return;
-    }
-
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder3::upper_limit ) { /* category 4, 19..34 */
-        e.encode_one( false, TokenNodeNot::ENSEMBLE2_OR_ENSEMBLE3);
-        e.encode_one( true, TokenNodeNot::ENSEMBLE2);
-        e.encode_ensemble3(token_value);
-        return;
-    }
-
-    e.encode_one( true, TokenNodeNot::ENSEMBLE2_OR_ENSEMBLE3);
-
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder4::upper_limit ) { /* category 5, 35..66 */
-        e.encode_one( false, TokenNodeNot::ENSEMBLE4);
-        e.encode_ensemble4(token_value);
-        return;
-    }
-    
-    if ( token_value < TokenDecoderEnsemble::TokenDecoder5::upper_limit ) { /* category 6, 67..2048 */
-        e.encode_one( true, TokenNodeNot::ENSEMBLE4);
-        e.encode_ensemble5(token_value);
-        return;
-    }
-    fprintf(stderr, "Trying to encode value %d\n", token_value);
-    assert(false && "token encoder; value too large" );
+    return;
 }
 template<class EncoderT> void put_one_signed_coefficient( EncoderT &e,
                                  const bool last_was_zero,
@@ -242,30 +151,30 @@ template<class EncoderT> void put_one_signed_coefficient( EncoderT &e,
 
   if ( eob ) {
     assert( not last_was_zero );
-    e.encode_one( false, TokenNodeNot::EOB );
+    e.encode_one( true, TokenNode::EOB );
     return;
   }
   
   if ( not last_was_zero ) {
-    e.encode_one( true, TokenNodeNot::EOB );
+    e.encode_one( false, TokenNode::EOB );
   }
 
   if ( coefficient == 0 ) {
-      e.encode_one( false, TokenNodeNot::ZERO );
+      e.encode_one( true, TokenNode::ZERO );
     return;
   }
 
-  e.encode_one( true, TokenNodeNot::ZERO );
-  e.encode_one( coefficient_sign, TokenNodeNot::POSITIVE );
+  e.encode_one( false, TokenNode::ZERO );
   put_one_natural_coefficient(e, abs(coefficient));
+  e.encode_one( coefficient_sign, TokenNode::NEGATIVE );
 }
 
 template<class EncoderT> void put_one_signed_nonzero_coefficient( EncoderT &e,
                                  const int16_t coefficient )
 {
     const bool coefficient_sign = coefficient < 0;
-    e.encode_one( coefficient_sign, TokenNodeNot::POSITIVE );
     put_one_natural_coefficient(e, abs(coefficient));
+    e.encode_one( coefficient_sign, TokenNode::NEGATIVE );
 }
 
 template<class EncoderT> void put_one_unsigned_coefficient( EncoderT &e,
@@ -273,11 +182,11 @@ template<class EncoderT> void put_one_unsigned_coefficient( EncoderT &e,
 {
 
   if ( coefficient == 0 ) {
-      e.encode_one( false, TokenNodeNot::ZERO );
+      e.encode_one( true, TokenNode::ZERO );
       return;
   }
 
-  e.encode_one( true, TokenNodeNot::ZERO );
+  e.encode_one( false, TokenNode::ZERO );
   put_one_natural_coefficient(e, coefficient);
 }
 template <unsigned int length, uint16_t base_value_, uint16_t prob_offset_>
