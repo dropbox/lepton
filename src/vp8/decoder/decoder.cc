@@ -170,7 +170,7 @@ void Block::parse_tokens( BoolDecoder & data,
   bool last_was_zero = false;
   for (unsigned int index = 0; index < 64; ++index) {  
       int num_zeros_context = std::max(15 - num_zeros_read, 0);
-      bool cur_zero = data.get( num_zeros_prob.at(index).at(num_zeros_context).at(0).at(0) );
+      bool cur_zero = data.get( num_zeros_prob.at(index).at(num_zeros_context).at(0) );
 #ifdef DEBUGDECODE
       fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 0, cur_zero ? 1 : 0);
 #endif
@@ -184,7 +184,7 @@ void Block::parse_tokens( BoolDecoder & data,
           ++num_zeros_read;
       }
       if (!last_was_zero) {
-          bool cur_eob = data.get( num_zeros_prob.at(index>0).at(num_zeros_context).at(0).at(1) );
+          bool cur_eob = data.get( num_zeros_prob.at(index>0).at(num_zeros_context).at(1) );
 #ifdef DEBUGDECODE
           fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 1, cur_eob ? 1 : 0);
 #endif

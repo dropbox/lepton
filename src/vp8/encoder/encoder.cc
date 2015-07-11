@@ -79,13 +79,13 @@ void Block::serialize_tokens( BoolEncoder & encoder,
 #ifdef DEBUGDECODE
       fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 0, coefficient? 0 : 1);
 #endif
-      encoder.put( coefficient ? false : true, num_zeros_prob.at(index).at(num_zeros_context).at(0).at(0) );
+      encoder.put( coefficient ? false : true, num_zeros_prob.at(index).at(num_zeros_context).at(0) );
       if (!last_was_zero) {
 #ifdef DEBUGDECODE
           fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 1, index < last_block_element_index ? 0 : 1);
 #endif
           encoder.put( index < last_block_element_index ? false : true,
-                       num_zeros_prob.at(index>0).at(num_zeros_context).at(0).at(1) );
+                       num_zeros_prob.at(index>0).at(num_zeros_context).at(1) );
       }
       if (!coefficient) {
           written_num_zeros++;
@@ -101,12 +101,6 @@ void Block::serialize_tokens( BoolEncoder & encoder,
 #endif
       ) {
     const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
-      if (0 == std::min((unsigned int)type_, BLOCK_TYPES - 1) &&
-          2 == (int)num_zeros && 34 == (int)num_zeros_
-          && 2 == (int)eob_bin
-          && 1 == (int)index_to_cat(index) && coefficient == -187){
-          fprintf(stderr, "ABOUT TO ERR\n");
-      }
 
     if (!coefficient) {
 #ifdef DEBUGDECODE

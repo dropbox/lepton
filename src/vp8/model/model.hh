@@ -8,6 +8,7 @@
 #include "../util/option.hh"
 #include "numeric.hh"
 #include "branch.hh"
+#include "block.hh"
 class BoolEncoder;
 class Slice;
 
@@ -20,7 +21,7 @@ constexpr unsigned int NUM_ZEROS_COEF_BINS     =  4;
 constexpr unsigned int COEF_BANDS         = 64;
 constexpr unsigned int PREV_COEF_CONTEXTS = 25;
 constexpr unsigned int NEIGHBOR_COEF_CONTEXTS = 25;
-constexpr unsigned int ENTROPY_NODES      = 41;
+constexpr unsigned int ENTROPY_NODES      = 15;
 constexpr unsigned int NUM_ZEROS_EOB_PRIORS = 66;
 constexpr unsigned int ZERO_OR_EOB = 3;
 constexpr unsigned int AVG_ZEROS_EOB_PRIORS = 66;
@@ -111,15 +112,17 @@ struct Model
 
   BranchCounts token_branch_counts_;
   
-    typedef FixedArray<FixedArray<FixedArray<Branch,
-                          25>,
-                     ENTROPY_NODES>,
-                NUM_ZEROS_BINS> EOBCounts;
+  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 4>,
+                        NUMERIC_LENGTH_MAX>, //neighboring block exp
+                      NUMERIC_LENGTH_MAX>, //neighboring coef exp
+                    COEF_BANDS>,
+               EOB_BINS>,
+         NUM_ZEROS_BINS>,
+      BLOCK_TYPES> NumericLengthCounts;
 
-  EOBCounts eob_counts_;
+  NumericLengthCounts numeric_length_counts;
 
-  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero, eob
-                                                  1>,
+  typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero, eob
                                         16>,
                               COEF_BANDS>,
 //                          AVG_EOB>,
@@ -145,10 +148,18 @@ struct Model
               }
           }
       }
-      for ( auto & a : eob_counts_ ) {
+      for ( auto & a : numeric_length_counts ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
-                  proc( c );
+                  for ( auto & d : c ) {
+                      for ( auto & e : d ) {
+                          for ( auto & f : e ) {
+                              for ( auto & g : f ) {
+                                  proc( g );
+                              }
+                          }
+                      }
+                  }
               }
           }
       }
@@ -156,9 +167,7 @@ struct Model
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   for ( auto & d : c ) {
-                      for ( auto & e : d ) {
-                          proc( e );
-                      }
+                          proc( d );
                   }
               }
           }
@@ -176,23 +185,17 @@ private:
 
 public:
   ProbabilityTables();
-  ProbabilityTables( const Slice & chunk );
-
-  const FixedArray<FixedArray<Branch,
-                         25>,
-                  ENTROPY_NODES> & eob_array( const int8_t num_zeros) const
-  {
-      return model_->eob_counts_.at(num_zeros);
+  ProbabilityTables( const Slice & slice );
+  FixedArray<Branch, 4>& numeric_counts_array(const unsigned int block_type,
+                                             const unsigned int zeros_bin,
+                                             const unsigned int eob_bin,
+                                             const unsigned int band,
+                                             const Block&block) {
+      auto &submodel = model_->numeric_length_counts.at( block_type ).at(zeros_bin / (NUM_ZEROS_BINS / NUM_ZEROS_COEF_BINS)).at( eob_bin ).at( band );
+      return submodel.at(0).at(0);//FIXME;
   }
 
-   FixedArray<FixedArray<Branch,
-                            25>,
-                  ENTROPY_NODES> & eob_array( const int8_t num_zeros )
-  {
-      return model_->eob_counts_.at(num_zeros);
-  }
-  const FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
-                            1>,
+  const FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
                             16>, COEF_BANDS>& num_zeros_array( const int8_t num_zeros_above,
                                                           const int8_t num_zeros_left,
                                                           const int16_t /*eob_above*/,
@@ -206,8 +209,7 @@ public:
       }
   }
 
-    FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
-                        1>,
+    FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
               16>, COEF_BANDS> & num_zeros_array( const int8_t num_zeros_above,
                                                       const int8_t num_zeros_left,
                                                       const int16_t /*eob_above*/,

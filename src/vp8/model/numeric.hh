@@ -24,7 +24,8 @@ struct TokenDecoder
     template <class ProbabilityFunctor> static void encode( BoolEncoder & encoder, const uint16_t value, const ProbabilityFunctor& probAt);
     static std::pair<uint64_t, uint64_t> bits_and_liveness(const uint16_t value);
 };
-
+static constexpr uint8_t NUMERIC_LENGTH_MAX = 12;
+static constexpr uint8_t NUMERIC_LENGTH_BITS = 4;
 enum class TokenNode : uint8_t {
     ZERO,
     LENGTH0,//[0,0] = 1      [0,1,0,1] = 5 [1,1,0,1] = 9
