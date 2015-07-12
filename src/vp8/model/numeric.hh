@@ -107,7 +107,7 @@ constexpr uint16_t max_from_entropy_node_index_inclusive(int index) {
 }
 
 template<class EncoderT> uint8_t put_ceil_log_coefficient( EncoderT &e,
-                                                        const uint16_t token_value ) {
+                                                           const uint16_t token_value ) {
     if (token_value == 1) {
         e.encode_one(false, TokenNode::LENGTH0);
         e.encode_one(false, TokenNode::LENGTH1);
@@ -132,6 +132,16 @@ template<class EncoderT> uint8_t put_ceil_log_coefficient( EncoderT &e,
     return length;
 }
 
+template<class EncoderT> void put_one_natural_significand_coefficient( EncoderT &e,
+                                                                       uint8_t exp,
+                                                                       const uint16_t token_value )
+{
+    assert(token_value < 1024);// don't support higher than this yet
+    for (uint8_t i = 0; i + 1 < exp; ++i) {
+        e.encode_one((token_value&(1 << i)), (TokenNode)((int)TokenNode::VAL0 + i));
+    }
+    return;
+}
 
 template<class EncoderT> void put_one_natural_coefficient( EncoderT &e,
                                                            const uint16_t token_value )

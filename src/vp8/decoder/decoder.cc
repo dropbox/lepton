@@ -84,6 +84,14 @@ template<class DecoderT> uint8_t get_ceil_log2_coefficient(DecoderT& d) {
     uint8_t prefix_coded_length = (l0 ? 1 : 0) + (l1 ? 2 : 0) + (l2 ? 4 : 0) + (l3 ? 8 : 0);
     return 3 + (l2 ? 1 : 0) + (l3 ? 2 : 0) + (l0? 4 : 0);
 }
+template<class DecoderT> uint16_t get_one_natural_significand_coefficient(DecoderT& d, uint8_t ceil_log2) {
+    uint8_t length = ceil_log2;
+    uint16_t value = (1 << (length - 1));
+    for (uint8_t i = 0; i + 1 < length; ++i) {
+        value += (1 << i) * d.decode_one((int)TokenNode::VAL0 + i);
+    }
+    return value;
+}
 template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
     uint8_t length = get_ceil_log2_coefficient(d);
     uint16_t value = (1 << (length - 1));
@@ -248,7 +256,12 @@ void Block::parse_tokens( BoolDecoder & data,
               value += above_neighbor_context.get();
           }
       } else { // AC coefficient
-          value= get_one_signed_nonzero_coefficient( dct_decoder_state );
+          uint8_t length = get_ceil_log2_coefficient( dct_decoder_state );
+          value = get_one_natural_significand_coefficient (dct_decoder_state, length);
+          bool negative = dct_decoder_state.decode_one(TokenNode::NEGATIVE);
+          if (negative) {
+              value = -value;
+          }
       }
       /* assign to block storage */
       coefficients_.at( jpeg_zigzag.at( index ) ) = value;

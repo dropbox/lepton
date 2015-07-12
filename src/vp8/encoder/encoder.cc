@@ -180,7 +180,9 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         }
         put_one_signed_coefficient( dct_encoder_state, true, false, coef );
     } else {
-        put_one_signed_nonzero_coefficient( dct_encoder_state, coef );
+        uint8_t length = put_ceil_log_coefficient(dct_encoder_state, abs(coef) );
+        put_one_natural_significand_coefficient( dct_encoder_state, length, abs(coef) );
+        dct_encoder_state.encode_one(coef < 0 , TokenNode::NEGATIVE);
     }
   }
 }
