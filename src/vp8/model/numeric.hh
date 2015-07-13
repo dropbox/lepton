@@ -45,7 +45,7 @@ enum class TokenNode : uint8_t {
     EOB,
     BaseOffset // do not use
 };
-
+constexpr uint8_t NUMBER_OF_EXPONENT_BITS = (uint8_t)TokenNode::LENGTH3;
 class BitsAndLivenessFromEncoding {
     uint64_t bits_;
     uint64_t liveness_;
@@ -102,7 +102,7 @@ inline uint16_t min_from_entropy_node_index(int index) {
     }    
 }
 
-constexpr uint16_t max_from_entropy_node_index_inclusive(int index) {
+constexpr uint16_t max_from_entropy_node_index_inclusive(int) {
     return 2048;
 }
 

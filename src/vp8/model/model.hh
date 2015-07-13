@@ -112,15 +112,15 @@ struct Model
 
   BranchCounts token_branch_counts_;
   
-  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 4>,
+  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
                         NUMERIC_LENGTH_MAX>, //neighboring block exp
                       NUMERIC_LENGTH_MAX>, //neighboring coef exp
                     COEF_BANDS>,
                EOB_BINS>,
          NUM_ZEROS_BINS>,
-      BLOCK_TYPES> NumericLengthCounts;
+      BLOCK_TYPES> ExponentCounts;
 
-  NumericLengthCounts numeric_length_counts;
+  ExponentCounts exponent_counts;
 
   typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero, eob
                                         16>,
@@ -148,7 +148,7 @@ struct Model
               }
           }
       }
-      for ( auto & a : numeric_length_counts ) {
+      for ( auto & a : exponent_counts ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   for ( auto & d : c ) {
@@ -175,7 +175,7 @@ struct Model
   }
 
 };
-class Chunk;
+class Slice;
 
 class ProbabilityTables
 {
@@ -185,14 +185,16 @@ private:
 
 public:
   ProbabilityTables();
+
   ProbabilityTables( const Slice & slice );
-  FixedArray<Branch, 4>& numeric_counts_array(const unsigned int block_type,
-                                             const unsigned int zeros_bin,
-                                             const unsigned int eob_bin,
-                                             const unsigned int band,
-                                             const Block&block) {
-      auto &submodel = model_->numeric_length_counts.at( block_type ).at(zeros_bin / (NUM_ZEROS_BINS / NUM_ZEROS_COEF_BINS)).at( eob_bin ).at( band );
-      return submodel.at(0).at(0);//FIXME;
+    FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
+                        NUMERIC_LENGTH_MAX>,
+              NUMERIC_LENGTH_MAX> & exponent_array(const unsigned int block_type,
+                                                   const unsigned int zeros_bin,
+                                                   const unsigned int eob_bin,
+                                                   const unsigned int band) {
+      auto &submodel = model_->exponent_counts.at( block_type ).at(zeros_bin / (NUM_ZEROS_BINS / NUM_ZEROS_COEF_BINS)).at( eob_bin ).at( band );
+      return submodel;
   }
 
   const FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob

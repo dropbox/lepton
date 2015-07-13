@@ -35,6 +35,7 @@ public:
 typedef PerBitEncoderState<DefaultContext> EncoderState;
 typedef PerBitEncoderState<PerBitContext2u> PerBitEncoderState2u;
 typedef PerBitEncoderState<PerBitContext4s> PerBitEncoderState4s;
+typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
 			      ProbabilityTables & probability_tables ) const
 {
@@ -125,6 +126,11 @@ void Block::serialize_tokens( BoolEncoder & encoder,
                                                   num_zeros,
                                                   eob_bin,
                                                   index_to_cat(index));
+    auto & exp_prob = probability_tables.exponent_array(std::min((unsigned int)type_,
+                                                           BLOCK_TYPES - 1),
+                                                  num_zeros,
+                                                  eob_bin,
+                                                  index_to_cat(index));
 #ifdef DEBUGDECODE
       fprintf(stderr, "XXA %d %d(%d) %d %d => %d\n",
               std::min((unsigned int)type_, BLOCK_TYPES - 1),
@@ -138,6 +144,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
                                            left_neighbor_context, above_neighbor_context,
                                            intra_block_neighbors.first, intra_block_neighbors.second);
+    PerBitEncoderStateExp dct_exp_encoder_state(&encoder, &exp_prob, *this);
     if (false && index == 0) {
         if (false && left_neighbor_context.initialized() && above_neighbor_context.initialized()) {
             int16_t tl = context().above.get()->context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
@@ -180,7 +187,8 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         }
         put_one_signed_coefficient( dct_encoder_state, true, false, coef );
     } else {
-        uint8_t length = put_ceil_log_coefficient(dct_encoder_state, abs(coef) );
+        
+        uint8_t length = put_ceil_log_coefficient(dct_exp_encoder_state, abs(coef) );
         put_one_natural_significand_coefficient( dct_encoder_state, length, abs(coef) );
         dct_encoder_state.encode_one(coef < 0 , TokenNode::NEGATIVE);
     }

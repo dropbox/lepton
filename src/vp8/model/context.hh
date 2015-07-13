@@ -9,6 +9,20 @@ struct DefaultContext {
     }    
 };
 
+struct ExponentContext {
+    FixedArray<Branch, NUMBER_OF_EXPONENT_BITS> *prob_;
+
+    ExponentContext(FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
+                                        NUMERIC_LENGTH_MAX>,
+                              NUMERIC_LENGTH_MAX> *prob, const Block&block)
+        {
+            prob_ = &prob->at(0).at(0);
+    }
+    Branch& operator()(unsigned int token_id, uint16_t /*min*/, uint16_t /*max*/) const {
+        return prob_->at(token_id - (unsigned int)TokenNode::LENGTH0);
+    }    
+};
+
 struct PerBitContext2u {
 
     Optional<uint16_t> left_value_;

@@ -67,6 +67,7 @@ PerBitContext4s::PerBitContext4s(NestedProbabilityArray  *prob,
 }
 
 typedef PerBitDecoderState<DefaultContext> DecoderState;
+typedef PerBitDecoderState<ExponentContext> DecoderStateExp;
 typedef PerBitDecoderState<PerBitContext2u> DecoderState2u;
 typedef PerBitDecoderState<PerBitContext4s> DecoderState4s;
 
@@ -244,9 +245,14 @@ void Block::parse_tokens( BoolDecoder & data,
                                                      num_zeros,
                                                      eob_bin,
                                                      index_to_cat(index));
+      auto & exp_prob = probability_tables.exponent_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
+                                                     num_zeros,
+                                                     eob_bin,
+                                                     index_to_cat(index));
       DecoderState4s dct_decoder_state(&data, &prob,
                                        left_neighbor_context, above_neighbor_context,
                                        intra_block_neighbors.first, intra_block_neighbors.second);
+      DecoderStateExp dct_exp_decoder_state(&data, &exp_prob, *this);
       int16_t value;
       if (false && index == 0) {// DC coefficient
           value = get_one_signed_coefficient( dct_decoder_state , true).second;
@@ -256,7 +262,7 @@ void Block::parse_tokens( BoolDecoder & data,
               value += above_neighbor_context.get();
           }
       } else { // AC coefficient
-          uint8_t length = get_ceil_log2_coefficient( dct_decoder_state );
+          uint8_t length = get_ceil_log2_coefficient( dct_exp_decoder_state );
           value = get_one_natural_significand_coefficient (dct_decoder_state, length);
           bool negative = dct_decoder_state.decode_one(TokenNode::NEGATIVE);
           if (negative) {

@@ -9,7 +9,7 @@ AC_CONFIG_HEADERS([config.h])
 
 # Add picky CXXFLAGS
 CXX11_FLAGS="-std=c++11 -pthread -fno-exceptions"
-PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Werror" # -Weffc++
+PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings" # -Weffc++
 AC_SUBST([CXX11_FLAGS])
 AC_SUBST([PICKY_CXXFLAGS])
 
