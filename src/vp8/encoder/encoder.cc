@@ -141,11 +141,11 @@ void Block::serialize_tokens( BoolEncoder & encoder,
           );
 #endif
       int16_t coef = coefficients_.at( jpeg_zigzag.at( index ));
-    PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
-                                           left_neighbor_context, above_neighbor_context,
-                                           intra_block_neighbors.first, intra_block_neighbors.second);
     PerBitEncoderStateExp dct_exp_encoder_state(&encoder, &exp_prob, *this, coord, index);
     if (false && index == 0) {
+        PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
+                                               left_neighbor_context, above_neighbor_context,
+                                               intra_block_neighbors.first, intra_block_neighbors.second);
         if (false && left_neighbor_context.initialized() && above_neighbor_context.initialized()) {
             int16_t tl = context().above.get()->context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
             
@@ -189,6 +189,14 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     } else {
         
         uint8_t length = put_ceil_log_coefficient(dct_exp_encoder_state, abs(coef) );
+        auto & residual_prob = probability_tables.residual_array(std::min((unsigned int)type_,
+                                                                         BLOCK_TYPES - 1),
+                                                                index_to_cat(index),
+                                                                length);
+        PerBitEncoderState4s dct_encoder_state(&encoder, &residual_prob,
+                                               left_neighbor_context, above_neighbor_context,
+                                               intra_block_neighbors.first, intra_block_neighbors.second);
+
         put_one_natural_significand_coefficient( dct_encoder_state, length, abs(coef) );
         dct_encoder_state.encode_one(coef < 0 , TokenNode::NEGATIVE);
     }

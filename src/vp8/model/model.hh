@@ -111,6 +111,16 @@ struct Model
 		    BLOCK_TYPES> BranchCounts;
 
   BranchCounts token_branch_counts_;
+
+  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch,
+                                NEIGHBOR_COEF_CONTEXTS>,
+						    PREV_COEF_CONTEXTS>,
+				          ENTROPY_NODES + 2>,
+                        NUMERIC_LENGTH_MAX>, //this exp
+					COEF_BANDS>,
+		    BLOCK_TYPES> ExperimentalBranchCounts;
+
+  ExperimentalBranchCounts experimental_branch_counts_;
   
   typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
                         NUMERIC_LENGTH_MAX>, //neighboring block exp
@@ -142,6 +152,19 @@ struct Model
                               for ( auto & g : f ) {
                                   proc( g );
                               }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+      for ( auto & a : experimental_branch_counts_ ) {
+          for ( auto & b : a ) {
+              for ( auto & c : b ) {
+                  for ( auto & d : c ) {
+                      for ( auto & e : d ) {
+                          for ( auto & f : e ) {
+                                  proc( f );
                           }
                       }
                   }
@@ -195,6 +218,23 @@ public:
                                                    const unsigned int band) {
       auto &submodel = model_->exponent_counts.at( block_type ).at(zeros_bin / (NUM_ZEROS_BINS / NUM_ZEROS_COEF_BINS)).at( eob_bin ).at( band );
       return submodel;
+  }
+   FixedArray<FixedArray<FixedArray<Branch,
+                                NEIGHBOR_COEF_CONTEXTS>,
+						    PREV_COEF_CONTEXTS>,
+				        ENTROPY_NODES+2> & residual_array(const unsigned int block_type,
+                                                   const unsigned int band,
+                                                   const uint8_t exponent) {
+        return model_->experimental_branch_counts_.at( block_type ).at( band ).at(exponent);
+  }
+
+    const FixedArray<FixedArray<FixedArray<Branch,
+                                NEIGHBOR_COEF_CONTEXTS>,
+						    PREV_COEF_CONTEXTS>,
+				        ENTROPY_NODES+2> & residual_array(const unsigned int block_type,
+                                                   const unsigned int band,
+                                                   const uint8_t exponent) const {
+        return model_->experimental_branch_counts_.at( block_type ).at( band ).at(exponent);
   }
 
   const FixedArray<FixedArray<FixedArray<Branch, 2>, // nonzero vs eob
