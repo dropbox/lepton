@@ -252,7 +252,7 @@ void Block::parse_tokens( BoolDecoder & data,
       DecoderState4s dct_decoder_state(&data, &prob,
                                        left_neighbor_context, above_neighbor_context,
                                        intra_block_neighbors.first, intra_block_neighbors.second);
-      DecoderStateExp dct_exp_decoder_state(&data, &exp_prob, *this);
+      DecoderStateExp dct_exp_decoder_state(&data, &exp_prob, *this, coord, index);
       int16_t value;
       if (false && index == 0) {// DC coefficient
           value = get_one_signed_coefficient( dct_decoder_state , true).second;

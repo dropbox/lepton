@@ -144,7 +144,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
                                            left_neighbor_context, above_neighbor_context,
                                            intra_block_neighbors.first, intra_block_neighbors.second);
-    PerBitEncoderStateExp dct_exp_encoder_state(&encoder, &exp_prob, *this);
+    PerBitEncoderStateExp dct_exp_encoder_state(&encoder, &exp_prob, *this, coord, index);
     if (false && index == 0) {
         if (false && left_neighbor_context.initialized() && above_neighbor_context.initialized()) {
             int16_t tl = context().above.get()->context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
