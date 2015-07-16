@@ -22,7 +22,6 @@ inline Sirikata::uint32 ReadFull(Sirikata::DecoderReader * reader, void * vdata,
 
 class FileReader : public Sirikata::DecoderReader {
     FILE * fp;
-    unsigned int magicread;
 public:
     FileReader(FILE * ff) {
         fp = ff;

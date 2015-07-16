@@ -82,7 +82,7 @@ template<class DecoderT> uint8_t get_ceil_log2_coefficient(DecoderT& d) {
         return 2;
     }
     bool l3 = d.decode_one(TokenNode::LENGTH3);
-    uint8_t prefix_coded_length = (l0 ? 1 : 0) + (l1 ? 2 : 0) + (l2 ? 4 : 0) + (l3 ? 8 : 0);
+    //uint8_t prefix_coded_length = (l0 ? 1 : 0) + (l1 ? 2 : 0) + (l2 ? 4 : 0) + (l3 ? 8 : 0);
     return 3 + (l2 ? 1 : 0) + (l3 ? 2 : 0) + (l0? 4 : 0);
 }
 template<class DecoderT> uint16_t get_one_natural_significand_coefficient(DecoderT& d, uint8_t ceil_log2) {
@@ -145,147 +145,129 @@ template<class DecoderT> uint16_t get_one_unsigned_coefficient( DecoderT & d) {
 void Block::parse_tokens( BoolDecoder & data,
                           ProbabilityTables & probability_tables )
 {
-  /* read which EOB bin we're in */
-  uint8_t above_num_zeros = context().above.initialized() ? context().above.get()->num_zeros() + 1 : 0;
-  uint8_t left_num_zeros = context().left.initialized() ? context().left.get()->num_zeros() + 1 : 0;
 
-  uint16_t above_coded_length = 65;
-  uint16_t left_coded_length = 65;
+    Optional<uint8_t> num_zeros_above;
+    Optional<uint8_t> num_zeros_left;
+    if (context().above.initialized()) {
+        num_zeros_above = context().above.get()->num_zeros_7x7();
+    }
+    if (context().left.initialized()) {
+        num_zeros_left = context().left.get()->num_zeros_7x7();
+    }
+    auto & num_zeros_prob = probability_tables.zero_counts_7x7(type_,
+                                                               num_zeros_left,
+                                                               num_zeros_above);
+    uint8_t num_zeros_7x7 = 0;
+    for (unsigned int index = 0; index < 6; ++index) {
+        num_zeros_7x7 |= ((data.get(num_zeros_prob.at(index))?1:0) << index);
+    }
+    uint8_t num_nonzeros_left_7x7 = 49 - num_zeros_7x7;
+    for (unsigned int coord = 0; coord < 64; ++coord) {
+        unsigned int b_x = (coord & 7);
+        unsigned int b_y = coord / 8;
+        if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
+            uint8_t length = 0;
+            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_zeros_7x7, *this);
+            for (int i = 0;i < 4;++i) {
+                length |= ((data.get(exp_prob.at(i)) ? 1 : 0) << i);
+            }
+            int16_t coef = (1 << (length - 1));
+            if (length > 1){
+                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_zeros_7x7);
+                for (int i = length - 2; i >= 0; --i) {
+                    coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                }
+            }
+            if (length != 0) {
+                auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+                if (!data.get(sign_prob)) {
+                    coef = -coef;
+                }
+                if (coord != 0) {
+                    --num_nonzeros_left_7x7;
+                }
+            }
+            coefficients_.at( coord ) = coef;
+            if (num_nonzeros_left_7x7 == 0) {
+                break; // done with the 49x49
+            }
+        }
+    }
+    uint8_t eob_x = 0;
+    uint8_t eob_y = 0;
+    for (unsigned int coord = 0; coord < 64; ++coord) {    
+        unsigned int b_x = (coord & 7);
+        unsigned int b_y = coord / 8;
+        if ((b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
+            if (coefficients_.at( coord )){
+                eob_x = std::max(eob_x, (uint8_t)b_x);
+                eob_y = std::max(eob_y, (uint8_t)b_y);
+            }
+        }
+    }
+    auto &prob_x = probability_tables.zero_counts_1x8(type_,
+                                                      eob_x,
+                                                      num_zeros_7x7);
+    auto &prob_y = probability_tables.zero_counts_1x8(type_,
+                                                      eob_y,
+                                                      num_zeros_7x7);
+    uint8_t num_zeros_x = 0;
+    for (int i= 0 ;i <3;++i) {
+        num_zeros_x |= ((data.get(prob_x.at(i))?1:0) << i);
+    }
+    uint8_t num_zeros_y = 0;
+    for (int i= 0 ;i <3;++i) {
+        num_zeros_y |= ((data.get(prob_y.at(i))?1:0) << i);
+    }
+    uint8_t num_nonzeros_left_x = 7 - num_zeros_x;
+    uint8_t num_nonzeros_left_y = 7 - num_zeros_y;
+    for (unsigned int coord = 1; coord < 64; ++coord) {    
+        unsigned int b_x = (coord & 7);
+        unsigned int b_y = coord / 8;
+        uint8_t num_zeros_edge = 0;
+        if (b_y == 0 && num_nonzeros_left_x) {
+            num_zeros_edge = num_zeros_x;
+        }
+        if (b_x == 0 && num_nonzeros_left_y) {
+            num_zeros_edge = num_zeros_y;
+        }
+        if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
+            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_zeros_edge, *this);
 
-  if (context().left.initialized()) {
-      left_coded_length = context().left.get()->coded_length();
-      assert( left_coded_length < AVG_EOB );
-  }
-  if (context().above.initialized()) {
-      above_coded_length = context().above.get()->coded_length();
-      assert( above_coded_length < AVG_EOB );
-  }
-#ifdef DEBUGDECODE
-  fprintf(stderr, "XXY %d %d %d %d\n", left_num_zeros,
-          above_num_zeros,
-          left_coded_length,
-          above_coded_length);
-#endif
-  auto & num_zeros_prob
-      = probability_tables.num_zeros_array((int)left_num_zeros,
-                                           (int)above_num_zeros,
-                                           (int)left_coded_length,
-                                           (int)above_coded_length);
+            uint8_t length = 0;
+            for (int i = 0;i < 4;++i) {
+                length |= ((data.get(exp_array.at(i)) ? 1 : 0) << i);
+            }
+            int16_t coef = 0;
+            if (length > 0) {
+                coef = (1 << (length - 1));
+            }
+            if (length > 1){
+                int i;
+                for (i = length - 2; i >= RESIDUAL_NOISE_FLOOR; --i) {
+                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
+                    coef |= ((data.get(thresh_prob.at(i - RESIDUAL_NOISE_FLOOR)) ? 1 : 0) << i);
+                }
+                for (; i >= 0; --i) {
+                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_zeros_edge);
+                    coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                }
+            }
+            if (length != 0) {
+                auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+                if (!data.get(sign_prob)) {
+                    coef = -coef;
+                }
+                if ( b_y == 0) {
+                    --num_nonzeros_left_x;
+                }
+                if ( b_x == 0) {
+                    --num_nonzeros_left_y;
+                }
+            }
+            coefficients_.at( coord ) = coef;
+        }
+    }
 
-  uint64_t nonzero_bitmap = 0;
-  coded_length_ = 0;
-  num_zeros_ = 64;
-  int num_zeros_read = 0;
-  bool last_was_zero = false;
-  for (unsigned int index = 0; index < 64; ++index) {  
-      int num_zeros_context = std::max(15 - num_zeros_read, 0);
-      bool cur_zero = data.get( num_zeros_prob.at(index).at(num_zeros_context).at(0) );
-#ifdef DEBUGDECODE
-      fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 0, cur_zero ? 1 : 0);
-#endif
-      if (!cur_zero) {
-          uint64_t to_shift = 1UL;
-          to_shift <<= index;
-          nonzero_bitmap |= to_shift;
-          coded_length_ = index + 1;
-          --num_zeros_;
-      } else {
-          ++num_zeros_read;
-      }
-      if (!last_was_zero) {
-          bool cur_eob = data.get( num_zeros_prob.at(index>0).at(num_zeros_context).at(1) );
-#ifdef DEBUGDECODE
-          fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 1, cur_eob ? 1 : 0);
-#endif
-          if (cur_eob) {
-              break; // EOB reached
-          }
-      }
-      last_was_zero = cur_zero;
-  }
-  int slice = BLOCK_SLICE;
-  uint8_t divided_num_zeros = num_zeros_ / slice;
-  if (divided_num_zeros == (64/slice)) divided_num_zeros--;
-  assert(divided_num_zeros < 64/slice);
-
-  const int16_t num_zeros = min( uint8_t(NUM_ZEROS_BINS-1), divided_num_zeros );
-
-  const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
-
-  for (
-#ifdef BLOCK_ENCODE_BACKWARDS
-      int index = std::min((uint8_t)63, coded_length_); index >= 0 ; --index
-#else
-      unsigned int index = 0; index <= std::min((uint8_t)63, coded_length_); ++index
-#endif
-      ) {
-    /* select the tree probabilities based on the prediction context */
-      uint64_t nonzero_check = 1UL;
-      nonzero_check <<= index;
-      if (0 == (nonzero_bitmap & nonzero_check)) {
-#ifdef DEBUGDECODE
-          fprintf(stderr,"XXB\n");
-#endif
-          coefficients_.at( jpeg_zigzag.at( index ) ) = 0;          
-          continue;
-      }
-      Optional<int16_t> above_neighbor_context;
-      Optional<int16_t> left_neighbor_context;
-      if ( context().left.initialized() ) {
-          left_neighbor_context = Optional<int16_t>(context().left.get()->coefficients().at( jpeg_zigzag.at( index ) ));
-      }
-      if ( context().above.initialized() ) {
-          above_neighbor_context = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
-      }
-      uint8_t coord = jpeg_zigzag.at( index );
-      std::pair<Optional<int16_t>,
-                Optional<int16_t> > intra_block_neighbors = 
-          get_near_coefficients(coord);
-      auto & prob = probability_tables.branch_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
-                                                     num_zeros,
-                                                     eob_bin,
-                                                     index_to_cat(index));
-      auto & exp_prob = probability_tables.exponent_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
-                                                     num_zeros,
-                                                     eob_bin,
-                                                     index_to_cat(index));
-      DecoderStateExp dct_exp_decoder_state(&data, &exp_prob, *this, coord, index);
-      int16_t value;
-      if (false && index == 0) {// DC coefficient
-          DecoderState4s dct_decoder_state(&data, &prob,
-                                           left_neighbor_context, above_neighbor_context,
-                                           intra_block_neighbors.first, intra_block_neighbors.second);
-          value = get_one_signed_coefficient( dct_decoder_state , true).second;
-          if (left_neighbor_context.initialized()) {
-              value += left_neighbor_context.get();
-          } else if (above_neighbor_context.initialized()) {
-              value += above_neighbor_context.get();
-          }
-      } else { // AC coefficient
-          uint8_t length = get_ceil_log2_coefficient( dct_exp_decoder_state );
-          auto & residual_prob = probability_tables.residual_array( std::min((unsigned int)type_, BLOCK_TYPES - 1),
-                                                                  index_to_cat(index),
-                                                                  length);
-
-          DecoderState4s dct_decoder_state(&data, &residual_prob,
-                                           left_neighbor_context, above_neighbor_context,
-                                           intra_block_neighbors.first, intra_block_neighbors.second);
-          value = get_one_natural_significand_coefficient (dct_decoder_state, length);
-          bool negative = dct_decoder_state.decode_one(TokenNode::NEGATIVE);
-          if (negative) {
-              value = -value;
-          }
-      }
-      /* assign to block storage */
-      coefficients_.at( jpeg_zigzag.at( index ) ) = value;
-#ifdef DEBUGDECODE
-      fprintf(stderr, "XXA %d %d(%d) %d %d => %d\n",
-              std::min((unsigned int)type_, BLOCK_TYPES - 1),
-              (int)num_zeros,(int)num_zeros_,
-              (int)eob_bin,
-              (int)index_to_cat(index),
-              value);
-#endif
-  }
-  recalculate_coded_length();
+    recalculate_coded_length();
 }

@@ -55,6 +55,9 @@ public:
         colldata_ = NULL;
         allocated_ = 0;
     }
+    unsigned short *get_quantization_tables(unsigned int component) const {
+        return header_[component].info_.qtable;
+    }
     void worker_wait_for_begin_signal() {
         if (use_threading) {
             while ((worker_start_read_signal_ += 0) == 0) {

@@ -105,7 +105,36 @@ inline uint16_t min_from_entropy_node_index(int index) {
 constexpr uint16_t max_from_entropy_node_index_inclusive(int) {
     return 2048;
 }
-
+template<typename intt> intt log2(intt v) {
+    constexpr int loop_max = (int)(sizeof(intt) == 1 ? 2
+                                   : (sizeof(intt) == 2 ? 3
+                                      : (sizeof(intt) == 4 ? 4
+                                         : 5)));
+    const intt b[] = {0x2,
+        0xC,
+        0xF0,
+        (intt)0xFF00,
+        (intt)0xFFFF0000U,
+        std::numeric_limits<intt>::max() - (intt)0xFFFFFFFFU};
+    const intt S[] = {1, 2, 4, 8, 16, 32};
+    
+    intt r = 0; // result of log2(v) will go here
+    
+    for (signed int i = loop_max; i >= 0; i--) // unroll for speed...
+    {
+        if (v & b[i])
+        {
+            v >>= S[i];
+            r |= S[i];
+        }
+    }
+    return r;
+}
+template <typename intt> intt bit_length(intt value) {
+    if (value == 0) return 0;
+    auto l2 = log2(value) + 1;
+    return (uint8_t)l2;
+}
 template<class EncoderT> uint8_t put_ceil_log_coefficient( EncoderT &e,
                                                            const uint16_t token_value ) {
     if (token_value == 1) {

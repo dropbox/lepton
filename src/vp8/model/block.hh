@@ -34,6 +34,9 @@ private:
   uint8_t coded_length_ = 255;
 
   uint8_t num_zeros_ = 0;
+  uint8_t num_zeros_7x7_ = 0;
+  uint8_t num_zeros_x_ = 0;
+  uint8_t num_zeros_y_ = 0;
   
 public:
   enum {
@@ -55,15 +58,28 @@ public:
   {
     coded_length_ = 0;
     num_zeros_ = 0;
+    num_zeros_7x7_ = 0;
+    num_zeros_x_ = 0;
+    num_zeros_y_ = 0;
     /* how many tokens are we going to encode? */
-    for ( unsigned int index = 0;
-	  index < 64;
-	  index++ ) {
-      if ( coefficients_.at( jpeg_zigzag.at( index ) ) ) {
-          coded_length_ = index + 1;
-      } else {
-          ++num_zeros_;
-      }
+    for ( unsigned int index = 0; index < 64; index++ ) {
+        unsigned int xy = jpeg_zigzag.at( index );
+        unsigned int x = xy & 7;
+        unsigned int y = xy / 8;
+        if ( coefficients_.at( xy ) ) {
+            coded_length_ = index + 1;
+        } else {
+            ++num_zeros_;
+            if (x == 0 && y) {
+                ++num_zeros_y_;
+            }
+            if (y == 0 && x) {
+                ++num_zeros_x_;
+            }
+            if (x > 0 && y > 0) {
+                ++num_zeros_7x7_;
+            }
+        }
     }
 #ifndef USE_ZEROS
 //    num_zeros_ = coded_length_; FIXME
@@ -116,6 +132,9 @@ public:
 
   uint8_t coded_length() const { return coded_length_; }
   uint8_t num_zeros() const { return num_zeros_; }
+  uint8_t num_zeros_7x7() const { return num_zeros_7x7_; }
+  uint8_t num_zeros_x() const { return num_zeros_x_; }
+  uint8_t num_zeros_y() const { return num_zeros_y_; }
 };
 
 #endif

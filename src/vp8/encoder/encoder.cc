@@ -37,170 +37,128 @@ typedef PerBitEncoderState<PerBitContext2u> PerBitEncoderState2u;
 typedef PerBitEncoderState<PerBitContext4s> PerBitEncoderState4s;
 typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
-			      ProbabilityTables & probability_tables ) const
+                              ProbabilityTables & probability_tables ) const
 {
-  /* serialize the num zeros bitmap */
-  int slice = BLOCK_SLICE;
-  uint8_t divided_num_zeros = num_zeros_ / slice;
-  if (divided_num_zeros == (64/slice)) divided_num_zeros--;
-  assert(divided_num_zeros < 64/slice);
-
-  const int16_t num_zeros = min( uint8_t(NUM_ZEROS_BINS-1), divided_num_zeros );
-  const int16_t eob_bin = min( uint8_t(EOB_BINS-1), uint8_t(coded_length_/(64 / EOB_BINS)));
-
-  uint16_t above_num_zeros = context().above.initialized() ? context().above.get()->num_zeros() + 1: 0;
-  uint16_t left_num_zeros = context().left.initialized() ? context().left.get()->num_zeros() + 1: 0;
-
-
-  uint16_t above_coded_length = 65;
-  uint16_t left_coded_length = 65;
-  if (context().left.initialized()) {
-      left_coded_length = context().left.get()->coded_length();
-  }
-  if (context().above.initialized()) {
-      above_coded_length = context().above.get()->coded_length();
-  }
-#ifdef DEBUGDECODE
-  fprintf(stderr, "XXY %d %d %d %d\n", left_num_zeros,
-          above_num_zeros,
-          left_coded_length,
-          above_coded_length);
-#endif
-  auto & num_zeros_prob
-      = probability_tables.num_zeros_array(left_num_zeros,
-                                           above_num_zeros,
-                                           left_coded_length,
-                                           above_coded_length);
-  uint8_t last_block_element_index = min( uint8_t(63), coded_length_ );
-  bool last_was_zero = false;
-  int written_num_zeros = 0;
-  for (unsigned int index = 0; index <= last_block_element_index; ++index) {
-      const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
-      int num_zeros_context = std::max(15 - written_num_zeros, 0);
-#ifdef DEBUGDECODE
-      fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 0, coefficient? 0 : 1);
-#endif
-      encoder.put( coefficient ? false : true, num_zeros_prob.at(index).at(num_zeros_context).at(0) );
-      if (!last_was_zero) {
-#ifdef DEBUGDECODE
-          fprintf(stderr, "XXZ %d %d %d %d %d => %d\n", (int)index, 666, 666, num_zeros_context, 1, index < last_block_element_index ? 0 : 1);
-#endif
-          encoder.put( index < last_block_element_index ? false : true,
-                       num_zeros_prob.at(index>0).at(num_zeros_context).at(1) );
-      }
-      if (!coefficient) {
-          written_num_zeros++;
-      }
-      last_was_zero = (coefficient == 0);
-  }
-  
-  for (
-#ifdef BLOCK_ENCODE_BACKWARDS
-      int index = last_block_element_index; index >= 0; --index 
-#else
-      unsigned int index = 0; index <= last_block_element_index; ++index
-#endif
-      ) {
-    const int16_t coefficient = coefficients_.at( jpeg_zigzag.at( index ) );
-
-    if (!coefficient) {
-#ifdef DEBUGDECODE
-        fprintf(stderr,"XXB\n");
-#endif
-        continue;
+    Optional<uint8_t> num_zeros_above;
+    Optional<uint8_t> num_zeros_left;
+    if (context().above.initialized()) {
+        num_zeros_above = context().above.get()->num_zeros_7x7();
     }
-    /* select the tree probabilities based on the prediction context */
-    Optional<int16_t> above_neighbor_context;
-    Optional<int16_t> left_neighbor_context;
-    if ( context().above.initialized() ) {
-        above_neighbor_context = context().above.get()->coefficients().at( jpeg_zigzag.at( index ) );
+    if (context().left.initialized()) {
+        num_zeros_left = context().left.get()->num_zeros_7x7();
     }
-    if ( context().left.initialized() ) {
-        left_neighbor_context = context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
+    auto & num_zeros_prob = probability_tables.zero_counts_7x7(type_,
+                                                               num_zeros_left,
+                                                               num_zeros_above);
+    for (unsigned int index = 0; index < 6; ++index) {
+        encoder.put((num_zeros_7x7_ & (1 << index)) ? 1 : 0, num_zeros_prob.at(index));
     }
-    uint8_t coord = jpeg_zigzag.at( index );
-    std::pair<Optional<int16_t>,
-              Optional<int16_t> > intra_block_neighbors = get_near_coefficients(coord);
-    auto & prob = probability_tables.branch_array(std::min((unsigned int)type_,
-                                                           BLOCK_TYPES - 1),
-                                                  num_zeros,
-                                                  eob_bin,
-                                                  index_to_cat(index));
-    auto & exp_prob = probability_tables.exponent_array(std::min((unsigned int)type_,
-                                                           BLOCK_TYPES - 1),
-                                                  num_zeros,
-                                                  eob_bin,
-                                                  index_to_cat(index));
-#ifdef DEBUGDECODE
-      fprintf(stderr, "XXA %d %d(%d) %d %d => %d\n",
-              std::min((unsigned int)type_, BLOCK_TYPES - 1),
-              (int)num_zeros, (int)num_zeros_,
-              (int)eob_bin,
-              (int)index_to_cat(index),
-              coefficients_.at( jpeg_zigzag.at( index ) )
-          );
-#endif
-      int16_t coef = coefficients_.at( jpeg_zigzag.at( index ));
-    PerBitEncoderStateExp dct_exp_encoder_state(&encoder, &exp_prob, *this, coord, index);
-    if (false && index == 0) {
-        PerBitEncoderState4s dct_encoder_state(&encoder, &prob,
-                                               left_neighbor_context, above_neighbor_context,
-                                               intra_block_neighbors.first, intra_block_neighbors.second);
-        if (false && left_neighbor_context.initialized() && above_neighbor_context.initialized()) {
-            int16_t tl = context().above.get()->context().left.get()->coefficients().at( jpeg_zigzag.at( index ) );
-            
-            int16_t a = coef - left_neighbor_context.get();
-            int16_t b = coef - above_neighbor_context.get();
-            int16_t c = coef - tl;
-            
-            if (abs(a) < abs(b)) {
-                if (abs(a) < abs(c)) {
-                    encoder.put( true,
-                                 prob.at(ENTROPY_NODES).at(0).at(0));
-                    coef = a;
-                } else {
-                    encoder.put( false,
-                                 prob.at(ENTROPY_NODES).at(0).at(0));
-                    encoder.put( false,
-                                 prob.at(ENTROPY_NODES+1).at(0).at(0));
-                    coef = c;
-                }
-            } else {
-                if (abs(b) < abs(c)) {
-                    encoder.put( false,
-                                 prob.at(ENTROPY_NODES).at(0).at(0));
-                    encoder.put( true,
-                                 prob.at(ENTROPY_NODES+1).at(0).at(0));
-                    coef = b;
-                } else {
-                    encoder.put( false,
-                                 prob.at(ENTROPY_NODES).at(0).at(0));
-                    encoder.put( false,
-                                 prob.at(ENTROPY_NODES+1).at(0).at(0));
-                    coef = c;
+    uint8_t num_nonzeros_left_7x7 = 49 - num_zeros_7x7_;
+    for (unsigned int coord = 0; coord < 64; ++coord) {
+        unsigned int b_x = (coord & 7);
+        unsigned int b_y = coord / 8;
+        int16_t coef = coefficients_.at( coord );
+        uint16_t abs_coef = abs(coef);
+        if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
+            uint8_t length = bit_length(abs_coef);
+            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_zeros_7x7_, *this);
+            for (int i = 0;i < 4;++i) {
+                encoder.put((length & (1 << i)) ? 1 : 0, exp_prob.at(i));
+            }
+            if (length > 1){
+                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_zeros_7x7_);
+                assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
+                assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
+                
+                for (int i = length - 2; i >= 0; --i) {
+                   encoder.put((abs_coef & (1 << i)), res_prob.at(i));
                 }
             }
-        }else if (left_neighbor_context.initialized()) {
-            coef = coef - left_neighbor_context.get();
-        } else if (above_neighbor_context.initialized()) {
-            coef = coef - above_neighbor_context.get();
+            if (length != 0) {
+                auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+                encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+                if (coord != 0) {
+                    --num_nonzeros_left_7x7;
+                }
+            }
+            
+            if (num_nonzeros_left_7x7 == 0) {
+                break; // done with the 49x49
+            }
         }
-        put_one_signed_coefficient( dct_encoder_state, true, false, coef );
-    } else {
-        
-        uint8_t length = put_ceil_log_coefficient(dct_exp_encoder_state, abs(coef) );
-        auto & residual_prob = probability_tables.residual_array(std::min((unsigned int)type_,
-                                                                         BLOCK_TYPES - 1),
-                                                                index_to_cat(index),
-                                                                length);
-        PerBitEncoderState4s dct_encoder_state(&encoder, &residual_prob,
-                                               left_neighbor_context, above_neighbor_context,
-                                               intra_block_neighbors.first, intra_block_neighbors.second);
-
-        put_one_natural_significand_coefficient( dct_encoder_state, length, abs(coef) );
-        dct_encoder_state.encode_one(coef < 0 , TokenNode::NEGATIVE);
     }
-  }
+    uint8_t eob_x = 0;
+    uint8_t eob_y = 0;
+    for (unsigned int coord = 0; coord < 64; ++coord) {
+        unsigned int b_x = (coord & 7);
+        unsigned int b_y = coord / 8;
+        if ((b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
+            if (coefficients_.at( coord )){
+                eob_x = std::max(eob_x, (uint8_t)b_x);
+                eob_y = std::max(eob_y, (uint8_t)b_y);
+            }
+        }
+    }
+    auto &prob_x = probability_tables.zero_counts_1x8(type_,
+                                                      eob_x,
+                                                      num_zeros_7x7_);
+    auto &prob_y = probability_tables.zero_counts_1x8(type_,
+                                                      eob_y,
+                                                      num_zeros_7x7_);
+    for (int i= 0 ;i <3;++i) {
+        encoder.put((num_zeros_x_ & (1 << i)) ? 1 : 0, prob_x.at(i));
+    }
+    for (int i= 0 ;i <3;++i) {
+        encoder.put((num_zeros_y_ & (1 << i)) ? 1 : 0, prob_y.at(i));
+    }
+    uint8_t num_nonzeros_left_x = 7 - num_zeros_x_;
+    uint8_t num_nonzeros_left_y = 7 - num_zeros_y_;
+    for (unsigned int coord = 1; coord < 64; ++coord) {
+        unsigned int b_x = (coord & 7);
+        unsigned int b_y = coord / 8;
+        int16_t coef = coefficients_.at( coord );
+        uint16_t abs_coef = abs(coef);
+        uint8_t num_zeros_edge = 0;
+        if (b_y == 0 && num_nonzeros_left_x) {
+            num_zeros_edge = num_zeros_x_;
+        }
+        if (b_x == 0 && num_nonzeros_left_y) {
+            num_zeros_edge = num_zeros_y_;
+        }
+        if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
+            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_zeros_edge, *this);
+            uint8_t length = bit_length(abs_coef);
+            for (int i = 0;i < 4;++i) {
+                encoder.put((length & (1 << i)), exp_array.at(i));
+            }
+            if (length > 0) {
+                assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
+                assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
+            }
+            if (length > 1) {
+                
+                int i;
+                for (i = length - 2; i >= RESIDUAL_NOISE_FLOOR; --i) {
+                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
+                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, thresh_prob.at(i - RESIDUAL_NOISE_FLOOR));
+                }
+                for (; i >= 0; --i) {
+                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_zeros_edge);
+                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
+                }
+            }
+            if (length != 0) {
+                auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+                encoder.put(coef >= 0, sign_prob);
+                if ( b_x == 0) {
+                    --num_nonzeros_left_y;
+                }
+                if ( b_y == 0) {
+                    --num_nonzeros_left_x;
+                }
+            }
+        }
+    }
 }
 
 bool filter(const Branch& a,
@@ -222,6 +180,7 @@ bool filter(const Branch& a,
 
 const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * other)const
 {
+/*
     for ( unsigned int type = 0; type < model_->token_branch_counts_.size(); type++ ) {
         const auto & this_type = model_->token_branch_counts_.at( type );
         const auto *other_type = other ? &other->model_->token_branch_counts_.at( type ) : NULL;
@@ -267,6 +226,7 @@ const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables 
             } 
         }
     }
+*/
     return *this;
 }
 
@@ -287,7 +247,8 @@ ProbabilityTables ProbabilityTables::get_probability_tables()
 ProbabilityTables::ProbabilityTables()
   : model_( new Model )
 {
-  model_->forall( [&] ( Branch & x ) { x = Branch(); } );
+    quantization_table_ = nullptr;
+    model_->forall( [&] ( Branch & x ) { x = Branch(); } );
 }
 
 
@@ -299,11 +260,11 @@ void ProbabilityTables::normalize()
 ProbabilityTables::ProbabilityTables( const Slice & slice )
   : model_( new Model )
 {
-  const size_t expected_size = sizeof( *model_ );
-  assert(slice.size() == expected_size && "unexpected model file size.");
+    quantization_table_ = nullptr;
+    const size_t expected_size = sizeof( *model_ );
+    assert(slice.size() == expected_size && "unexpected model file size.");
 
-
-  memcpy( model_.get(), slice.buffer(), slice.size() );
+    memcpy( model_.get(), slice.buffer(), slice.size() );
 }
 
 Branch::Branch()

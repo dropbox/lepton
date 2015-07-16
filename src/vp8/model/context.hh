@@ -13,8 +13,7 @@ struct DefaultContext {
 struct ExponentContext {
     FixedArray<Branch, NUMBER_OF_EXPONENT_BITS> *prob_;
 
-    ExponentContext(FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
-                                        NUMERIC_LENGTH_MAX>,
+    ExponentContext(FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
                               NUMERIC_LENGTH_MAX> *prob, const Block&block, uint8_t coord, uint8_t zigzag)
         {
             Optional<uint16_t> toptop;
@@ -25,7 +24,6 @@ struct ExponentContext {
             Optional<uint16_t> left;
             uint32_t total = 0;
             uint32_t weights = 0;
-            uint32_t coef = 0; // FIXME: should we use coef_index
             uint32_t coef_index = coord;
             if (block.context().above.initialized()) {
                 if (block.context().above.get()->context().above.initialized()) {
@@ -49,28 +47,28 @@ struct ExponentContext {
 
 
             if (toptop.initialized()) {
-                total += abs_ctx_weights_lum[coef][0][2] * (int)toptop.get();
-                weights += abs_ctx_weights_lum[coef][0][2];
+                total += abs_ctx_weights_lum[0][0][2] * (int)toptop.get();
+                weights += abs_ctx_weights_lum[0][0][2];
             }
             if (topleft.initialized()) {
-                total += abs_ctx_weights_lum[coef][1][1] * (int)topleft.get();
-                weights += abs_ctx_weights_lum[coef][1][1];
+                total += abs_ctx_weights_lum[0][1][1] * (int)topleft.get();
+                weights += abs_ctx_weights_lum[0][1][1];
             }
             if (top.initialized()) {
-                total += abs_ctx_weights_lum[coef][1][2] * (int)top.get();
-                weights += abs_ctx_weights_lum[coef][1][2];
+                total += abs_ctx_weights_lum[0][1][2] * (int)top.get();
+                weights += abs_ctx_weights_lum[0][1][2];
             }
             if (topright.initialized()) {
-                total += abs_ctx_weights_lum[coef][1][3] * (int)topright.get();
-                weights += abs_ctx_weights_lum[coef][1][3];
+                total += abs_ctx_weights_lum[0][1][3] * (int)topright.get();
+                weights += abs_ctx_weights_lum[0][1][3];
             }
             if (leftleft.initialized()) {
-                total += abs_ctx_weights_lum[coef][2][0] * (int)leftleft.get();
-                weights += abs_ctx_weights_lum[coef][2][0];
+                total += abs_ctx_weights_lum[0][2][0] * (int)leftleft.get();
+                weights += abs_ctx_weights_lum[0][2][0];
             }
             if (left.initialized()) {
-                total += abs_ctx_weights_lum[coef][2][1] * (int)left.get();
-                weights += abs_ctx_weights_lum[coef][2][1];
+                total += abs_ctx_weights_lum[0][2][1] * (int)left.get();
+                weights += abs_ctx_weights_lum[0][2][1];
             }
             uint32_t unweighted_total = 0;
             if (weights) {
@@ -79,7 +77,7 @@ struct ExponentContext {
             auto prob_offset = log2(unweighted_total + 1);
             //fprintf(stderr, "%d vs %d\t\t<=> %d : %d\n", unweighted_total, block.coefficients().at(coef_index), prob_offset, log2(1 + abs(block.coefficients().at(coef_index))));
             //prob_offset = log2(abs(block.coefficients().at(coef_index)));// future looking
-            prob_ = &prob->at(prob_offset).at(0);
+            prob_ = &prob->at(prob_offset);
     }
     Branch& operator()(unsigned int token_id, uint16_t /*min*/, uint16_t /*max*/) const {
         return prob_->at(token_id - (unsigned int)TokenNode::LENGTH0);

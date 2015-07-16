@@ -390,9 +390,9 @@ static int get_byte(DecoderReader *cinfo) {
 void ArithmeticCoder::arith_encode(DecoderWriter *cinfo, unsigned char *st, bool val) {
 
   ArithmeticCoder *e = this;
-  register unsigned char nl, nm;
-  register int32_t qe, temp;
-  register int sv;
+  unsigned char nl, nm;
+  int32_t qe, temp;
+  int sv;
 
   /* Fetch values from our compact representation of Table D.2:
    * Qe values and probability estimation state machine
@@ -545,10 +545,10 @@ void ArithmeticCoder::finish_encode(DecoderWriter *cinfo) {
   }
 }
 bool ArithmeticCoder::arith_decode(DecoderReader *cinfo, unsigned char *st) {
-  register ArithmeticCoder *e = this;
-  register unsigned char nl, nm;
-  register int32_t qe, temp;
-  register int sv, data;
+  ArithmeticCoder *e = this;
+  unsigned char nl, nm;
+  int32_t qe, temp;
+  int sv, data;
 
   /* Renormalization & data input per section D.2.6 */
   while (e->a < 0x8000L) {

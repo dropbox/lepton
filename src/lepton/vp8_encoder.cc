@@ -66,6 +66,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             }
 
             block.recalculate_coded_length();
+            probability_tables.set_quantization_table( colldata->get_quantization_tables(component));
             block.serialize_tokens( bool_encoder, probability_tables );
         }
         ++jpeg_y[component];
