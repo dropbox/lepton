@@ -14,7 +14,7 @@ struct ExponentContext {
     FixedArray<Branch, NUMBER_OF_EXPONENT_BITS> *prob_;
 
     ExponentContext(FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
-                              NUMERIC_LENGTH_MAX> *prob, const Block&block, uint8_t coord, uint8_t zigzag)
+                    NUMERIC_LENGTH_MAX> *prob, const Block&block, uint8_t coord, uint8_t /*zigzag*/)
         {
             Optional<uint16_t> toptop;
             Optional<uint16_t> topleft;

@@ -231,11 +231,6 @@ public:
                                                                  const unsigned int band,
                                                                  const unsigned int num_zeros_x,
                                                                  const Block&for_lak) {
-        static int counter = 0;
-        auto a = std::min(block_type, BLOCK_TYPES - 1);
-        auto c = num_zeros_to_bin(num_zeros_x);
-        auto d = compute_lak(for_lak, band);
-        fprintf(stderr, "%d) %d %d %d %d\n", counter++, a,band,c,d);
         return model_->exponent_counts_x_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band ).at(num_zeros_x)
             .at(exp_len(abs(compute_lak(for_lak, band))));
@@ -244,15 +239,10 @@ public:
                                                                const unsigned int band,
                                                                const unsigned int num_zeros,
                                                                    const Block&block) {
-        static int counter = 0;
-        auto a = std::min(block_type, BLOCK_TYPES - 1);
-        auto c = num_zeros_to_bin(num_zeros);
-        auto d = compute_aavrg(block, band);
-        fprintf(stderr, "%d) %d %d %d %d\n", counter++, a,band,c,d);
         return model_->exponent_counts_
-            .at( a )
-            .at( band ).at(c)
-            .at(exp_len(abs(d)));
+            .at( std::min(block_type, BLOCK_TYPES - 1) )
+            .at( band ).at(num_zeros_to_bin(num_zeros))
+            .at(exp_len(abs(compute_aavrg(block, band))));
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
                                                             const unsigned int band,

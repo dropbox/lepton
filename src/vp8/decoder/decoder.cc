@@ -244,7 +244,7 @@ void Block::parse_tokens( BoolDecoder & data,
             }
             if (length > 1){
                 int i;
-                for (i = length - 2; i >= RESIDUAL_NOISE_FLOOR; --i) {
+                for (i = length - 2; i >= (int)RESIDUAL_NOISE_FLOOR; --i) {
                     auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
                     coef |= ((data.get(thresh_prob.at(i - RESIDUAL_NOISE_FLOOR)) ? 1 : 0) << i);
                 }

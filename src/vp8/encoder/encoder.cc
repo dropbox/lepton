@@ -138,7 +138,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             if (length > 1) {
                 
                 int i;
-                for (i = length - 2; i >= RESIDUAL_NOISE_FLOOR; --i) {
+                for (i = length - 2; i >= (int)RESIDUAL_NOISE_FLOOR; --i) {
                     auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
                     encoder.put((abs_coef & (1 << i)) ? 1 : 0, thresh_prob.at(i - RESIDUAL_NOISE_FLOOR));
                 }
@@ -178,7 +178,7 @@ bool filter(const Branch& a,
     return true;
 }
 
-const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * other)const
+const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * /*other*/)const
 {
 /*
     for ( unsigned int type = 0; type < model_->token_branch_counts_.size(); type++ ) {

@@ -102,7 +102,7 @@ inline uint16_t min_from_entropy_node_index(int index) {
     }    
 }
 
-constexpr uint16_t max_from_entropy_node_index_inclusive(int) {
+constexpr uint16_t max_from_entropy_node_index_inclusive(int /*index*/) {
     return 2048;
 }
 template<typename intt> intt log2(intt v) {
