@@ -259,7 +259,69 @@ public:
         // this divides by 7 to get the initial value
         return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
     }
-    int predict_dc(const Block&block) {
+    int idct_2d_8x1(const Block&block, bool ignore_first, int pixel_row) {
+        int retval = 0;
+        if (!ignore_first) {
+            retval = block.coefficients().at(0) * icos_idct_8192_scaled[pixel_row * 64 + 0] * quantization_table_[0];
+        }
+        retval += block.coefficients().at(1) * icos_idct_8192_scaled[pixel_row * 64 + 1] * quantization_table_[zigzag[1]];
+        retval += block.coefficients().at(2) * icos_idct_8192_scaled[pixel_row * 64 + 2] * quantization_table_[zigzag[2]];
+        retval += block.coefficients().at(3) * icos_idct_8192_scaled[pixel_row * 64 + 3] * quantization_table_[zigzag[3]];
+        retval += block.coefficients().at(4) * icos_idct_8192_scaled[pixel_row * 64 + 4] * quantization_table_[zigzag[4]];
+        retval += block.coefficients().at(5) * icos_idct_8192_scaled[pixel_row * 64 + 5] * quantization_table_[zigzag[5]];
+        retval += block.coefficients().at(6) * icos_idct_8192_scaled[pixel_row * 64 + 6] * quantization_table_[zigzag[6]];
+        retval += block.coefficients().at(7) * icos_idct_8192_scaled[pixel_row * 64 + 7] * quantization_table_[zigzag[7]];
+        return retval;
+    }
+
+    int idct_2d_1x8(const Block&block, bool ignore_first, int pixel_row) {
+        int retval = 0;
+        if (!ignore_first) {
+            retval = block.coefficients().at(0) * icos_idct_8192_scaled[pixel_row * 64 + 0] * quantization_table_[0];
+        }
+        retval += block.coefficients().at(8) * icos_idct_8192_scaled[pixel_row * 64 + 1] * quantization_table_[zigzag[8]];
+        retval += block.coefficients().at(16) * icos_idct_8192_scaled[pixel_row * 64 + 2] * quantization_table_[zigzag[16]];
+        retval += block.coefficients().at(24) * icos_idct_8192_scaled[pixel_row * 64 + 3] * quantization_table_[zigzag[24]];
+        retval += block.coefficients().at(32) * icos_idct_8192_scaled[pixel_row * 64 + 4] * quantization_table_[zigzag[32]];
+        retval += block.coefficients().at(40) * icos_idct_8192_scaled[pixel_row * 64 + 5] * quantization_table_[zigzag[40]];
+        retval += block.coefficients().at(48) * icos_idct_8192_scaled[pixel_row * 64 + 6] * quantization_table_[zigzag[48]];
+        retval += block.coefficients().at(56) * icos_idct_8192_scaled[pixel_row * 64 + 7] * quantization_table_[zigzag[56]];
+        return retval;
+    }
+
+    int predict_dc_dct(const Block&block) {
+        int prediction = 0;
+        Optional<int> left_block;
+        Optional<int> left_edge;
+        Optional<int> above_block;
+        Optional<int> above_edge;
+        if (block.context().left.initialized()) {
+            left_block = idct_2d_8x1(*block.context().left.get(), 0, 7);
+            left_edge = idct_2d_8x1(block, 1, 0);
+        }
+        if (block.context().above.initialized()) {
+            above_block = idct_2d_1x8(*block.context().above.get(), 0, 7);
+            above_edge = idct_2d_1x8(block, 1, 0);
+        }
+        if (left_block.initialized()) {
+            if (above_block.initialized()) {
+                prediction = ( ( left_block.get() - left_edge.get() ) + (above_block.get() - above_edge.get()) ) * 4;
+            } else {
+                prediction = ( left_block.get() - left_edge.get() ) * 8;
+            }
+        } else if (above_block.initialized()) {
+            prediction = ( above_block.get() - above_edge.get() ) * 8;
+        }
+        int DCT_RSC = 8192; 
+        prediction = std::max(-1024 * DCT_RSC, std::min(1016 * DCT_RSC, prediction));
+        prediction /= quantization_table_[0];
+        int round = DCT_RSC/2;
+        if (prediction < 0) {
+            round = -round;
+        }
+        return (prediction + round) / DCT_RSC;
+    }
+    int predict_locoi_dc_deprecated(const Block&block) {
         if (block.context().left.initialized()) {
             int a = block.context().left.get()->coefficients().at(0);
             if (block.context().above.initialized()) {
@@ -287,7 +349,8 @@ public:
         }
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
-        int retval = predict_dc(block);
+        int retval = //predict_locoi_dc_deprecated(block);
+            predict_dc_dct(block);
         retval = block.coefficients().at(0) + (recover_original ? retval : -retval);
         if (retval < min_value) retval += adjustment_factor;
         if (retval > max_value) retval -= adjustment_factor;

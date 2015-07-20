@@ -188,9 +188,6 @@ void Block::parse_tokens( BoolDecoder & data,
                 }
             }
             coefficients_.at( coord ) = coef;
-            if (coord == 0) {
-                coefficients_.at( 0 ) = probability_tables.predict_or_unpredict_dc(*this, true);
-            }
             if (num_nonzeros_left_7x7 == 0) {
                 break; // done with the 49x49
             }
@@ -271,6 +268,6 @@ void Block::parse_tokens( BoolDecoder & data,
             coefficients_.at( coord ) = coef;
         }
     }
-
+    coefficients_.at( 0 ) = probability_tables.predict_or_unpredict_dc(*this, true);
     recalculate_coded_length();
 }
