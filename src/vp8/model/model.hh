@@ -261,31 +261,37 @@ public:
     }
     int idct_2d_8x1(const Block&block, bool ignore_first, int pixel_row) {
         int retval = 0;
-        if (!ignore_first) {
-            retval = block.coefficients().at(0) * icos_idct_8192_scaled[pixel_row * 64 + 0] * quantization_table_[0];
+        for (int i = 0; i< 8; ++i) {
+            assert(icos_idct_8192_scaled[pixel_row * 64 + i] == icos_idct_linear_8192_scaled[pixel_row * 8 + i]);
         }
-        retval += block.coefficients().at(1) * icos_idct_8192_scaled[pixel_row * 64 + 1] * quantization_table_[zigzag[1]];
-        retval += block.coefficients().at(2) * icos_idct_8192_scaled[pixel_row * 64 + 2] * quantization_table_[zigzag[2]];
-        retval += block.coefficients().at(3) * icos_idct_8192_scaled[pixel_row * 64 + 3] * quantization_table_[zigzag[3]];
-        retval += block.coefficients().at(4) * icos_idct_8192_scaled[pixel_row * 64 + 4] * quantization_table_[zigzag[4]];
-        retval += block.coefficients().at(5) * icos_idct_8192_scaled[pixel_row * 64 + 5] * quantization_table_[zigzag[5]];
-        retval += block.coefficients().at(6) * icos_idct_8192_scaled[pixel_row * 64 + 6] * quantization_table_[zigzag[6]];
-        retval += block.coefficients().at(7) * icos_idct_8192_scaled[pixel_row * 64 + 7] * quantization_table_[zigzag[7]];
+        if (!ignore_first) {
+            retval = block.coefficients().at(0) * icos_idct_linear_8192_scaled[pixel_row * 8 + 0] * quantization_table_[0];
+        }
+        retval += block.coefficients().at(1) * icos_idct_linear_8192_scaled[pixel_row * 8 + 1] * quantization_table_[zigzag[1]];
+        retval += block.coefficients().at(2) * icos_idct_linear_8192_scaled[pixel_row * 8 + 2] * quantization_table_[zigzag[2]];
+        retval += block.coefficients().at(3) * icos_idct_linear_8192_scaled[pixel_row * 8 + 3] * quantization_table_[zigzag[3]];
+        retval += block.coefficients().at(4) * icos_idct_linear_8192_scaled[pixel_row * 8 + 4] * quantization_table_[zigzag[4]];
+        retval += block.coefficients().at(5) * icos_idct_linear_8192_scaled[pixel_row * 8 + 5] * quantization_table_[zigzag[5]];
+        retval += block.coefficients().at(6) * icos_idct_linear_8192_scaled[pixel_row * 8 + 6] * quantization_table_[zigzag[6]];
+        retval += block.coefficients().at(7) * icos_idct_linear_8192_scaled[pixel_row * 8 + 7] * quantization_table_[zigzag[7]];
         return retval;
     }
 
     int idct_2d_1x8(const Block&block, bool ignore_first, int pixel_row) {
         int retval = 0;
-        if (!ignore_first) {
-            retval = block.coefficients().at(0) * icos_idct_8192_scaled[pixel_row * 64 + 0] * quantization_table_[0];
+        for (int i = 0; i< 8; ++i) {
+            assert(icos_idct_8192_scaled[pixel_row * 64 + i] == icos_idct_linear_8192_scaled[pixel_row * 8 + i]);
         }
-        retval += block.coefficients().at(8) * icos_idct_8192_scaled[pixel_row * 64 + 1] * quantization_table_[zigzag[8]];
-        retval += block.coefficients().at(16) * icos_idct_8192_scaled[pixel_row * 64 + 2] * quantization_table_[zigzag[16]];
-        retval += block.coefficients().at(24) * icos_idct_8192_scaled[pixel_row * 64 + 3] * quantization_table_[zigzag[24]];
-        retval += block.coefficients().at(32) * icos_idct_8192_scaled[pixel_row * 64 + 4] * quantization_table_[zigzag[32]];
-        retval += block.coefficients().at(40) * icos_idct_8192_scaled[pixel_row * 64 + 5] * quantization_table_[zigzag[40]];
-        retval += block.coefficients().at(48) * icos_idct_8192_scaled[pixel_row * 64 + 6] * quantization_table_[zigzag[48]];
-        retval += block.coefficients().at(56) * icos_idct_8192_scaled[pixel_row * 64 + 7] * quantization_table_[zigzag[56]];
+        if (!ignore_first) {
+            retval = block.coefficients().at(0) * icos_idct_linear_8192_scaled[pixel_row * 8 + 0] * quantization_table_[0];
+        }
+        retval += block.coefficients().at(8) * icos_idct_linear_8192_scaled[pixel_row * 8 + 1] * quantization_table_[zigzag[8]];
+        retval += block.coefficients().at(16) * icos_idct_linear_8192_scaled[pixel_row * 8 + 2] * quantization_table_[zigzag[16]];
+        retval += block.coefficients().at(24) * icos_idct_linear_8192_scaled[pixel_row * 8 + 3] * quantization_table_[zigzag[24]];
+        retval += block.coefficients().at(32) * icos_idct_linear_8192_scaled[pixel_row * 8 + 4] * quantization_table_[zigzag[32]];
+        retval += block.coefficients().at(40) * icos_idct_linear_8192_scaled[pixel_row * 8 + 5] * quantization_table_[zigzag[40]];
+        retval += block.coefficients().at(48) * icos_idct_linear_8192_scaled[pixel_row * 8 + 6] * quantization_table_[zigzag[48]];
+        retval += block.coefficients().at(56) * icos_idct_linear_8192_scaled[pixel_row * 8 + 7] * quantization_table_[zigzag[56]];
         return retval;
     }
 
@@ -432,7 +438,7 @@ public:
                 uint8_t cur_coef = band + i * 8;
                 coeffs_x[i]  = i ? block.coefficients().at(cur_coef) : -32768;
                 coeffs_a[i]  = above.at(cur_coef);
-                coef_idct[i] = icos_idct_8192_scaled[i * 8]
+                coef_idct[i] = icos_base_8192_scaled[i * 8]
                     * quantization_table_[zigzag[cur_coef]];
             }
         } else if ((band & 7) == 0 && block.context().left.initialized()) {
@@ -442,7 +448,7 @@ public:
                 uint8_t cur_coef = band + i;
                 coeffs_x[i]  = i ? block.coefficients().at(cur_coef) : -32768;
                 coeffs_a[i]  = left.at(cur_coef);
-                coef_idct[i] = icos_idct_8192_scaled[i * 8]
+                coef_idct[i] = icos_base_8192_scaled[i * 8]
                     * quantization_table_[zigzag[cur_coef]];
             }
         } else if (block.context().above.initialized()) {
