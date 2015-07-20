@@ -118,7 +118,8 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     }
     uint8_t num_nonzeros_left_x = num_nonzeros_x_;
     uint8_t num_nonzeros_left_y = num_nonzeros_y_;
-    for (unsigned int coord = 1; coord < 64; ++coord) {
+    for (unsigned int zz = 1; zz < 64; ++zz) {
+        unsigned int coord = unzigzag[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         int16_t coef = coefficients_.at( coord );
