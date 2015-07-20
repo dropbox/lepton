@@ -64,7 +64,9 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                 block.mutable_coefficients().at( jpeg_zigzag.at( coeff ) )
                     = colldata->at_nosync( component, coeff, curr_y * block_width + jpeg_x);
             }
-
+            if (curr_y == 5 && jpeg_x == 2) {
+                fprintf(stderr, "2042\n");
+            }
             block.recalculate_coded_length();
             probability_tables.set_quantization_table( colldata->get_quantization_tables(component));
             block.serialize_tokens( bool_encoder, probability_tables );

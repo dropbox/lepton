@@ -58,6 +58,9 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         int16_t coef = coefficients_.at( coord );
+        if (coord == 0) {
+            coef = probability_tables.predict_or_unpredict_dc(*this, false);
+        }
         uint16_t abs_coef = abs(coef);
         if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
             uint8_t length = bit_length(abs_coef);

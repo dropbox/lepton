@@ -255,8 +255,43 @@ public:
         return residual_noise_array_x(block_type, band, num_nonzeros_to_bin(num_nonzeros));
     }
     unsigned int num_nonzeros_to_bin(unsigned int num_nonzeros) {
+
         // this divides by 7 to get the initial value
-        return num_nonzeros / ((64 / NUM_NONZEROS_BINS) + (64 % NUM_NONZEROS_BINS  ? 1 : 0));
+        return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
+    }
+    int predict_dc(const Block&block) {
+        if (block.context().left.initialized()) {
+            int a = block.context().left.get()->coefficients().at(0);
+            if (block.context().above.initialized()) {
+                int b = block.context().above.get()->coefficients().at(0);
+                int c = block.context().above_left.get()->coefficients().at(0);
+                if (c >= std::max(a,b)) {
+                    return std::min(a,b);
+                } else if (c <= std::min(a,b)) {
+                    return std::max(a,b);
+                }
+                return a + b - c;
+            }else { 
+                return a;
+            }
+        } else if (block.context().above.initialized()) {
+            return block.context().above.get()->coefficients().at(0);
+        } else {
+            return 0;
+        }
+    }
+    int predict_or_unpredict_dc(const Block&block, bool recover_original) {
+        int max_value = 0;
+        if (quantization_table_[0]){
+            max_value = (1024 + quantization_table_[0] - 1) / quantization_table_[0];
+        }
+        int min_value = -max_value;
+        int adjustment_factor = 2 * max_value + 1;
+        int retval = predict_dc(block);
+        retval = block.coefficients().at(0) + (recover_original ? retval : -retval);
+        if (retval < min_value) retval += adjustment_factor;
+        if (retval > max_value) retval -= adjustment_factor;
+        return retval;
     }
     int compute_aavrg(const Block&block, unsigned int band) {
         Optional<uint16_t> toptop;
