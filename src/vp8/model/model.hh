@@ -96,7 +96,7 @@ struct Model
 
     
     typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch,
-                COEF_BITS - RESIDUAL_NOISE_FLOOR>,
+                                                              ((1<<(1 + COEF_BITS))/(1<<RESIDUAL_NOISE_FLOOR)) >,
                1 + COEF_BITS - RESIDUAL_NOISE_FLOOR>, // the exponent minus the current bit
             ((1<<(1 + COEF_BITS))/(1<<RESIDUAL_NOISE_FLOOR)) >, // max number over noise floor = 1<<4
         COEF_BANDS>,
@@ -190,6 +190,46 @@ struct Model
   }
 
 };
+
+enum ContextTypes{
+    ZDSTSCAN,
+    ZEROS7x7,
+    EXPDC,
+    RESDC,
+//    SIGNDC,
+    EXP7x7,
+    RES7x7,
+//    SIGN7x7,
+    ZEROS1x8,
+    ZEROS8x1,
+    EXP8,
+    THRESH8,
+    RES8,
+//    SIGN8,
+    NUMCONTEXT
+};
+struct Context {
+    enum {
+        H = 2448,
+        W = 3264
+    };
+    int cur_cmp;
+    int cur_jpeg_x;
+    int cur_jpeg_y;
+    int p[3][H/8][W/8][8][8][NUMCONTEXT][3];
+};
+extern Context *gctx;
+//#define ANNOTATE_CTX(bpos) gctx->p[gctx->cur_cmp][gctx->cur_jpeg_y][gctx->cur_jpeg_x][bpos/8][bpos%8]
+inline int ** annotate_nop() {
+    static int backing_array[NUMCONTEXT *3];
+    static int * retval[NUMCONTEXT];
+    for (int i = 0;i<NUMCONTEXT;++i) {
+        retval[i] = backing_array + i*3;
+    }
+    return retval;
+}
+#define ANNOTATE_CTX(bpos) annotate_nop()
+
 class Slice;
 
 struct ProbabilityTables
@@ -214,13 +254,18 @@ public:
         } else {
             num_nonzeros_context = (above_block_count.get() + left_block_count.get() + 2) / 4;
         }
+        ANNOTATE_CTX(0)[ZEROS7x7][1] = num_nonzeros_context;
         return model_->num_nonzeros_counts_7x7_
             .at(std::min(block_type, BLOCK_TYPES - 1))
             .at(num_nonzeros_to_bin(num_nonzeros_context));
     }
     FixedArray<Branch, 3>& nonzero_counts_1x8(unsigned int block_type,
                                              unsigned int eob_x,
-                                             unsigned int num_nonzeros) {
+                                             unsigned int num_nonzeros,
+                                             bool is_x) {
+        ANNOTATE_CTX(0)[is_x?ZEROS8x1:ZEROS1x8][0] = ((num_nonzeros + 3) / 7);
+        ANNOTATE_CTX(0)[is_x?ZEROS8x1:ZEROS1x8][1] = eob_x;
+        
         return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
             .at(eob_x)
             .at(((num_nonzeros + 3) / 7));
@@ -229,6 +274,8 @@ public:
                                                                  const unsigned int band,
                                                                  const unsigned int num_nonzeros_x,
                                                                  const Block&for_lak) {
+        ANNOTATE_CTX(band)[EXP8][0] = exp_len(abs(compute_lak(for_lak, band)));
+        ANNOTATE_CTX(band)[EXP8][1] = num_nonzeros_x;
         return model_->exponent_counts_x_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band ).at(num_nonzeros_x)
             .at(exp_len(abs(compute_lak(for_lak, band))));
@@ -237,12 +284,28 @@ public:
                                                                const unsigned int band,
                                                                const unsigned int num_nonzeros,
                                                                    const Block&block) {
+        if (band > 0) {
+            ANNOTATE_CTX(band)[EXP7x7][0] = exp_len(abs(compute_aavrg(block, band)));
+            ANNOTATE_CTX(band)[EXP7x7][1] = num_nonzeros_to_bin(num_nonzeros);
+        } else {
+            ANNOTATE_CTX(0)[EXPDC][0] = exp_len(abs(compute_aavrg(block, band)));
+            ANNOTATE_CTX(0)[EXPDC][1] = num_nonzeros_to_bin(num_nonzeros);
+        }
         return model_->exponent_counts_
             .at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band ).at(num_nonzeros_to_bin(num_nonzeros))
             .at(exp_len(abs(compute_aavrg(block, band))));
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
+                                                          const unsigned int band,
+                                                          const uint8_t num_nonzeros_x) {
+        ANNOTATE_CTX(band)[RES8][0] = num_nonzeros_x;
+        return residual_noise_array_shared(block_type,
+                                           band,
+                                           num_nonzeros_x);
+    }
+
+    FixedArray<Branch, COEF_BITS> & residual_noise_array_shared(const unsigned int block_type,
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros_x) {
         return model_->residual_noise_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
@@ -252,7 +315,12 @@ public:
     FixedArray<Branch, COEF_BITS> & residual_noise_array_7x7(const unsigned int block_type,
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros) {
-        return residual_noise_array_x(block_type, band, num_nonzeros_to_bin(num_nonzeros));
+        if (band == 0) {
+            ANNOTATE_CTX(0)[RESDC][0] = num_nonzeros_to_bin(num_nonzeros);
+        } else {
+            ANNOTATE_CTX(band)[RES7x7][0] = num_nonzeros_to_bin(num_nonzeros);
+        }
+        return residual_noise_array_shared(block_type, band, num_nonzeros_to_bin(num_nonzeros));
     }
     unsigned int num_nonzeros_to_bin(unsigned int num_nonzeros) {
 
@@ -417,7 +485,7 @@ public:
         if (v < 0) {
             v = -v;
         }
-        return log2(std::min(v + 1, 1023));
+        return bit_length(std::min(v, 1023));
     }
     int compute_lak(const Block&block, unsigned int band) {
         int16_t coeffs_x[8];
@@ -472,10 +540,13 @@ public:
         }
         return 0;
         }*/
-    FixedArray<Branch, COEF_BITS - RESIDUAL_NOISE_FLOOR> & residual_thresh_array(const unsigned int block_type,
+    FixedArray<Branch, ((1<<(1 + COEF_BITS))/(1<<RESIDUAL_NOISE_FLOOR))> & residual_thresh_array(const unsigned int block_type,
                                                                                 const unsigned int band,
                                                                                 const uint8_t cur_exponent,
                                                                                 const Block&block) {
+        ANNOTATE_CTX(band)[THRESH8][0] = (abs(compute_lak(block, band)) + (1 << RESIDUAL_NOISE_FLOOR)/2) / (1 << RESIDUAL_NOISE_FLOOR);
+        ANNOTATE_CTX(band)[THRESH8][2] = cur_exponent - RESIDUAL_NOISE_FLOOR;
+
         return model_->residual_threshold_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band )
             .at((abs(compute_lak(block, band)) + (1 << RESIDUAL_NOISE_FLOOR)/2) / (1 << RESIDUAL_NOISE_FLOOR))
@@ -492,6 +563,7 @@ public:
         SignValue left_sign = ZERO_SIGN;
         SignValue above_sign = ZERO_SIGN;
         if (band == 0) {
+
             if (block.context().left.initialized()) {
                 if (block.context().left.get()->coefficients().at(0) > 0) {
                     left_sign = POSITIVE_SIGN;
@@ -508,6 +580,8 @@ public:
                     above_sign = NEGATIVE_SIGN;
                 }
             }
+//            ANNOTATE_CTX(0)[SIGNDC][0] = left_sign;
+//            ANNOTATE_CTX(0)[SIGNDC][1] = above_sign;
             
         } else if (band < 8 || band % 8 == 0) {
             int16_t val = compute_lak(block, band);
@@ -520,6 +594,9 @@ public:
             if (val < 0) {
                 left_sign = above_sign = NEGATIVE_SIGN;
             }
+//            ANNOTATE_CTX(band)[SIGN8][0] = -1; //FIXME: do we want to use ctx_len here
+//            ANNOTATE_CTX(band)[SIGN8][1] = above_sign;
+
         } else {
             if (band < 16 || band % 8 == 1) {
                 // haven't deserialized these yet: use neighbors
@@ -554,6 +631,7 @@ public:
                 }
             }
         }
+//        ANNOTATE_CTX(band)[SIGN7x7][0] = left_sign + 3 * above_sign;
         return model_->sign_counts_
             .at(std::min(block_type, BLOCK_TYPES - 1))
             .at(band).at(left_sign).at(above_sign);

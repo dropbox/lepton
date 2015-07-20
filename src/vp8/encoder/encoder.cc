@@ -54,7 +54,8 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         encoder.put((num_nonzeros_7x7_ & (1 << index)) ? 1 : 0, num_nonzeros_prob.at(index));
     }
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7_;
-    for (unsigned int coord = 0; coord < 64; ++coord) {
+    for (unsigned int zz = 0; zz < 64; ++zz) {
+        unsigned int coord = unzigzag[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         int16_t coef = coefficients_.at( coord );
@@ -64,12 +65,12 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         uint16_t abs_coef = abs(coef);
         if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
             uint8_t length = bit_length(abs_coef);
-            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7_, *this);
+            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
             for (int i = 0;i < 4;++i) {
                 encoder.put((length & (1 << i)) ? 1 : 0, exp_prob.at(i));
             }
             if (length > 1){
-                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_7x7_);
+                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_left_7x7);
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
                 
@@ -92,7 +93,8 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     }
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
-    for (unsigned int coord = 0; coord < 64; ++coord) {
+    for (unsigned int zz = 0; zz < 64; ++zz) {
+        unsigned int coord = unzigzag[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         if ((b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
@@ -104,10 +106,10 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     }
     auto &prob_x = probability_tables.nonzero_counts_1x8(type_,
                                                       eob_x,
-                                                      num_nonzeros_7x7_);
+                                                         num_nonzeros_7x7_, true);
     auto &prob_y = probability_tables.nonzero_counts_1x8(type_,
                                                       eob_y,
-                                                      num_nonzeros_7x7_);
+                                                         num_nonzeros_7x7_, false);
     for (int i= 0 ;i <3;++i) {
         encoder.put((num_nonzeros_x_ & (1 << i)) ? 1 : 0, prob_x.at(i));
     }
@@ -123,12 +125,13 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         uint16_t abs_coef = abs(coef);
         uint8_t num_nonzeros_edge = 0;
         if (b_y == 0 && num_nonzeros_left_x) {
-            num_nonzeros_edge = num_nonzeros_x_;
+            num_nonzeros_edge = num_nonzeros_left_x;
         }
         if (b_x == 0 && num_nonzeros_left_y) {
-            num_nonzeros_edge = num_nonzeros_y_;
+            num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
+            assert(coord != 9);
             auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_nonzeros_edge, *this);
             uint8_t length = bit_length(abs_coef);
             for (int i = 0;i < 4;++i) {
@@ -141,9 +144,18 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             if (length > 1) {
                 
                 int i;
+                uint16_t encoded_so_far = 1;
                 for (i = length - 2; i >= (int)RESIDUAL_NOISE_FLOOR; --i) {
                     auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
-                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, thresh_prob.at(i - RESIDUAL_NOISE_FLOOR));
+                    int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
+                    if (i == RESIDUAL_NOISE_FLOOR) {
+                        ANNOTATE_CTX(coord)[THRESH8][1] = encoded_so_far;
+                    }
+                    encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
+                    encoded_so_far <<=1;
+                    if (cur_bit) {
+                        encoded_so_far |=1;
+                    }
                 }
                 for (; i >= 0; --i) {
                     auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);

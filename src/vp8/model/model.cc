@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include "model.hh"
-
+Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 void ProbabilityTables::serialize( std::ofstream & output ) const
 {
   output.write( reinterpret_cast<char*>( model_.get() ), sizeof( *model_ ) );
