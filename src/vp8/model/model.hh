@@ -261,9 +261,6 @@ public:
     }
     int idct_2d_8x1(const Block&block, bool ignore_first, int pixel_row) {
         int retval = 0;
-        for (int i = 0; i< 8; ++i) {
-            assert(icos_idct_8192_scaled[pixel_row * 64 + i] == icos_idct_linear_8192_scaled[pixel_row * 8 + i]);
-        }
         if (!ignore_first) {
             retval = block.coefficients().at(0) * icos_idct_linear_8192_scaled[pixel_row * 8 + 0] * quantization_table_[0];
         }
@@ -279,9 +276,6 @@ public:
 
     int idct_2d_1x8(const Block&block, bool ignore_first, int pixel_row) {
         int retval = 0;
-        for (int i = 0; i< 8; ++i) {
-            assert(icos_idct_8192_scaled[pixel_row * 64 + i] == icos_idct_linear_8192_scaled[pixel_row * 8 + i]);
-        }
         if (!ignore_first) {
             retval = block.coefficients().at(0) * icos_idct_linear_8192_scaled[pixel_row * 8 + 0] * quantization_table_[0];
         }
