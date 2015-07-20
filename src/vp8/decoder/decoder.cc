@@ -146,34 +146,34 @@ void Block::parse_tokens( BoolDecoder & data,
                           ProbabilityTables & probability_tables )
 {
 
-    Optional<uint8_t> num_zeros_above;
-    Optional<uint8_t> num_zeros_left;
+    Optional<uint8_t> num_nonzeros_above;
+    Optional<uint8_t> num_nonzeros_left;
     if (context().above.initialized()) {
-        num_zeros_above = context().above.get()->num_zeros_7x7();
+        num_nonzeros_above = context().above.get()->num_nonzeros_7x7();
     }
     if (context().left.initialized()) {
-        num_zeros_left = context().left.get()->num_zeros_7x7();
+        num_nonzeros_left = context().left.get()->num_nonzeros_7x7();
     }
-    auto & num_zeros_prob = probability_tables.zero_counts_7x7(type_,
-                                                               num_zeros_left,
-                                                               num_zeros_above);
-    uint8_t num_zeros_7x7 = 0;
+    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_,
+                                                               num_nonzeros_left,
+                                                               num_nonzeros_above);
+    uint8_t num_nonzeros_7x7 = 0;
     for (unsigned int index = 0; index < 6; ++index) {
-        num_zeros_7x7 |= ((data.get(num_zeros_prob.at(index))?1:0) << index);
+        num_nonzeros_7x7 |= ((data.get(num_nonzeros_prob.at(index))?1:0) << index);
     }
-    uint8_t num_nonzeros_left_7x7 = 49 - num_zeros_7x7;
+    uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     for (unsigned int coord = 0; coord < 64; ++coord) {
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
             uint8_t length = 0;
-            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_zeros_7x7, *this);
+            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7, *this);
             for (int i = 0;i < 4;++i) {
                 length |= ((data.get(exp_prob.at(i)) ? 1 : 0) << i);
             }
             int16_t coef = (1 << (length - 1));
             if (length > 1){
-                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_zeros_7x7);
+                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_7x7);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
@@ -205,34 +205,34 @@ void Block::parse_tokens( BoolDecoder & data,
             }
         }
     }
-    auto &prob_x = probability_tables.zero_counts_1x8(type_,
+    auto &prob_x = probability_tables.nonzero_counts_1x8(type_,
                                                       eob_x,
-                                                      num_zeros_7x7);
-    auto &prob_y = probability_tables.zero_counts_1x8(type_,
+                                                      num_nonzeros_7x7);
+    auto &prob_y = probability_tables.nonzero_counts_1x8(type_,
                                                       eob_y,
-                                                      num_zeros_7x7);
-    uint8_t num_zeros_x = 0;
+                                                      num_nonzeros_7x7);
+    uint8_t num_nonzeros_x = 0;
     for (int i= 0 ;i <3;++i) {
-        num_zeros_x |= ((data.get(prob_x.at(i))?1:0) << i);
+        num_nonzeros_x |= ((data.get(prob_x.at(i))?1:0) << i);
     }
-    uint8_t num_zeros_y = 0;
+    uint8_t num_nonzeros_y = 0;
     for (int i= 0 ;i <3;++i) {
-        num_zeros_y |= ((data.get(prob_y.at(i))?1:0) << i);
+        num_nonzeros_y |= ((data.get(prob_y.at(i))?1:0) << i);
     }
-    uint8_t num_nonzeros_left_x = 7 - num_zeros_x;
-    uint8_t num_nonzeros_left_y = 7 - num_zeros_y;
+    uint8_t num_nonzeros_left_x = num_nonzeros_x;
+    uint8_t num_nonzeros_left_y = num_nonzeros_y;
     for (unsigned int coord = 1; coord < 64; ++coord) {    
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
-        uint8_t num_zeros_edge = 0;
+        uint8_t num_nonzeros_edge = 0;
         if (b_y == 0 && num_nonzeros_left_x) {
-            num_zeros_edge = num_zeros_x;
+            num_nonzeros_edge = num_nonzeros_x;
         }
         if (b_x == 0 && num_nonzeros_left_y) {
-            num_zeros_edge = num_zeros_y;
+            num_nonzeros_edge = num_nonzeros_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_zeros_edge, *this);
+            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_nonzeros_edge, *this);
 
             uint8_t length = 0;
             for (int i = 0;i < 4;++i) {
@@ -249,7 +249,7 @@ void Block::parse_tokens( BoolDecoder & data,
                     coef |= ((data.get(thresh_prob.at(i - RESIDUAL_NOISE_FLOOR)) ? 1 : 0) << i);
                 }
                 for (; i >= 0; --i) {
-                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_zeros_edge);
+                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }

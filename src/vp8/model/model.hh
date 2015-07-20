@@ -15,13 +15,11 @@ class Slice;
 
 
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
-constexpr unsigned int NUM_ZEROS_BINS     =  10;
+constexpr unsigned int NUM_NONZEROS_BINS     =  10;
 constexpr unsigned int COEF_BANDS         = 64;
 constexpr unsigned int ENTROPY_NODES      = 15;
-constexpr unsigned int NUM_ZEROS_EOB_PRIORS = 66;
+constexpr unsigned int NUM_NONZEROS_EOB_PRIORS = 66;
 constexpr unsigned int ZERO_OR_EOB = 3;
-constexpr unsigned int AVG_ZEROS_EOB_PRIORS = 66;
-constexpr unsigned int AVG_EOB = 66;
 constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 6;
 constexpr unsigned int COEF_BITS = 10;
 enum BitContexts : uint8_t {
@@ -78,19 +76,19 @@ struct Model
     
     typedef FixedArray<FixedArray<FixedArray<Branch, 6>,
                         26>, //neighboring zero counts added + 2/ 4
-            BLOCK_TYPES> ZeroCounts7x7;
-    ZeroCounts7x7 num_zeros_counts_7x7_;
+            BLOCK_TYPES> NonzeroCounts7x7;
+    NonzeroCounts7x7 num_nonzeros_counts_7x7_;
 
     typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 3>,
-            8>, //lower num_zeros_count
+            8>, //lower num_nonzeros_count
           8>, //eob in this dimension
     
-        BLOCK_TYPES> ZeroCounts1x8;
-    ZeroCounts1x8 num_zeros_counts_1x8_;
+        BLOCK_TYPES> NonzeroCounts1x8;
+    NonzeroCounts1x8 num_nonzeros_counts_1x8_;
 
     typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch,
 				          COEF_BITS>,
-                      (8>NUM_ZEROS_BINS?8:NUM_ZEROS_BINS)>, //num zeros
+                      (8>NUM_NONZEROS_BINS?8:NUM_NONZEROS_BINS)>, //num zeros
 					COEF_BANDS>,
 		    BLOCK_TYPES> ResidualNoiseCounts;
 
@@ -109,7 +107,7 @@ struct Model
     
   typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
                          NUMERIC_LENGTH_MAX>, //neighboring block exp
-                      NUM_ZEROS_BINS>,
+                      NUM_NONZEROS_BINS>,
                     COEF_BANDS>,
       BLOCK_TYPES> ExponentCounts;
 
@@ -122,14 +120,14 @@ struct Model
   template <typename lambda>
   void forall( const lambda & proc )
   {
-      for ( auto & a : num_zeros_counts_7x7_ ) {
+      for ( auto & a : num_nonzeros_counts_7x7_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   proc( c );
               }
           }
       }
-      for ( auto & a : num_zeros_counts_1x8_ ) {
+      for ( auto & a : num_nonzeros_counts_1x8_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   for (auto &d : c) {
@@ -205,60 +203,60 @@ public:
     void set_quantization_table(const unsigned short quantization_table[64]) {
         quantization_table_ = quantization_table;
     }
-    FixedArray<Branch, 6>& zero_counts_7x7(unsigned int block_type,
-                                         Optional<uint8_t> left_block_count,
-                                         Optional<uint8_t> above_block_count) {
-        uint8_t num_zeros_context = 0;
+    FixedArray<Branch, 6>& nonzero_counts_7x7(unsigned int block_type,
+                                             Optional<uint8_t> left_block_count,
+                                             Optional<uint8_t> above_block_count) {
+        uint8_t num_nonzeros_context = 0;
         if (!left_block_count.initialized()) {
-            num_zeros_context = above_block_count.get_or(0);
+            num_nonzeros_context = above_block_count.get_or(0);
         } else if (!above_block_count.initialized()) {
-            num_zeros_context = above_block_count.get_or(0);
+            num_nonzeros_context = above_block_count.get_or(0);
         } else {
-            num_zeros_context = (above_block_count.get() + left_block_count.get() + 2) / 4;
+            num_nonzeros_context = (above_block_count.get() + left_block_count.get() + 2) / 4;
         }
-        return model_->num_zeros_counts_7x7_
+        return model_->num_nonzeros_counts_7x7_
             .at(std::min(block_type, BLOCK_TYPES - 1))
-            .at(num_zeros_to_bin(num_zeros_context));
+            .at(num_nonzeros_to_bin(num_nonzeros_context));
     }
-    FixedArray<Branch, 3>& zero_counts_1x8(unsigned int block_type,
-                                         unsigned int eob_x,
-                                         unsigned int num_zeros) {
-        return model_->num_zeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
+    FixedArray<Branch, 3>& nonzero_counts_1x8(unsigned int block_type,
+                                             unsigned int eob_x,
+                                             unsigned int num_nonzeros) {
+        return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
             .at(eob_x)
-            .at(((num_zeros + 3) / 7));
+            .at(((num_nonzeros + 3) / 7));
     }
     FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>& exponent_array_x(const unsigned int block_type,
                                                                  const unsigned int band,
-                                                                 const unsigned int num_zeros_x,
+                                                                 const unsigned int num_nonzeros_x,
                                                                  const Block&for_lak) {
         return model_->exponent_counts_x_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band ).at(num_zeros_x)
+            .at( band ).at(num_nonzeros_x)
             .at(exp_len(abs(compute_lak(for_lak, band))));
     }
     FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>& exponent_array_7x7(const unsigned int block_type,
                                                                const unsigned int band,
-                                                               const unsigned int num_zeros,
+                                                               const unsigned int num_nonzeros,
                                                                    const Block&block) {
         return model_->exponent_counts_
             .at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band ).at(num_zeros_to_bin(num_zeros))
+            .at( band ).at(num_nonzeros_to_bin(num_nonzeros))
             .at(exp_len(abs(compute_aavrg(block, band))));
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
                                                             const unsigned int band,
-                                                            const uint8_t num_zeros_x) {
+                                                            const uint8_t num_nonzeros_x) {
         return model_->residual_noise_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band )
-            .at(num_zeros_x);
+            .at(num_nonzeros_x);
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_7x7(const unsigned int block_type,
                                                             const unsigned int band,
-                                                            const uint8_t num_zeros) {
-        return residual_noise_array_x(block_type, band, num_zeros_to_bin(num_zeros));
+                                                            const uint8_t num_nonzeros) {
+        return residual_noise_array_x(block_type, band, num_nonzeros_to_bin(num_nonzeros));
     }
-    unsigned int num_zeros_to_bin(unsigned int num_zeros) {
+    unsigned int num_nonzeros_to_bin(unsigned int num_nonzeros) {
         // this divides by 7 to get the initial value
-        return num_zeros / ((64 / NUM_ZEROS_BINS) + (64 % NUM_ZEROS_BINS  ? 1 : 0));
+        return num_nonzeros / ((64 / NUM_NONZEROS_BINS) + (64 % NUM_NONZEROS_BINS  ? 1 : 0));
     }
     int compute_aavrg(const Block&block, unsigned int band) {
         Optional<uint16_t> toptop;

@@ -33,10 +33,10 @@ private:
 
   uint8_t coded_length_ = 255;
 
-  uint8_t num_zeros_ = 0;
-  uint8_t num_zeros_7x7_ = 0;
-  uint8_t num_zeros_x_ = 0;
-  uint8_t num_zeros_y_ = 0;
+  uint8_t num_nonzeros_ = 0;
+  uint8_t num_nonzeros_7x7_ = 0;
+  uint8_t num_nonzeros_x_ = 0;
+  uint8_t num_nonzeros_y_ = 0;
   
 public:
   enum {
@@ -57,10 +57,10 @@ public:
   void recalculate_coded_length()
   {
     coded_length_ = 0;
-    num_zeros_ = 0;
-    num_zeros_7x7_ = 0;
-    num_zeros_x_ = 0;
-    num_zeros_y_ = 0;
+    num_nonzeros_ = 0;
+    num_nonzeros_7x7_ = 0;
+    num_nonzeros_x_ = 0;
+    num_nonzeros_y_ = 0;
     /* how many tokens are we going to encode? */
     for ( unsigned int index = 0; index < 64; index++ ) {
         unsigned int xy = jpeg_zigzag.at( index );
@@ -68,32 +68,31 @@ public:
         unsigned int y = xy / 8;
         if ( coefficients_.at( xy ) ) {
             coded_length_ = index + 1;
-        } else {
-            ++num_zeros_;
+            ++num_nonzeros_;
             if (x == 0 && y) {
-                ++num_zeros_y_;
+                ++num_nonzeros_y_;
             }
             if (y == 0 && x) {
-                ++num_zeros_x_;
+                ++num_nonzeros_x_;
             }
             if (x > 0 && y > 0) {
-                ++num_zeros_7x7_;
+                ++num_nonzeros_7x7_;
             }
         }
     }
 #ifndef USE_ZEROS
-//    num_zeros_ = coded_length_; FIXME
+//    num_nonzeros_ = coded_length_; FIXME
 #endif
-    //assert(coded_length_ + num_zeros_ * 65 < 260);
+    //assert(coded_length_ + num_nonzeros_ * 65 < 260);
 /*
     if (coded_length_ > 16) {
         assert(coded_length_ / 4 + 12 < 30);
-        num_zeros_ = coded_length_ / 4 + 12 + 3-num_zeros_;
+        num_nonzeros_ = coded_length_ / 4 + 12 + 3-num_nonzeros_;
     } else {
-        num_zeros_ = coded_length_;
+        num_nonzeros_ = coded_length_;
     }
 */
-    //num_zeros_=std::min(coded_length_, (unsigned char)31U);
+    //num_nonzeros_=std::min(coded_length_, (unsigned char)31U);
   }
   
     std::pair<Optional<int16_t>,
@@ -131,10 +130,10 @@ public:
   const std::array<int16_t, 64> & coefficients() const { return coefficients_; }
 
   uint8_t coded_length() const { return coded_length_; }
-  uint8_t num_zeros() const { return num_zeros_; }
-  uint8_t num_zeros_7x7() const { return num_zeros_7x7_; }
-  uint8_t num_zeros_x() const { return num_zeros_x_; }
-  uint8_t num_zeros_y() const { return num_zeros_y_; }
+  uint8_t num_nonzeros() const { return num_nonzeros_; }
+  uint8_t num_nonzeros_7x7() const { return num_nonzeros_7x7_; }
+  uint8_t num_nonzeros_x() const { return num_nonzeros_x_; }
+  uint8_t num_nonzeros_y() const { return num_nonzeros_y_; }
 };
 
 #endif

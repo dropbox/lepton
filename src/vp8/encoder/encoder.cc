@@ -39,21 +39,21 @@ typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
                               ProbabilityTables & probability_tables ) const
 {
-    Optional<uint8_t> num_zeros_above;
-    Optional<uint8_t> num_zeros_left;
+    Optional<uint8_t> num_nonzeros_above;
+    Optional<uint8_t> num_nonzeros_left;
     if (context().above.initialized()) {
-        num_zeros_above = context().above.get()->num_zeros_7x7();
+        num_nonzeros_above = context().above.get()->num_nonzeros_7x7();
     }
     if (context().left.initialized()) {
-        num_zeros_left = context().left.get()->num_zeros_7x7();
+        num_nonzeros_left = context().left.get()->num_nonzeros_7x7();
     }
-    auto & num_zeros_prob = probability_tables.zero_counts_7x7(type_,
-                                                               num_zeros_left,
-                                                               num_zeros_above);
+    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_,
+                                                               num_nonzeros_left,
+                                                               num_nonzeros_above);
     for (unsigned int index = 0; index < 6; ++index) {
-        encoder.put((num_zeros_7x7_ & (1 << index)) ? 1 : 0, num_zeros_prob.at(index));
+        encoder.put((num_nonzeros_7x7_ & (1 << index)) ? 1 : 0, num_nonzeros_prob.at(index));
     }
-    uint8_t num_nonzeros_left_7x7 = 49 - num_zeros_7x7_;
+    uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7_;
     for (unsigned int coord = 0; coord < 64; ++coord) {
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
@@ -61,12 +61,12 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         uint16_t abs_coef = abs(coef);
         if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
             uint8_t length = bit_length(abs_coef);
-            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_zeros_7x7_, *this);
+            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7_, *this);
             for (int i = 0;i < 4;++i) {
                 encoder.put((length & (1 << i)) ? 1 : 0, exp_prob.at(i));
             }
             if (length > 1){
-                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_zeros_7x7_);
+                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_7x7_);
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
                 
@@ -99,34 +99,34 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             }
         }
     }
-    auto &prob_x = probability_tables.zero_counts_1x8(type_,
+    auto &prob_x = probability_tables.nonzero_counts_1x8(type_,
                                                       eob_x,
-                                                      num_zeros_7x7_);
-    auto &prob_y = probability_tables.zero_counts_1x8(type_,
+                                                      num_nonzeros_7x7_);
+    auto &prob_y = probability_tables.nonzero_counts_1x8(type_,
                                                       eob_y,
-                                                      num_zeros_7x7_);
+                                                      num_nonzeros_7x7_);
     for (int i= 0 ;i <3;++i) {
-        encoder.put((num_zeros_x_ & (1 << i)) ? 1 : 0, prob_x.at(i));
+        encoder.put((num_nonzeros_x_ & (1 << i)) ? 1 : 0, prob_x.at(i));
     }
     for (int i= 0 ;i <3;++i) {
-        encoder.put((num_zeros_y_ & (1 << i)) ? 1 : 0, prob_y.at(i));
+        encoder.put((num_nonzeros_y_ & (1 << i)) ? 1 : 0, prob_y.at(i));
     }
-    uint8_t num_nonzeros_left_x = 7 - num_zeros_x_;
-    uint8_t num_nonzeros_left_y = 7 - num_zeros_y_;
+    uint8_t num_nonzeros_left_x = num_nonzeros_x_;
+    uint8_t num_nonzeros_left_y = num_nonzeros_y_;
     for (unsigned int coord = 1; coord < 64; ++coord) {
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         int16_t coef = coefficients_.at( coord );
         uint16_t abs_coef = abs(coef);
-        uint8_t num_zeros_edge = 0;
+        uint8_t num_nonzeros_edge = 0;
         if (b_y == 0 && num_nonzeros_left_x) {
-            num_zeros_edge = num_zeros_x_;
+            num_nonzeros_edge = num_nonzeros_x_;
         }
         if (b_x == 0 && num_nonzeros_left_y) {
-            num_zeros_edge = num_zeros_y_;
+            num_nonzeros_edge = num_nonzeros_y_;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_zeros_edge, *this);
+            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_nonzeros_edge, *this);
             uint8_t length = bit_length(abs_coef);
             for (int i = 0;i < 4;++i) {
                 encoder.put((length & (1 << i)), exp_array.at(i));
@@ -143,7 +143,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
                     encoder.put((abs_coef & (1 << i)) ? 1 : 0, thresh_prob.at(i - RESIDUAL_NOISE_FLOOR));
                 }
                 for (; i >= 0; --i) {
-                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_zeros_edge);
+                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);
                     encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
                 }
             }
@@ -184,12 +184,12 @@ const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables 
     for ( unsigned int type = 0; type < model_->token_branch_counts_.size(); type++ ) {
         const auto & this_type = model_->token_branch_counts_.at( type );
         const auto *other_type = other ? &other->model_->token_branch_counts_.at( type ) : NULL;
-        for ( unsigned int num_zeros_bin = 0; num_zeros_bin < this_type.size(); num_zeros_bin++ ) {
-            const auto & this_num_zeros_bin = this_type.at( num_zeros_bin );
-            const auto * other_num_zeros_bin = other ? &other_type->at( num_zeros_bin ) : NULL;
-            for ( unsigned int eob_bin = 0; eob_bin < this_num_zeros_bin.size(); eob_bin++ ) {
-                const auto & this_eob_bin = this_num_zeros_bin.at( eob_bin );
-                const auto * other_eob_bin = other ? &other_num_zeros_bin->at( eob_bin ) : NULL;
+        for ( unsigned int num_nonzeros_bin = 0; num_nonzeros_bin < this_type.size(); num_nonzeros_bin++ ) {
+            const auto & this_num_nonzeros_bin = this_type.at( num_nonzeros_bin );
+            const auto * other_num_nonzeros_bin = other ? &other_type->at( num_nonzeros_bin ) : NULL;
+            for ( unsigned int eob_bin = 0; eob_bin < this_num_nonzeros_bin.size(); eob_bin++ ) {
+                const auto & this_eob_bin = this_num_nonzeros_bin.at( eob_bin );
+                const auto * other_eob_bin = other ? &other_num_nonzeros_bin->at( eob_bin ) : NULL;
                 for ( unsigned int band = 0; band < this_eob_bin.size(); band++ ) {
                     const auto & this_band = this_eob_bin.at( band );
                     const auto * other_band = other? &other_eob_bin->at( band ) : NULL;
@@ -206,7 +206,7 @@ const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables 
                                 if (filter(this_node,
                                            other_node)) {
                                     if (!print_first) {
-                                        cout << "token_branch_counts[ " << type << " ][ "<< num_zeros_bin <<" ][ " << eob_bin << " ][ " << band << " ][ " << prev_context << " ]["<<neighbor_context<<"] = ";
+                                        cout << "token_branch_counts[ " << type << " ][ "<< num_nonzeros_bin <<" ][ " << eob_bin << " ][ " << band << " ][ " << prev_context << " ]["<<neighbor_context<<"] = ";
                                         print_first = true;
                                     }
                                     if (other) {
