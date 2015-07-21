@@ -424,7 +424,66 @@ public:
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
     }
+    int compute_aavrg_dc(const Block&block) {
+        Optional<uint16_t> toptop;
+        Optional<uint16_t> topleft;
+        Optional<uint16_t> top;
+        Optional<uint16_t> topright;
+        Optional<uint16_t> leftleft;
+        Optional<uint16_t> left;
+        uint32_t total = 0;
+        uint32_t weights = 0;
+        if (block.context().above.initialized()) {
+            if (block.context().above.get()->context().above.initialized()) {
+                toptop = abs(predict_or_unpredict_dc(*block.context().above.get()->context().above.get(), false));
+            }
+            top = abs(predict_or_unpredict_dc(*block.context().above.get(), false));
+        }
+        if (block.context().above_left.initialized()) {
+            topleft = abs(predict_or_unpredict_dc(*block.context().above_left.get(), false));
+        }
+        if (block.context().above_right.initialized()) {
+            topright = abs(predict_or_unpredict_dc(*block.context().above_right.get(), false));
+        }
+        if (block.context().left.initialized()) {
+            if (block.context().left.get()->context().left.initialized()) {
+                leftleft = abs(predict_or_unpredict_dc(*block.context().left.get()->context().left.get(), false));
+            }
+            left = abs(predict_or_unpredict_dc(*block.context().left.get(), false));
+        }
+        if (toptop.initialized()) {
+            total += abs_ctx_weights_lum[0][0][2] * (int)toptop.get();
+            weights += abs_ctx_weights_lum[0][0][2];
+        }
+        if (topleft.initialized()) {
+            total += abs_ctx_weights_lum[0][1][1] * (int)topleft.get();
+            weights += abs_ctx_weights_lum[0][1][1];
+        }
+        if (top.initialized()) {
+            total += abs_ctx_weights_lum[0][1][2] * (int)top.get();
+            weights += abs_ctx_weights_lum[0][1][2];
+        }
+        if (topright.initialized()) {
+            total += abs_ctx_weights_lum[0][1][3] * (int)topright.get();
+            weights += abs_ctx_weights_lum[0][1][3];
+        }
+        if (leftleft.initialized()) {
+            total += abs_ctx_weights_lum[0][2][0] * (int)leftleft.get();
+            weights += abs_ctx_weights_lum[0][2][0];
+        }
+        if (left.initialized()) {
+            total += abs_ctx_weights_lum[0][2][1] * (int)left.get();
+            weights += abs_ctx_weights_lum[0][2][1];
+        }
+        if (weights == 0) {
+            weights = 1;
+        }
+        return total/weights;
+    }
     int compute_aavrg(const Block&block, unsigned int band) {
+        if (band == 0) {
+            return compute_aavrg_dc(block);
+        }
         Optional<uint16_t> toptop;
         Optional<uint16_t> topleft;
         Optional<uint16_t> top;
