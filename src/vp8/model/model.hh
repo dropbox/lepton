@@ -593,7 +593,7 @@ public:
                     * quantization_table_[zigzag[cur_coef]];
             }
         } else if (block.context().above.initialized()) {
-            return block.context().above.get()->coefficients().at(band);
+            return 0; // we don't have data in the correct direction
         } else {
             return 0;
         }
