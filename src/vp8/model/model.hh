@@ -219,7 +219,11 @@ struct Context {
     int p[3][H/8][W/8][8][8][NUMCONTEXT][3];
 };
 extern Context *gctx;
-//#define ANNOTATE_CTX(bpos) gctx->p[gctx->cur_cmp][gctx->cur_jpeg_y][gctx->cur_jpeg_x][bpos/8][bpos%8]
+#if 0
+#define ANNOTATION_ENABLED
+#define ANNOTATE_CTX(bpos) gctx->p[gctx->cur_cmp][gctx->cur_jpeg_y][gctx->cur_jpeg_x][bpos/8][bpos%8]
+#else
+
 inline int ** annotate_nop() {
     static int backing_array[NUMCONTEXT *3];
     static int * retval[NUMCONTEXT];
@@ -229,7 +233,7 @@ inline int ** annotate_nop() {
     return retval;
 }
 #define ANNOTATE_CTX(bpos) annotate_nop()
-
+#endif
 class Slice;
 
 struct ProbabilityTables
@@ -244,15 +248,28 @@ public:
         quantization_table_ = quantization_table;
     }
     FixedArray<Branch, 6>& nonzero_counts_7x7(unsigned int block_type,
-                                             Optional<uint8_t> left_block_count,
-                                             Optional<uint8_t> above_block_count) {
+                                             const Block&block) {
+        Optional<uint8_t> num_nonzeros_above;
+        Optional<uint8_t> num_nonzeros_left;
+        if (block.context().above.initialized()) {
+            num_nonzeros_above = block.context().above.get()->num_nonzeros_7x7();
+        }
+        if (block.context().left.initialized()) {
+            num_nonzeros_left = block.context().left.get()->num_nonzeros_7x7();
+            if ((!num_nonzeros_above.initialized()) && block.context().left.get()->context().left.initialized()) {
+                num_nonzeros_above = block.context().left.get()->context().left.get()->num_nonzeros_7x7();
+            }
+        } else if (block.context().above.initialized() && block.context().above.get()->context().above.initialized()) {
+            num_nonzeros_left = block.context().above.get()->context().above.get()->num_nonzeros_7x7();
+        }
+
         uint8_t num_nonzeros_context = 0;
-        if (!left_block_count.initialized()) {
-            num_nonzeros_context = above_block_count.get_or(0);
-        } else if (!above_block_count.initialized()) {
-            num_nonzeros_context = above_block_count.get_or(0);
+        if (!num_nonzeros_left.initialized()) {
+            num_nonzeros_context = (num_nonzeros_above.get_or(0) + 1) / 2;
+        } else if (!num_nonzeros_above.initialized()) {
+            num_nonzeros_context = (num_nonzeros_left.get_or(0) + 1) / 2;
         } else {
-            num_nonzeros_context = (above_block_count.get() + left_block_count.get() + 2) / 4;
+            num_nonzeros_context = (num_nonzeros_above.get() + num_nonzeros_left.get() + 2) / 4;
         }
         ANNOTATE_CTX(0)[ZEROS7x7][1] = num_nonzeros_context;
         return model_->num_nonzeros_counts_7x7_
@@ -285,16 +302,16 @@ public:
                                                                const unsigned int num_nonzeros,
                                                                    const Block&block) {
         if (band > 0) {
-            ANNOTATE_CTX(band)[EXP7x7][0] = exp_len(abs(compute_aavrg(block, band)));
+            ANNOTATE_CTX(band)[EXP7x7][0] = exp_len(abs(compute_aavrg(block_type, block, band)));
             ANNOTATE_CTX(band)[EXP7x7][1] = num_nonzeros_to_bin(num_nonzeros);
         } else {
-            ANNOTATE_CTX(0)[EXPDC][0] = exp_len(abs(compute_aavrg(block, band)));
+            ANNOTATE_CTX(0)[EXPDC][0] = exp_len(abs(compute_aavrg(block_type, block, band)));
             ANNOTATE_CTX(0)[EXPDC][1] = num_nonzeros_to_bin(num_nonzeros);
         }
         return model_->exponent_counts_
             .at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band ).at(num_nonzeros_to_bin(num_nonzeros))
-            .at(exp_len(abs(compute_aavrg(block, band))));
+            .at(exp_len(abs(compute_aavrg(block_type, block, band))));
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
                                                           const unsigned int band,
@@ -478,9 +495,9 @@ public:
         if (weights == 0) {
             weights = 1;
         }
-        return total/weights;
+        return (total + weights / 2) / weights;
     }
-    int compute_aavrg(const Block&block, unsigned int band) {
+    int compute_aavrg(int component, const Block&block, unsigned int band) {
         if (band == 0) {
             return compute_aavrg_dc(block);
         }
@@ -493,6 +510,7 @@ public:
         uint32_t total = 0;
         uint32_t weights = 0;
         uint32_t coef_index = band;
+        uint8_t zz = zigzag[band];
         if (block.context().above.initialized()) {
             if (block.context().above.get()->context().above.initialized()) {
                 toptop = abs(block.context().above.get()->context().above.get()->coefficients().at(coef_index));
@@ -511,34 +529,36 @@ public:
             }
             left = abs(block.context().left.get()->coefficients().at(coef_index));
         }
+        const auto &weight_array = component ? abs_ctx_weights_chr : abs_ctx_weights_lum;
+
         if (toptop.initialized()) {
-            total += abs_ctx_weights_lum[0][0][2] * (int)toptop.get();
-            weights += abs_ctx_weights_lum[0][0][2];
+            total += weight_array[zz][0][2] * (int)toptop.get();
+            weights += weight_array[zz][0][2];
         }
         if (topleft.initialized()) {
-            total += abs_ctx_weights_lum[0][1][1] * (int)topleft.get();
-            weights += abs_ctx_weights_lum[0][1][1];
+            total += weight_array[zz][1][1] * (int)topleft.get();
+            weights += weight_array[zz][1][1];
         }
         if (top.initialized()) {
-            total += abs_ctx_weights_lum[0][1][2] * (int)top.get();
-            weights += abs_ctx_weights_lum[0][1][2];
+            total += weight_array[zz][1][2] * (int)top.get();
+            weights += weight_array[zz][1][2];
         }
         if (topright.initialized()) {
-            total += abs_ctx_weights_lum[0][1][3] * (int)topright.get();
-            weights += abs_ctx_weights_lum[0][1][3];
+            total += weight_array[zz][1][3] * (int)topright.get();
+            weights += weight_array[zz][1][3];
         }
         if (leftleft.initialized()) {
-            total += abs_ctx_weights_lum[0][2][0] * (int)leftleft.get();
-            weights += abs_ctx_weights_lum[0][2][0];
+            total += weight_array[zz][2][0] * (int)leftleft.get();
+            weights += weight_array[zz][2][0];
         }
         if (left.initialized()) {
-            total += abs_ctx_weights_lum[0][2][1] * (int)left.get();
-            weights += abs_ctx_weights_lum[0][2][1];
+            total += weight_array[zz][2][1] * (int)left.get();
+            weights += weight_array[zz][2][1];
         }
         if (weights == 0) {
             weights = 1;
         }
-        return total/weights;
+        return (total + weights / 2) /weights;
     }
     unsigned int exp_len(int v) {
         if (v < 0) {

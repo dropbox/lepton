@@ -20,6 +20,42 @@
 #include "../vp8/model/model.hh"
 
 using namespace std;
+void printContext(FILE * fp) {
+    for (int cm= 0;cm< 3;++cm) {
+        for (int y = 0;y < Context::H/8; ++y) {
+            for (int x = 0;x < Context::W/8; ++x) {
+                for (int by = 0; by < 8; ++by){
+                    for (int bx = 0; bx < 8; ++bx) {
+                        for (int ctx = 0;ctx < NUMCONTEXT;++ctx) {
+                            for (int dim = 0; dim < 3; ++dim) {
+                                int val = gctx->p[cm][y][x][by][bx][ctx][dim];
+                                const char *nam = "UNKNOWN";
+                                switch (ctx) {
+                                  case ZDSTSCAN:nam = "ZDSTSCAN";break;
+                                  case ZEROS7x7:nam = "ZEROS7x7";break;
+                                  case EXPDC:nam = "EXPDC";break;
+                                  case RESDC:nam = "RESDC";break;
+                                  case EXP7x7:nam = "EXP7x7";break;
+                                  case RES7x7:nam = "RES7x7";break;
+                                  case ZEROS1x8:nam = "ZEROS1x8";break;
+                                  case ZEROS8x1:nam = "ZEROS8x1";break;
+                                  case EXP8:nam = "EXP8";break;
+                                  case THRESH8: nam = "THRESH8"; break;
+                                  case RES8:nam = "RES8";break;
+                                  default:break;
+                                }
+                                if (val != -1 && ctx != ZDSTSCAN) {
+                                    fprintf(fp, "col[%02d] y[%02d]x[%02d] by[%02d]x[%02d] [%s][%d] = %d\n",
+                                            cm, y, x, by, bx, nam, dim, val);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,
                                                     Sirikata::
@@ -107,5 +143,12 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         probability_tables.optimize();
         probability_tables.serialize( model_file );
     }
+#ifdef ANNOTATION_ENABLED
+    {
+        FILE * fp = fopen("/tmp/lepton.ctx","w");
+        printContext(fp);
+        fclose(fp);
+    }
+#endif
     return CODING_DONE;
 }

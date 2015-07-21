@@ -39,17 +39,8 @@ typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
                               ProbabilityTables & probability_tables ) const
 {
-    Optional<uint8_t> num_nonzeros_above;
-    Optional<uint8_t> num_nonzeros_left;
-    if (context().above.initialized()) {
-        num_nonzeros_above = context().above.get()->num_nonzeros_7x7();
-    }
-    if (context().left.initialized()) {
-        num_nonzeros_left = context().left.get()->num_nonzeros_7x7();
-    }
-    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_,
-                                                               num_nonzeros_left,
-                                                               num_nonzeros_above);
+    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);
+
     for (unsigned int index = 0; index < 6; ++index) {
         encoder.put((num_nonzeros_7x7_ & (1 << index)) ? 1 : 0, num_nonzeros_prob.at(index));
     }
