@@ -135,19 +135,29 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             }
             if (length > 1) {
                 
-                int i;
-                uint16_t encoded_so_far = 1;
-                for (i = length - 2; i >= (int)RESIDUAL_NOISE_FLOOR; --i) {
-                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
-                    int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
-                    if (i == RESIDUAL_NOISE_FLOOR) {
-                        ANNOTATE_CTX(coord)[THRESH8][1] = encoded_so_far;
+                int min_threshold = 0;
+
+                int max_val = probability_tables.get_max_value(coord);
+                int max_len = bit_length(max_val);
+                    
+                if (max_len > RESIDUAL_NOISE_FLOOR) {
+                    min_threshold = max_len - RESIDUAL_NOISE_FLOOR;
+                }
+                int i = length - 2;
+                if (length - 2 >= min_threshold) {
+                    uint16_t encoded_so_far = 1;
+                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length,
+                                                                                 *this, min_threshold, max_val);
+                    for (; i >= min_threshold; --i) {
+                    
+                        int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
+                        encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
+                        encoded_so_far <<=1;
+                        if (cur_bit) {
+                            encoded_so_far |=1;
+                        }
                     }
-                    encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
-                    encoded_so_far <<=1;
-                    if (cur_bit) {
-                        encoded_so_far |=1;
-                    }
+                    ANNOTATE_CTX(coord)[THRESH8][1] = encoded_so_far / 2;
                 }
                 for (; i >= 0; --i) {
                     auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);

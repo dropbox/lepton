@@ -20,7 +20,7 @@ constexpr unsigned int COEF_BANDS         = 64;
 constexpr unsigned int ENTROPY_NODES      = 15;
 constexpr unsigned int NUM_NONZEROS_EOB_PRIORS = 66;
 constexpr unsigned int ZERO_OR_EOB = 3;
-constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 6;
+constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = 10;
 enum BitContexts : uint8_t {
     CONTEXT_BIT_ZERO,
@@ -96,9 +96,9 @@ struct Model
 
     
     typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch,
-                                                              ((1<<(1 + COEF_BITS))/(1<<RESIDUAL_NOISE_FLOOR)) >,
-               1 + COEF_BITS - RESIDUAL_NOISE_FLOOR>, // the exponent minus the current bit
-            ((1<<(1 + COEF_BITS))/(1<<RESIDUAL_NOISE_FLOOR)) >, // max number over noise floor = 1<<4
+                                                              1<<RESIDUAL_NOISE_FLOOR >,
+               1 + RESIDUAL_NOISE_FLOOR>, // the exponent minus the current bit
+         (1<<(1 + RESIDUAL_NOISE_FLOOR)) >, // max number over noise floor = 1<<4
         COEF_BANDS>,
     BLOCK_TYPES> ResidualThresholdCounts;
     
@@ -619,17 +619,25 @@ public:
         }
         return 0;
         }*/
-    FixedArray<Branch, ((1<<(1 + COEF_BITS))/(1<<RESIDUAL_NOISE_FLOOR))> & residual_thresh_array(const unsigned int block_type,
-                                                                                const unsigned int band,
-                                                                                const uint8_t cur_exponent,
-                                                                                const Block&block) {
-        ANNOTATE_CTX(band)[THRESH8][0] = (abs(compute_lak(block, band)) + (1 << RESIDUAL_NOISE_FLOOR)/2) / (1 << RESIDUAL_NOISE_FLOOR);
-        ANNOTATE_CTX(band)[THRESH8][2] = cur_exponent - RESIDUAL_NOISE_FLOOR;
+    FixedArray<Branch,
+              (1<<RESIDUAL_NOISE_FLOOR)> &
+        residual_thresh_array(const unsigned int block_type,
+                              const unsigned int band,
+                              const uint8_t cur_exponent,
+                              const Block&block,
+                              int min_threshold,
+                              int max_value) {
+        uint16_t ctx_abs = abs(compute_lak(block, band));
+        if (ctx_abs >= max_value) {
+            ctx_abs = max_value - 1;
+        }
+        ANNOTATE_CTX(band)[THRESH8][0] = ctx_abs >> min_threshold;
+        ANNOTATE_CTX(band)[THRESH8][2] = cur_exponent - min_threshold;
 
         return model_->residual_threshold_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band )
-            .at((abs(compute_lak(block, band)) + (1 << RESIDUAL_NOISE_FLOOR)/2) / (1 << RESIDUAL_NOISE_FLOOR))
-            .at(cur_exponent - RESIDUAL_NOISE_FLOOR);
+            .at(std::min(abs(compute_lak(block, band)), max_value - 1) >> min_threshold)
+            .at(cur_exponent - min_threshold);
     }
     enum SignValue {
         ZERO_SIGN=0,
@@ -714,6 +722,20 @@ public:
         return model_->sign_counts_
             .at(std::min(block_type, BLOCK_TYPES - 1))
             .at(band).at(left_sign).at(above_sign);
+    }
+    int get_max_value(int coord) {
+        static const unsigned short int freqmax[] =
+            {
+                1024,  931,  932,  985,  858,  985,  968,  884, 
+                884,  967, 1020,  841,  871,  840, 1020,  968, 
+                932,  875,  876,  932,  969, 1020,  838,  985, 
+                844,  985,  838, 1020, 1020,  854,  878,  967, 
+                967,  878,  854, 1020,  854,  871,  886, 1020, 
+                886,  871,  854,  854,  870,  969,  969,  870, 
+                854,  838, 1010,  838, 1020,  837, 1020,  969, 
+                969, 1020,  838, 1020,  838, 1020, 1020,  838
+            };
+        return (freqmax[zigzag[coord]] + quantization_table_[zigzag[coord]] - 1) / quantization_table_[zigzag[coord]];
     }
     void optimize();
     void serialize( std::ofstream & output ) const;

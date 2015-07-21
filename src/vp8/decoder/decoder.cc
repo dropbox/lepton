@@ -235,15 +235,25 @@ void Block::parse_tokens( BoolDecoder & data,
                 coef = (1 << (length - 1));
             }
             if (length > 1){
-                int i;
-                uint16_t decoded_so_far = 1;
-                for (i = length - 2; i >= (int)RESIDUAL_NOISE_FLOOR; --i) {
-                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length, *this);
-                    int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
-                    coef |= (cur_bit << i);
-                    decoded_so_far <<= 1;
-                    if (cur_bit) {
-                        decoded_so_far |= 1;
+                int min_threshold = 0;
+
+                int max_val = probability_tables.get_max_value(coord);
+                int max_len = bit_length(max_val);
+                if (max_len > RESIDUAL_NOISE_FLOOR) {
+                    min_threshold = max_len - RESIDUAL_NOISE_FLOOR;
+                }
+                int i = length - 2;
+                if (length - 2 >= min_threshold) {
+                    uint16_t decoded_so_far = 1;
+                    for (; i >= min_threshold; --i) {
+                        auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length,
+                                                                                     *this, min_threshold, max_val);
+                        int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                        coef |= (cur_bit << i);
+                        decoded_so_far <<= 1;
+                        if (cur_bit) {
+                            decoded_so_far |= 1;
+                        }
                     }
                 }
                 for (; i >= 0; --i) {
