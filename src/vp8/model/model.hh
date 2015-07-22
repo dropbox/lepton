@@ -114,7 +114,10 @@ struct Model
   ExponentCounts exponent_counts_;
   ExponentCounts exponent_counts_x_;
 
-  typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 3>, 3>,COEF_BANDS>,BLOCK_TYPES> SignCounts;
+  typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, (COEF_BITS + 2 > 9 ? COEF_BITS + 2 : 9)>,
+                              4>,
+                    COEF_BANDS>,
+            BLOCK_TYPES> SignCounts;
   SignCounts sign_counts_;
   
   template <typename lambda>
@@ -196,16 +199,16 @@ enum ContextTypes{
     ZEROS7x7,
     EXPDC,
     RESDC,
-//    SIGNDC,
+    SIGNDC,
     EXP7x7,
     RES7x7,
-//    SIGN7x7,
+    SIGN7x7,
     ZEROS1x8,
     ZEROS8x1,
     EXP8,
     THRESH8,
     RES8,
-//    SIGN8,
+    SIGN8,
     NUMCONTEXT
 };
 struct Context {
@@ -645,83 +648,41 @@ public:
         NEGATIVE_SIGN=2,
     };
     Branch& sign_array(const unsigned int block_type,
-                                     const unsigned int band,
-                                     const Block&block){
-        SignValue left_sign = ZERO_SIGN;
-        SignValue above_sign = ZERO_SIGN;
+                       const unsigned int band,
+                       const Block&block) {
+        int ctx0 = 0;
+        int ctx1 = 0;
         if (band == 0) {
-
-            if (block.context().left.initialized()) {
-                if (block.context().left.get()->coefficients().at(0) > 0) {
-                    left_sign = POSITIVE_SIGN;
-                }
-                if (block.context().left.get()->coefficients().at(0) < 0) {
-                    left_sign = NEGATIVE_SIGN;
-                }
-            }
-            if (block.context().above.initialized()) {
-                if (block.context().above.get()->coefficients().at(0) > 0) {
-                    above_sign = POSITIVE_SIGN;
-                }
-                if (block.context().above.get()->coefficients().at(0) < 0) {
-                    above_sign = NEGATIVE_SIGN;
-                }
-            }
-//            ANNOTATE_CTX(0)[SIGNDC][0] = left_sign;
-//            ANNOTATE_CTX(0)[SIGNDC][1] = above_sign;
-            
+            ctx0 = 1; // so as not to interfere with SIGN7x7
+            ANNOTATE_CTX(0)[SIGNDC][0] = 1;
         } else if (band < 8 || band % 8 == 0) {
             int16_t val = compute_lak(block, band);
-            if (band == 16) {
-                //printf("The band is here");
-            }
-            if (val > 0) {
-                left_sign = above_sign = POSITIVE_SIGN;
-            }
-            if (val < 0) {
-                left_sign = above_sign = NEGATIVE_SIGN;
-            }
-//            ANNOTATE_CTX(band)[SIGN8][0] = -1; //FIXME: do we want to use ctx_len here
-//            ANNOTATE_CTX(band)[SIGN8][1] = above_sign;
-
+            ctx0 = exp_len(abs(val));
+            ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
+            ANNOTATE_CTX(band)[SIGN8][0] = ctx0;
+            ANNOTATE_CTX(band)[SIGN8][1] = ctx1;
+            ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
-            if (band < 16 || band % 8 == 1) {
-                // haven't deserialized these yet: use neighbors
-                if (block.context().left.initialized()) {
-                    if (block.context().left.get()->coefficients().at(0) > 0) {
-                        left_sign = POSITIVE_SIGN;
-                    }
-                    if (block.context().left.get()->coefficients().at(0) < 0) {
-                        left_sign = NEGATIVE_SIGN;
-                    }
-                }
-                if (block.context().above.initialized()) {
-                    if (block.context().above.get()->coefficients().at(0) > 0) {
-                        above_sign = POSITIVE_SIGN;
-                    }
-                    if (block.context().above.get()->coefficients().at(0) < 0) {
-                        above_sign = NEGATIVE_SIGN;
-                    }
-                }                
-            } else {
+            if (band > 16 && band % 8 > 1) {
                 if (block.coefficients().at(band - 1) < 0) {
-                    left_sign = NEGATIVE_SIGN;
-                }
-                if (block.coefficients().at(band - 1) > 0) {
-                    left_sign = POSITIVE_SIGN;
+                    ctx0 += 1;
+                } else if (block.coefficients().at(band - 1) > 0) {
+                    ctx0 += 2;
                 }
                 if (block.coefficients().at(band - 8) < 0) {
-                    above_sign = NEGATIVE_SIGN;
+                    ctx0 += 3;
+                } else if (block.coefficients().at(band - 8) > 0) {
+                    ctx0 += 6;
                 }
-                if (block.coefficients().at(band - 8) > 0) {
-                    above_sign = POSITIVE_SIGN;
-                }
+            }else {
+                // we haven't computed the 8x1 and 1x8 edges, so we have no context here
+                // we could use neighboring cells to inform us in the future
             }
+            ANNOTATE_CTX(band)[SIGN7x7][0] = ctx1;
         }
-//        ANNOTATE_CTX(band)[SIGN7x7][0] = left_sign + 3 * above_sign;
         return model_->sign_counts_
             .at(std::min(block_type, BLOCK_TYPES - 1))
-            .at(band).at(left_sign).at(above_sign);
+            .at(band).at(ctx1).at(ctx0);
     }
     int get_max_value(int coord) {
         static const unsigned short int freqmax[] =

@@ -35,13 +35,16 @@ void printContext(FILE * fp) {
                                   case ZEROS7x7:nam = "ZEROS7x7";break;
                                   case EXPDC:nam = "EXPDC";break;
                                   case RESDC:nam = "RESDC";break;
+                                  case SIGNDC:nam = "SIGNDC";break;
                                   case EXP7x7:nam = "EXP7x7";break;
                                   case RES7x7:nam = "RES7x7";break;
+                                  case SIGN7x7:nam = "SIGN7x7";break;
                                   case ZEROS1x8:nam = "ZEROS1x8";break;
                                   case ZEROS8x1:nam = "ZEROS8x1";break;
                                   case EXP8:nam = "EXP8";break;
                                   case THRESH8: nam = "THRESH8"; break;
                                   case RES8:nam = "RES8";break;
+                                  case SIGN8:nam = "SIGN8";break;
                                   default:break;
                                 }
                                 if (val != -1 && ctx != ZDSTSCAN) {
