@@ -274,7 +274,7 @@ public:
         } else {
             num_nonzeros_context = (num_nonzeros_above.get() + num_nonzeros_left.get() + 2) / 4;
         }
-        ANNOTATE_CTX(0)[ZEROS7x7][1] = num_nonzeros_context;
+        ANNOTATE_CTX(0)[ZEROS7x7][0] = num_nonzeros_context;
         return model_->num_nonzeros_counts_7x7_
             .at(std::min(block_type, BLOCK_TYPES - 1))
             .at(num_nonzeros_to_bin(num_nonzeros_context));
@@ -663,19 +663,24 @@ public:
             ANNOTATE_CTX(band)[SIGN8][1] = ctx1;
             ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
-            if (band > 16 && band % 8 > 1) {
+            if (band % 8 > 1) {
                 if (block.coefficients().at(band - 1) < 0) {
                     ctx0 += 1;
                 } else if (block.coefficients().at(band - 1) > 0) {
                     ctx0 += 2;
                 }
+            }else {
+                // we haven't computed the 1x8 edges, so we have no context here
+                // we could use neighboring cells to inform us in the future
+            }
+            if (band > 16) {
                 if (block.coefficients().at(band - 8) < 0) {
                     ctx0 += 3;
                 } else if (block.coefficients().at(band - 8) > 0) {
                     ctx0 += 6;
                 }
             }else {
-                // we haven't computed the 8x1 and 1x8 edges, so we have no context here
+                // we haven't computed the 8x1 edges, so we have no context here
                 // we could use neighboring cells to inform us in the future
             }
             ANNOTATE_CTX(band)[SIGN7x7][0] = ctx1;
