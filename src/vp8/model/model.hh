@@ -663,27 +663,23 @@ public:
             ANNOTATE_CTX(band)[SIGN8][1] = ctx1;
             ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
-            if (band % 8 > 1) {
-                if (block.coefficients().at(band - 1) < 0) {
-                    ctx0 += 1;
-                } else if (block.coefficients().at(band - 1) > 0) {
+            if (block.context().left.initialized()) {
+                int16_t coef = block.context().left.get()->coefficients().at(band);
+                if (coef < 0) {
                     ctx0 += 2;
+                } else if (coef > 0) {
+                    ctx0 += 1;
                 }
-            }else {
-                // we haven't computed the 1x8 edges, so we have no context here
-                // we could use neighboring cells to inform us in the future
             }
-            if (band > 16) {
-                if (block.coefficients().at(band - 8) < 0) {
-                    ctx0 += 3;
-                } else if (block.coefficients().at(band - 8) > 0) {
+            if (block.context().above.initialized()) {
+                int16_t coef = block.context().above.get()->coefficients().at(band);
+                if (coef < 0) {
                     ctx0 += 6;
+                } else if (coef > 0) {
+                    ctx0 += 3;
                 }
-            }else {
-                // we haven't computed the 8x1 edges, so we have no context here
-                // we could use neighboring cells to inform us in the future
             }
-            ANNOTATE_CTX(band)[SIGN7x7][0] = ctx1;
+            ANNOTATE_CTX(band)[SIGN7x7][0] = ctx0;
         }
         return model_->sign_counts_
             .at(std::min(block_type, BLOCK_TYPES - 1))
