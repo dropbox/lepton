@@ -458,11 +458,8 @@ public:
         return retval;
     }
     int compute_aavrg_dc(const Block&block) {
-        Optional<uint16_t> toptop;
         Optional<uint16_t> topleft;
         Optional<uint16_t> top;
-        Optional<uint16_t> topright;
-        Optional<uint16_t> leftleft;
         Optional<uint16_t> left;
         uint32_t total = 0;
         uint32_t weights = 0;
@@ -478,10 +475,6 @@ public:
         if (block.context().left.initialized()) {
             left = abs(block.context().left.get()->coefficients().at(0));
         }
-        if (toptop.initialized()) {
-            total += abs_ctx_weights_lum[0][0][2] * (int)toptop.get();
-            weights += abs_ctx_weights_lum[0][0][2];
-        }
         if (topleft.initialized()) {
             total += abs_ctx_weights_lum[0][1][1] * (int)topleft.get();
             weights += abs_ctx_weights_lum[0][1][1];
@@ -489,14 +482,6 @@ public:
         if (top.initialized()) {
             total += abs_ctx_weights_lum[0][1][2] * (int)top.get();
             weights += abs_ctx_weights_lum[0][1][2];
-        }
-        if (topright.initialized()) {
-            total += abs_ctx_weights_lum[0][1][3] * (int)topright.get();
-            weights += abs_ctx_weights_lum[0][1][3];
-        }
-        if (leftleft.initialized()) {
-            total += abs_ctx_weights_lum[0][2][0] * (int)leftleft.get();
-            weights += abs_ctx_weights_lum[0][2][0];
         }
         if (left.initialized()) {
             total += abs_ctx_weights_lum[0][2][1] * (int)left.get();
@@ -511,11 +496,8 @@ public:
         if (band == 0) {
             return compute_aavrg_dc(block);
         }
-        Optional<uint16_t> toptop;
         Optional<uint16_t> topleft;
         Optional<uint16_t> top;
-        Optional<uint16_t> topright;
-        Optional<uint16_t> leftleft;
         Optional<uint16_t> left;
         uint32_t total = 0;
         uint32_t weights = 0;
@@ -535,10 +517,6 @@ public:
         }
         const auto &weight_array = component ? abs_ctx_weights_chr : abs_ctx_weights_lum;
 
-        if (toptop.initialized()) {
-            total += weight_array[zz][0][2] * (int)toptop.get();
-            weights += weight_array[zz][0][2];
-        }
         if (topleft.initialized()) {
             total += weight_array[zz][1][1] * (int)topleft.get();
             weights += weight_array[zz][1][1];
@@ -546,14 +524,6 @@ public:
         if (top.initialized()) {
             total += weight_array[zz][1][2] * (int)top.get();
             weights += weight_array[zz][1][2];
-        }
-        if (topright.initialized()) {
-            total += weight_array[zz][1][3] * (int)topright.get();
-            weights += weight_array[zz][1][3];
-        }
-        if (leftleft.initialized()) {
-            total += weight_array[zz][2][0] * (int)leftleft.get();
-            weights += weight_array[zz][2][0];
         }
         if (left.initialized()) {
             total += weight_array[zz][2][1] * (int)left.get();
