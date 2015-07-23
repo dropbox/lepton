@@ -85,6 +85,7 @@ struct Model
     
         BLOCK_TYPES> NonzeroCounts1x8;
     NonzeroCounts1x8 num_nonzeros_counts_1x8_;
+    NonzeroCounts1x8 num_nonzeros_counts_8x1_;
 
     typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch,
 				          COEF_BITS>,
@@ -133,6 +134,17 @@ struct Model
           }
       }
       for ( auto & a : num_nonzeros_counts_1x8_ ) {
+          for ( auto & b : a ) {
+              for ( auto & c : b ) {
+                  for (auto &d : c) {
+                      for (auto &e : d) {
+                          proc( e );
+                      }
+                  }
+              }
+          }
+      }
+      for ( auto & a : num_nonzeros_counts_8x1_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   for (auto &d : c) {
@@ -287,7 +299,11 @@ public:
                                              bool is_x) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
-        
+        if (!is_x) {
+            return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
+                .at(eob_x)
+                .at(((num_nonzeros + 3) / 7));
+        }
         return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
             .at(eob_x)
             .at(((num_nonzeros + 3) / 7));
@@ -646,6 +662,8 @@ public:
     }
     void residual_thresh_array_annot_update(const unsigned int band,
                                             uint16_t cur_serialized_thresh_value) {
+        (void)band;
+        (void)cur_serialized_thresh_value;
         ANNOTATE_CTX(band, THRESH8, 1, cur_serialized_thresh_value);
     }
     enum SignValue {

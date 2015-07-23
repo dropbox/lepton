@@ -18,10 +18,9 @@ bin_PROGRAMS = lepton print-model
 noinst_LIBRARIES = libtestdriver.a
 libtestdriver_a_SOURCES = test_driver.cc
 
-check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone_ujg test_iphone test_truncate_ujg test_truncate test_slr_ujg test_slr test_progressive_ujg test_progressive test_arithmetic_failfast_ujg test_arithmetic_failfast test_hq_ujg test_hq
+check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc_ujg test_misc test_iphone_ujg test_iphone test_truncate_ujg test_truncate test_slr_ujg test_slr test_progressive_ujg test_progressive test_arithmetic_failfast_ujg test_arithmetic_failfast test_hq_ujg test_hq
 
 test_invariants_SOURCES = test_invariants.cc
-
 
 test_baseline_ujg_SOURCES = test_harness.cc
 test_baseline_ujg_LDADD = libtestdriver.a -lpthread
@@ -90,8 +89,8 @@ lepton_SOURCES = $(common_source)
 
 print_model_SOURCES = print-model.cc
 
-TESTS = test_invariants test_baseline_ujg test_baseline ./test_custom_table.sh test_misc test_iphone_ujg test_iphone test_truncate_ujg test_truncate test_slr_ujg test_slr test_progressive_ujg test_progressive test_arithmetic_failfast_ujg test_arithmetic_failfast test_hq_ujg test_hq
+TESTS = test_baseline_ujg test_baseline ./test_custom_table.sh test_misc_ujg test_misc test_iphone_ujg test_iphone test_truncate_ujg test_truncate test_slr_ujg test_slr test_progressive_ujg test_progressive test_arithmetic_failfast_ujg test_arithmetic_failfast test_hq_ujg test_hq
 
 
-dist_check_SCRIPTS = test_invariants test_baseline_ujg ./test_custom_table.sh test_baseline test_misc test_iphone_ujg test_iphone test_truncate_ujg test_truncate test_slr_ujg test_slr test_progressive_ujg test_progressive test_arithmetic_failfast_ujg test_arithmetic_failfast test_hq_ujg test_hq
+dist_check_SCRIPTS = test_baseline_ujg ./test_custom_table.sh test_baseline test_misc_ujg test_misc test_iphone_ujg test_iphone test_truncate_ujg test_truncate test_slr_ujg test_slr test_progressive_ujg test_progressive test_arithmetic_failfast_ujg test_arithmetic_failfast test_hq_ujg test_hq
 

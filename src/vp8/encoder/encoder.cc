@@ -173,7 +173,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
                 int max_val = probability_tables.get_max_value(coord);
                 int max_len = bit_length(max_val);
                     
-                if (max_len > RESIDUAL_NOISE_FLOOR) {
+                if (max_len > (int)RESIDUAL_NOISE_FLOOR) {
                     min_threshold = max_len - RESIDUAL_NOISE_FLOOR;
                 }
                 int i = length - 2;
