@@ -105,7 +105,7 @@ struct Model
     ResidualThresholdCounts residual_threshold_counts_;
 
     
-  typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>,
+    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
                          NUMERIC_LENGTH_MAX>, //neighboring block exp
                       NUM_NONZEROS_BINS>,
                     COEF_BANDS>,
@@ -173,7 +173,9 @@ struct Model
               for ( auto & c : b ) {
                   for ( auto & d : c ) {
                       for ( auto & e : d ) {
-                          proc( e );
+                          for ( auto & f : e ) {
+                              proc( f );
+                          }
                       }
                   }
               }
@@ -184,7 +186,9 @@ struct Model
               for ( auto & c : b ) {
                   for ( auto & d : c ) {
                       for ( auto & e : d ) {
-                          proc( e );
+                          for ( auto & f : e ) {
+                              proc( f );
+                          }
                       }
                   }
               }
@@ -284,7 +288,7 @@ public:
             .at(eob_x)
             .at(((num_nonzeros + 3) / 7));
     }
-    FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>& exponent_array_x(const unsigned int block_type,
+    FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>& exponent_array_x(const unsigned int block_type,
                                                                  const unsigned int band,
                                                                  const unsigned int num_nonzeros_x,
                                                                  const Block&for_lak) {
@@ -294,7 +298,7 @@ public:
             .at( band ).at(num_nonzeros_x)
             .at(exp_len(abs(compute_lak(for_lak, band))));
     }
-    FixedArray<Branch, NUMBER_OF_EXPONENT_BITS>& exponent_array_7x7(const unsigned int block_type,
+    FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>& exponent_array_7x7(const unsigned int block_type,
                                                                const unsigned int band,
                                                                const unsigned int num_nonzeros,
                                                                    const Block&block) {
