@@ -44,6 +44,7 @@ typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
                               ProbabilityTables & probability_tables ) const
 {
+
     auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);
     int serialized_so_far = 0;
     for (int index = 5; index >= 0; --index) {
@@ -52,17 +53,48 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
+
+    {
+        // do DC
+        uint8_t coord = 0;
+        int16_t coef = probability_tables.predict_or_unpredict_dc(*this, false);
+        uint16_t abs_coef = abs(coef);
+        uint8_t length = bit_length(abs_coef);
+        auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7_, *this);
+        uint8_t slen = prefix_remap(length);
+        unsigned int serialized_so_far = 0;
+        for (int i = 3;i >= 0; --i) {
+            bool cur_bit = (slen & (1 << i)) ? true : false;
+            encoder.put(cur_bit, exp_prob.at(i).at(serialized_so_far));
+            serialized_so_far <<= 1;
+            if (cur_bit) {
+                serialized_so_far |=1;
+            }
+            if (i == 2 && !length) break;
+        }
+        if (length > 1){
+            auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_7x7_);
+            assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
+            assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
+            for (int i = length - 2; i >= 0; --i) {
+                encoder.put((abs_coef & (1 << i)), res_prob.at(i));
+            }
+        }
+        if (length != 0) {
+            auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+        }
+    }
+
+
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7_;
     for (unsigned int zz = 0; zz < 64; ++zz) {
         unsigned int coord = unzigzag[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         int16_t coef = coefficients_.at( coord );
-        if (coord == 0) {
-            coef = probability_tables.predict_or_unpredict_dc(*this, false);
-        }
         uint16_t abs_coef = abs(coef);
-        if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
+        if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             uint8_t length = bit_length(abs_coef);
             auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
             uint8_t slen = prefix_remap(length);
@@ -88,9 +120,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob);
-                if (coord != 0) {
-                    --num_nonzeros_left_7x7;
-                }
+                --num_nonzeros_left_7x7;
             }
             
             if (num_nonzeros_left_7x7 == 0) {
@@ -98,6 +128,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             }
         }
     }
+
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     for (unsigned int zz = 0; zz < 64; ++zz) {

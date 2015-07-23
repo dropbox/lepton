@@ -161,12 +161,41 @@ void Block::parse_tokens( BoolDecoder & data,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
+    { // dc
+        unsigned int coord = 0;
+        uint8_t length = 0;
+        auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7, *this);
+        unsigned int decoded_so_far = 0;
+        for (int i = 3; i >= 0; --i) {
+            int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
+            length |= (cur_bit << i);
+            decoded_so_far <<= 1;
+            decoded_so_far |= cur_bit;
+            if (length == 0 && i == 2) break;
+        }
+        length = prefix_unremap(length);
+        int16_t coef = (1 << (length - 1));
+        if (length > 1){
+            auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_7x7);
+            for (int i = length - 2; i >= 0; --i) {
+                coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+            }
+        }
+        if (length != 0) {
+            auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+            if (!data.get(sign_prob)) {
+                coef = -coef;
+            }
+        }
+        coefficients_.at( coord ) = coef;
+    }
+
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     for (unsigned int zz = 0; zz < 64; ++zz) {
         unsigned int coord = unzigzag[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
-        if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
+        if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             uint8_t length = 0;
             auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
             unsigned int decoded_so_far = 0;
