@@ -244,10 +244,10 @@ void Block::parse_tokens( BoolDecoder & data,
                 }
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
+                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length,
+                                                                                 *this, min_threshold, max_val);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
-                        auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length,
-                                                                                     *this, min_threshold, max_val);
                         int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
                         coef |= (cur_bit << i);
                         decoded_so_far <<= 1;
@@ -255,6 +255,7 @@ void Block::parse_tokens( BoolDecoder & data,
                             decoded_so_far |= 1;
                         }
                     }
+                    probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far / 2);
                 }
                 for (; i >= 0; --i) {
                     auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);

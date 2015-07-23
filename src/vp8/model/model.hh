@@ -219,23 +219,17 @@ struct Context {
     int cur_cmp;
     int cur_jpeg_x;
     int cur_jpeg_y;
+    ContextTypes annot;
     int p[3][H/8][W/8][8][8][NUMCONTEXT][3];
 };
 extern Context *gctx;
 #if 0
 #define ANNOTATION_ENABLED
-#define ANNOTATE_CTX(bpos) gctx->p[gctx->cur_cmp][gctx->cur_jpeg_y][gctx->cur_jpeg_x][bpos/8][bpos%8]
+#define ANNOTATE_CTX(bpos,annot_type,ctxnum,value) \
+    (gctx->annot = annot_type, \
+     gctx->p[gctx->cur_cmp][gctx->cur_jpeg_y][gctx->cur_jpeg_x][bpos/8][bpos%8][annot_type][ctxnum] = value)
 #else
-
-inline int ** annotate_nop() {
-    static int backing_array[NUMCONTEXT *3];
-    static int * retval[NUMCONTEXT];
-    for (int i = 0;i<NUMCONTEXT;++i) {
-        retval[i] = backing_array + i*3;
-    }
-    return retval;
-}
-#define ANNOTATE_CTX(bpos) annotate_nop()
+#define ANNOTATE_CTX(bpos, annot_type, ctxnum, value)
 #endif
 class Slice;
 
@@ -274,7 +268,7 @@ public:
         } else {
             num_nonzeros_context = (num_nonzeros_above.get() + num_nonzeros_left.get() + 2) / 4;
         }
-        ANNOTATE_CTX(0)[ZEROS7x7][0] = num_nonzeros_context;
+        ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
         return model_->num_nonzeros_counts_7x7_
             .at(std::min(block_type, BLOCK_TYPES - 1))
             .at(num_nonzeros_to_bin(num_nonzeros_context));
@@ -283,8 +277,8 @@ public:
                                              unsigned int eob_x,
                                              unsigned int num_nonzeros,
                                              bool is_x) {
-        ANNOTATE_CTX(0)[is_x?ZEROS8x1:ZEROS1x8][0] = ((num_nonzeros + 3) / 7);
-        ANNOTATE_CTX(0)[is_x?ZEROS8x1:ZEROS1x8][1] = eob_x;
+        ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
+        ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
         
         return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
             .at(eob_x)
@@ -294,8 +288,8 @@ public:
                                                                  const unsigned int band,
                                                                  const unsigned int num_nonzeros_x,
                                                                  const Block&for_lak) {
-        ANNOTATE_CTX(band)[EXP8][0] = exp_len(abs(compute_lak(for_lak, band)));
-        ANNOTATE_CTX(band)[EXP8][1] = num_nonzeros_x;
+        ANNOTATE_CTX(band, EXP8, 0, exp_len(abs(compute_lak(for_lak, band))));
+        ANNOTATE_CTX(band, EXP8, 1, num_nonzeros_x);
         return model_->exponent_counts_x_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band ).at(num_nonzeros_x)
             .at(exp_len(abs(compute_lak(for_lak, band))));
@@ -305,11 +299,11 @@ public:
                                                                const unsigned int num_nonzeros,
                                                                    const Block&block) {
         if (band > 0) {
-            ANNOTATE_CTX(band)[EXP7x7][0] = exp_len(abs(compute_aavrg(block_type, block, band)));
-            ANNOTATE_CTX(band)[EXP7x7][1] = num_nonzeros_to_bin(num_nonzeros);
+            ANNOTATE_CTX(band, EXP7x7, 0, exp_len(abs(compute_aavrg(block_type, block, band))));
+            ANNOTATE_CTX(band, EXP7x7, 1, num_nonzeros_to_bin(num_nonzeros));
         } else {
-            ANNOTATE_CTX(0)[EXPDC][0] = exp_len(abs(compute_aavrg(block_type, block, band)));
-            ANNOTATE_CTX(0)[EXPDC][1] = num_nonzeros_to_bin(num_nonzeros);
+            ANNOTATE_CTX(0, EXPDC, 0, exp_len(abs(compute_aavrg(block_type, block, band))));
+            ANNOTATE_CTX(0, EXPDC, 1, num_nonzeros_to_bin(num_nonzeros));
         }
         return model_->exponent_counts_
             .at( std::min(block_type, BLOCK_TYPES - 1) )
@@ -319,7 +313,7 @@ public:
     FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
                                                           const unsigned int band,
                                                           const uint8_t num_nonzeros_x) {
-        ANNOTATE_CTX(band)[RES8][0] = num_nonzeros_x;
+        ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
         return residual_noise_array_shared(block_type,
                                            band,
                                            num_nonzeros_x);
@@ -336,9 +330,9 @@ public:
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros) {
         if (band == 0) {
-            ANNOTATE_CTX(0)[RESDC][0] = num_nonzeros_to_bin(num_nonzeros);
+            ANNOTATE_CTX(0, RESDC, 0, num_nonzeros_to_bin(num_nonzeros));
         } else {
-            ANNOTATE_CTX(band)[RES7x7][0] = num_nonzeros_to_bin(num_nonzeros);
+            ANNOTATE_CTX(band, RES7x7, 0, num_nonzeros_to_bin(num_nonzeros));
         }
         return residual_noise_array_shared(block_type, band, num_nonzeros_to_bin(num_nonzeros));
     }
@@ -634,13 +628,17 @@ public:
         if (ctx_abs >= max_value) {
             ctx_abs = max_value - 1;
         }
-        ANNOTATE_CTX(band)[THRESH8][0] = ctx_abs >> min_threshold;
-        ANNOTATE_CTX(band)[THRESH8][2] = cur_exponent - min_threshold;
+        ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
+        ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
 
         return model_->residual_threshold_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
             .at( band )
             .at(std::min(abs(compute_lak(block, band)), max_value - 1) >> min_threshold)
             .at(cur_exponent - min_threshold);
+    }
+    void residual_thresh_array_annot_update(const unsigned int band,
+                                            uint16_t cur_serialized_thresh_value) {
+        ANNOTATE_CTX(band, THRESH8, 1, cur_serialized_thresh_value);
     }
     enum SignValue {
         ZERO_SIGN=0,
@@ -654,13 +652,13 @@ public:
         int ctx1 = 0;
         if (band == 0) {
             ctx0 = 1; // so as not to interfere with SIGN7x7
-            ANNOTATE_CTX(0)[SIGNDC][0] = 1;
+            ANNOTATE_CTX(0, SIGNDC, 0, 1);
         } else if (band < 8 || band % 8 == 0) {
             int16_t val = compute_lak(block, band);
             ctx0 = exp_len(abs(val));
             ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
-            ANNOTATE_CTX(band)[SIGN8][0] = ctx0;
-            ANNOTATE_CTX(band)[SIGN8][1] = ctx1;
+            ANNOTATE_CTX(band, SIGN8, 0, ctx0);
+            ANNOTATE_CTX(band, SIGN8, 1, ctx1);
             ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
             if (block.context().left.initialized()) {
@@ -679,7 +677,7 @@ public:
                     ctx0 += 3;
                 }
             }
-            ANNOTATE_CTX(band)[SIGN7x7][0] = ctx0;
+            ANNOTATE_CTX(band, SIGN7x7, 0, ctx0);
         }
         return model_->sign_counts_
             .at(std::min(block_type, BLOCK_TYPES - 1))

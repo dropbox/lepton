@@ -157,7 +157,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
                             encoded_so_far |=1;
                         }
                     }
-                    ANNOTATE_CTX(coord)[THRESH8][1] = encoded_so_far / 2;
+                    probability_tables.residual_thresh_array_annot_update(coord, encoded_so_far / 2);
                 }
                 for (; i >= 0; --i) {
                     auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);
