@@ -31,7 +31,12 @@ public:
                                      max_from_entropy_node_index_inclusive(index)));
     }
 };
-
+uint8_t prefix_remap(uint8_t v) {
+    if (v == 0) {
+        return 0;
+    }
+    return v + 3;
+}
 typedef PerBitEncoderState<DefaultContext> EncoderState;
 typedef PerBitEncoderState<PerBitContext2u> PerBitEncoderState2u;
 typedef PerBitEncoderState<PerBitContext4s> PerBitEncoderState4s;
@@ -57,14 +62,16 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         if (coord == 0 || (b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
             uint8_t length = bit_length(abs_coef);
             auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
+            uint8_t slen = prefix_remap(length);
             unsigned int serialized_so_far = 0;
             for (int i = 3;i >= 0; --i) {
-                bool cur_bit = (length & (1 << i)) ? true : false;
+                bool cur_bit = (slen & (1 << i)) ? true : false;
                 encoder.put(cur_bit, exp_prob.at(i).at(serialized_so_far));
                 serialized_so_far <<= 1;
                 if (cur_bit) {
                     serialized_so_far |=1;
                 }
+                if (i == 2 && !length) break;
             }
             if (length > 1){
                 auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_left_7x7);
@@ -132,14 +139,16 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             assert(coord != 9);
             auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_nonzeros_edge, *this);
             uint8_t length = bit_length(abs_coef);
+            uint8_t slen = prefix_remap(length);
             unsigned int serialized_so_far = 0;
-            for (int i = 3; i >= 0;--i) {
-                bool cur_bit = ((length & (1 << i)) ? true : false);
+            for (int i = 3; i >= 0; --i) {
+                bool cur_bit = ((slen & (1 << i)) ? true : false);
                 encoder.put(cur_bit, exp_array.at(i).at(serialized_so_far));
                 serialized_so_far <<= 1;
                 if (cur_bit) {
                     serialized_so_far |= 1;
                 }
+                if (i == 2 && !length) break;
             }
             if (length > 0) {
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");

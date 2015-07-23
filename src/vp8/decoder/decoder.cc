@@ -141,6 +141,12 @@ template<class DecoderT> uint16_t get_one_unsigned_coefficient( DecoderT & d) {
     }
     return get_one_natural_coefficient(d);
 }
+uint8_t prefix_unremap(uint8_t v) {
+    if (v == 0) {
+        return 0;
+    }
+    return v - 3;
+}
 
 void Block::parse_tokens( BoolDecoder & data,
                           ProbabilityTables & probability_tables )
@@ -165,7 +171,9 @@ void Block::parse_tokens( BoolDecoder & data,
                 length |= (cur_bit << i);
                 decoded_so_far <<= 1;
                 decoded_so_far |= cur_bit;
+                if (length == 0 && i == 2) break;
             }
+            length = prefix_unremap(length);
             int16_t coef = (1 << (length - 1));
             if (length > 1){
                 auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_left_7x7);
@@ -237,7 +245,9 @@ void Block::parse_tokens( BoolDecoder & data,
                 length |= (cur_bit << i);
                 decoded_so_far <<= 1;
                 decoded_so_far |= cur_bit;
+                if (i == 2 && !length) break;
             }
+            length = prefix_unremap(length);
             int16_t coef = 0;
             if (length > 0) {
                 coef = (1 << (length - 1));
