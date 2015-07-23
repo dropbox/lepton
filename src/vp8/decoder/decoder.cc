@@ -160,7 +160,7 @@ void Block::parse_tokens( BoolDecoder & data,
             uint8_t length = 0;
             auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
             unsigned int decoded_so_far = 0;
-            for (int i = 0;i < 4;++i) {
+            for (int i = 3; i >= 0; --i) {
                 int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
                 length |= (cur_bit << i);
                 decoded_so_far <<= 1;
@@ -232,7 +232,7 @@ void Block::parse_tokens( BoolDecoder & data,
 
             uint8_t length = 0;
             unsigned int decoded_so_far = 0;            
-            for (int i = 0;i < 4;++i) {
+            for (int i = 3; i >= 0; --i) {
                 int cur_bit = (data.get(exp_array.at(i).at(decoded_so_far)) ? 1 : 0);
                 length |= (cur_bit << i);
                 decoded_so_far <<= 1;

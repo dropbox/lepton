@@ -58,7 +58,7 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             uint8_t length = bit_length(abs_coef);
             auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
             unsigned int serialized_so_far = 0;
-            for (int i = 0;i < 4;++i) {
+            for (int i = 3;i >= 0; --i) {
                 bool cur_bit = (length & (1 << i)) ? true : false;
                 encoder.put(cur_bit, exp_prob.at(i).at(serialized_so_far));
                 serialized_so_far <<= 1;
@@ -133,12 +133,12 @@ void Block::serialize_tokens( BoolEncoder & encoder,
             auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_nonzeros_edge, *this);
             uint8_t length = bit_length(abs_coef);
             unsigned int serialized_so_far = 0;
-            for (int i = 0;i < 4;++i) {
+            for (int i = 3; i >= 0;--i) {
                 bool cur_bit = ((length & (1 << i)) ? true : false);
                 encoder.put(cur_bit, exp_array.at(i).at(serialized_so_far));
                 serialized_so_far <<= 1;
                 if (cur_bit) {
-                    serialized_so_far |=1;
+                    serialized_so_far |= 1;
                 }
             }
             if (length > 0) {

@@ -7,7 +7,7 @@ class Branch
 {
 private:
   uint32_t false_count_ = 0, true_count_ = 0;
-    Probability probability_ = 255;
+  Probability probability_ = 255;
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
 public:
@@ -19,7 +19,7 @@ public:
   void record_true( void ) { true_count_ = true_count_ + 1; }
   void record_false( void ) { false_count_ = false_count_ + 1; }
   void record_true_and_update( void ) {
-      if (true_count_ < 255) {
+      if (true_count_ < 512) {
           true_count_ += 1;
       } else if (false && false_count_ > 0 && false_count_ < 128){
           --false_count_;
@@ -31,7 +31,7 @@ public:
       optimize();
   }
   void record_false_and_update( void ) {
-      if (false_count_ < 255) {
+      if (false_count_ < 512) {
           false_count_ += 1;
       } else if (false && true_count_ > 0 && true_count_ < 128){
           --true_count_;
