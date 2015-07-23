@@ -273,11 +273,6 @@ public:
         }
         if (block.context().left.initialized()) {
             num_nonzeros_left = block.context().left.get()->num_nonzeros_7x7();
-            if ((!num_nonzeros_above.initialized()) && block.context().left.get()->context().left.initialized()) {
-                num_nonzeros_above = block.context().left.get()->context().left.get()->num_nonzeros_7x7();
-            }
-        } else if (block.context().above.initialized() && block.context().above.get()->context().above.initialized()) {
-            num_nonzeros_left = block.context().above.get()->context().above.get()->num_nonzeros_7x7();
         }
 
         uint8_t num_nonzeros_context = 0;
@@ -472,22 +467,16 @@ public:
         uint32_t total = 0;
         uint32_t weights = 0;
         if (block.context().above.initialized()) {
-            if (block.context().above.get()->context().above.initialized()) {
-                toptop = abs(predict_or_unpredict_dc(*block.context().above.get()->context().above.get(), false));
-            }
-            top = abs(predict_or_unpredict_dc(*block.context().above.get(), false));
+            top = abs(block.context().above.get()->coefficients().at(0));
         }
         if (block.context().above_left.initialized()) {
-            topleft = abs(predict_or_unpredict_dc(*block.context().above_left.get(), false));
+            topleft = abs(block.context().above_left.get()->coefficients().at(0));
         }
         if (block.context().above_right.initialized()) {
-            topright = abs(predict_or_unpredict_dc(*block.context().above_right.get(), false));
+            //topright = abs(block.context().above_right.get()->coefficients().at(0));
         }
         if (block.context().left.initialized()) {
-            if (block.context().left.get()->context().left.initialized()) {
-                leftleft = abs(predict_or_unpredict_dc(*block.context().left.get()->context().left.get(), false));
-            }
-            left = abs(predict_or_unpredict_dc(*block.context().left.get(), false));
+            left = abs(block.context().left.get()->coefficients().at(0));
         }
         if (toptop.initialized()) {
             total += abs_ctx_weights_lum[0][0][2] * (int)toptop.get();
@@ -533,21 +522,15 @@ public:
         uint32_t coef_index = band;
         uint8_t zz = zigzag[band];
         if (block.context().above.initialized()) {
-            if (block.context().above.get()->context().above.initialized()) {
-                toptop = abs(block.context().above.get()->context().above.get()->coefficients().at(coef_index));
-            }
             top = abs(block.context().above.get()->coefficients().at(coef_index));
         }
         if (block.context().above_left.initialized()) {
             topleft = abs(block.context().above_left.get()->coefficients().at(coef_index));
         }
         if (block.context().above_right.initialized()) {
-            topright = abs(block.context().above_right.get()->coefficients().at(coef_index));
+            //topright = abs(block.context().above_right.get()->coefficients().at(coef_index));
         }
         if (block.context().left.initialized()) {
-            if (block.context().left.get()->context().left.initialized()) {
-                leftleft = abs(block.context().left.get()->context().left.get()->coefficients().at(coef_index));
-            }
             left = abs(block.context().left.get()->coefficients().at(coef_index));
         }
         const auto &weight_array = component ? abs_ctx_weights_chr : abs_ctx_weights_lum;
