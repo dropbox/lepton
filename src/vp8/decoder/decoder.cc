@@ -154,8 +154,12 @@ void Block::parse_tokens( BoolDecoder & data,
 
     auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);
     uint8_t num_nonzeros_7x7 = 0;
-    for (unsigned int index = 0; index < 6; ++index) {
-        num_nonzeros_7x7 |= ((data.get(num_nonzeros_prob.at(index))?1:0) << index);
+    int decoded_so_far = 0;
+    for (int index = 5; index >= 0; --index) {
+        int cur_bit = (data.get(num_nonzeros_prob.at(index).at(decoded_so_far))?1:0);
+        num_nonzeros_7x7 |= (cur_bit << index);
+        decoded_so_far <<= 1;
+        decoded_so_far |= cur_bit;
     }
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     for (unsigned int zz = 0; zz < 64; ++zz) {
@@ -215,12 +219,20 @@ void Block::parse_tokens( BoolDecoder & data,
                                                       eob_y,
                                                          num_nonzeros_7x7, false);
     uint8_t num_nonzeros_x = 0;
-    for (int i= 0 ;i <3;++i) {
-        num_nonzeros_x |= ((data.get(prob_x.at(i))?1:0) << i);
+    decoded_so_far = 0;
+    for (int i= 2; i >=0; --i) {
+        int cur_bit = data.get(prob_x.at(i).at(decoded_so_far))?1:0;
+        num_nonzeros_x |= (cur_bit << i);
+        decoded_so_far <<= 1;
+        decoded_so_far |= cur_bit;
     }
     uint8_t num_nonzeros_y = 0;
-    for (int i= 0 ;i <3;++i) {
-        num_nonzeros_y |= ((data.get(prob_y.at(i))?1:0) << i);
+    decoded_so_far = 0;
+    for (int i= 2; i >=0; --i) {
+        int cur_bit = data.get(prob_y.at(i).at(decoded_so_far))?1:0;
+        num_nonzeros_y |= (cur_bit << i);
+        decoded_so_far <<= 1;
+        decoded_so_far |= cur_bit;
     }
     uint8_t num_nonzeros_left_x = num_nonzeros_x;
     uint8_t num_nonzeros_left_y = num_nonzeros_y;

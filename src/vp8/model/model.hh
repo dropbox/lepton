@@ -74,12 +74,12 @@ inline int index_to_cat(int index) {
 struct Model
 {
     
-    typedef FixedArray<FixedArray<FixedArray<Branch, 6>,
+    typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 32>, 6>,
                         26>, //neighboring zero counts added + 2/ 4
             BLOCK_TYPES> NonzeroCounts7x7;
     NonzeroCounts7x7 num_nonzeros_counts_7x7_;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 3>,
+    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 4>, 3>,
             8>, //lower num_nonzeros_count
           8>, //eob in this dimension
     
@@ -126,7 +126,9 @@ struct Model
       for ( auto & a : num_nonzeros_counts_7x7_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
-                  proc( c );
+                  for ( auto & d : c ) {
+                      proc( d );
+                  }
               }
           }
       }
@@ -134,7 +136,9 @@ struct Model
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   for (auto &d : c) {
-                      proc( d );
+                      for (auto &e : d) {
+                          proc( e );
+                      }
                   }
               }
           }
@@ -248,7 +252,7 @@ public:
     void set_quantization_table(const unsigned short quantization_table[64]) {
         quantization_table_ = quantization_table;
     }
-    FixedArray<Branch, 6>& nonzero_counts_7x7(unsigned int block_type,
+    FixedArray<FixedArray<Branch, 32>, 6>& nonzero_counts_7x7(unsigned int block_type,
                                              const Block&block) {
         Optional<uint8_t> num_nonzeros_above;
         Optional<uint8_t> num_nonzeros_left;
@@ -277,7 +281,7 @@ public:
             .at(std::min(block_type, BLOCK_TYPES - 1))
             .at(num_nonzeros_to_bin(num_nonzeros_context));
     }
-    FixedArray<Branch, 3>& nonzero_counts_1x8(unsigned int block_type,
+    FixedArray<FixedArray<Branch,4>, 3>& nonzero_counts_1x8(unsigned int block_type,
                                              unsigned int eob_x,
                                              unsigned int num_nonzeros,
                                              bool is_x) {
