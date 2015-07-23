@@ -6,8 +6,8 @@ typedef uint8_t Probability;
 class Branch
 {
 private:
-  uint32_t false_count_ = 0, true_count_ = 0;
-  Probability probability_ = 255;
+  uint32_t false_count_ = 1, true_count_ = 0;
+  Probability probability_ = 128;
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
 public:
@@ -21,28 +21,34 @@ public:
   void record_true_and_update( void ) {
       if (true_count_ < 512) {
           true_count_ += 1;
-      } else if (false && false_count_ > 0 && false_count_ < 128){
-          --false_count_;
       } else {
           true_count_ = true_count_ / 2 + (true_count_ & 1);
           false_count_ = false_count_ / 2 + (false_count_ & 1);
       }
-      normalize();
-      optimize();
+#ifdef STOP_TRAINING
+      if (true_count_ + false_count_ < 1024)
+#endif
+      {
+          normalize();
+          optimize();
+      }
   }
   void record_false_and_update( void ) {
-      if (false_count_ < 512) {
+      if (false_count_ < 512) {// 2x the size of prob
           false_count_ += 1;
-      } else if (false && true_count_ > 0 && true_count_ < 128){
-          --true_count_;
       } else {
           true_count_ = true_count_ / 2 + (true_count_ & 1);
           false_count_ = false_count_ / 2 + (false_count_ & 1);
       }
-      normalize();
-      optimize();
+#ifdef STOP_TRAINING
+      if (true_count_ + false_count_ < 1024)
+#endif
+      {//4x the size of prob
+          normalize();
+          optimize();
+      }
   }
-  void normalize() 
+  void normalize()
   {
 #ifndef JPEG_ENCODER
 #if 0

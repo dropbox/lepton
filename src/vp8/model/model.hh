@@ -630,7 +630,6 @@ public:
         int ctx0 = 0;
         int ctx1 = 0;
         if (band == 0) {
-            ctx0 = 1; // so as not to interfere with SIGN7x7
             ANNOTATE_CTX(0, SIGNDC, 0, 1);
         } else if (band < 8 || band % 8 == 0) {
             int16_t val = compute_lak(block, band);
