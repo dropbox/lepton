@@ -316,7 +316,7 @@ public:
                 .at(eob_x)
                 .at(((num_nonzeros + 3) / 7));
         }
-        return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
+        return model_->num_nonzeros_counts_8x1_.at(std::min(block_type, BLOCK_TYPES -1))
             .at(eob_x)
             .at(((num_nonzeros + 3) / 7));
     }
@@ -705,7 +705,7 @@ public:
     // this reduces the counts to something easier to override by new data
     void normalize();
 
-    const ProbabilityTables& debug_print(const ProbabilityTables*other=NULL)const;
+    const ProbabilityTables& debug_print()const;
 };
 
 #endif /* DECODER_HH */

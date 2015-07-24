@@ -258,56 +258,72 @@ bool filter(const Branch& a,
     }
     return true;
 }
-
-const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * /*other*/)const
-{
-/*
-    for ( unsigned int type = 0; type < model_->token_branch_counts_.size(); type++ ) {
-        const auto & this_type = model_->token_branch_counts_.at( type );
-        const auto *other_type = other ? &other->model_->token_branch_counts_.at( type ) : NULL;
-        for ( unsigned int num_nonzeros_bin = 0; num_nonzeros_bin < this_type.size(); num_nonzeros_bin++ ) {
-            const auto & this_num_nonzeros_bin = this_type.at( num_nonzeros_bin );
-            const auto * other_num_nonzeros_bin = other ? &other_type->at( num_nonzeros_bin ) : NULL;
-            for ( unsigned int eob_bin = 0; eob_bin < this_num_nonzeros_bin.size(); eob_bin++ ) {
-                const auto & this_eob_bin = this_num_nonzeros_bin.at( eob_bin );
-                const auto * other_eob_bin = other ? &other_num_nonzeros_bin->at( eob_bin ) : NULL;
-                for ( unsigned int band = 0; band < this_eob_bin.size(); band++ ) {
-                    const auto & this_band = this_eob_bin.at( band );
-                    const auto * other_band = other? &other_eob_bin->at( band ) : NULL;
-                    for ( unsigned int prev_context = 0; prev_context < this_band.size(); prev_context++ ) {
-                        const auto & this_prev_context = this_band.at( prev_context );
-                        const auto * other_prev_context = other? &other_band->at( prev_context ) : NULL;
-                        for ( unsigned int neighbor_context = 0; neighbor_context < this_prev_context.size(); neighbor_context++ ) {
-                            const auto & this_neighbor_context = this_prev_context.at( neighbor_context );
-                            const auto * other_neighbor_context = other ? &other_prev_context->at( neighbor_context ): NULL;
-                            bool print_first = false;
-                            for ( unsigned int node = 0; node < this_neighbor_context.size(); node++ ) {
-                                const auto & this_node = this_neighbor_context.at( node );
-                                const auto * other_node = other? &other_neighbor_context->at( node ) : NULL;
-                                if (filter(this_node,
-                                           other_node)) {
-                                    if (!print_first) {
-                                        cout << "token_branch_counts[ " << type << " ][ "<< num_nonzeros_bin <<" ][ " << eob_bin << " ][ " << band << " ][ " << prev_context << " ]["<<neighbor_context<<"] = ";
-                                        print_first = true;
-                                    }
-                                    if (other) {
-                                        const auto & other_node = other_neighbor_context->at( node );
-                                        cout << "( " << node << " : " << (int)this_node.prob() << " vs " << (int)other_node.prob() << " { " << (int)this_node.true_count() << " , " << (int)this_node.false_count() << " } ) ";
-                                    } else {
-                                        cout << "( " << node << " : " << (int)this_node.true_count() << " , " << (int)this_node.false_count() << " ) ";
-                                    }
-                                }
-                            }
-                            if (print_first) {
-                                cout << endl;
-                            }
-                        }
-                    }
-                }
-            } 
+template<class BranchArray> void print_helper(const BranchArray& ba,
+                                              const std::string &table_name,
+                                              const std::vector<std::string> &names,
+                                              std::vector<uint32_t> &values) {
+    values.push_back(0);
+    for (size_t i = 0; i < ba.size(); ++i) {
+        values.back() = i;
+        print_helper(ba.at(i), table_name, names, values);
+    }
+    values.pop_back();
+}
+template<> void print_helper(const Branch& ba,
+                             const std::string&table_name,
+                        const std::vector<std::string> &names,
+                        std::vector<uint32_t> &values) {
+    double ratio = (ba.true_count() + 1) / (double)(ba.false_count() + ba.true_count() + 2);
+    if (ba.true_count() > 0 ||  ba.false_count() > 1) {
+        //if (ba.true_count() > 10 && ba.false_count() > 10 && ratio > .45 && ratio < .55)
+        {
+            assert(names.size() == values.size());
+            cout <<table_name<<"::";
+            for (size_t i = 0; i < names.size(); ++i) {
+                cout << names[i]<<'['<<values[i]<<']';
+            }
+            cout << " = (" << ba.true_count() <<", "<<  (ba.false_count() - 1) << ")\n";
         }
     }
-*/
+}
+template<class BranchArray> void print_all(const BranchArray &ba,
+                                           const std::string &table_name,
+                                           const std::vector<std::string> &names) {
+    std::vector<uint32_t> tmp;
+    print_helper(ba, table_name, names, tmp);
+}  
+                                  
+const ProbabilityTables &ProbabilityTables::debug_print()const
+{
+    print_all(model_->num_nonzeros_counts_7x7_,
+              "NONZERO 7x7",
+              {"cmp","nbr","bit","prevbits"});
+
+    print_all(model_->num_nonzeros_counts_1x8_,
+              "NONZERO_1x8",
+              {"cmp","eobx","num_nonzeros","bit","prevbits"});
+    print_all(model_->num_nonzeros_counts_8x1_,
+              "NONZERO_8x1",
+              {"cmp","eobx","num_nonzeros","bit","prevbits"});
+    print_all(model_->exponent_counts_dc_,
+              "EXP_DC",
+              {"cmp","num_nonzeros","neigh_exp","bit","prevbits"});
+    print_all(model_->exponent_counts_,
+              "EXP7x7",
+              {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"});
+    print_all(model_->exponent_counts_x_,
+              "EXP_8x1",
+              {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"});
+    print_all(model_->residual_noise_counts_,
+              "NOISE",
+              {"cmp","coef","num_nonzeros","bit"});
+    print_all(model_->residual_threshold_counts_,
+              "THRESH8",
+              {"cmp","max","exp","prevbits"});
+    print_all(model_->sign_counts_,
+              "SIGN",
+              {"cmp","lakh","exp"});
+            
     return *this;
 }
 
