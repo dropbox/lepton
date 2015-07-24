@@ -242,91 +242,6 @@ void Block::serialize_tokens( BoolEncoder & encoder,
     }
 }
 
-bool filter(const Branch& a,
-            const Branch* b) {
-    if (a.true_count() == 0 && a.false_count() == 0) {
-        return false;
-    }
-    if (b) {
-        if (a.prob() + 1 == b->prob() ||
-            a.prob() == b->prob() + 1 ||
-            a.prob() == b->prob()) {
-            return false;
-        }
-    } else {
-        return a.true_count () > 300 && a.false_count() > 300;
-    }
-    return true;
-}
-template<class BranchArray> void print_helper(const BranchArray& ba,
-                                              const std::string &table_name,
-                                              const std::vector<std::string> &names,
-                                              std::vector<uint32_t> &values) {
-    values.push_back(0);
-    for (size_t i = 0; i < ba.size(); ++i) {
-        values.back() = i;
-        print_helper(ba.at(i), table_name, names, values);
-    }
-    values.pop_back();
-}
-template<> void print_helper(const Branch& ba,
-                             const std::string&table_name,
-                        const std::vector<std::string> &names,
-                        std::vector<uint32_t> &values) {
-    double ratio = (ba.true_count() + 1) / (double)(ba.false_count() + ba.true_count() + 2);
-    if (ba.true_count() > 0 ||  ba.false_count() > 1) {
-        //if (ba.true_count() > 10 && ba.false_count() > 10 && ratio > .45 && ratio < .55)
-        {
-            assert(names.size() == values.size());
-            cout <<table_name<<"::";
-            for (size_t i = 0; i < names.size(); ++i) {
-                cout << names[i]<<'['<<values[i]<<']';
-            }
-            cout << " = (" << ba.true_count() <<", "<<  (ba.false_count() - 1) << ")\n";
-        }
-    }
-}
-template<class BranchArray> void print_all(const BranchArray &ba,
-                                           const std::string &table_name,
-                                           const std::vector<std::string> &names) {
-    std::vector<uint32_t> tmp;
-    print_helper(ba, table_name, names, tmp);
-}  
-                                  
-const ProbabilityTables &ProbabilityTables::debug_print()const
-{
-    print_all(model_->num_nonzeros_counts_7x7_,
-              "NONZERO 7x7",
-              {"cmp","nbr","bit","prevbits"});
-
-    print_all(model_->num_nonzeros_counts_1x8_,
-              "NONZERO_1x8",
-              {"cmp","eobx","num_nonzeros","bit","prevbits"});
-    print_all(model_->num_nonzeros_counts_8x1_,
-              "NONZERO_8x1",
-              {"cmp","eobx","num_nonzeros","bit","prevbits"});
-    print_all(model_->exponent_counts_dc_,
-              "EXP_DC",
-              {"cmp","num_nonzeros","neigh_exp","bit","prevbits"});
-    print_all(model_->exponent_counts_,
-              "EXP7x7",
-              {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"});
-    print_all(model_->exponent_counts_x_,
-              "EXP_8x1",
-              {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"});
-    print_all(model_->residual_noise_counts_,
-              "NOISE",
-              {"cmp","coef","num_nonzeros","bit"});
-    print_all(model_->residual_threshold_counts_,
-              "THRESH8",
-              {"cmp","max","exp","prevbits"});
-    print_all(model_->sign_counts_,
-              "SIGN",
-              {"cmp","lakh","exp"});
-            
-    return *this;
-}
-
 ProbabilityTables ProbabilityTables::get_probability_tables()
 {
   const char * model_name = getenv( "LEPTON_COMPRESSION_MODEL" );
@@ -359,6 +274,9 @@ ProbabilityTables::ProbabilityTables( const Slice & slice )
 {
     quantization_table_ = nullptr;
     const size_t expected_size = sizeof( *model_ );
+    if (slice.size() != expected_size) {
+        fprintf(stderr, "Expected size %lu ; actual size %llu\n", expected_size, slice.size());
+    }
     assert(slice.size() == expected_size && "unexpected model file size.");
 
     memcpy( model_.get(), slice.buffer(), slice.size() );

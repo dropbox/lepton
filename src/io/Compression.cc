@@ -78,9 +78,7 @@ void uint32toLE(uint32 value, uint8*retval) {
 
 // 4 headers also defined in MultiCompression.cpp
 static const unsigned char lzham_fixed_header[] = {'L','Z','H','0'};
-static const unsigned char xzheader[6] = { 0xFD, '7', 'z', 'X', 'Z', 0x00 };
-static const unsigned char arhcheader[6] = { 'A', 'R', 'H', 'C', 0x01, 0x00 };
-static const unsigned char arhclzhamheader[6] = { 'A', 'R', 'H', 'C', 0x01, 0x01 };
+
 
 void writeLZHAMHeader(uint8 * output, uint8 dictSize, uint32 fileSize) {
     output[0] = lzham_fixed_header[0];

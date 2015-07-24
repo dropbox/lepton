@@ -704,8 +704,20 @@ public:
 
     // this reduces the counts to something easier to override by new data
     void normalize();
+    
 
-    const ProbabilityTables& debug_print()const;
+    enum Printability{
+        PRINTABLE_INSIGNIFICANT = 1,
+        PRINTABLE_OK = 2,
+        CLOSE_TO_50 = 4,
+        CLOSE_TO_ONE_ANOTHER = 8
+    };
+    struct PrintabilitySpecification {
+        uint64_t printability_bitmask;
+        double tolerance;
+        uint64_t min_samples;
+    };
+    const ProbabilityTables& debug_print(const ProbabilityTables* other, PrintabilitySpecification spec)const;
 };
 
 #endif /* DECODER_HH */
