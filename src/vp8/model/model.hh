@@ -17,6 +17,7 @@ class Slice;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
 constexpr unsigned int COEF_BANDS         = 64;
+constexpr unsigned int band_divisor = 1;
 constexpr unsigned int ENTROPY_NODES      = 15;
 constexpr unsigned int NUM_NONZEROS_EOB_PRIORS = 66;
 constexpr unsigned int ZERO_OR_EOB = 3;
@@ -109,11 +110,23 @@ struct Model
     typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
                          NUMERIC_LENGTH_MAX>, //neighboring block exp
                       NUM_NONZEROS_BINS>,
-                    COEF_BANDS>,
-      BLOCK_TYPES> ExponentCounts;
+           15>,
+      BLOCK_TYPES> ExponentCounts8;
+    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
+                         NUMERIC_LENGTH_MAX>, //neighboring block exp
+                     NUM_NONZEROS_BINS>,
+             49>,
+      BLOCK_TYPES> ExponentCounts7x7;
 
-  ExponentCounts exponent_counts_;
-  ExponentCounts exponent_counts_x_;
+    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
+                         NUMERIC_LENGTH_MAX>, //neighboring block exp
+                   NUM_NONZEROS_BINS>,
+               1>,
+      BLOCK_TYPES> ExponentCountsDC;
+
+  ExponentCounts7x7 exponent_counts_;
+  ExponentCounts8 exponent_counts_x_;
+  ExponentCountsDC exponent_counts_dc_;
 
   typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, (COEF_BITS + 2 > 9 ? COEF_BITS + 2 : 9)>,
                               4>,
@@ -185,6 +198,19 @@ struct Model
           }
       }
       for ( auto & a : exponent_counts_ ) {
+          for ( auto & b : a ) {
+              for ( auto & c : b ) {
+                  for ( auto & d : c ) {
+                      for ( auto & e : d ) {
+                          for ( auto & f : e ) {
+                              proc( f );
+                          }
+                      }
+                  }
+              }
+          }
+      }
+      for ( auto & a : exponent_counts_dc_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   for ( auto & d : c ) {
@@ -310,7 +336,7 @@ public:
         ANNOTATE_CTX(band, EXP8, 0, exp_len(abs(compute_lak(for_lak, band))));
         ANNOTATE_CTX(band, EXP8, 1, num_nonzeros_x);
         return model_->exponent_counts_x_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band ).at(num_nonzeros_x)
+            .at( (band & 7)== 0 ? ((band >>3) + 7) : band - 1 ).at(num_nonzeros_x)
             .at(exp_len(abs(compute_lak(for_lak, band))));
     }
     FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>& exponent_array_7x7(const unsigned int block_type,
@@ -323,10 +349,14 @@ public:
         } else {
             ANNOTATE_CTX(0, EXPDC, 0, exp_len(abs(compute_aavrg(block_type, block, band))));
             ANNOTATE_CTX(0, EXPDC, 1, num_nonzeros_to_bin(num_nonzeros));
+        return model_->exponent_counts_dc_
+            .at( std::min(block_type, BLOCK_TYPES - 1) )
+            .at(0).at(num_nonzeros_to_bin(num_nonzeros))
+            .at(exp_len(abs(compute_aavrg(block_type, block, band))));
         }
         return model_->exponent_counts_
             .at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band ).at(num_nonzeros_to_bin(num_nonzeros))
+            .at( band - 8 - band / 8).at(num_nonzeros_to_bin(num_nonzeros))
             .at(exp_len(abs(compute_aavrg(block_type, block, band))));
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
@@ -342,7 +372,7 @@ public:
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros_x) {
         return model_->residual_noise_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band )
+            .at( band/band_divisor )
             .at(num_nonzeros_x);
     }
     FixedArray<Branch, COEF_BITS> & residual_noise_array_7x7(const unsigned int block_type,
@@ -609,7 +639,7 @@ public:
         ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
 
         return model_->residual_threshold_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band )
+            .at( band/band_divisor )
             .at(std::min(abs(compute_lak(block, band)), max_value - 1) >> min_threshold)
             .at(cur_exponent - min_threshold);
     }
@@ -640,7 +670,7 @@ public:
             ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
             if (block.context().left.initialized()) {
-                int16_t coef = block.context().left.get()->coefficients().at(band);
+                int16_t coef = block.context().left.get()->coefficients().at(band/band_divisor);
                 if (coef < 0) {
                     ctx0 += 2;
                 } else if (coef > 0) {
@@ -648,7 +678,7 @@ public:
                 }
             }
             if (block.context().above.initialized()) {
-                int16_t coef = block.context().above.get()->coefficients().at(band);
+                int16_t coef = block.context().above.get()->coefficients().at(band/band_divisor);
                 if (coef < 0) {
                     ctx0 += 6;
                 } else if (coef > 0) {
@@ -659,7 +689,7 @@ public:
         }
         return model_->sign_counts_
             .at(std::min(block_type, BLOCK_TYPES - 1))
-            .at(band).at(ctx1).at(ctx0);
+            .at(band/band_divisor).at(ctx1).at(ctx0);
     }
     int get_max_value(int coord) {
         static const unsigned short int freqmax[] =
