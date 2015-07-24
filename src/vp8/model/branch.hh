@@ -3,10 +3,12 @@
 typedef uint8_t Probability;
 //#define JPEG_ENCODER
 // ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
+
 class Branch
 {
 private:
   uint32_t false_count_ = 1, true_count_ = 0;
+    uint32_t full_count_ =0;
   Probability probability_ = 128;
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
@@ -19,6 +21,7 @@ public:
   void record_true( void ) { true_count_ = true_count_ + 1; }
   void record_false( void ) { false_count_ = false_count_ + 1; }
   void record_true_and_update( void ) {
+      ++full_count_;
       if (true_count_ < 512) {
           true_count_ += 1;
       } else {
@@ -26,7 +29,7 @@ public:
           false_count_ = false_count_ / 2 + (false_count_ & 1);
       }
 #ifdef STOP_TRAINING
-      if (true_count_ + false_count_ < 1024)
+      if (full_count_ < 1024)
 #endif
       {
           normalize();
@@ -34,6 +37,7 @@ public:
       }
   }
   void record_false_and_update( void ) {
+      ++full_count_;
       if (false_count_ < 512) {// 2x the size of prob
           false_count_ += 1;
       } else {
@@ -41,7 +45,7 @@ public:
           false_count_ = false_count_ / 2 + (false_count_ & 1);
       }
 #ifdef STOP_TRAINING
-      if (true_count_ + false_count_ < 1024)
+      if (full_count_ < 1024)
 #endif
       {//4x the size of prob
           normalize();
