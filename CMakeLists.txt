@@ -71,7 +71,11 @@ add_executable(lepton
    src/vp8/decoder/decoder.cc
    src/vp8/decoder/bool_decoder.hh
                )
-target_link_libraries(lepton ${LIBLZMA_LIBRARIES})
+SET(ADDITIONAL_FLAGS)
+IF(NOT APPLE)
+    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread)
+ENDIF()
+target_link_libraries(lepton ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
 
 add_executable(print-model
    src/lepton/print-model.cc

@@ -274,9 +274,6 @@ ProbabilityTables::ProbabilityTables( const Slice & slice )
 {
     quantization_table_ = nullptr;
     const size_t expected_size = sizeof( *model_ );
-    if (slice.size() != expected_size) {
-        fprintf(stderr, "Expected size %lu ; actual size %llu\n", expected_size, slice.size());
-    }
     assert(slice.size() == expected_size && "unexpected model file size.");
 
     memcpy( model_.get(), slice.buffer(), slice.size() );
