@@ -8,8 +8,14 @@
 #include <thread>
 #include "base_coders.hh"
 #include "component_info.hh"
+#include "../vp8/model/color_context.hh"
+#include "../vp8/util/option.hh"
 struct componentInfo;
 #define EXIT_CODE_CODING_ERROR 2
+
+class Block;
+
+
 
 template <bool use_threading, typename counter_type> class BaseUncompressedComponents {
     class ExtendedComponentInfo {
@@ -65,14 +71,34 @@ public:
             std::atomic_thread_fence(std::memory_order_acquire);
         }
     }
+    BlockColorContextIndices get_color_context(int curr_x,
+                                               int curr_y[sizeof(header_)/sizeof(header_[0])],
+                                               int curr_component) const {
+        BlockColorContextIndices retval; // zero initialize
+        if (curr_component > 0) {
+            size_t ratioX = std::max(header_[0].info_.bch/header_[curr_component].info_.bch, 1);
+            size_t ratioY = std::max(header_[0].info_.bcv/header_[curr_component].info_.bcv, 1);
+            for (size_t i = 0; i < ratioY && i < sizeof(retval.luminanceIndex)/sizeof(retval.luminanceIndex[0]); ++i) {
+                for (size_t j = 0;
+                     j < ratioX && i < sizeof(retval.luminanceIndex[0])/sizeof(retval.luminanceIndex[0][0]);
+                     ++j) {
+                    retval.luminanceIndex[i][j] = std::pair<int, int>(curr_y[0] - ratioY + i, curr_x * ratioX + j);
+                }
+            }
+            if (curr_component > 1) {
+                retval.chromaIndex = std::pair<int, int>(curr_y[1] - 1, curr_x);
+            }
+        }
+        return retval;
+    }
     bool get_next_component(int curr_y[sizeof(header_)/sizeof(header_[0])], int *out_component) const {
-        int max_height = 0;
-        for (int i = 0; i < cmpc_; ++i) {
-            max_height = std::max(header_[i].trunc_bcv_, max_height);
+        int min_height = header_[0].info_.bcv;
+        for (int i = 1; i < cmpc_; ++i) {
+            min_height = std::min(header_[i].info_.bcv, min_height);
         }
         int adj_y[sizeof(header_)/sizeof(header_[0])];
         for (int i = 0; i < cmpc_; ++i) {
-            adj_y[i] = curr_y[i] * (max_height/header_[i].trunc_bcv_);
+            adj_y[i] = (uint32_t)(((uint64_t)curr_y[i] * (uint64_t)min_height)/(uint64_t)header_[i].info_.bcv);
         }
         int best_selection = 0;
         for (int i = 0; i < cmpc_; ++i) {

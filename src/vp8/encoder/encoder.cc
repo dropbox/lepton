@@ -42,7 +42,7 @@ typedef PerBitEncoderState<PerBitContext2u> PerBitEncoderState2u;
 typedef PerBitEncoderState<PerBitContext4s> PerBitEncoderState4s;
 typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
-                              ProbabilityTables & probability_tables ) const
+                              ProbabilityTables & probability_tables, const BlockColorContext& color_context ) const
 {
 
     auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);
@@ -53,11 +53,39 @@ void Block::serialize_tokens( BoolEncoder & encoder,
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
-
     {
         // do DC
         uint8_t coord = 0;
         int16_t coef = probability_tables.predict_or_unpredict_dc(*this, false);
+        /*
+        if (color_context.chroma && color_context.luminance[0][0]) {
+            coef = coefficients().at(0);//
+            static double prev_ratio[4] = {};
+
+            fprintf(stderr, "%.3f :: %.3f :: %.3f\n",
+                    context.chroma->coefficients().at(0)/(double)context.luminance[0][0]->coefficients().at(0),
+                    coefficients().at(0)/(double)context.luminance[0][0]->coefficients().at(0),
+                    coefficients().at(0)/(double)context.chroma->coefficients().at(0));
+         
+            double guess = prev_ratio[type_] * color_context.luminance[0][0]->coefficients().at(0);
+            if (type_ == 1) {
+                if (color_context.luminance[0][0]->coefficients().at(0)) {
+                    prev_ratio[type_] = coefficients().at(0) / (double)color_context.luminance[0][0]->coefficients().at(0);
+                }
+            } else {
+                if (color_context.luminance[0][0]->coefficients().at(0)) {
+                    prev_ratio[type_] = coefficients().at(0) / (double)color_context.luminance[0][0]->coefficients().at(0);
+                }
+            }
+            guess = coefficients().at(0) - guess;
+            while (guess >= 1024) {
+                guess -= 1024;
+            }
+            while (guess < -1024) {
+                guess += 1024;
+            }
+            //coef = guess;
+        }*/
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
         auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7_, *this);

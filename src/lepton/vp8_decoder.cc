@@ -97,7 +97,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for ( int jpeg_x = 0; jpeg_x < block_width; jpeg_x++ ) {
             auto & block = vp8_blocks_.at( component ).at( jpeg_x, curr_y );
             probability_tables_.set_quantization_table( colldata->get_quantization_tables(component));
-            block.parse_tokens( bool_decoder_.get(), probability_tables_ );
+            block.parse_tokens( bool_decoder_.get(), probability_tables_, get_color_context_blocks(colldata->get_color_context(jpeg_x, jpeg_y_, component), vp8_blocks_));
             for ( int coeff = 0; coeff < 64; coeff++ ) {
                 colldata->set( component, coeff, curr_y * block_width + jpeg_x )
                     = block.coefficients().at( jpeg_zigzag.at( coeff ) );

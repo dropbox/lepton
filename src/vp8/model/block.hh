@@ -4,6 +4,9 @@
 #include "plane.hh"
 #include "fixed_array.hh"
 #include "jpeg_meta.hh"
+#include "../model/color_context.hh"
+
+
 #define BLOCK_ENCODE_BACKWARDS
 static constexpr FixedArray< uint8_t, 64 > jpeg_zigzag = {{
     0,  1,  8, 16,  9,  2,  3, 10,
@@ -18,6 +21,8 @@ static constexpr FixedArray< uint8_t, 64 > jpeg_zigzag = {{
 struct ProbabilityTables;
 class BoolEncoder;
 class BoolDecoder;
+struct BlockColorContext;
+
 
 enum BlockType { Y, Cb, Cr };
 
@@ -52,7 +57,8 @@ public:
 
   BlockType type() const { return type_; }
   
-  void parse_tokens( BoolDecoder & data, ProbabilityTables & probability_tables );
+
+  void parse_tokens( BoolDecoder & data, ProbabilityTables & probability_tables, const BlockColorContext &colors);
 
   void recalculate_coded_length()
   {
@@ -124,7 +130,7 @@ public:
         return retval;
   }
   void serialize_tokens( BoolEncoder & data,
-			 ProbabilityTables & probability_tables ) const;
+                         ProbabilityTables & probability_tables, const BlockColorContext &colors) const;
 
   std::array<int16_t, 64> & mutable_coefficients() { return coefficients_; }
   const std::array<int16_t, 64> & coefficients() const { return coefficients_; }
@@ -136,4 +142,24 @@ public:
   uint8_t num_nonzeros_y() const { return num_nonzeros_y_; }
 };
 
+<<<<<<< HEAD
 #endif
+=======
+
+inline BlockColorContext get_color_context_blocks(const BlockColorContextIndices & indices, const std::vector<Plane<Block>>&jpeg) {
+    BlockColorContext retval = {};
+    for (int i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {
+        for (int j = 0; j < sizeof(indices.luminanceIndex[0])/sizeof(indices.luminanceIndex[0][0]); ++j) {
+            if (indices.luminanceIndex[i][j].initialized()) {
+                retval.luminance[i][j] = &jpeg[0].at(indices.luminanceIndex[i][j].get().second,indices.luminanceIndex[i][j].get().first);
+            }
+        }
+    }
+    if (indices.chromaIndex.initialized()) {
+        retval.chroma = &jpeg[1].at(indices.chromaIndex.get().second,indices.chromaIndex.get().first);
+    }
+    return retval;
+}
+
+#endif /* BLOCK_HH */
+>>>>>>> threading the color component information through to the compression/decompression portion

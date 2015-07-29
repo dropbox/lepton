@@ -109,7 +109,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             gctx->cur_jpeg_y = curr_y;
             block.recalculate_coded_length();
             probability_tables.set_quantization_table( colldata->get_quantization_tables(component));
-            block.serialize_tokens( bool_encoder, probability_tables );
+            block.serialize_tokens( bool_encoder, probability_tables, get_color_context_blocks(colldata->get_color_context(jpeg_x, jpeg_y, component), vp8_blocks));
         }
         ++jpeg_y[component];
     }
