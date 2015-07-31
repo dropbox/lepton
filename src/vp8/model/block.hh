@@ -142,9 +142,6 @@ public:
   uint8_t num_nonzeros_y() const { return num_nonzeros_y_; }
 };
 
-<<<<<<< HEAD
-#endif
-=======
 
 inline BlockColorContext get_color_context_blocks(const BlockColorContextIndices & indices, const std::vector<Plane<Block>>&jpeg) {
     BlockColorContext retval = {};
@@ -162,4 +159,3 @@ inline BlockColorContext get_color_context_blocks(const BlockColorContextIndices
 }
 
 #endif /* BLOCK_HH */
->>>>>>> threading the color component information through to the compression/decompression portion

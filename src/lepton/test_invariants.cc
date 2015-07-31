@@ -1,45 +1,51 @@
-#include "../vp8/model/numeric.hh"
-#include "../vp8/model/model.hh"
-#include "../vp8/encoder/bool_encoder.hh"
-#include "../vp8/encoder/encoder.hh"
-#include "../vp8/model/numeric.hh"
-int main() {
-    int16_t min = std::numeric_limits<int16_t>::min();
-    int16_t max = std::numeric_limits<int16_t>::max();
-    int16_t min_for_token_index[(size_t)TokenNode::BaseOffset];
-    int16_t max_for_token_index[(size_t)TokenNode::BaseOffset] = {0};
-    for (size_t i = 0; i < (size_t)TokenNode::BaseOffset; ++i) {
-        min_for_token_index[i] = max;
-    }
-    min = -2048;
-    max = 2048;
-    for (int16_t value = min; ; ++value) {
-        BitsAndLivenessFromEncoding value_bits;
-        put_one_signed_coefficient(value_bits, false, false, value);
-        for (size_t i = 0; i < (size_t)TokenNode::BaseOffset; ++i) {
-            if (value_bits.liveness() & (1 << i)) {
-                min_for_token_index[i]
-                    = std::min(min_for_token_index[i], int16_t(abs(value)));
-                max_for_token_index[i]
-                    = std::max(max_for_token_index[i], int16_t(abs(value)));
-            }
-        }
-        if (value == max) {
-            break;
-        }
-    }
-    bool failed = false;
-    for (size_t i = 0; i < (size_t)TokenNode::BaseOffset; ++i) {
-        if (min_from_entropy_node_index(i) != min_for_token_index[i]) {
-            fprintf(stderr, "Invalid min for entropy node index %d  f(%d) != %d\n", (int)i, 
-                    min_from_entropy_node_index(i), (int)min_for_token_index[i]);
-            failed = true;
-        }
-        if (max_from_entropy_node_index_inclusive(i) != max_for_token_index[i]) {
-            fprintf(stderr, "Invalid max for entropy node index %d  f(%d) != %d\n", (int)i, 
-                    max_from_entropy_node_index_inclusive(i), (int)max_for_token_index[i]);
-            failed = true;
-        }
-    }   
-    return failed ? 1 : 0;
+#include <assert.h>
+#include <cstdint>
+#include <cstddef>
+#include "../vp8/util/nd_array.hh"
+#include <stdio.h>
+struct Data {
+    unsigned char prob;
+    unsigned short trueCount;
+    unsigned short falseCount;
+};
+void podtest(int hellote,...) {
+
 }
+int main() {
+    using namespace Sirikata;
+    AlignedArray7d<unsigned char, 1,3,2,5,4,6,16> aligned7d;
+    uint8_t* d =&aligned7d.at(0, 2, 1, 3, 2, 1, 0);
+    *d = 4;
+    size_t offset = d - (uint8_t*)nullptr;
+    assert(0 == (offset & 15) && "Must have alignment");
+    assert(aligned7d.at(0, 2, 1, 3, 2, 1, 0) == 4);
+    Array7d<unsigned char, 1,3,2,5,3,3,16> a7;
+    uint8_t* d2 =&a7.at(0, 2, 1, 3, 2, 1, 0);
+    *d2 = 5;
+    offset = d2 - (uint8_t*)nullptr;
+    if (offset & 15) {
+        fprintf(stderr, "Array7d array doesn't require alignment");
+    }
+    assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 5);
+    a7.at(0, 2, 1, 3, 2, 1, 1) = 8;
+    assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 8);
+    Slice1d<unsigned char, 16> s = a7.at(0, 2, 1, 3, 2, 1);
+    s.at(1) = 16;
+    assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 16);
+    s.at(0) = 6;
+    assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 6);
+    {
+        a7.at(0,0,0,0,0,0,0) = 16;
+        assert(a7.at(0,0,0,0,0,0,0) == 16);
+        auto x = a7.at(0);
+        auto y = x.at(0);
+        auto z = y.at(0);
+        auto w = z.at(0);
+        auto a = w.at(0);
+        auto b = a.at(0);
+        b.at(0) = 47;
+        assert(a7.at(0,0,0,0,0,0,0) == 47);
+    }
+    podtest(4, a7);
+}
+
