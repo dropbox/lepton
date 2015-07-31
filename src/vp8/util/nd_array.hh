@@ -35,9 +35,11 @@
 #if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #else
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #endif
 
 
@@ -94,15 +96,45 @@ template <class T,
           uint32_t s0, class IsReferenceType=ReferenceType<ArrayBaseType1d<T,s0> > > struct Slice1d {
     typedef typename ArrayBaseType1d<T,s0>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
+    typename IsReference::ArrayType data;
+    enum Sizes{
+        size0 = s0
+    };
+    static const uint32_t size() {
+        return s0;
+    }
+    static const uint32_t dimension() {
+        return 1;
+    }
     
     T& at(uint32_t i0) {
         assert(i0 < s0);
-        return IsReference::dereference(ptr)[i0];
+        return IsReference::dereference(data)[i0];
     }
     const T& at(uint32_t i0) const {
         assert(i0 < s0);
-        return IsReference::dereference(ptr)[i0];
+        return IsReference::dereference(data)[i0];
+    }
+    T& operator[](uint32_t i0) {
+        assert(i0 < s0);
+        return IsReference::dereference(data)[i0];
+    }
+    const T& operator[](uint32_t i0) const {
+        assert(i0 < s0);
+        return IsReference::dereference(data)[i0];
+    }
+    void memset(uint8_t val) {
+        std::memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            f(IsReference::dereference(data)[i0]);
+        }
+    }
+    template<class F> void foreach(const F& f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            f(IsReference::dereference(data)[i0]);
+        }
     }
 };
 
@@ -111,25 +143,53 @@ template <class T,
           class IsReferenceType=ReferenceType<ArrayBaseType2d<T,s0,s1> > > struct Slice2d {
     typedef typename ArrayBaseType2d<T,s0,s1>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
+    typename IsReference::ArrayType data;
     
+    enum Sizes{
+        size0 = s0,
+        size1 = s1
+    };
+    static const uint32_t* size() {
+        static const uint32_t retval[] = {s0,s1};
+        return retval;
+    }
+    static const uint32_t dimension() {
+        return 2;
+    }
     T& at(uint32_t i0,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
-        return IsReference::dereference(ptr)[i0][i1];
+        return IsReference::dereference(data)[i0][i1];
     }
     const T& at(uint32_t i0,
                          uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
-        return IsReference::dereference(ptr)[i0][i1];
+        return IsReference::dereference(data)[i0][i1];
     }
     Slice1d<T, s1> at(uint32_t i0) {
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
     const Slice1d<T, s1> at(uint32_t i0) const {
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
+    }
+    void memset(uint8_t val) {
+        memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                f(IsReference::dereference(data)[i0][i1]);
+            }
+        }
+    }
+    template<class F> void foreach(const F& f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                f(IsReference::dereference(data)[i0][i1]);
+            }
+        }
     }
 };
 
@@ -138,15 +198,27 @@ template <class T,
           class IsReferenceType=ReferenceType<ArrayBaseType3d<T,s0,s1,s2> > > struct Slice3d {
     typedef typename ArrayBaseType3d<T,s0,s1,s2>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
+    typename IsReference::ArrayType data;
     
+    enum Sizes{
+        size0 = s0,
+        size1 = s1,
+        size2 = s2
+    };
+    static const uint32_t* size() {
+        static const uint32_t retval[] = {s0,s1,s2};
+        return retval;
+    }
+    static const uint32_t dimension() {
+        return 3;
+    }
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return IsReference::dereference(ptr)[i0][i1][i2];
+        return IsReference::dereference(data)[i0][i1][i2];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
@@ -154,30 +226,53 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return IsReference::dereference(ptr)[i0][i1][i2];
+        return IsReference::dereference(data)[i0][i1][i2];
     }
     Slice1d<T, s2> at(uint32_t i0,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(ptr)[i0][i1]};
+        return {&IsReference::dereference(data)[i0][i1]};
     }
     const Slice1d<T, s2> at(uint32_t i0,
                    uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(ptr)[i0][i1]};
+        return {&IsReference::dereference(data)[i0][i1]};
     }
     Slice2d<T, s1, s2> at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
     const Slice2d<T, s1, s2> at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
-
+    void memset(uint8_t val) {
+        memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    f(IsReference::dereference(data)[i0][i1][i2]);
+                }
+            }
+        }
+    }
+    template<class F> void foreach(const F& f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    f(IsReference::dereference(data)[i0][i1][i2]);
+                }
+            }
+        }
+    }
 };
+
+template <class T,uint32_t s0>
+struct Array1d : Slice1d<T, s0, DirectType<ArrayBaseType1d<T, s0> > > {};
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
@@ -185,8 +280,21 @@ template <class T,
           class IsReferenceType=ReferenceType<ArrayBaseType4d<T,s0,s1,s2,s3> > > struct Slice4d {
     typedef typename ArrayBaseType4d<T,s0,s1,s2,s3>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
+    typename IsReference::ArrayType data;
+    enum Sizes{
+        size0 = s0,
+        size1 = s1,
+        size2 = s2,
+        size3 = s3
+    };
     
+    static const uint32_t* size() {
+        static const uint32_t retval[] = {s0,s1,s2,s3};
+        return retval;
+    }
+    static const uint32_t dimension() {
+        return 4;
+    }
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -195,7 +303,7 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3];
+        return IsReference::dereference(data)[i0][i1][i2][i3];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
@@ -205,7 +313,7 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3];
+        return IsReference::dereference(data)[i0][i1][i2][i3];
     }
     Slice1d<T, s3> at(uint32_t i0,
                    uint32_t i1,
@@ -213,7 +321,7 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(ptr)[i0][i1][i2]};
+        return {&IsReference::dereference(data)[i0][i1][i2]};
     }
     const Slice1d<T, s3> at(uint32_t i0,
                    uint32_t i1,
@@ -221,30 +329,59 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(ptr)[i0][i1][i2]};
+        return {&IsReference::dereference(data)[i0][i1][i2]};
     }
     Slice2d<T, s2, s3> at(uint32_t i0,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(ptr)[i0][i1]};
+        return {&IsReference::dereference(data)[i0][i1]};
     }
     const Slice2d<T, s2, s3> at(uint32_t i0,
                    uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(ptr)[i0][i1]};
+        return {&IsReference::dereference(data)[i0][i1]};
     }
 
     Slice3d<T, s1, s2, s3> at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
     const Slice3d<T, s1, s2, s3> at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
+    }
+    void memset(uint8_t val) {
+        memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        f(IsReference::dereference(data)[i0][i1][i2][i3]);
+                    }
+                }
+            }
+        }
+    }
+    template<class F> void foreach(const F& f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        f(IsReference::dereference(data)[i0][i1][i2][i3]);
+                    }
+                }
+            }
+        }
     }
 };
+
+template <class T,
+uint32_t s0, uint32_t s1>
+struct Array2d : Slice2d<T, s0, s1, DirectType<ArrayBaseType2d<T, s0, s1> > > {};
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
@@ -252,8 +389,22 @@ template <class T,
           class IsReferenceType=ReferenceType<ArrayBaseType5d<T,s0,s1,s2,s3,s4> > > struct Slice5d {
     typedef typename ArrayBaseType5d<T,s0,s1,s2,s3,s4>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
+    typename IsReference::ArrayType data;
     
+    enum Sizes{
+        size0 = s0,
+        size1 = s1,
+        size2 = s2,
+        size3 = s3,
+        size4 = s4
+    };
+    static const uint32_t* size() {
+        static const uint32_t retval[] = {s0,s1,s2,s3,s4};
+        return retval;
+    }
+    static const uint32_t dimension() {
+        return 5;
+    }
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -264,7 +415,7 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3][i4];
+        return IsReference::dereference(data)[i0][i1][i2][i3][i4];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
@@ -276,7 +427,7 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3][i4];
+        return IsReference::dereference(data)[i0][i1][i2][i3][i4];
     }
     Slice1d<T, s4> at(uint32_t i0,
                    uint32_t i1,
@@ -286,7 +437,7 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
     const Slice1d<T, s4> at(uint32_t i0,
                    uint32_t i1,
@@ -296,7 +447,7 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
     Slice2d<T, s3, s4> at(uint32_t i0,
                    uint32_t i1,
@@ -304,7 +455,7 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(ptr)[i0][i1][i2]};
+        return {&IsReference::dereference(data)[i0][i1][i2]};
     }
     const Slice2d<T, s3, s4> at(uint32_t i0,
                    uint32_t i1,
@@ -312,16 +463,45 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(ptr)[i0][i1][i2]};
+        return {&IsReference::dereference(data)[i0][i1][i2]};
     }
 
     Slice4d<T, s1, s2, s3, s4> at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
     const Slice4d<T, s1, s2, s3, s4> at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
+    }
+    void memset(uint8_t val) {
+        memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        for (uint32_t i4 = 0; i4 < s4; ++i4) {
+                            f(IsReference::dereference(data)[i0][i1][i2][i3][i4]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    template<class F> void foreach(const F& f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        for (uint32_t i4 = 0; i4 < s4; ++i4) {
+                            f(IsReference::dereference(data)[i0][i1][i2][i3][i4]);
+                        }
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -331,8 +511,23 @@ template <class T,
           class IsReferenceType=ReferenceType<ArrayBaseType6d<T,s0,s1,s2,s3,s4,s5> > > struct Slice6d {
     typedef typename ArrayBaseType6d<T,s0,s1,s2,s3,s4,s5>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
+    typename IsReference::ArrayType data;
     
+    enum Sizes{
+        size0 = s0,
+        size1 = s1,
+        size2 = s2,
+        size3 = s3,
+        size4 = s4,
+        size5 = s5,
+    };
+    static const uint32_t* size() {
+        static const uint32_t retval[] = {s0,s1,s2,s3,s4,s5};
+        return retval;
+    }
+    static const uint32_t dimension() {
+        return 6;
+    }
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -345,7 +540,7 @@ template <class T,
         assert(i3 < s3);
         assert(i4 < s4);
         assert(i5 < s5);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3][i4][i5];
+        return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
@@ -359,7 +554,7 @@ template <class T,
         assert(i3 < s3);
         assert(i4 < s4);
         assert(i5 < s5);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3][i4][i5];
+        return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5];
     }
     Slice1d<T, s5> at(uint32_t i0,
                    uint32_t i1,
@@ -371,7 +566,7 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3][i4]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
     const Slice1d<T, s5> at(uint32_t i0,
                    uint32_t i1,
@@ -383,7 +578,7 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3][i4]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
     Slice2d<T, s4, s5> at(uint32_t i0,
                    uint32_t i1,
@@ -393,7 +588,7 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
     const Slice2d<T, s4, s5> at(uint32_t i0,
                    uint32_t i1,
@@ -403,16 +598,49 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
 
     Slice5d<T, s1, s2, s3, s4, s5> at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
     const Slice5d<T, s1, s2, s3, s4, s5> at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
+    }
+    void memset(uint8_t val) {
+        memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        for (uint32_t i4 = 0; i4 < s4; ++i4) {
+                            for (uint32_t i5 = 0; i5 < s5; ++i5) {
+                                f(IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    template<class F> void foreach(const F& f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        for (uint32_t i4 = 0; i4 < s4; ++i4) {
+                            for (uint32_t i5 = 0; i5 < s5; ++i5) {
+                                f(IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -423,8 +651,23 @@ template <class T,
           uint32_t s6, class IsReferenceType=ReferenceType<ArrayBaseType7d<T,s0,s1,s2,s3,s4,s5,s6> > > struct Slice7d {
     typedef typename ArrayBaseType7d<T,s0,s1,s2,s3,s4,s5,s6>::Array Array;
     typedef IsReferenceType IsReference;
-    typename IsReference::ArrayType ptr;
-    
+    typename IsReference::ArrayType data;
+    enum Sizes{
+        size0 = s0,
+        size1 = s1,
+        size2 = s2,
+        size3 = s3,
+        size4 = s4,
+        size5 = s5,
+        size6 = s6,
+    };
+    static const uint32_t* size() {
+        static const uint32_t retval[] = {s0,s1,s2,s3,s4,s5,s6};
+        return retval;
+    }
+    static const uint32_t dimension() {
+        return 7;
+    }
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -439,7 +682,7 @@ template <class T,
         assert(i4 < s4);
         assert(i5 < s5);
         assert(i6 < s6);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3][i4][i5][i6];
+        return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
@@ -455,7 +698,7 @@ template <class T,
         assert(i4 < s4);
         assert(i5 < s5);
         assert(i6 < s6);
-        return IsReference::dereference(ptr)[i0][i1][i2][i3][i4][i5][i6];
+        return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6];
     }
     Slice1d<T, s6> at(uint32_t i0,
                    uint32_t i1,
@@ -469,7 +712,7 @@ template <class T,
         assert(i3 < s3);
         assert(i4 < s4);
         assert(i5 < s5);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3][i4][i5]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
     }
     const Slice1d<T, s6> at(uint32_t i0,
                    uint32_t i1,
@@ -483,7 +726,7 @@ template <class T,
         assert(i3 < s3);
         assert(i4 < s4);
         assert(i5 < s5);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3][i4][i5]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
     }
     Slice2d<T, s5, s6> at(uint32_t i0,
                    uint32_t i1,
@@ -495,7 +738,7 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3][i4]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
     const Slice2d<T, s5, s6> at(uint32_t i0,
                    uint32_t i1,
@@ -507,26 +750,57 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(ptr)[i0][i1][i2][i3][i4]};
+        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
 
 
     Slice6d<T, s1, s2, s3, s4, s5, s6> at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
     }
     const Slice6d<T, s1, s2, s3, s4, s5, s6> at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(ptr)[i0]};
+        return {&IsReference::dereference(data)[i0]};
+    }
+    void memset(uint8_t val) {
+        std::memset(data, val, sizeof(Array));
+    }
+    template<class F> void foreach(const F& f){
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        for (uint32_t i4 = 0; i4 < s4; ++i4) {
+                            for (uint32_t i5 = 0; i5 < s5; ++i5) {
+                                for (uint32_t i6 = 0; i6 < s6; ++i6) {
+                                    f(IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    template<class F> void foreach(const F &f) const{
+        for (uint32_t i0 = 0; i0 < s0; ++i0) {
+            for (uint32_t i1 = 0; i1 < s1; ++i1) {
+                for (uint32_t i2 = 0; i2 < s2; ++i2) {
+                    for (uint32_t i3 = 0; i3 < s3; ++i3) {
+                        for (uint32_t i4 = 0; i4 < s4; ++i4) {
+                            for (uint32_t i5 = 0; i5 < s5; ++i5) {
+                                for (uint32_t i6 = 0; i6 < s6; ++i6) {
+                                    f(IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 };
 
-template <class T,uint32_t s0>
-struct Array1d : Slice1d<T, s0, DirectType<ArrayBaseType1d<T, s0> > > {};
-
-template <class T,
-uint32_t s0, uint32_t s1>
-struct Array2d : Slice2d<T, s0, s1, DirectType<ArrayBaseType2d<T, s0, s1> > > {};
 
 template <class T,
 uint32_t s0, uint32_t s1, uint32_t s2>
@@ -565,7 +839,7 @@ template<class Slice> struct AlignedArrayNd : public Slice {
         *this = other;
     }
     AlignedArrayNd& operator=(const AlignedArrayNd& other) {
-        memcpy(this->ptr, other.ptr, sizeof(typename Slice::Array));
+        memcpy(this->data, other.data, sizeof(typename Slice::Array));
         return *this;
     }
 private:
@@ -573,9 +847,9 @@ private:
         uint8_t* begin = NULL;
         size_t offset = ((backingStore - begin) & 15);
         if (offset == 0) {
-            this->ptr = (typename Slice::Array*)backingStore;
+            this->data = (typename Slice::Array*)backingStore;
         } else {
-            this->ptr = (typename Slice::Array*)(backingStore + 16 - offset);
+            this->data = (typename Slice::Array*)(backingStore + 16 - offset);
         }
 
     }
