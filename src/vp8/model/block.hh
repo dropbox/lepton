@@ -144,9 +144,10 @@ public:
 
 
 inline BlockColorContext get_color_context_blocks(const BlockColorContextIndices & indices, const std::vector<Plane<Block>>&jpeg) {
-    BlockColorContext retval = {};
-    for (int i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {
-        for (int j = 0; j < sizeof(indices.luminanceIndex[0])/sizeof(indices.luminanceIndex[0][0]); ++j) {
+    BlockColorContext retval;
+    memset(&retval, 0, sizeof(retval));
+    for (size_t i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {
+        for (size_t j = 0; j < sizeof(indices.luminanceIndex[0])/sizeof(indices.luminanceIndex[0][0]); ++j) {
             if (indices.luminanceIndex[i][j].initialized()) {
                 retval.luminance[i][j] = &jpeg[0].at(indices.luminanceIndex[i][j].get().second,indices.luminanceIndex[i][j].get().first);
             }

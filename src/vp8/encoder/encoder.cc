@@ -42,7 +42,7 @@ typedef PerBitEncoderState<PerBitContext2u> PerBitEncoderState2u;
 typedef PerBitEncoderState<PerBitContext4s> PerBitEncoderState4s;
 typedef PerBitEncoderState<ExponentContext> PerBitEncoderStateExp;
 void Block::serialize_tokens( BoolEncoder & encoder,
-                              ProbabilityTables & probability_tables, const BlockColorContext& color_context ) const
+                              ProbabilityTables & probability_tables, const BlockColorContext&) const
 {
 
     auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);

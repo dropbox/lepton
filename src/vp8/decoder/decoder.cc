@@ -149,7 +149,7 @@ uint8_t prefix_unremap(uint8_t v) {
 }
 
 void Block::parse_tokens( BoolDecoder & data,
-                          ProbabilityTables & probability_tables, const BlockColorContext& context )
+                          ProbabilityTables & probability_tables, const BlockColorContext&)
 {
 
     auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);
