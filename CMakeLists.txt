@@ -88,4 +88,6 @@ add_executable(print-model
   )
 add_executable(test_invariants
    src/lepton/test_invariants.cc
+   src/io/Compression.cc
  )
+target_link_libraries(test_invariants ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
