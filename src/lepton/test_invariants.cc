@@ -10,7 +10,7 @@ struct Data {
     unsigned short falseCount;
 };
 void podtest(int hellote,...) {
-
+    (void)hellote;
 }
 
 class LazyReaderWrapper : public Sirikata::DecoderReader{
@@ -66,7 +66,6 @@ void setupTestData(std::vector<uint8_t> *testData, size_t num_items) {
 }
 void EofHelper(bool useLazyWrapper) {
     std::vector<uint8_t> testData[4];
-    uint32_t progress[sizeof(testData) / sizeof(testData[0])] = {0};
     const uint32_t a0 = 2, a1 = 257, b0 = 2, b1 = 4097,
         c0 = 256, c1 = 16385, d0 = 2, d1 = 32768, e0 = 256, e1 = 65537, f1 = 65536;
     const uint32_t maxtesty = a1 + b1 + c1 + d1 + e1 + f1;
@@ -169,12 +168,11 @@ void RoundtripHelper(bool useLazyWrapper) {
         for(size_t j = 0; j < sizeof(testData) / sizeof(testData[0]); ++j) {
             if (progress[j] < testData[j].size()) {
                 if (rand() < RAND_MAX / invProb[j]) {
-                    size_t bytesLeft = testData[j].size() - progress[j];
                     size_t desiredWrite = 1;
-                    if (j >= 0 && rand() < rand()/3) {
+                    if (rand() < rand()/3) {
                         desiredWrite = rand()%5;
                     }
-                    if (j >= 0 && rand() < rand()/8) {
+                    if (rand() < rand()/8) {
                         desiredWrite = rand()%256;
                     }
                     
@@ -212,12 +210,11 @@ void RoundtripHelper(bool useLazyWrapper) {
         for(size_t j = 0; j < sizeof(testData) / sizeof(testData[0]); ++j) {
             if (progress[j] < testData[j].size()) {
                 if (rand() < RAND_MAX / invProb[j]) {
-                    size_t bytesLeft = testData[j].size() - progress[j];
                     size_t desiredRead = 1;
-                    if (j >= 0 && rand() < rand()/3) {
+                    if (rand() < rand()/3) {
                         desiredRead = rand()%5;
                     }
-                    if (j >= 0 && rand() < rand()/8) {
+                    if (rand() < rand()/8) {
                         desiredRead = rand()%256;
                     }
                     
@@ -237,7 +234,7 @@ void RoundtripHelper(bool useLazyWrapper) {
                     std::pair<uint32_t,JpegError> ret = reader.Read(j,
                                                                     &roundTrip[j][progress[j]],
                                                                     amountToRead);
-                    for (uint32_t r = 0; r < ret.second; ++r) {
+                    for (uint32_t r = 0; r < ret.first; ++r) {
                         assert(roundTrip[j][progress[j] + r]
                                == testData[j][progress[j] + r]);
                     }

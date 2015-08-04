@@ -100,10 +100,10 @@ template <class T,
     enum Sizes{
         size0 = s0
     };
-    static const uint32_t size() {
+    static uint32_t size() {
         return s0;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 1;
     }
     
@@ -153,7 +153,7 @@ template <class T,
         static const uint32_t retval[] = {s0,s1};
         return retval;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 2;
     }
     T& at(uint32_t i0,
@@ -209,7 +209,7 @@ template <class T,
         static const uint32_t retval[] = {s0,s1,s2};
         return retval;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 3;
     }
     T& at(uint32_t i0,
@@ -292,7 +292,7 @@ template <class T,
         static const uint32_t retval[] = {s0,s1,s2,s3};
         return retval;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 4;
     }
     T& at(uint32_t i0,
@@ -402,7 +402,7 @@ template <class T,
         static const uint32_t retval[] = {s0,s1,s2,s3,s4};
         return retval;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 5;
     }
     T& at(uint32_t i0,
@@ -525,7 +525,7 @@ template <class T,
         static const uint32_t retval[] = {s0,s1,s2,s3,s4,s5};
         return retval;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 6;
     }
     T& at(uint32_t i0,
@@ -665,7 +665,7 @@ template <class T,
         static const uint32_t retval[] = {s0,s1,s2,s3,s4,s5,s6};
         return retval;
     }
-    static const uint32_t dimension() {
+    static uint32_t dimension() {
         return 7;
     }
     T& at(uint32_t i0,

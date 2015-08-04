@@ -311,7 +311,7 @@ public:
         }
         return retval.second;
     }
-    JpegError flush(uint8_t stream_id, uint32_t highWaterMark) {
+    JpegError flush(uint8_t stream_id) {
         JpegError retval = JpegError::nil();
         for (uint8_t i= 0; i < MAX_STREAM_ID; ++i) {
             uint32_t toBeFlushed = mBuffer[i].size() - mOffset[i];
@@ -350,7 +350,7 @@ public:
         bufferSize += size;
         uint32_t hwm = highWaterMark(mFlushed[stream_id]);
         if (bufferSize >= mOffset[stream_id] + hwm) {
-            retval.second = flush(stream_id, hwm);
+            retval.second = flush(stream_id);
         }
         return retval;
     }
