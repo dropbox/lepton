@@ -13,6 +13,7 @@
 #include "mmap.hh"
 
 #include "../io/SwitchableCompression.hh"
+#include "../vp8/decoder/decoder.hh"
 using namespace std;
 
 void VP8ComponentDecoder::initialize( Sirikata::
@@ -32,7 +33,6 @@ void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const
     VP8ComponentDecoder scd;
     scd.initialize(str_in);
     while(scd.decode_chunk(colldata) == CODING_PARTIAL) {
-        
     }
 }
 
@@ -51,7 +51,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     }
 
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
-    if ( vp8_blocks_.empty() ) {
+    if ( context_[0].context.isNil() ) {
         /* first call */
         str_in->EnableCompression();
 
@@ -65,9 +65,15 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         str_in->DisableCompression();
 
         /* populate the VP8 blocks */
-        vp8_blocks_.emplace_back( colldata->block_width( 0 ), colldata->block_height( 0 ), Y );
-        vp8_blocks_.emplace_back( colldata->block_width( 1 ), colldata->block_height( 1 ), Cb );
-        vp8_blocks_.emplace_back( colldata->block_width( 2 ), colldata->block_height( 2 ), Cr );
+        for (size_t i = 0; i < sizeof(context_)/sizeof(context_[0]); ++i) {
+             // FIXME: we may be able to truncate here if we are faced with a truncated image
+            vp8_blocks_.at(i).init(colldata->block_width( i ), colldata->block_height( i ),
+                                colldata->block_width( i ) * colldata->block_height( i ) );
+        }
+        for (size_t i = 0; i < sizeof(context_)/sizeof(context_[0]); ++i) {
+            context_.at(i).context = vp8_blocks_.at(i).begin();
+            context_.at(i).y = 0;
+        }
 
         /* read length */
         uint32_t length_big_endian;
@@ -86,26 +92,31 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
 
         /* initialize the bool decoder */
         bool_decoder_.initialize( Slice( file_.data(), file_.size() ) );
-        memset(jpeg_y_, 0, sizeof(jpeg_y_));
+
     }
-        
     /* deserialize each block in planar order */
     int component = 0;
-    while(colldata->get_next_component(jpeg_y_, &component)) {
-        int curr_y = jpeg_y_[component];
+
+    while(colldata->get_next_component(context_, &component)) {
+        int curr_y = context_.at(component).y;
         int block_width = colldata->block_width( component );
         for ( int jpeg_x = 0; jpeg_x < block_width; jpeg_x++ ) {
-            auto & block = vp8_blocks_.at( component ).at( jpeg_x, curr_y );
+            BlockContext context = context_.at(component).context;
             probability_tables_.set_quantization_table( colldata->get_quantization_tables(component));
-            block.parse_tokens( bool_decoder_.get(), probability_tables_, get_color_context_blocks(colldata->get_color_context(jpeg_x, jpeg_y_, component), vp8_blocks_));
+            parse_tokens(context,
+                         get_color_context_blocks(colldata->get_color_context(jpeg_x, context_, component), vp8_blocks_),
+                         bool_decoder_.get(),
+                         probability_tables_);
+            AlignedBlock &block = context.here();
             for ( int coeff = 0; coeff < 64; coeff++ ) {
                 colldata->set( component, coeff, curr_y * block_width + jpeg_x )
-                    = block.coefficients().at( jpeg_zigzag.at( coeff ) );
+                    = block.coefficients().raster( jpeg_zigzag.at( coeff ) );
             }
+            context_.at(component).context = vp8_blocks_.at(component).next(context_.at(component).context);
         }
         colldata->worker_update_cmp_progress( component,
                                               block_width );
-        ++jpeg_y_[component];
+        ++context_.at(component).y;
         return CODING_PARTIAL;
     }
 

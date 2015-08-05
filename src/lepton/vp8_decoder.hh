@@ -4,20 +4,20 @@
 
 #include "option.hh"
 #include "model.hh"
-#include "plane.hh"
-#include "block.hh"
+#include "aligned_block.hh"
 #include "bool_decoder.hh"
 
 class VP8ComponentDecoder : public BaseDecoder {
+
+    Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes > context_;
+    Sirikata::Array1d<BlockBasedImage, (size_t)ColorChannel::NumBlockTypes> vp8_blocks_;
     Sirikata::SwitchableDecompressionReader<Sirikata::
                                             SwitchableXZBase> *str_in {};
 
     ProbabilityTables probability_tables_;
     Optional<BoolDecoder> bool_decoder_;
-    std::vector<Plane<Block>> vp8_blocks_;
     std::vector<uint8_t> file_;
-    int jpeg_y_[4];
-    
+
 public:
     VP8ComponentDecoder();
     void initialize(Sirikata::

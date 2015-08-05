@@ -1,11 +1,12 @@
 #ifndef _COLOR_CONTEXT_HH_
 #define _COLOR_CONTEXT_HH_
 #include "../util/option.hh"
-class Block;
+class AlignedBlock;
 
 struct BlockColorContext {
-    const Block *luminance[2][2];
-    const Block *chroma;
+    uint8_t color; // 0 for Y 1 for Cb and 2 for Cr
+    const AlignedBlock *luminance[2][2];
+    const AlignedBlock *chroma;
 };
 
 struct BlockColorContextIndices {

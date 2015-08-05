@@ -33,13 +33,16 @@
 #ifndef _SIRIKATA_ARRAY_ND_HPP_
 #define _SIRIKATA_ARRAY_ND_HPP_
 #if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #else
+#include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#define constexpr
 #endif
 
 
@@ -93,20 +96,20 @@ template<class T, uint32_t s0, uint32_t s1, uint32_t s2,
 };
 
 template <class T,
-          uint32_t s0, class IsReferenceType=ReferenceType<ArrayBaseType1d<T,s0> > > struct Slice1d {
+          uint32_t s0, class IsReferenceType=DirectType<ArrayBaseType1d<T,s0> > > struct Array1d {
     typedef typename ArrayBaseType1d<T,s0>::Array Array;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
+    typedef Array1d<T, s0, ReferenceType<ArrayBaseType1d<T, s0> > > Slice;
     enum Sizes{
         size0 = s0
     };
-    static uint32_t size() {
+    static constexpr uint32_t size() {
         return s0;
     }
-    static uint32_t dimension() {
+    static constexpr uint32_t dimension() {
         return 1;
     }
-    
     T& at(uint32_t i0) {
         assert(i0 < s0);
         return IsReference::dereference(data)[i0];
@@ -140,21 +143,28 @@ template <class T,
 
 template <class T,
           uint32_t s0, uint32_t s1,
-          class IsReferenceType=ReferenceType<ArrayBaseType2d<T,s0,s1> > > struct Slice2d {
+          class IsReferenceType=DirectType<ArrayBaseType2d<T,s0,s1> > > struct Array2d {
     typedef typename ArrayBaseType2d<T,s0,s1>::Array Array;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
-    
+    typedef Array2d<T, s0, s1, ReferenceType<ArrayBaseType2d<T, s0, s1> > > Slice;
     enum Sizes{
         size0 = s0,
         size1 = s1
     };
-    static const uint32_t* size() {
-        static const uint32_t retval[] = {s0,s1};
-        return retval;
+    static constexpr Array1d<uint32_t, 2> size() {
+        return {{s0, s1}};
     }
     static uint32_t dimension() {
         return 2;
+    }
+    const T& raster(uint32_t offset) const {
+        assert(offset < s0 * s1);
+        return reinterpret_cast<const T*>(&data)[offset];
+    }
+    T& raster(uint32_t offset) {
+        assert(offset < s0 * s1);
+        return reinterpret_cast<T*>(&data)[offset];
     }
     T& at(uint32_t i0,
                    uint32_t i1) {
@@ -168,10 +178,10 @@ template <class T,
         assert(i1 < s1);
         return IsReference::dereference(data)[i0][i1];
     }
-    Slice1d<T, s1> at(uint32_t i0) {
+    typename Array1d<T, s1>::Slice at(uint32_t i0) {
         return {&IsReference::dereference(data)[i0]};
     }
-    const Slice1d<T, s1> at(uint32_t i0) const {
+    const typename Array1d<T, s1>::Slice at(uint32_t i0) const {
         return {&IsReference::dereference(data)[i0]};
     }
     void memset(uint8_t val) {
@@ -195,19 +205,19 @@ template <class T,
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
-          class IsReferenceType=ReferenceType<ArrayBaseType3d<T,s0,s1,s2> > > struct Slice3d {
+          class IsReferenceType=DirectType<ArrayBaseType3d<T,s0,s1,s2> > > struct Array3d {
     typedef typename ArrayBaseType3d<T,s0,s1,s2>::Array Array;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
-    
+    typedef Array3d<T, s0, s1, s2, ReferenceType<ArrayBaseType3d<T, s0, s1, s2> > > Slice;
+
     enum Sizes{
         size0 = s0,
         size1 = s1,
         size2 = s2
     };
-    static const uint32_t* size() {
-        static const uint32_t retval[] = {s0,s1,s2};
-        return retval;
+    static constexpr Array1d<uint32_t, 3> size() {
+        return {{s0,s1,s2}};
     }
     static uint32_t dimension() {
         return 3;
@@ -228,23 +238,23 @@ template <class T,
         assert(i2 < s2);
         return IsReference::dereference(data)[i0][i1][i2];
     }
-    Slice1d<T, s2> at(uint32_t i0,
+    typename Array1d<T, s2>::Slice at(uint32_t i0,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
         return {&IsReference::dereference(data)[i0][i1]};
     }
-    const Slice1d<T, s2> at(uint32_t i0,
+    const typename Array1d<T, s2>::Slice at(uint32_t i0,
                    uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
         return {&IsReference::dereference(data)[i0][i1]};
     }
-    Slice2d<T, s1, s2> at(uint32_t i0) {
+    typename Array2d<T, s1, s2>::Slice at(uint32_t i0) {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
-    const Slice2d<T, s1, s2> at(uint32_t i0) const {
+    const typename Array2d<T, s1, s2>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
@@ -271,14 +281,15 @@ template <class T,
     }
 };
 
-template <class T,uint32_t s0>
-struct Array1d : Slice1d<T, s0, DirectType<ArrayBaseType1d<T, s0> > > {};
+
+
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3,
-          class IsReferenceType=ReferenceType<ArrayBaseType4d<T,s0,s1,s2,s3> > > struct Slice4d {
+          class IsReferenceType=DirectType<ArrayBaseType4d<T,s0,s1,s2,s3> > > struct Array4d {
     typedef typename ArrayBaseType4d<T,s0,s1,s2,s3>::Array Array;
+    typedef Array4d<T, s0, s1, s2, s3, ReferenceType<ArrayBaseType4d<T, s0, s1, s2, s3> > > Slice;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
     enum Sizes{
@@ -287,10 +298,9 @@ template <class T,
         size2 = s2,
         size3 = s3
     };
-    
-    static const uint32_t* size() {
-        static const uint32_t retval[] = {s0,s1,s2,s3};
-        return retval;
+
+    static constexpr Array1d<uint32_t, 4> size() {
+        return {{s0,s1,s2,s3}};
     }
     static uint32_t dimension() {
         return 4;
@@ -315,7 +325,7 @@ template <class T,
         assert(i3 < s3);
         return IsReference::dereference(data)[i0][i1][i2][i3];
     }
-    Slice1d<T, s3> at(uint32_t i0,
+    typename Array1d<T, s3>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
         assert(i0 < s0);
@@ -323,7 +333,7 @@ template <class T,
         assert(i2 < s2);
         return {&IsReference::dereference(data)[i0][i1][i2]};
     }
-    const Slice1d<T, s3> at(uint32_t i0,
+    const typename Array1d<T, s3>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) const {
         assert(i0 < s0);
@@ -331,24 +341,24 @@ template <class T,
         assert(i2 < s2);
         return {&IsReference::dereference(data)[i0][i1][i2]};
     }
-    Slice2d<T, s2, s3> at(uint32_t i0,
+    typename Array2d<T, s2, s3>::Slice at(uint32_t i0,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
         return {&IsReference::dereference(data)[i0][i1]};
     }
-    const Slice2d<T, s2, s3> at(uint32_t i0,
+    const typename Array2d<T, s2, s3>::Slice at(uint32_t i0,
                    uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
         return {&IsReference::dereference(data)[i0][i1]};
     }
 
-    Slice3d<T, s1, s2, s3> at(uint32_t i0) {
+    typename Array3d<T, s1, s2, s3>::Slice at(uint32_t i0) {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
-    const Slice3d<T, s1, s2, s3> at(uint32_t i0) const {
+    const typename Array3d<T, s1, s2, s3>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
@@ -379,18 +389,19 @@ template <class T,
     }
 };
 
-template <class T,
-uint32_t s0, uint32_t s1>
-struct Array2d : Slice2d<T, s0, s1, DirectType<ArrayBaseType2d<T, s0, s1> > > {};
+
+
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3, uint32_t s4,
-          class IsReferenceType=ReferenceType<ArrayBaseType5d<T,s0,s1,s2,s3,s4> > > struct Slice5d {
+          class IsReferenceType=DirectType<ArrayBaseType5d<T,s0,s1,s2,s3,s4> > > struct Array5d {
     typedef typename ArrayBaseType5d<T,s0,s1,s2,s3,s4>::Array Array;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
-    
+
+
+    typedef Array5d<T, s0, s1, s2, s3, s4, ReferenceType<ArrayBaseType5d<T, s0, s1, s2, s3, s4> > > Slice;
     enum Sizes{
         size0 = s0,
         size1 = s1,
@@ -398,9 +409,8 @@ template <class T,
         size3 = s3,
         size4 = s4
     };
-    static const uint32_t* size() {
-        static const uint32_t retval[] = {s0,s1,s2,s3,s4};
-        return retval;
+    static constexpr Array1d<uint32_t, 5> size() {
+        return {{s0,s1,s2,s3,s4}};
     }
     static uint32_t dimension() {
         return 5;
@@ -429,7 +439,7 @@ template <class T,
         assert(i4 < s4);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4];
     }
-    Slice1d<T, s4> at(uint32_t i0,
+    typename Array1d<T, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) {
@@ -439,7 +449,7 @@ template <class T,
         assert(i3 < s3);
         return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
-    const Slice1d<T, s4> at(uint32_t i0,
+    const typename Array1d<T, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) const {
@@ -449,7 +459,7 @@ template <class T,
         assert(i3 < s3);
         return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
-    Slice2d<T, s3, s4> at(uint32_t i0,
+    typename Array2d<T, s3, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
         assert(i0 < s0);
@@ -457,7 +467,7 @@ template <class T,
         assert(i2 < s2);
         return {&IsReference::dereference(data)[i0][i1][i2]};
     }
-    const Slice2d<T, s3, s4> at(uint32_t i0,
+    const typename Array2d<T, s3, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) const {
         assert(i0 < s0);
@@ -466,11 +476,11 @@ template <class T,
         return {&IsReference::dereference(data)[i0][i1][i2]};
     }
 
-    Slice4d<T, s1, s2, s3, s4> at(uint32_t i0) {
+    typename Array4d<T, s1, s2, s3, s4>::Slice at(uint32_t i0) {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
-    const Slice4d<T, s1, s2, s3, s4> at(uint32_t i0) const {
+    const typename Array4d<T, s1, s2, s3, s4>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
@@ -505,14 +515,17 @@ template <class T,
     }
 };
 
+
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3, uint32_t s4, uint32_t s5,
-          class IsReferenceType=ReferenceType<ArrayBaseType6d<T,s0,s1,s2,s3,s4,s5> > > struct Slice6d {
+          class IsReferenceType=DirectType<ArrayBaseType6d<T,s0,s1,s2,s3,s4,s5> > > struct Array6d {
     typedef typename ArrayBaseType6d<T,s0,s1,s2,s3,s4,s5>::Array Array;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
-    
+    typedef Array6d<T, s0, s1, s2, s3, s4, s5,
+                    ReferenceType<ArrayBaseType6d<T, s0, s1, s2, s3, s4, s5> > > Slice;
+
     enum Sizes{
         size0 = s0,
         size1 = s1,
@@ -521,10 +534,10 @@ template <class T,
         size4 = s4,
         size5 = s5,
     };
-    static const uint32_t* size() {
-        static const uint32_t retval[] = {s0,s1,s2,s3,s4,s5};
-        return retval;
+    static constexpr Array1d<uint32_t, 6> size() {
+        return {{s0,s1,s2,s3,s4,s5}};
     }
+
     static uint32_t dimension() {
         return 6;
     }
@@ -556,7 +569,7 @@ template <class T,
         assert(i5 < s5);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5];
     }
-    Slice1d<T, s5> at(uint32_t i0,
+    typename Array1d<T, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3,
@@ -568,7 +581,7 @@ template <class T,
         assert(i4 < s4);
         return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
-    const Slice1d<T, s5> at(uint32_t i0,
+    const typename Array1d<T, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3,
@@ -580,7 +593,7 @@ template <class T,
         assert(i4 < s4);
         return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
-    Slice2d<T, s4, s5> at(uint32_t i0,
+    typename Array2d<T, s4, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) {
@@ -590,7 +603,7 @@ template <class T,
         assert(i3 < s3);
         return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
-    const Slice2d<T, s4, s5> at(uint32_t i0,
+    const typename Array2d<T, s4, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) const {
@@ -601,11 +614,11 @@ template <class T,
         return {&IsReference::dereference(data)[i0][i1][i2][i3]};
     }
 
-    Slice5d<T, s1, s2, s3, s4, s5> at(uint32_t i0) {
+    typename Array5d<T, s1, s2, s3, s4, s5>::Slice at(uint32_t i0) {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
-    const Slice5d<T, s1, s2, s3, s4, s5> at(uint32_t i0) const {
+    const typename Array5d<T, s1, s2, s3, s4, s5>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
@@ -644,14 +657,16 @@ template <class T,
     }
 };
 
-
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3, uint32_t s4, uint32_t s5,
-          uint32_t s6, class IsReferenceType=ReferenceType<ArrayBaseType7d<T,s0,s1,s2,s3,s4,s5,s6> > > struct Slice7d {
+          uint32_t s6, class IsReferenceType=DirectType<ArrayBaseType7d<T,s0,s1,s2,s3,s4,s5,s6> > > struct Array7d {
     typedef typename ArrayBaseType7d<T,s0,s1,s2,s3,s4,s5,s6>::Array Array;
     typedef IsReferenceType IsReference;
     typename IsReference::ArrayType data;
+    typedef Array7d<T, s0, s1, s2, s3, s4, s5, s6,
+        ReferenceType<ArrayBaseType7d<T, s0, s1, s2,
+                                      s3, s4, s5, s6> > > Slice;
     enum Sizes{
         size0 = s0,
         size1 = s1,
@@ -661,9 +676,8 @@ template <class T,
         size5 = s5,
         size6 = s6,
     };
-    static const uint32_t* size() {
-        static const uint32_t retval[] = {s0,s1,s2,s3,s4,s5,s6};
-        return retval;
+    static constexpr Array1d<uint32_t, 7> size() {
+        return {{s0,s1,s2,s3,s4,s5,s6}};
     }
     static uint32_t dimension() {
         return 7;
@@ -700,7 +714,7 @@ template <class T,
         assert(i6 < s6);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6];
     }
-    Slice1d<T, s6> at(uint32_t i0,
+    typename Array1d<T, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3,
@@ -714,7 +728,7 @@ template <class T,
         assert(i5 < s5);
         return {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
     }
-    const Slice1d<T, s6> at(uint32_t i0,
+    const typename Array1d<T, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3,
@@ -728,7 +742,7 @@ template <class T,
         assert(i5 < s5);
         return {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
     }
-    Slice2d<T, s5, s6> at(uint32_t i0,
+    typename Array2d<T, s5, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3,
@@ -740,7 +754,7 @@ template <class T,
         assert(i4 < s4);
         return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
     }
-    const Slice2d<T, s5, s6> at(uint32_t i0,
+    const typename Array2d<T, s5, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3,
@@ -754,11 +768,11 @@ template <class T,
     }
 
 
-    Slice6d<T, s1, s2, s3, s4, s5, s6> at(uint32_t i0) {
+    typename Array6d<T, s1, s2, s3, s4, s5, s6>::Slice at(uint32_t i0) {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
-    const Slice6d<T, s1, s2, s3, s4, s5, s6> at(uint32_t i0) const {
+    const typename Array6d<T, s1, s2, s3, s4, s5, s6>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
         return {&IsReference::dereference(data)[i0]};
     }
@@ -802,32 +816,6 @@ template <class T,
 };
 
 
-template <class T,
-uint32_t s0, uint32_t s1, uint32_t s2>
-struct Array3d : Slice3d<T, s0, s1, s2, DirectType<ArrayBaseType3d<T, s0, s1, s2> > > {};
-
-template <class T, uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3>
-struct Array4d : Slice4d<T, s0, s1, s2, s3, DirectType<ArrayBaseType4d<T, s0, s1, s2, s3> > > {};
-
-template <class T, uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4>
-struct Array5d : Slice5d<T, s0, s1, s2, s3, s4, DirectType<ArrayBaseType5d<T, s0, s1, s2, s3, s4> > > {};
-
-template <class T,
-          uint32_t s0, uint32_t s1, uint32_t s2,
-          uint32_t s3, uint32_t s4, uint32_t s5>
-struct Array6d : Slice6d<T, s0, s1, s2, s3, s4, s5,
-                         DirectType<ArrayBaseType6d<T, s0, s1, s2, s3, s4, s5> > > {};
-
-template <class T,
-          uint32_t s0, uint32_t s1, uint32_t s2,
-          uint32_t s3, uint32_t s4, uint32_t s5,
-          uint32_t s6>
-struct Array7d : Slice7d<T, s0, s1, s2, s3, s4, s5, s6,
-                         DirectType<ArrayBaseType7d<T, s0, s1, s2,
-                                                    s3, s4, s5, s6> > > {
-};
-
-
 template<class Slice> struct AlignedArrayNd : public Slice {
     uint8_t backingStore[sizeof(typename Slice::Array) + 15];
     AlignedArrayNd() {
@@ -858,39 +846,39 @@ private:
 
 template <class T,
           uint32_t s0>
-struct AlignedArray1d : AlignedArrayNd<Slice1d<T, s0> > {};
+struct AlignedArray1d : AlignedArrayNd<typename Array1d<T, s0>::Slice > {};
 
 template <class T,
           uint32_t s0, uint32_t s1>
-struct AlignedArray2d : AlignedArrayNd<Slice2d<T, s0, s1> > {};
+struct AlignedArray2d : AlignedArrayNd<typename Array2d<T, s0, s1>::Slice > {};
 
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2>
-struct AlignedArray3d : AlignedArrayNd<Slice3d<T, s0, s1, s2> > {};
+struct AlignedArray3d : AlignedArrayNd<typename Array3d<T, s0, s1, s2>::Slice > {};
 
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3>
-struct AlignedArray4d : AlignedArrayNd<Slice4d<T, s0, s1, s2, s3> > {};
+struct AlignedArray4d : AlignedArrayNd<typename Array4d<T, s0, s1, s2, s3>::Slice > {};
 
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3, uint32_t s4>
-struct AlignedArray5d : AlignedArrayNd<Slice5d<T, s0, s1, s2, s3, s4> > {};
+struct AlignedArray5d : AlignedArrayNd<typename Array5d<T, s0, s1, s2, s3, s4>::Slice > {};
 
 
 template <class T,
           uint32_t s0, uint32_t s1, uint32_t s2,
           uint32_t s3, uint32_t s4, uint32_t s5>
-struct AlignedArray6d : AlignedArrayNd<Slice6d<T, s0, s1, s2, s3, s4, s5> > {};
+struct AlignedArray6d : AlignedArrayNd<typename Array6d<T, s0, s1, s2, s3, s4, s5>::Slice > {};
 
 template <class T,
 uint32_t s0, uint32_t s1, uint32_t s2,
 uint32_t s3, uint32_t s4, uint32_t s5,
-uint32_t s6> struct AlignedArray7d : AlignedArrayNd<Slice7d<T, s0, s1, s2, s3, s4, s5, s6> > {};
+          uint32_t s6> struct AlignedArray7d : AlignedArrayNd<typename Array7d<T, s0, s1, s2, s3, s4, s5, s6>::Slice > {};
 }
 
 

@@ -37,7 +37,7 @@ template <class ParentContext> struct PerBitDecoderState : public ParentContext{
     }
 };
 
-
+/*
 PerBitContext2u::PerBitContext2u(NestedProbabilityArray  *prob,
                                  Optional<uint16_t> left_coded_length,
                                  Optional<uint16_t> above_coded_length)
@@ -101,6 +101,7 @@ template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
     }
     return value;
 }
+ */
 
 /* The unfolded token decoder is not pretty, but it is considerably faster
    than using a tree decoder */
@@ -148,11 +149,11 @@ uint8_t prefix_unremap(uint8_t v) {
     return v - 3;
 }
 
-void Block::parse_tokens( BoolDecoder & data,
-                          ProbabilityTables & probability_tables, const BlockColorContext&)
-{
-
-    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(type_, *this);
+void parse_tokens( BlockContext context,
+                   BlockColorContext color,
+                   BoolDecoder & data,
+                   ProbabilityTables & probability_tables) {
+    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(color.color, context);
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
@@ -164,7 +165,7 @@ void Block::parse_tokens( BoolDecoder & data,
     { // dc
         unsigned int coord = 0;
         uint8_t length = 0;
-        auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_7x7, *this);
+        auto & exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_7x7, context);
         unsigned int decoded_so_far = 0;
         for (int i = 3; i >= 0; --i) {
             int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
@@ -176,18 +177,18 @@ void Block::parse_tokens( BoolDecoder & data,
         length = prefix_unremap(length);
         int16_t coef = (1 << (length - 1));
         if (length > 1){
-            auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_7x7);
+            auto &res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_7x7);
             for (int i = length - 2; i >= 0; --i) {
                 coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+            auto &sign_prob = probability_tables.sign_array(color.color, coord, context);
             if (!data.get(sign_prob)) {
                 coef = -coef;
             }
         }
-        coefficients_.at( coord ) = coef;
+        context.here().coef.raster( coord ) = coef;
     }
 
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
@@ -197,7 +198,7 @@ void Block::parse_tokens( BoolDecoder & data,
         unsigned int b_y = coord / 8;
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             uint8_t length = 0;
-            auto & exp_prob = probability_tables.exponent_array_7x7(type_, coord, num_nonzeros_left_7x7, *this);
+            auto & exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_left_7x7, context);
             unsigned int decoded_so_far = 0;
             for (int i = 3; i >= 0; --i) {
                 int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
@@ -209,13 +210,13 @@ void Block::parse_tokens( BoolDecoder & data,
             length = prefix_unremap(length);
             int16_t coef = (1 << (length - 1));
             if (length > 1){
-                auto &res_prob = probability_tables.residual_noise_array_7x7(type_, coord, num_nonzeros_left_7x7);
+                auto &res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_left_7x7);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+                auto &sign_prob = probability_tables.sign_array(color.color, coord, context);
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
@@ -223,7 +224,7 @@ void Block::parse_tokens( BoolDecoder & data,
                     --num_nonzeros_left_7x7;
                 }
             }
-            coefficients_.at( coord ) = coef;
+            context.here().mutable_coefficients().raster( coord ) = coef;
             if (num_nonzeros_left_7x7 == 0) {
                 break; // done with the 49x49
             }
@@ -235,16 +236,16 @@ void Block::parse_tokens( BoolDecoder & data,
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord / 8;
         if ((b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
-            if (coefficients_.at( coord )){
+            if (context.here().coefficients().raster( coord )){
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
             }
         }
     }
-    auto &prob_x = probability_tables.nonzero_counts_1x8(type_,
+    auto &prob_x = probability_tables.nonzero_counts_1x8(color.color,
                                                       eob_x,
                                                          num_nonzeros_7x7, true);
-    auto &prob_y = probability_tables.nonzero_counts_1x8(type_,
+    auto &prob_y = probability_tables.nonzero_counts_1x8(color.color,
                                                       eob_y,
                                                          num_nonzeros_7x7, false);
     uint8_t num_nonzeros_x = 0;
@@ -277,7 +278,7 @@ void Block::parse_tokens( BoolDecoder & data,
             num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            auto &exp_array = probability_tables.exponent_array_x(type_, coord, num_nonzeros_edge, *this);
+            auto &exp_array = probability_tables.exponent_array_x(color.color, coord, num_nonzeros_edge, context);
 
             uint8_t length = 0;
             unsigned int decoded_so_far = 0;            
@@ -303,8 +304,8 @@ void Block::parse_tokens( BoolDecoder & data,
                 }
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
-                    auto &thresh_prob = probability_tables.residual_thresh_array(type_, coord, length,
-                                                                                 *this, min_threshold, max_val);
+                    auto &thresh_prob = probability_tables.residual_thresh_array(color.color, coord, length,
+                                                                                 context, min_threshold, max_val);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
@@ -317,12 +318,12 @@ void Block::parse_tokens( BoolDecoder & data,
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far / 2);
                 }
                 for (; i >= 0; --i) {
-                    auto &res_prob = probability_tables.residual_noise_array_x(type_, coord, num_nonzeros_edge);
+                    auto &res_prob = probability_tables.residual_noise_array_x(color.color, coord, num_nonzeros_edge);
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(type_, coord, *this);
+                auto &sign_prob = probability_tables.sign_array(color.color, coord, context);
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
@@ -333,9 +334,9 @@ void Block::parse_tokens( BoolDecoder & data,
                     --num_nonzeros_left_y;
                 }
             }
-            coefficients_.at( coord ) = coef;
+            context.here().mutable_coefficients().raster( coord ) = coef;
         }
     }
-    coefficients_.at( 0 ) = probability_tables.predict_or_unpredict_dc(*this, true);
-    recalculate_coded_length();
+    context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context, true);
+    context.here().recalculate_coded_length();
 }

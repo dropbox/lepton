@@ -18,6 +18,7 @@
 #include "slice.hh"
 #include "../io/SwitchableCompression.hh"
 #include "../vp8/model/model.hh"
+#include "../vp8/encoder/encoder.hh"
 
 using namespace std;
 void printContext(FILE * fp) {
@@ -78,13 +79,18 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         std::cerr << "JPEG/JFIF was not a three-component Y'CbCr image" << std::endl;
         return CODING_ERROR;
     }
-
+    using namespace Sirikata;
     /* construct 8x8 "VP8" blocks to hold 8x8 JPEG blocks */
-    vector<Plane<Block>> vp8_blocks;
-
-    vp8_blocks.emplace_back( colldata->block_width( 0 ), colldata->block_height( 0 ), Y );
-    vp8_blocks.emplace_back( colldata->block_width( 1 ), colldata->block_height( 1 ), Cb );
-    vp8_blocks.emplace_back( colldata->block_width( 2 ), colldata->block_height( 2 ), Cr );
+    Array1d<BlockBasedImage, (uint32_t)ColorChannel::NumBlockTypes>  vp8_blocks;
+    Array1d<VContext, (uint32_t)ColorChannel::NumBlockTypes> context;
+    for (size_t i = 0; i < vp8_blocks.size(); ++i) {
+        vp8_blocks.at(i).init( colldata->block_width( i ), colldata->block_height( i ),
+                               colldata->block_width( i ) * colldata->block_height( i ) );
+    }
+    for (size_t i = 0; i < context.size(); ++i) {
+        context[i].context = vp8_blocks[i].begin();
+        context[i].y = 0;
+    }
     str_out->EnableCompression();
 
     /* read in probability table coeff probs */
@@ -92,26 +98,35 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
 
     /* get ready to serialize the blocks */
     BoolEncoder bool_encoder;
-    int jpeg_y[4] = {0};
     int component = 0;
-    while(colldata->get_next_component(jpeg_y, &component)) {
-        int curr_y = jpeg_y[component];
+    while(colldata->get_next_component(context, &component)) {
+        int curr_y = context.at(component).y;
         int block_width = colldata->block_width( component );
         for ( int jpeg_x = 0; jpeg_x < block_width; jpeg_x++ ) {
-            auto & block = vp8_blocks.at( component ).at( jpeg_x, curr_y );
-
+            BlockContext block_context = context.at(component).context;
+            AlignedBlock &block = block_context.here();
             for ( int coeff = 0; coeff < 64; coeff++ ) {
-                block.mutable_coefficients().at( jpeg_zigzag.at( coeff ) )
+                block.mutable_coefficients().raster( jpeg_zigzag.at( coeff ) )
                     = colldata->at_nosync( component, coeff, curr_y * block_width + jpeg_x);
             }
-            gctx->cur_cmp = component;
+#ifndef ANNOTATION_ENABLED
+            gctx->cur_cmp = component; // for debug purposes only, not to be used in production
             gctx->cur_jpeg_x = jpeg_x;
             gctx->cur_jpeg_y = curr_y;
+#endif
             block.recalculate_coded_length();
             probability_tables.set_quantization_table( colldata->get_quantization_tables(component));
-            block.serialize_tokens( bool_encoder, probability_tables, get_color_context_blocks(colldata->get_color_context(jpeg_x, jpeg_y, component), vp8_blocks));
+            serialize_tokens(block_context,
+                             get_color_context_blocks(colldata->get_color_context(jpeg_x,
+                                                                                  context,
+                                                                                  component),
+                                                      vp8_blocks),
+                             bool_encoder,
+                             probability_tables);
+
+            context.at(component).context = vp8_blocks.at(component).next(block_context);
         }
-        ++jpeg_y[component];
+        ++context.at(component).y;
     }
 
     /* get coded output */
@@ -120,7 +135,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );
     str_out->DisableCompression();
-    
+
     /* write length */
     const uint32_t length_big_endian =
         htobe32( stream.size() );

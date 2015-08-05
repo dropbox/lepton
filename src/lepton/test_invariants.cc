@@ -254,7 +254,13 @@ void testRoundtrip() {
     RoundtripHelper(true);
     RoundtripHelper(false);
 }
+//constexpr Sirikata::AlignedArray1d<uint8_t, 16> karray
+constexpr Sirikata::Array1d<uint8_t, 16 > karray
+    = {{0,1,2,3,4,5,6,7,8,9,0xa, 0xb, 0xc, 0xd, 0xe, 0xf}};
 int main() {
+    for (size_t i = 0; i < karray.size(); ++i) {
+        assert(karray[i] == i);
+    }
     using namespace Sirikata;
     AlignedArray7d<unsigned char, 1,3,2,5,4,6,16> aligned7d;
     uint8_t* d =&aligned7d.at(0, 2, 1, 3, 2, 1, 0);
@@ -272,7 +278,7 @@ int main() {
     assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 5);
     a7.at(0, 2, 1, 3, 2, 1, 1) = 8;
     assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 8);
-    Slice1d<unsigned char, 16> s = a7.at(0, 2, 1, 3, 2, 1);
+    Array1d<unsigned char, 16>::Slice s = a7.at(0, 2, 1, 3, 2, 1);
     s.at(1) = 16;
     assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 16);
     s.at(0) = 6;
