@@ -29,7 +29,9 @@ void printContext(FILE * fp) {
                     for (int bx = 0; bx < 8; ++bx) {
                         for (int ctx = 0;ctx < NUMCONTEXT;++ctx) {
                             for (int dim = 0; dim < 3; ++dim) {
-                                int val = gctx->p[cm][y][x][by][bx][ctx][dim];
+                                int val = 0;
+#ifdef ANNOTATION_ENABLED
+                                val = gctx->p[cm][y][x][by][bx][ctx][dim];
                                 const char *nam = "UNKNOWN";
                                 switch (ctx) {
                                   case ZDSTSCAN:nam = "ZDSTSCAN";break;
@@ -52,6 +54,7 @@ void printContext(FILE * fp) {
                                     fprintf(fp, "col[%02d] y[%02d]x[%02d] by[%02d]x[%02d] [%s][%d] = %d\n",
                                             cm, y, x, by, bx, nam, dim, val);
                                 }
+#endif
                             }
                         }
                     }
@@ -109,7 +112,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                 block.mutable_coefficients().raster( jpeg_zigzag.at( coeff ) )
                     = colldata->at_nosync( component, coeff, curr_y * block_width + jpeg_x);
             }
-#ifndef ANNOTATION_ENABLED
+#ifdef ANNOTATION_ENABLED
             gctx->cur_cmp = component; // for debug purposes only, not to be used in production
             gctx->cur_jpeg_x = jpeg_x;
             gctx->cur_jpeg_y = curr_y;

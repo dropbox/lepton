@@ -1,7 +1,9 @@
+#include <assert.h>
 #include <fstream>
 #include <iostream>
 
 #include "model.hh"
+
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 void ProbabilityTables::serialize( std::ofstream & output ) const
 {
@@ -12,7 +14,6 @@ void ProbabilityTables::optimize()
 {
   model_->forall( [&] ( Branch & x ) { x.optimize(); } );
 }
-
 
 
 bool filter(const Branch& a,
