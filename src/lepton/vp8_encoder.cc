@@ -29,8 +29,8 @@ void printContext(FILE * fp) {
                     for (int bx = 0; bx < 8; ++bx) {
                         for (int ctx = 0;ctx < NUMCONTEXT;++ctx) {
                             for (int dim = 0; dim < 3; ++dim) {
-                                int val = 0;
 #ifdef ANNOTATION_ENABLED
+                                int val = 0;
                                 val = gctx->p[cm][y][x][by][bx][ctx][dim];
                                 const char *nam = "UNKNOWN";
                                 switch (ctx) {

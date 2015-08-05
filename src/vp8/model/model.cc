@@ -3,8 +3,9 @@
 #include <iostream>
 
 #include "model.hh"
-
+#ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
+#endif
 void ProbabilityTables::serialize( std::ofstream & output ) const
 {
   output.write( reinterpret_cast<char*>( model_.get() ), sizeof( *model_ ) );
