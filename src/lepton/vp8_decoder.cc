@@ -104,7 +104,8 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             BlockContext context = context_.at(component).context;
             probability_tables_.set_quantization_table( colldata->get_quantization_tables(component));
             parse_tokens(context,
-                         get_color_context_blocks(colldata->get_color_context(jpeg_x, context_, component), vp8_blocks_),
+                         get_color_context_blocks(colldata->get_color_context(jpeg_x, context_, component),
+                                                  vp8_blocks_, component),
                          bool_decoder_.get(),
                          probability_tables_);
             AlignedBlock &block = context.here();

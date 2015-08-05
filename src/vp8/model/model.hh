@@ -509,18 +509,19 @@ public:
         Optional<uint16_t> left;
         uint32_t total = 0;
         uint32_t weights = 0;
+        uint32_t coef_index = band;
         uint8_t zz = zigzag[band];
         if (context.has_above()) {
-            top = abs(context.above_unchecked().coefficients().raster(0));
+            top = abs(context.above_unchecked().coefficients().raster(coef_index));
             if (context.has_left()) {
-                topleft = abs(context.above_left_unchecked().coefficients().raster(0));
+                topleft = abs(context.above_left_unchecked().coefficients().raster(coef_index));
             }
         }
         //if (block.context().above_right.initialized()) {
         //topright = abs(block.context().above_right.get()->coefficients().at(coef_index));
         //}
         if (context.has_left()) {
-            left = abs(context.left_unchecked().coefficients().raster(0));
+            left = abs(context.left_unchecked().coefficients().raster(coef_index));
         }
         const auto &weight_array = component ? abs_ctx_weights_chr : abs_ctx_weights_lum;
 

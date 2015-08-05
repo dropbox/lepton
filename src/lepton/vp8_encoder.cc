@@ -123,7 +123,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                              get_color_context_blocks(colldata->get_color_context(jpeg_x,
                                                                                   context,
                                                                                   component),
-                                                      vp8_blocks),
+                                                      vp8_blocks,
+                                                      component),
                              bool_encoder,
                              probability_tables);
 
