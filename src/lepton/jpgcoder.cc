@@ -227,7 +227,9 @@ struct MergeJpegProgress {
     }
     ~MergeJpegProgress() {
         if (parent != NULL) {
+            MergeJpegProgress *origParent = parent->parent;
             memcpy(parent, this, sizeof(MergeJpegProgress));
+            parent->parent = origParent;
         }
     }
 private:
@@ -248,7 +250,6 @@ unsigned char  htset[2][4];					// 1 if huffman table is set
 unsigned char* grbgdata			= 	NULL;	// garbage data
 unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
-MergeJpegProgress streaming_progress;
 int            hufs             =    0  ;   // size of huffman data
 int            hdrs             =    0  ;   // size of header
 int            grbs             =    0  ;   // size of garbage
@@ -2128,7 +2129,8 @@ bool recode_jpeg( void )
 	// preset count of scans and restarts
 	scnc = 0;
 	rstc = 0;
-	
+    MergeJpegProgress streaming_progress;
+
 	// JPEG decompression loop
 	while ( true )
 	{
