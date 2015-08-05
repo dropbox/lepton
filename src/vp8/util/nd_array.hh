@@ -185,7 +185,7 @@ template <class T,
         return {&IsReference::dereference(data)[i0]};
     }
     void memset(uint8_t val) {
-        memset(data, val, sizeof(Array));
+        std::memset(data, val, sizeof(Array));
     }
     template<class F> void foreach(const F& f){
         for (uint32_t i0 = 0; i0 < s0; ++i0) {

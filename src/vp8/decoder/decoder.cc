@@ -188,7 +188,8 @@ void parse_tokens( BlockContext context,
                 coef = -coef;
             }
         }
-        context.here().coef.raster( coord ) = coef;
+        context.here().mutable_coefficients().memset(0);
+        context.here().mutable_coefficients().raster( coord ) = coef;
     }
 
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
