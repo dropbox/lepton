@@ -155,30 +155,7 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,
 				huffCodes *hc, huffTree *ht );
 
 
-/* -----------------------------------------------
-	function declarations: DCT
-	----------------------------------------------- */
 
-bool prepare_dct( int nx, int ny, float* icos_idct_fst, float* icos_fdct_fst );
-bool prepare_dct_base( int nx, int ny, float* dct_base );
-float idct_2d_fst_8x8( signed short* F, int ix, int iy );
-float fdct_2d_fst_8x8( unsigned char* f, int iu, int iv );
-float fdct_2d_fst_8x8( float* f, int iu, int iv );
-float idct_1d_fst_8( signed short* F, int ix );
-float fdct_1d_fst_8( unsigned char* f, int iu );
-float fdct_1d_fst_8( float* f, int iu );
-float idct_2d_fst_8x8( int cmp, int dpos, int ix, int iy );
-float idct_2d_fst_1x8( int cmp, int dpos, int ix, int iy );
-float idct_2d_fst_8x1( int cmp, int dpos, int ix, int iy );
-
-
-/* -----------------------------------------------
-	function declarations: miscelaneous helpers
-	----------------------------------------------- */
-
-char* create_filename( const char* base, const char* extension );
-void set_extension( char* destination, const char* origin, const char* extension );
-void add_underscore( char* filename );
 
 
 /* -----------------------------------------------
@@ -260,17 +237,6 @@ int            max_file_size    =    0  ;   // support for truncated jpegs 0 mea
 
 UncompressedComponents colldata; // baseline sorted DCT coefficients
 
-
-float icos_base_8x8[ 8 * 8 ];				// precalculated base dct elements (8x1)
-
-float icos_fdct_8x8[ 8 * 8 * 8 * 8 ];		// precalculated values for fdct (8x8)
-float icos_idct_8x8[ 8 * 8 * 8 * 8 ];		// precalculated values for idct (8x8)
-float icos_fdct_1x8[ 1 * 1 * 8 * 8 ];		// precalculated values for fdct (1x8)
-float icos_idct_1x8[ 1 * 1 * 8 * 8 ];		// precalculated values for idct (1x8)
-
-float adpt_idct_8x8[ 4 ][ 8 * 8 * 8 * 8 ];	// precalculated values for idct (8x8)
-float adpt_idct_1x8[ 4 ][ 1 * 1 * 8 * 8 ];	// precalculated values for idct (1x8)
-float adpt_idct_8x1[ 4 ][ 8 * 8 * 1 * 1 ];	// precalculated values for idct (8x1)
 
 
 /* -----------------------------------------------
@@ -367,7 +333,6 @@ std::atomic<int> errorlevel(0);
 
 int  verbosity  = 0;		// level of verbosity
 bool overwrite  = false;	// overwrite files yes / no
-int  verify_lv  = 0;		// verification level ( none (0), simple (1), detailed output (2) )
 int  err_tresh  = 1;		// error threshold ( proceed on warnings yes (2) / no (1) )
 bool disc_meta  = false;	// discard meta-info yes / no
 
@@ -503,22 +468,18 @@ int main( int argc, char** argv )
     }
 	// check if user input is wrong, show help screen if it is
 	if ( ( file_cnt == 0 ) ||
-		( ( !developer ) && ( (action != comp) || (verify_lv > 1) ) ) ) {
+		( ( !developer ) && ( (action != comp) ) ) ) {
 		show_help();
 		return -1;
 	}
 	
-	// init tables for dct
-	prepare_dct( 8, 8, icos_idct_8x8, icos_fdct_8x8 );
-	prepare_dct( 1, 8, icos_idct_1x8, icos_fdct_1x8 );
-	prepare_dct_base( 8, 8, icos_base_8x8 );
 	
 	// (re)set program has to be done first
 	reset_buffers();
 	
 	// process file(s) - this is the main function routine
 	begin = clock();
-    assert(file_cnt == 1);
+    assert(file_cnt <= 2);
     if (action == forkserve) {
         fork_serve();
     } else {
@@ -609,14 +570,8 @@ void initialize_options( int argc, char** argv )
 		else if ( strcmp((*argv), "-d" ) == 0 ) {
 			disc_meta = true;
 		}
-		else if ( strcmp((*argv), "-ver" ) == 0 ) {
-			verify_lv = ( verify_lv < 1 ) ? 1 : verify_lv;
-		}
 		else if ( strcmp((*argv), "-dev") == 0 ) {
 			developer = true;
-		}
-		else if ( strcmp((*argv), "-test") == 0 ) {
-			verify_lv = 2;
 		}
 	   	else if ( ( strcmp((*argv), "-ujg") == 0 ) ||
 				  ( strcmp((*argv), "-ujpg") == 0 )) {
@@ -722,23 +677,8 @@ void process_file(Sirikata::DecoderReader* reader)
 				execute( read_jpeg );
 				execute( decode_jpeg );
 				execute( check_value_range );
-				execute( adapt_icos );
 				execute( write_ujpg ); // replace with compression function!
 				timing_operation_complete( 'c' );
-				if ( verify_lv > 0 ) { // verifcation
-					execute( reset_buffers );
-					assert(false && "execute( swap_streams )");
-					timing_operation_start( 'd' );
-					execute( read_ujpg );
-					execute( adapt_icos );
-					execute( recode_jpeg );
-                    if (!do_streaming) {
-                        execute( merge_jpeg );
-                    }
-                    str_out->close();
-					timing_operation_complete( 'd' );
-					assert(false && "execute( compare_output )");
-				}
 				break;
 			
 				
@@ -764,25 +704,12 @@ void process_file(Sirikata::DecoderReader* reader)
 				overall_start = clock();
 				timing_operation_start( 'd' );
 				execute( read_ujpg ); // replace with decompression function!
-				execute( adapt_icos );
 				read_done = clock();
 				execute( recode_jpeg );
                 if (!do_streaming) {
                     execute( merge_jpeg );
                 }
 				timing_operation_complete( 'd' );
-				if ( verify_lv > 0 ) { // verify
-					execute( reset_buffers );
-					assert(false && "execute( swap_streams )");
-					timing_operation_start( 'c' );
-					execute( read_jpeg );
-					execute( decode_jpeg );
-					execute( check_value_range );
-					execute( adapt_icos );
-					execute( write_ujpg );
-					timing_operation_complete( 'c' );
-					assert(false && "execute( compare_output )");
-				}
                 str_out->close();
 				break;
 			
@@ -941,6 +868,24 @@ void show_help( void )
 /* ----------------------- Begin of main functions -------------------------- */
 
 
+std::string uniq_filename(std::string filename) {
+    FILE * fp = fopen(filename.c_str(), "rb");
+    while (fp != NULL) {
+        fclose(fp);
+        filename += "_";
+        fp = fopen(filename.c_str(), "rb");
+    }
+    return filename;
+}
+
+std::string postfix_uniq(const std::string &filename, const char * ext) {
+    std::string::size_type where =filename.find_last_of("./\\");
+    if (where == std::string::npos || filename[where] != '.') {
+        return uniq_filename(filename + ext);
+    }
+    return uniq_filename(filename.substr(0, where) + ext);
+}
+
 /* -----------------------------------------------
 	check file and determine filetype
 	----------------------------------------------- */
@@ -958,7 +903,11 @@ bool check_file(Sirikata::DecoderReader *reader)
     } else {
         pipe_on = true;
     }
-        
+    if (!reader) {
+        errormessage = "File not found";
+		errorlevel.store(2);
+		return false;
+    }
 	// open input stream, check for errors
 	str_in = new Sirikata::
         SwitchableDecompressionReader<Sirikata::SwitchableXZBase>(reader,
@@ -986,7 +935,7 @@ bool check_file(Sirikata::DecoderReader *reader)
             if (file_no < file_cnt && ofilename != ifilename) {
                 ofilename = filelist[file_no];
             } else {
-                ofilename = ifilename + (ofiletype == UJG ? ".ujg" : ".lep");
+                ofilename = postfix_uniq(ifilename, (ofiletype == UJG ? ".ujg" : ".lep"));
             }
 		}
 		// open output stream, check for errors
@@ -1009,7 +958,7 @@ bool check_file(Sirikata::DecoderReader *reader)
             if (file_no < file_cnt && ofilename != ifilename) {
                 ofilename = filelist[file_no];
             } else {
-                ofilename = ifilename + ".lep";
+                ofilename = postfix_uniq(ifilename, ".jpg");
             }
 		}
 		// open output stream, check for errors
@@ -2235,31 +2184,6 @@ bool recode_jpeg( void )
 }
 
 
-/* -----------------------------------------------
-	adapt ICOS tables for quantizer tables
-	----------------------------------------------- */
-	
-bool adapt_icos( void )
-{
-	int ipos;
-	int cmp;
-	
-	
-	for ( cmp = 0; cmp < cmpc; cmp++ ) {
-		// adapt idct 8x8 table
-		for ( ipos = 0; ipos < 64 * 64; ipos++ )
-			adpt_idct_8x8[ cmp ][ ipos ] = icos_idct_8x8[ ipos ] * QUANT( cmp, zigzag[ ipos % 64 ] );
-		// adapt idct 1x8 table
-		for ( ipos = 0; ipos < 8 * 8; ipos++ )
-			adpt_idct_1x8[ cmp ][ ipos ] = icos_idct_1x8[ ipos ] * QUANT( cmp, zigzag[ ( ipos % 8 ) * 8 ] );
-		// adapt idct 8x1 table
-		for ( ipos = 0; ipos < 8 * 8; ipos++ )
-			adpt_idct_8x1[ cmp ][ ipos ] = icos_idct_1x8[ ipos ] * QUANT( cmp, zigzag[ ipos % 8 ] );
-	}
-	
-	
-	return true;
-}
 
 
 /* -----------------------------------------------
@@ -3778,452 +3702,6 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,	huffCodes *hc, h
 }
 
 /* ----------------------- End of JPEG specific functions -------------------------- */
-
-/* ----------------------- Begin ofDCT specific functions -------------------------- */
-
-
-/* -----------------------------------------------
-	precalculate some values for FDCT/IDCT
-	----------------------------------------------- */
-bool prepare_dct( int nx, int ny, float* icos_idct_fst, float* icos_fdct_fst )
-{
-	float* icos_idct_nx;
-	float* icos_idct_ny;
-	float* icos_fdct_nx;
-	float* icos_fdct_ny;
-	
-	int iu, iv;
-	int iy, ix;
-	int sx, sy;
-	int su, sv;
-	int ti;
-	
-	// alloc memory for precalculated tables
-	icos_idct_nx = (float*) calloc( nx * nx, sizeof( float ) );
-	icos_idct_ny = (float*) calloc( ny * ny, sizeof( float ) );
-	icos_fdct_nx = (float*) calloc( nx * nx, sizeof( float ) );
-	icos_fdct_ny = (float*) calloc( ny * ny, sizeof( float ) );	
-	
-	// check for out of memory
-	if ( ( icos_idct_nx == NULL ) || ( icos_idct_ny == NULL ) ||
-		 ( icos_fdct_nx == NULL ) || ( icos_fdct_ny == NULL ) ) 
-	{
-		return false;
-	}
-	
-	// precalculate tables
-	// idct / nx table
-	for ( ix = 0; ix < nx; ix++ ) {
-		for ( iu = 0; iu < nx; iu++ ) {
-			icos_idct_nx [ iu + ( ix * nx ) ] = ( C_DCT ( iu ) * COS_DCT( ix, iu, nx ) ) / DCT_SCALE;
-		}
-	}
-	
-	// idct / ny table
-	for ( iy = 0; iy < ny; iy++ ) {
-		for ( iv = 0; iv < ny; iv++ ) {
-			icos_idct_ny [ iv + ( iy * ny ) ] = ( C_DCT ( iv ) * COS_DCT( iy, iv, ny ) ) / DCT_SCALE;
-		}
-	}
-	
-	// fdct / nx table
-	for ( iu = 0; iu < nx; iu++ ) {
-		for ( ix = 0; ix < nx; ix++ ) {
-			icos_fdct_nx [ ix + ( iu * nx ) ] = ( C_DCT ( iu ) * COS_DCT( ix, iu, nx ) * DCT_SCALE ) / nx;
-		}
-	}
-	
-	// fdct / ny table
-	for ( iv = 0; iv < ny; iv++ ) {
-		for ( iy = 0; iy < ny; iy++ ) {
-			icos_fdct_ny [ iy + ( iv * ny ) ] = ( C_DCT ( iv ) * COS_DCT( iy, iv, ny ) * DCT_SCALE ) / ny;
-		}
-	}
-	
-	// precalculation of fast DCT tables...	
-	// idct / fast table
-	ti = 0;
-	for ( iy = 0; iy < ny; iy++ ) {
-		for ( ix = 0; ix < nx; ix++ ) {
-			sx = ( ix * nx );
-			sy = ( iy * ny );
-			for ( iv = 0; iv < ny; iv++ ) {
-				for ( iu = 0; iu < nx; iu++ ) {
-					icos_idct_fst[ ti++ ] = icos_idct_nx[ sx + iu ] * icos_idct_ny[ sy + iv ]; 
-				}
-			}
-		}
-	}
-	
-	// fdct / fast table
-	ti = 0;
-	for ( iv = 0; iv < ny; iv++ ) {
-		for ( iu = 0; iu < nx; iu++ ) {
-			su = ( iu * nx );
-			sv = ( iv * ny );
-			for ( iy = 0; iy < ny; iy++ ) {
-				for ( ix = 0; ix < nx; ix++ ) {
-					icos_fdct_fst[ ti++ ] = icos_fdct_nx[ su + ix ] * icos_fdct_ny[ sv + iy ]; 
-				}
-			}
-		}
-	}
-	
-	//free helper tables
-	free( icos_idct_nx );
-	free( icos_idct_ny );
-	free( icos_fdct_nx );
-	free( icos_fdct_ny );
-	
-	
-	return true;
-}
-
-
-/* -----------------------------------------------
-	precalculate base elements of the DCT
-	----------------------------------------------- */
-bool prepare_dct_base( int nx, int ny, float* dct_base )
-{
-	int ix, iy;
-	int i = 0;
-	
-	for ( iy = 0; iy < ny; iy++ )
-		for ( ix = 0; ix < nx; ix++ )
-			dct_base[ i++ ] = ( C_DCT ( iy ) * COS_DCT( ix, iy, nx ) );
-		
-	return true;
-}
-
-
-/* -----------------------------------------------
-	inverse DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float idct_2d_fst_8x8( signed short* F, int ix, int iy )
-{
-	float idct;
-	int ixy;
-	int i;
-	
-	
-	// calculate start index
-	ixy = ( ( iy * 8 ) + ix ) * 64;
-	
-	// begin transform
-	idct = 0;
-	for ( i = 0; i < 64; i++ )
-		// idct += F[ i ] * icos_idct_fst[ ixy + i ];
-		idct += F[ i ] * icos_idct_8x8[ ixy++ ];
-	
-	
-	return idct;
-}
-
-
-/* -----------------------------------------------
-	forward DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float fdct_2d_fst_8x8( unsigned char* f, int iu, int iv )
-{
-	float fdct;
-	int iuv;
-	int i;
-	
-	
-	// calculate start index
-	iuv = ( ( iv * 8 ) + iu ) * 64;
-	
-	// begin transform
-	fdct = 0;
-	for ( i = 0; i < 64; i++ )
-		// fdct += f[ i ] * icos_fdct_fst[ iuv + i ];
-		fdct += f[ i ] * icos_fdct_8x8[ iuv++ ];
-	
-	
-	return fdct;
-}
-
-
-/* -----------------------------------------------
-	forward DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float fdct_2d_fst_8x8( float* f, int iu, int iv )
-{
-	float fdct;
-	int iuv;
-	int i;
-	
-	
-	// calculate start index
-	iuv = ( ( iv * 8 ) + iu ) * 64;
-	
-	// begin transform
-	fdct = 0;
-	for ( i = 0; i < 64; i++ )
-		// fdct += f[ i ] * icos_fdct_fst[ iuv + i ];
-		fdct += f[ i ] * icos_fdct_8x8[ iuv++ ];
-	
-	
-	return fdct;
-}
-
-
-/* -----------------------------------------------
-	inverse DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float idct_1d_fst_8( signed short* F, int ix )
-{
-	float idct;
-	int i;
-	
-	
-	// calculate start index
-	ix *= 8;
-	
-	// begin transform
-	idct = 0;
-	for ( i = 0; i < 8; i++ )
-		// idct += F[ i ] * icos_idct_fst[ ix + i ];
-		idct += F[ i ] * icos_idct_1x8[ ix++ ];
-	
-	
-	return idct;
-}
-
-
-/* -----------------------------------------------
-	forward DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float fdct_1d_fst_8( unsigned char* f, int iu )
-{
-	float fdct;
-	int i;
-	
-	
-	// calculate start index
-	iu *= 8;
-	
-	// begin transform
-	fdct = 0;
-	for ( i = 0; i < 8; i++ )
-		// fdct += f[ i ] * icos_fdct_fst[ iu + i ];
-		fdct += f[ i ] * icos_fdct_1x8[ iu++ ];
-	
-	
-	return fdct;
-}
-
-
-/* -----------------------------------------------
-	forward DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float fdct_1d_fst_8( float* f, int iu )
-{
-	float fdct;
-	int i;
-	
-	
-	// calculate start index
-	iu *= 8;
-	
-	// begin transform
-	fdct = 0;
-	for ( i = 0; i < 8; i++ )
-		// fdct += f[ i ] * icos_fdct_fst[ iu + i ];
-		fdct += f[ i ] * icos_fdct_1x8[ iu++ ];
-	
-	
-	return fdct;
-}
-
-
-/* -----------------------------------------------
-	inverse DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float idct_2d_fst_8x8( int cmp, int dpos, int ix, int iy )
-{
-	float idct = 0;
-	int ixy;
-	
-	
-	// calculate start index
-	ixy = ( ( iy * 8 ) + ix ) * 64;
-	
-	// begin transform
-	idct += colldata.at_nosync( cmp ,  0 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 0 ];
-	idct += colldata.at_nosync( cmp ,  1 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 1 ];
-	idct += colldata.at_nosync( cmp ,  5 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 2 ];
-	idct += colldata.at_nosync( cmp ,  6 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 3 ];
-	idct += colldata.at_nosync( cmp , 14 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 4 ];
-	idct += colldata.at_nosync( cmp , 15 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 5 ];
-	idct += colldata.at_nosync( cmp , 27 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 6 ];
-	idct += colldata.at_nosync( cmp , 28 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 7 ];
-	idct += colldata.at_nosync( cmp ,  2 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 8 ];
-	idct += colldata.at_nosync( cmp ,  4 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 9 ];
-	idct += colldata.at_nosync( cmp ,  7 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 10 ];
-	idct += colldata.at_nosync( cmp , 13 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 11 ];
-	idct += colldata.at_nosync( cmp , 16 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 12 ];
-	idct += colldata.at_nosync( cmp , 26 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 13 ];
-	idct += colldata.at_nosync( cmp , 29 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 14 ];
-	idct += colldata.at_nosync( cmp , 42 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 15 ];
-	idct += colldata.at_nosync( cmp ,  3 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 16 ];
-	idct += colldata.at_nosync( cmp ,  8 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 17 ];
-	idct += colldata.at_nosync( cmp , 12 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 18 ];
-	idct += colldata.at_nosync( cmp , 17 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 19 ];
-	idct += colldata.at_nosync( cmp , 25 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 20 ];
-	idct += colldata.at_nosync( cmp , 30 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 21 ];
-	idct += colldata.at_nosync( cmp , 41 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 22 ];
-	idct += colldata.at_nosync( cmp , 43 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 23 ];
-	idct += colldata.at_nosync( cmp ,  9 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 24 ];
-	idct += colldata.at_nosync( cmp , 11 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 25 ];
-	idct += colldata.at_nosync( cmp , 18 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 26 ];
-	idct += colldata.at_nosync( cmp , 24 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 27 ];
-	idct += colldata.at_nosync( cmp , 31 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 28 ];
-	idct += colldata.at_nosync( cmp , 40 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 29 ];
-	idct += colldata.at_nosync( cmp , 44 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 30 ];
-	idct += colldata.at_nosync( cmp , 53 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 31 ];
-	idct += colldata.at_nosync( cmp , 10 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 32 ];
-	idct += colldata.at_nosync( cmp , 19 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 33 ];
-	idct += colldata.at_nosync( cmp , 23 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 34 ];
-	idct += colldata.at_nosync( cmp , 32 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 35 ];
-	idct += colldata.at_nosync( cmp , 39 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 36 ];
-	idct += colldata.at_nosync( cmp , 45 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 37 ];
-	idct += colldata.at_nosync( cmp , 52 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 38 ];
-	idct += colldata.at_nosync( cmp , 54 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 39 ];
-	idct += colldata.at_nosync( cmp , 20 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 40 ];
-	idct += colldata.at_nosync( cmp , 22 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 41 ];
-	idct += colldata.at_nosync( cmp , 33 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 42 ];
-	idct += colldata.at_nosync( cmp , 38 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 43 ];
-	idct += colldata.at_nosync( cmp , 46 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 44 ];
-	idct += colldata.at_nosync( cmp , 51 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 45 ];
-	idct += colldata.at_nosync( cmp , 55 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 46 ];
-	idct += colldata.at_nosync( cmp , 60 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 47 ];
-	idct += colldata.at_nosync( cmp , 21 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 48 ];
-	idct += colldata.at_nosync( cmp , 34 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 49 ];
-	idct += colldata.at_nosync( cmp , 37 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 50 ];
-	idct += colldata.at_nosync( cmp , 47 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 51 ];
-	idct += colldata.at_nosync( cmp , 50 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 52 ];
-	idct += colldata.at_nosync( cmp , 56 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 53 ];
-	idct += colldata.at_nosync( cmp , 59 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 54 ];
-	idct += colldata.at_nosync( cmp , 61 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 55 ];
-	idct += colldata.at_nosync( cmp , 35 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 56 ];
-	idct += colldata.at_nosync( cmp , 36 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 57 ];
-	idct += colldata.at_nosync( cmp , 48 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 58 ];
-	idct += colldata.at_nosync( cmp , 49 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 59 ];
-	idct += colldata.at_nosync( cmp , 57 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 60 ];
-	idct += colldata.at_nosync( cmp , 58 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 61 ];
-	idct += colldata.at_nosync( cmp , 62 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 62 ];
-	idct += colldata.at_nosync( cmp , 63 , dpos ) * adpt_idct_8x8[ cmp ][ ixy + 63 ];
-	
-	
-	return idct;
-}
-
-
-/* -----------------------------------------------
-	inverse DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float idct_2d_fst_8x1( int cmp, int dpos,
-                       int ix,
-                       int iy __attribute((unused)) )
-{
-	float idct = 0;
-	int ixy;
-	
-	
-	// calculate start index
-	ixy = ix * 8;
-	
-	// begin transform
-	idct += colldata.at_nosync( cmp ,  0 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 0 ];
-	idct += colldata.at_nosync( cmp ,  1 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 1 ];
-	idct += colldata.at_nosync( cmp ,  5 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 2 ];
-	idct += colldata.at_nosync( cmp ,  6 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 3 ];
-	idct += colldata.at_nosync( cmp , 14 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 4 ];
-	idct += colldata.at_nosync( cmp , 15 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 5 ];
-	idct += colldata.at_nosync( cmp , 27 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 6 ];
-	idct += colldata.at_nosync( cmp , 28 , dpos ) * adpt_idct_8x1[ cmp ][ ixy + 7 ];
-	
-	
-	return idct;
-}
-
-
-/* -----------------------------------------------
-	inverse DCT transform using precalc tables (fast)
-	----------------------------------------------- */
-float idct_2d_fst_1x8( int cmp, int dpos,
-                       int ix __attribute((unused)),
-                       int iy )
-{
-	float idct = 0;
-	int ixy;
-	
-	
-	// calculate start index
-	ixy = iy * 8;
-	
-	// begin transform
-	idct += colldata.at_nosync( cmp ,  0 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 0 ];
-	idct += colldata.at_nosync( cmp ,  2 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 1 ];
-	idct += colldata.at_nosync( cmp ,  3 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 2 ];
-	idct += colldata.at_nosync( cmp ,  9 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 3 ];
-	idct += colldata.at_nosync( cmp , 10 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 4 ];
-	idct += colldata.at_nosync( cmp , 20 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 5 ];
-	idct += colldata.at_nosync( cmp , 21 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 6 ];
-	idct += colldata.at_nosync( cmp , 35 , dpos ) * adpt_idct_1x8[ cmp ][ ixy + 7 ];
-	
-	
-	return idct;
-}
-
-
-/* ----------------------- End of DCT specific functions -------------------------- */
-
-/* ----------------------- Begin of miscellaneous helper functions -------------------------- */
-
-
-/* -----------------------------------------------
-	creates filename, callocs memory for it
-	----------------------------------------------- */	
-char* create_filename( const char* base, const char* extension )
-{
-	int len = strlen(base);
-	int tol = 8;
-	char* filename = (char*) calloc( len + tol, sizeof( char ) );
-	
-	set_extension( filename, base, extension );
-	
-	return filename;
-}
-
-/* -----------------------------------------------
-	changes extension of filename
-	----------------------------------------------- */	
-void set_extension( char* destination, const char* origin, const char* extension )
-{
-	int i;
-	
-	int dotpos = 0;
-	int length = strlen( origin );
-
-	// find position of dot in filename
-	for ( i = 0; i < length; i++ ) {
-		if ( origin[i] == '.' ) {
-			dotpos = i;
-		}
-	}
-	
-	if ( !dotpos ){
-		dotpos = length;
-	}
-	
-	strncpy( destination, origin, dotpos );
-	destination[ dotpos ] = '.';
-	strcpy( destination + dotpos + 1, extension );
-}
-
-/* ----------------------- End of miscellaneous helper functions -------------------------- */
 
 /* ----------------------- Begin of developers functions -------------------------- */
 
