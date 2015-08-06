@@ -94,7 +94,7 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
 	----------------------------------------------- */
 
 void initialize_options( int argc, char** argv );
-void process_file( Sirikata::DecoderReader* reader = nullptr);
+void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writer);
 void execute( bool (*function)() );
 void show_help( void );
 
@@ -103,7 +103,7 @@ void show_help( void );
 	function declarations: main functions
 	----------------------------------------------- */
 	
-bool check_file( Sirikata::DecoderReader* );
+bool check_file( Sirikata::DecoderReader*, Sirikata::DecoderWriter* );
 bool read_jpeg( void );
 struct MergeJpegProgress;
 bool merge_jpeg_streaming( MergeJpegProgress * prog, int num_scans);
@@ -483,7 +483,7 @@ int main( int argc, char** argv )
     if (action == forkserve) {
         fork_serve();
     } else {
-        process_file();
+        process_file(nullptr, nullptr);
     }
     if (errorlevel.load() >= err_tresh) error_cnt++;
     if (errorlevel.load() == 1 ) warn_cnt++;
@@ -613,7 +613,7 @@ void initialize_options( int argc, char** argv )
 	processes one file
 	----------------------------------------------- */
 
-void process_file(Sirikata::DecoderReader* reader)
+void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writer)
 {
 	clock_t begin, end;
 	const char* actionmsg  = NULL;
@@ -640,7 +640,7 @@ void process_file(Sirikata::DecoderReader* reader)
                  file_no + 1, file_cnt, filelist[ file_no ] );
 	}
 	// check input file and determine filetype
-	check_file(reader);
+	check_file(reader, nullptr);
 	
 	// get specific action message
 	if ( filetype == UNK ) actionmsg = "unknown filetype";
@@ -890,7 +890,7 @@ std::string postfix_uniq(const std::string &filename, const char * ext) {
 	check file and determine filetype
 	----------------------------------------------- */
 	
-bool check_file(Sirikata::DecoderReader *reader)
+bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer)
 {	
 	unsigned char fileid[ 2 ] = { 0, 0 };
     int namelen = 128;
@@ -939,10 +939,12 @@ bool check_file(Sirikata::DecoderReader *reader)
             }
 		}
 		// open output stream, check for errors
+        ujg_base = nullptr;
+        if (!writer) {
+            writer = ujg_base = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
+        }
 		ujg_out = new Sirikata::SwitchableCompressionWriter<Sirikata::DecoderCompressionWriter>
-            ((ujg_base = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 )),
-             9,
-             Sirikata::JpegAllocator<uint8_t>());
+            (writer, 9, Sirikata::JpegAllocator<uint8_t>());
 		if ( !ujg_out ) {
 			fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
 			errorlevel.store(2);
@@ -962,7 +964,10 @@ bool check_file(Sirikata::DecoderReader *reader)
             }
 		}
 		// open output stream, check for errors
-		str_out = new bounded_iostream( IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 ),
+        if (!writer) {
+            writer = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
+        }
+		str_out = new bounded_iostream( writer,
                                         Sirikata::JpegAllocator<uint8_t>());
 		if ( str_out->chkerr() ) {
 			fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
@@ -2322,8 +2327,10 @@ bool write_ujpg( )
 		return false;
 	}
 	
-	// get filesize
-	ujgfilesize = ujg_base->getsize();
+	// get filesize, if avail
+    if (ujg_base) {
+        ujgfilesize = ujg_base->getsize();
+    }
 	
 	
 	return true;

@@ -2,7 +2,7 @@
 
 #include <atomic>
 #include "../io/Reader.hh"
-extern int cmpc;
+//extern int cmpc;
 extern std::atomic<int> errorlevel;
-extern char errormessage[128];
-void process_file(Sirikata::DecoderReader *reader = nullptr);
+extern std::string errormessage;
+void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writer);

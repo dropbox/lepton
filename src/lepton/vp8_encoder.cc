@@ -78,7 +78,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
 {
     /* cmpc is a global variable with the component count */
     /* verify JFIF is Y'CbCr only (no grayscale images allowed) */
-    if ( cmpc != 3 ) {
+    if ( colldata->get_num_components() != 3 ) {
         std::cerr << "JPEG/JFIF was not a three-component Y'CbCr image" << std::endl;
         return CODING_ERROR;
     }

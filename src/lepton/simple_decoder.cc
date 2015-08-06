@@ -77,7 +77,7 @@ CodingReturnValue SimpleComponentDecoder::decode_chunk(UncompressedComponents* c
         int cur_read_size = std::min((int)batch_size, target[cmp] - cur_read_batch[cmp]);
         size_t retval = IOUtil::ReadFull(str_in, start + cur_read_batch[cmp] * 64 , sizeof( short ) * 64 * cur_read_size);
         if (retval != sizeof( short) * 64 * cur_read_size) {
-            sprintf( errormessage, "Wnexpected end of file blocks %ld !=  %d", retval, cur_read_size);
+            errormessage = "Unexpected end of file blocks";
             errorlevel = 2;
             return CODING_ERROR;
         }

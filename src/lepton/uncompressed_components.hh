@@ -115,7 +115,7 @@ public:
         }
         return false;
     }
-    int get_num_components() {
+    int get_num_components() const{
         return cmpc_;
     }
     void copy_data_to_main_thread() {
