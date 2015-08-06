@@ -30,6 +30,8 @@ add_executable(lepton
    src/lepton/test_driver.cc
    src/lepton/component_info.hh
    src/lepton/htables.hh
+   src/lepton/fork_serve.cc
+   src/lepton/fork_serve.hh
    src/lepton/jpgcoder.cc
    src/lepton/uncompressed_components.cc
    src/lepton/jpgcoder.hh

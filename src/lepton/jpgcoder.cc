@@ -25,6 +25,7 @@
 #include "vp8_encoder.hh"
 #include "simple_decoder.hh"
 #include "simple_encoder.hh"
+#include "fork_serve.hh"
 #include "../io/SwitchableCompression.hh"
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -55,8 +56,7 @@ char const_STDIN[]= "STDIN";
 	struct & enum declarations
 	----------------------------------------------- */
 
-enum ACTION { 	comp  =  1, split =  2, coll  =  3,
-				info  =  4,	pgm   =  8	};
+enum ACTION { 	comp  =  1, forkserve = 2, info = 3 };
 				
 enum F_TYPE {   JPEG = 0, UJG = 1, LEPTON=2, UNK = 3		};
 
@@ -95,7 +95,7 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
 	----------------------------------------------- */
 
 void initialize_options( int argc, char** argv );
-void process_file( void );
+void process_file( Sirikata::DecoderReader* reader = nullptr);
 void execute( bool (*function)() );
 void get_status( bool (*function)() );
 void show_help( void );
@@ -105,7 +105,7 @@ void show_help( void );
 	function declarations: main functions
 	----------------------------------------------- */
 	
-bool check_file( void );
+bool check_file( Sirikata::DecoderReader* );
 bool read_jpeg( void );
 struct MergeJpegProgress;
 bool merge_jpeg_streaming( MergeJpegProgress * prog, int num_scans);
@@ -191,11 +191,8 @@ void add_underscore( char* filename );
 // in any way to compress jpg or decompress ujg
 bool write_hdr( void );
 bool write_huf( void );
-bool write_coll( void );
-bool write_file( const char* base, const char* ext, void* data, int bpv, int size );
 bool write_errfile( void );
 bool write_info( void );
-bool write_pgm( void );
 clock_t pre_byte = 0;
 clock_t post_byte = 0;
 clock_t read_done = 0;
@@ -388,7 +385,6 @@ bool disc_meta  = false;	// discard meta-info yes / no
 
 bool developer  = false;	// allow developers functions yes/no
 ACTION action   = comp;		// what to do with JPEG/UJG files
-int  collmode   = 0;		// write mode for collections: 0 -> std, 1 -> dhf, 2 -> squ, 3 -> unc
 
 FILE*  msgout   = stdout;	// stream for output of messages
 bool   pipe_on  = false;	// use stdin/stdout instead of filelist
@@ -400,11 +396,7 @@ bool   pipe_on  = false;	// use stdin/stdout instead of filelist
 
 const unsigned char ujgversion   = 129;
 static const char*  subversion   = "a";
-static const char*  appname      = "uncmpJPG";
-static const char*  versiondate  = "10/20/2011";
-static const char*  author       = "Daniel Reiter Horn, Keith Winstein and Ken Elkabany for Lepton and Matthias Stirner for uncmpJPG";
-static const char*  website      = "http://github.com/dropbox/lepton";
-static const char*  email        = "danielrh@users.sourceforge.net";
+static const char*  appname      = "lepton";
 static const char*  ujg_ext      = "ujg";
 static const char*  lepton_ext   = "lep";
 static const char*  jpg_ext      = "jpg";
@@ -422,6 +414,7 @@ struct timeval current_operation_begin = {0, 0};
 struct timeval current_operation_first_byte = {0, 0};
 struct timeval current_operation_end = {0, 0};
 #endif
+
 void timing_operation_start( char operation ) {
     current_operation = operation;
 #ifdef _WIN32
@@ -433,9 +426,10 @@ void timing_operation_start( char operation ) {
     memset(&current_operation_first_byte, 0, sizeof(current_operation_first_byte));
     memset(&current_operation_end, 0, sizeof(current_operation_end));
 #endif
-    fprintf(stderr,"START ACHIEVED %ld %ld",
+    fprintf(stderr,"START ACHIEVED %ld %ld\n",
             (long)current_operation_begin.tv_sec, (long)current_operation_begin.tv_usec );
 }
+
 void timing_operation_first_byte( char operation ) {
     assert(current_operation == operation);
 #ifdef _WIN32
@@ -446,13 +440,14 @@ void timing_operation_first_byte( char operation ) {
     if (current_operation_first_byte.tv_sec == 0 && 
         current_operation_first_byte.tv_usec == 0) {
         gettimeofday(&current_operation_first_byte, NULL);
-        fprintf(stderr,"FIRST BYTE ACHIEVED %ld %ld",
+        fprintf(stderr,"FIRST BYTE ACHIEVED %ld %ld\n",
                 (long)current_operation_first_byte.tv_sec,
                 (long)current_operation_first_byte.tv_usec );
     }
 
 #endif
 }
+
 void timing_operation_complete( char operation ) {
     assert(current_operation == operation);
 #ifdef _WIN32
@@ -489,6 +484,8 @@ void timing_operation_complete( char operation ) {
 #endif
 }
 
+
+
 /* -----------------------------------------------
 	main-function
 	----------------------------------------------- */
@@ -514,11 +511,11 @@ int main( int argc, char** argv )
 	
 	// read options from command line
 	initialize_options( argc, argv );
-	
-	// write program info to screen
-	fprintf( msgout,  "\n--> %s v%i.%i%s (%s) by %s <--\n\n",
-			appname, ujgversion / 10, ujgversion % 10, subversion, versiondate, author );
-	
+	if (action != forkserve) {
+        // write program info to screen
+        fprintf( msgout,  "%s v%i.%i%s\n",
+                 appname, ujgversion / 10, ujgversion % 10, subversion );
+    }
 	// check if user input is wrong, show help screen if it is
 	if ( ( file_cnt == 0 ) ||
 		( ( !developer ) && ( (action != comp) || (verify_lv > 1) ) ) ) {
@@ -536,17 +533,18 @@ int main( int argc, char** argv )
 	
 	// process file(s) - this is the main function routine
 	begin = clock();
-	for ( file_no = 0; file_no < file_cnt; file_no++ ) {		
-		process_file();
-		if ( errorlevel.load() >= err_tresh ) error_cnt++;
-		else {
-			if ( errorlevel.load() == 1 ) warn_cnt++;
-			if ( errorlevel.load() < err_tresh ) {
-				acc_jpgsize += jpgfilesize;
-				acc_ujgsize += ujgfilesize;
-			}
-		}
-	}
+    assert(file_cnt == 1);
+    if (action == forkserve) {
+        fork_serve();
+    } else {
+        process_file();
+    }
+    if (errorlevel.load() >= err_tresh) error_cnt++;
+    if (errorlevel.load() == 1 ) warn_cnt++;
+    if ( errorlevel.load() < err_tresh ) {
+        acc_jpgsize += jpgfilesize;
+        acc_ujgsize += ujgfilesize;
+    }
 	end = clock();
 		
 	// show statistics
@@ -604,7 +602,11 @@ void initialize_options( int argc, char** argv )
 		else if ( strcmp((*argv), "-o" ) == 0 ) {
 			overwrite = true;
 		}
-		else if ( strcmp((*argv), "-p" ) == 0 ) {
+        else if ( strcmp((*argv), "-decode" ) == 0 ) {
+            g_encoder.reset(new VP8ComponentEncoder);
+        } else if ( strcmp((*argv), "-recode" ) == 0 ) {
+            g_decoder.reset(new VP8ComponentDecoder);
+		} else if ( strcmp((*argv), "-p" ) == 0 ) {
 			err_tresh = 2;
 		}
 		else if ( strcmp((*argv), "-nostreaming" ) == 0)  {
@@ -621,7 +623,7 @@ void initialize_options( int argc, char** argv )
 		}
 		else if ( strcmp((*argv), "-d" ) == 0 ) {
 			disc_meta = true;
-		}		
+		}
 		else if ( strcmp((*argv), "-ver" ) == 0 ) {
 			verify_lv = ( verify_lv < 1 ) ? 1 : verify_lv;
 		}
@@ -631,21 +633,6 @@ void initialize_options( int argc, char** argv )
 		else if ( strcmp((*argv), "-test") == 0 ) {
 			verify_lv = 2;
 		}
-		else if ( sscanf( (*argv), "-coll%i", &tmp_val ) == 1 ) {
-			tmp_val = ( tmp_val < 0 ) ? 0 : tmp_val;
-			tmp_val = ( tmp_val > 3 ) ? 3 : tmp_val;
-			collmode = tmp_val;
-			action = coll;
-		}
-		else if ( strcmp((*argv), "-split") == 0 ) {
-			action = split;
-		}
-		else if ( strcmp((*argv), "-info") == 0 ) {
-			action = info;
-		}
-		else if ( strcmp((*argv), "-pgm") == 0 ) {
-			action = pgm;
-		}
 	   	else if ( ( strcmp((*argv), "-ujg") == 0 ) ||
 				  ( strcmp((*argv), "-ujpg") == 0 )) {
             fprintf(stderr, "FOUND UJG ARG: using that as output\n");
@@ -653,8 +640,16 @@ void initialize_options( int argc, char** argv )
             ofiletype = UJG;
         } else if ( ( strcmp((*argv), "-comp") == 0) ) {
 			action = comp;
+        } else if ( ( strcmp((*argv), "-info") == 0) ) {
+			action = info;
+		} else if ( strcmp((*argv), "-fork") == 0 ) {			
+            action = forkserve;
+            // sets it up in serving mode
+			msgout = stderr;
+			// use "-" as placeholder for the socket
+			*(tmp_flp++) = g_dash;
 		}
-		else if ( strcmp((*argv), "-") == 0 ) {			
+        else if ( strcmp((*argv), "-") == 0 ) {			
 			msgout = stderr;
 			// set binary mode for stdin & stdout
 			#ifdef _WIN32
@@ -684,7 +679,7 @@ void initialize_options( int argc, char** argv )
 	processes one file
 	----------------------------------------------- */
 
-void process_file( void )
+void process_file(Sirikata::DecoderReader* reader)
 {
 	clock_t begin, end;
 	const char* actionmsg  = NULL;
@@ -698,23 +693,21 @@ void process_file( void )
 	jpgfilesize = 0;
 	ujgfilesize = 0;	
 	
-	
-	// compare file name, set pipe if needed
-	if ( ( strcmp( filelist[ file_no ], "-" ) == 0 ) && ( action == comp ) ) {
-		pipe_on = true;
-		filelist[ file_no ] = const_STDIN;
-	}
-	else {		
-		pipe_on = false;
-	}
+    if (!reader) {
+        // compare file name, set pipe if needed
+        if ( ( strcmp( filelist[ file_no ], "-" ) == 0 ) && ( action == comp ) ) {
+            pipe_on = true;
+            filelist[ file_no ] = const_STDIN;
+        }
+        else {		
+            pipe_on = false;
+        }
 		
-	fprintf( msgout,  "\nProcessing file %i of %i \"%s\" -> ",
-				file_no + 1, file_cnt, filelist[ file_no ] );
-	if ( verbosity > 1 )
-		fprintf( msgout,  "\n----------------------------------------" );
-	
+        fprintf( msgout,  "\nProcessing file %i of %i \"%s\" -> ",
+                 file_no + 1, file_cnt, filelist[ file_no ] );
+	}
 	// check input file and determine filetype
-	execute( check_file );
+	check_file(reader);
 	
 	// get specific action message
 	if ( filetype == UNK ) actionmsg = "unknown filetype";
@@ -727,21 +720,6 @@ void process_file( void )
 				actionmsg = "Compressing";
 			break;
 			
-		case split:
-			actionmsg = "Splitting";
-			break;
-			
-		case coll:
-			actionmsg = "Extracting Colls";
-			break;
-			
-		case info:
-			actionmsg = "Extracting info";
-			break;
-		
-		case pgm:
-			actionmsg = "Converting";
-			break;
 	}
 	
 	if ( verbosity < 2 ) fprintf( msgout, "%s -> ", actionmsg );
@@ -753,11 +731,11 @@ void process_file( void )
 	if ( filetype == JPEG )
 	{
         if (ofiletype == LEPTON) {
-            g_encoder.reset(new VP8ComponentEncoder);
-            g_decoder.reset(new VP8ComponentDecoder);
+            if (!g_encoder) {
+                g_encoder.reset(new VP8ComponentEncoder);
+            }
         }else if (ofiletype == UJG) {
             g_encoder.reset(new SimpleComponentEncoder);
-            g_decoder.reset(new SimpleComponentDecoder);
         }
 		switch ( action )
 		{
@@ -785,38 +763,21 @@ void process_file( void )
 				}
 				break;
 			
-			case split:
-				execute( read_jpeg );
-				execute( write_hdr );
-				execute( write_huf );
-				break;
-				
-			case coll:
-				execute( read_jpeg );
-				execute( decode_jpeg );
-				execute( write_coll );
-				break;
 				
 			case info:
 				execute( read_jpeg );
 				execute( write_info );
 				break;
 			
-			case pgm:
-				execute( read_jpeg );
-				execute( decode_jpeg );
-				execute( adapt_icos );
-				execute( write_pgm );
-				break;
 		}
 	}
 	else if ( filetype == UJG || filetype == LEPTON)
 	{
         if (filetype == LEPTON) {
-            g_encoder.reset(new VP8ComponentEncoder);
-            g_decoder.reset(new VP8ComponentDecoder);
+            if (!g_decoder) {
+                g_decoder.reset(new VP8ComponentDecoder);
+            }
         }else if (filetype == UJG) {
-            g_encoder.reset(new SimpleComponentEncoder);
             g_decoder.reset(new SimpleComponentDecoder);
         }
 		switch ( action )
@@ -847,30 +808,9 @@ void process_file( void )
                 str_out->close();
 				break;
 			
-			case split:
-				execute( read_ujpg );
-				execute( adapt_icos );
-				execute( recode_jpeg );
-				execute( write_hdr );
-				execute( write_huf );
-				break;
-				
-			case coll:/*
-				execute( read_ujpg );
-				execute( adapt_icos );	
-				execute( write_coll );*/
-                assert(false && "fixme: make this sync with worker task");
-				break;
-			
 			case info:
 				execute( read_ujpg );
 				execute( write_info );
-				break;
-			
-			case pgm:
-				execute( read_ujpg );
-				execute( adapt_icos );
-				execute( write_pgm );
 				break;
 		}
 	}
@@ -1023,9 +963,6 @@ void get_status( bool (*function)() )
 	if ( function == NULL ) {
 		sprintf( statusmessage, "unknown action" );
 	}
-	else if ( function == *check_file ) {
-		sprintf( statusmessage, "Determining filetype" );
-	}
 	else if ( function == *read_jpeg ) {
 		sprintf( statusmessage, "Reading header & image data" );
 	}
@@ -1059,23 +996,11 @@ void get_status( bool (*function)() )
 	else if ( function == *reset_buffers ) {
 		sprintf( statusmessage, "Resetting program" );
 	}
-	else if ( function == *write_hdr ) {
-		sprintf( statusmessage, "Writing header data to file" );
-	}
-	else if ( function == *write_huf ) {
-		sprintf( statusmessage, "Writing huffman data to file" );
-	}
-	else if ( function == *write_coll ) {
-		sprintf( statusmessage, "Writing collections to files" );
-	}
 	else if ( function == *write_errfile ) {
 		sprintf( statusmessage, "Writing error info to file" );
 	}
 	else if ( function == *write_info ) {
 		sprintf( statusmessage, "Writing info to files" );
-	}
-	else if ( function == *write_pgm ) {
-		sprintf( statusmessage, "Writing converted image to pgm" );
 	}
 }
 
@@ -1086,10 +1011,6 @@ void get_status( bool (*function)() )
 	
 void show_help( void )
 {	
-	fprintf( msgout, "\n" );
-	fprintf( msgout, "Website: %s\n", website );
-	fprintf( msgout, "Email  : %s\n", email );
-	fprintf( msgout, "\n" );
 	fprintf( msgout, "Usage: %s [switches] [filename(s)]", appname );
 	fprintf( msgout, "\n" );
 	fprintf( msgout, "\n" );
@@ -1120,16 +1041,21 @@ void show_help( void )
 	check file and determine filetype
 	----------------------------------------------- */
 	
-bool check_file( void )
+bool check_file(Sirikata::DecoderReader *reader)
 {	
 	unsigned char fileid[ 2 ] = { 0, 0 };
-	int namelen = strlen( filelist[ file_no ] ) + 16;
-	
-	
+    int namelen = 128;
+    if (!reader) {
+        namelen = strlen( filelist[ file_no ] ) + 16;
+        reader = IOUtil::OpenFileOrPipe( filelist[ file_no ],
+                                         ( !pipe_on ) ? 0 : 2, 0, 0 );
+    } else {
+        pipe_on = true;
+    }
+        
 	// open input stream, check for errors
 	str_in = new Sirikata::
-        SwitchableDecompressionReader<Sirikata::SwitchableXZBase>(IOUtil::OpenFileOrPipe( filelist[ file_no ],
-                                                                                          ( !pipe_on ) ? 0 : 2, 0, 0 ),
+        SwitchableDecompressionReader<Sirikata::SwitchableXZBase>(reader,
                                                                   Sirikata::JpegAllocator<uint8_t>());
 	if ( str_in == NULL ) {
 		sprintf( errormessage, FRD_ERRMSG, filelist[ file_no ] );
@@ -2532,7 +2458,6 @@ bool write_ujpg( )
 {
 	unsigned char ujpg_mrk[ 64 ];
 	bool has_lepton_entropy_coding = (ofiletype == LEPTON || filetype == LEPTON );
-    fprintf(stderr,"ENTRPY COIDING ?:  %d    FILE TYPE: i: %d o:%d\n", has_lepton_entropy_coding?1:0, filetype, ofiletype);
     Sirikata::JpegError err = Sirikata::JpegError::nil();
 
 	if (!has_lepton_entropy_coding) {
@@ -2718,7 +2643,6 @@ bool read_ujpg( void )
 			}
 			// read garbage data
 			ReadFull(str_in, grbgdata, grbs );
-            fprintf(stderr," READ GAGBAGE %02x %02x\n", grbgdata[0], grbgdata[1]);
 		}
 		else if ( memcmp( ujpg_mrk, "SIZ", 3 ) == 0 ) {
 			// full size of the original file
@@ -4483,150 +4407,6 @@ void add_underscore( char* filename )
 /* ----------------------- Begin of developers functions -------------------------- */
 
 
-/* -----------------------------------------------
-	Writes header file
-	----------------------------------------------- */
-bool write_hdr( void )
-{
-	const char* ext = "hdr";
-	char* basename = basfilename;
-	
-	if ( !write_file( basename, ext, hdrdata, 1, hdrs ) )
-		return false;	
-	
-	return true;
-}
-
-
-/* -----------------------------------------------
-	Writes huffman coded file
-	----------------------------------------------- */
-bool write_huf( void )
-{
-	const char* ext = "huf";
-	char* basename = basfilename;
-	
-	if ( !write_file( basename, ext, huffdata, 1, hufs ) )
-		return false;
-	
-	return true;
-}
-
-
-/* -----------------------------------------------
-	Writes collections of DCT coefficients
-	----------------------------------------------- */
-bool write_coll( void )
-{
-	FILE* fp;
-	
-	char* fn;
-	const char* ext[4];
-	char* base;
-	int cmp, bpos, dpos;
-	int i, j;
-	
-	ext[0] = "coll0";
-	ext[1] = "coll1";
-	ext[2] = "coll2";
-	ext[3] = "coll3";
-	base = basfilename;
-	
-	
-	for ( cmp = 0; cmp < cmpc; cmp++ ) {
-		
-		// create filename
-		fn = create_filename( base, ext[ cmp ] );
-		
-		// open file for output
-		fp = fopen( fn, "wb" );
-		if ( fp == NULL ){
-			sprintf( errormessage, FWR_ERRMSG, fn);
-			errorlevel.store(2);
-			return false;
-		}
-		free( fn );
-		
-		switch ( collmode ) {
-			
-			case 0: // standard collections
-				for ( bpos = 0; bpos < 64; bpos++ )
-                    for ( dpos = 0; dpos < cmpnfo[cmp].bc; ++dpos) {
-                        signed short val = colldata.at_nosync(cmp,bpos,dpos);
-						fwrite( &val, sizeof( short ), 1, fp );
-                    }
-				break;
-				
-			case 1: // sequential order collections, 'dhufs'
-                fwrite( colldata.full_component_nosync(cmp), colldata.component_size_in_bytes(cmp), 1, fp );
-				break;
-				
-			case 2: // square collections
-				dpos = 0;
-				for ( i = 0; i < 64; ) {
-					bpos = zigzag[ i++ ];
-                    for ( j = 0; j < cmpnfo[cmp].bch; ++j) {
-                        signed short val = colldata.at_nosync(cmp,bpos,dpos + j);
-                        fwrite( &(val), sizeof( short ),
-                                cmpnfo[cmp].bch, fp );
-                    }
-					if ( ( i % 8 ) == 0 ) {
-						dpos += cmpnfo[cmp].bch;
-						if ( dpos >= cmpnfo[cmp].bc ) {
-							dpos = 0;
-						}
-						else {
-							i -= 8;
-						}
-					}
-				}
-				break;
-			
-			case 3: // uncollections
-				for ( i = 0; i < ( cmpnfo[cmp].bcv * 8 ); i++ )			
-				for ( j = 0; j < ( cmpnfo[cmp].bch * 8 ); j++ ) {
-					bpos = zigzag[ ( ( i % 8 ) * 8 ) + ( j % 8 ) ];
-					dpos = ( ( i / 8 ) * cmpnfo[cmp].bch ) + ( j / 8 );
-                    signed short val = colldata.at_nosync(cmp,bpos,dpos);
-					fwrite( &(val), sizeof( short ), 1, fp );
-				}
-				break;
-		}
-		
-		fclose( fp );
-	}
-	
-	return true;
-}
-
-
-/* -----------------------------------------------
-	Writes to file
-	----------------------------------------------- */
-bool write_file( const char* base, const char* ext, void* data, int bpv, int size )
-{	
-	FILE* fp;
-	char* fn;
-	
-	// create filename
-	fn = create_filename( base, ext );
-	
-	// open file for output
-	fp = fopen( fn, "wb" );	
-	if ( fp == NULL ) {
-		sprintf( errormessage, FWR_ERRMSG, fn);
-		errorlevel.store(2);
-		return false;
-	}
-	free( fn );
-	
-	// write & close
-	fwrite( data, bpv, size, fp );
-	fclose( fp );
-	
-	return true;
-}
-
 
 /* -----------------------------------------------
 	Writes error info file
@@ -4751,85 +4531,6 @@ bool write_info( void )
 	
 	fclose( fp );
 	
-	
-	return true;
-}
-
-/* -----------------------------------------------
-	Do inverse DCT and write pgms
-	----------------------------------------------- */
-bool write_pgm( void )
-{	
-	unsigned char* imgdata;
-	
-	FILE* fp;
-	char* fn;
-	const char* ext[4];
-	
-	int cmp, dpos;
-	int pix_v;
-	int xpos, ypos, dcpos;
-	int x, y;
-	
-	
-	ext[0] = "cmp0.pgm";
-	ext[1] = "cmp1.pgm";
-	ext[2] = "cmp2.pgm";
-	ext[3] = "cmp3.pgm";
-	
-	
-	for ( cmp = 0; cmp < cmpc; cmp++ )
-	{
-		// create filename
-		fn = create_filename( basfilename, ext[ cmp ] );
-		
-		// open file for output
-		fp = fopen( fn, "wb" );		
-		if ( fp == NULL ){
-			sprintf( errormessage, FWR_ERRMSG, fn );
-			errorlevel.store(2);
-			return false;
-		}
-		free( fn );
-		
-		// alloc memory for image data
-		imgdata = (unsigned char*) calloc ( cmpnfo[cmp].bc * 64, sizeof( char ) );
-		if ( imgdata == NULL ) {
-			sprintf( errormessage, MEM_ERRMSG );
-			errorlevel.store(2);
-			return false;
-		}
-		
-		for ( dpos = 0; dpos < cmpnfo[cmp].bc; dpos++ )	{	
-			// do inverse DCT, store in imgdata
-			dcpos  = ( ( ( dpos / cmpnfo[cmp].bch ) * cmpnfo[cmp].bch ) << 6 ) +
-					   ( ( dpos % cmpnfo[cmp].bch ) << 3 );
-			for ( y = 0; y < 8; y++ ) {
-				ypos = dcpos + ( y * ( cmpnfo[cmp].bch << 3 ) );
-				for ( x = 0; x < 8; x++ ) {
-					xpos = ypos + x;
-					pix_v = ROUND_F( idct_2d_fst_8x8( cmp, dpos, x, y ) + 128 );
-					imgdata[ xpos ] = ( unsigned char ) CLAMPED( 0, 255, pix_v );
-				}
-			}			
-		}
-		
-		// write PGM header
-		fprintf( fp, "P5\n" );
-		fprintf( fp, "# created by %s v%i.%i%s (%s) by %s\n",
-			appname, ujgversion / 10, ujgversion % 10, subversion, versiondate, author );
-		fprintf( fp, "%i %i\n", cmpnfo[cmp].bch * 8, cmpnfo[cmp].bcv * 8 );
-		fprintf( fp, "255\n" );
-		
-		// write image data
-		fwrite( imgdata, sizeof( char ), cmpnfo[cmp].bc * 64, fp );
-		
-		// free memory
-		free( imgdata );
-		
-		// close file
-		fclose( fp );
-	}
 	
 	return true;
 }
