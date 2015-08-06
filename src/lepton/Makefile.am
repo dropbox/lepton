@@ -7,7 +7,7 @@ lepton_LDFLAGS=
 
 #$(shell uname -s | grep -q Darwin || echo -static)
 common_source = bitops.cc bitops.hh \
-	component_info.hh htables.hh jpgcoder.cc jpgcoder.hh \
+	component_info.hh htables.hh jpgcoder.cc jpgcoder.hh fork_serve.cc fork_serve.hh \
 	uncompressed_components.cc uncompressed_components.hh \
 	simple_decoder.hh simple_decoder.cc \
 	simple_encoder.hh simple_encoder.cc \
