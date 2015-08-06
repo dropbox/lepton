@@ -3,7 +3,7 @@
 #include "ioutil.hh"
 namespace IOUtil {
 
-FileReader * OpenFileOrPipe(char * filename, int is_pipe, int, int) {
+FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int, int) {
     FILE * fp = stdin;
     if (!is_pipe) {
         fp = fopen(filename, "rb");
@@ -13,7 +13,7 @@ FileReader * OpenFileOrPipe(char * filename, int is_pipe, int, int) {
     }
     return NULL;
 }
-FileWriter * OpenWriteFileOrPipe(char * filename, int is_pipe, int, int) {
+FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe, int, int) {
     FILE * fp = stdout;
     if (!is_pipe) {
         fp = fopen(filename, "wb");

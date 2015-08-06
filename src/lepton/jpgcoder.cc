@@ -50,7 +50,6 @@
 #define MEM_ERRMSG	"out of memory error"
 #define FRD_ERRMSG	"could not read file / file not found: %s"
 #define FWR_ERRMSG	"could not write file / file write-protected: %s"
-char const_STDIN[]= "STDIN";
 
 /* -----------------------------------------------
 	struct & enum declarations
@@ -97,7 +96,6 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
 void initialize_options( int argc, char** argv );
 void process_file( Sirikata::DecoderReader* reader = nullptr);
 void execute( bool (*function)() );
-void get_status( bool (*function)() );
 void show_help( void );
 
 
@@ -191,7 +189,6 @@ void add_underscore( char* filename );
 // in any way to compress jpg or decompress ujg
 bool write_hdr( void );
 bool write_huf( void );
-bool write_errfile( void );
 bool write_info( void );
 clock_t pre_byte = 0;
 clock_t post_byte = 0;
@@ -332,12 +329,6 @@ int cs_sal       =   0  ; // successive approximation bit pos low
 /* -----------------------------------------------
 	global variables: info about files
 	----------------------------------------------- */
-char*  ofilename;
-char*  jpgfilename;			// name of JPEG file
-char*  ujgfilename;			// name of UJG file
-char*  tmpfilename;			// temporary file name
-char*  basfilename;			// base file name
-
 int    jpgfilesize;			// size of JPEG file
 int    ujgfilesize;			// size of UJG file
 int    jpegtype = 0;		// type of JPEG coding: 0->unknown, 1->sequential, 2->progressive
@@ -354,17 +345,14 @@ Sirikata::SwitchableCompressionWriter<Sirikata::DecoderCompressionWriter>* ujg_o
 IOUtil::FileWriter * ujg_base = NULL;
 
 char** filelist = NULL;		// list of files to process 
-int    file_cnt = 0;		// count of files in list
+int    file_cnt = 0;		// count of files in list (1 for input only)
 int    file_no  = 0;		// number of current file
-
 
 /* -----------------------------------------------
 	global variables: messages
 	----------------------------------------------- */
 
-char statusmessage[ 128 ];
-char errormessage [ 128 ];
-bool (*errorfunction)();
+std::string errormessage = "No error specified";
 std::atomic<int> errorlevel(0);
 // meaning of errorlevel:
 // -1 -> wrong input
@@ -492,9 +480,6 @@ void timing_operation_complete( char operation ) {
 
 int main( int argc, char** argv )
 {	
-	sprintf( statusmessage, "no statusmessage specified" );
-	sprintf( errormessage, "no errormessage specified" );
-	
 	clock_t begin, end;
 	
 	int error_cnt = 0;
@@ -664,13 +649,7 @@ void initialize_options( int argc, char** argv )
 			*(tmp_flp++) = *argv;
 		}		
 	}
-	
-	// count number of files (or filenames) in filelist
 	for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
-    }
-    if (file_cnt == 2) {
-        file_cnt = 1;
-        ofilename = filelist[1];
     }
 }
 
@@ -688,7 +667,6 @@ void process_file(Sirikata::DecoderReader* reader)
 	float cr;	
 	
 	
-	errorfunction = NULL;
 	errorlevel.store(0);
 	jpgfilesize = 0;
 	ujgfilesize = 0;	
@@ -696,8 +674,8 @@ void process_file(Sirikata::DecoderReader* reader)
     if (!reader) {
         // compare file name, set pipe if needed
         if ( ( strcmp( filelist[ file_no ], "-" ) == 0 ) && ( action == comp ) ) {
+            reader = IOUtil::OpenFileOrPipe("STDIN", 2, 0, 1 ),
             pipe_on = true;
-            filelist[ file_no ] = const_STDIN;
         }
         else {		
             pipe_on = false;
@@ -814,9 +792,6 @@ void process_file(Sirikata::DecoderReader* reader)
 				break;
 		}
 	}
-	// write error file if verify lv > 1
-	if ( ( verify_lv > 1 ) && ( errorlevel.load() >= err_tresh ) )
-		write_errfile();
 	// reset buffers
 	reset_buffers();
 	
@@ -826,17 +801,8 @@ void process_file(Sirikata::DecoderReader* reader)
 	if ( ujg_out != NULL ) delete( ujg_out ); ujg_out = NULL;
 	// delete if broken or if output not needed
 	if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp ) ) ) {
-		if ( filetype == JPEG ) {
-			if ( access( ujgfilename, 0 ) == 0 ) remove( ujgfilename );
-		} else if ( filetype == UJG ) {
-			if ( access( jpgfilename, 0 ) == 0 ) remove( jpgfilename );
-        }
+        // FIXME: can't delete broken output--it's gone already
 	}
-	// remove temp file
-	if ( ( access( tmpfilename, 0 ) == 0 ) &&
-         !( ( verify_lv > 1 ) && ( errorlevel.load() >= err_tresh ) ) )
-		remove( tmpfilename );
-	
 	end = clock();
 	
 	
@@ -890,9 +856,8 @@ void process_file(Sirikata::DecoderReader* reader)
 	
 	if ( errorlevel.load() > 0 )
 	{
-		get_status( errorfunction );
-		fprintf( stderr, " %s -> %s:\n", statusmessage, errtypemsg  );
-		fprintf( stderr, " %s\n", errormessage );
+		fprintf( stderr, " %s:\n", errtypemsg  );
+		fprintf( stderr, " %s\n", errormessage.c_str() );
 		if ( verbosity > 1 )
 			fprintf( stderr, " (in file \"%s\")\n", filelist[ file_no ] );
 	}
@@ -923,14 +888,8 @@ void execute( bool (*function)() )
 	if ( errorlevel.load() < err_tresh )
 	{
 		// get statusmessage
-		get_status( function );
+		//function();
 		// write statusmessage
-		if ( verbosity == 2 ) {
-			fprintf( msgout,  "\n%s ", statusmessage );
-			for ( i = strlen( statusmessage ); i <= 30; i++ )
-				fprintf( msgout,  " " );			
-		}
-		
 		// set starttime
 		begin = clock();
 		// call function
@@ -938,69 +897,14 @@ void execute( bool (*function)() )
 		// set endtime
 		end = clock();
 		
-		if ( ( errorlevel.load() > 0 ) && ( errorfunction == NULL ) )
-			errorfunction = function;
-		
 		// write statusmessage
 		if ( success ) {
 			if ( verbosity == 2 ) fprintf( msgout,  "%6ims",
 				(int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC ) );
 		}
 		else {
-			errorfunction = function;
 			if ( verbosity == 2 ) fprintf( msgout,  "%8s", "ERROR" );
 		}
-	}
-}
-
-
-/* -----------------------------------------------
-	gets statusmessage for function
-	----------------------------------------------- */
-	
-void get_status( bool (*function)() )
-{	
-	if ( function == NULL ) {
-		sprintf( statusmessage, "unknown action" );
-	}
-	else if ( function == *read_jpeg ) {
-		sprintf( statusmessage, "Reading header & image data" );
-	}
-	else if ( function == *merge_jpeg ) {
-		sprintf( statusmessage, "Merging header & image data" );
-	}
-	else if ( function == *decode_jpeg ) {
-		sprintf( statusmessage, "Decompressing JPEG image data" );
-	}
-	else if ( function == *recode_jpeg ) {
-		sprintf( statusmessage, "Recompressing JPEG image data" );
-	}
-	else if ( function == *adapt_icos ) {
-		sprintf( statusmessage, "Adapting DCT precalc. tables" );
-	}
-	else if ( function == *check_value_range ) {
-		sprintf( statusmessage, "Checking values range" );
-	}
-	else if ( function == *write_ujpg ) {
-		sprintf( statusmessage, "Expanding data to UJPG" );
-	}
-	else if ( function == *read_ujpg ) {
-		sprintf( statusmessage, "Compressing data to JPEG" );
-	}
-	else if ( false /*function == *swap_streams */ ) {
-		sprintf( statusmessage, "Swapping input/output streams" );
-	}
-	else if ( false /*function == *compare_output */ ) {
-		sprintf( statusmessage, "Verifying output stream" );
-	}
-	else if ( function == *reset_buffers ) {
-		sprintf( statusmessage, "Resetting program" );
-	}
-	else if ( function == *write_errfile ) {
-		sprintf( statusmessage, "Writing error info to file" );
-	}
-	else if ( function == *write_info ) {
-		sprintf( statusmessage, "Writing info to files" );
 	}
 }
 
@@ -1045,10 +949,12 @@ bool check_file(Sirikata::DecoderReader *reader)
 {	
 	unsigned char fileid[ 2 ] = { 0, 0 };
     int namelen = 128;
+    std::string ifilename;
+    std::string ofilename;
     if (!reader) {
-        namelen = strlen( filelist[ file_no ] ) + 16;
-        reader = IOUtil::OpenFileOrPipe( filelist[ file_no ],
-                                         ( !pipe_on ) ? 0 : 2, 0, 0 );
+        assert(!pipe_on); // we should have filled the pipe here
+        ifilename = filelist[ file_no++ ];
+        reader = IOUtil::OpenFileOrPipe(ifilename.c_str(), 0, 0, 0);
     } else {
         pipe_on = true;
     }
@@ -1058,43 +964,17 @@ bool check_file(Sirikata::DecoderReader *reader)
         SwitchableDecompressionReader<Sirikata::SwitchableXZBase>(reader,
                                                                   Sirikata::JpegAllocator<uint8_t>());
 	if ( str_in == NULL ) {
-		sprintf( errormessage, FRD_ERRMSG, filelist[ file_no ] );
+		fprintf( stderr, FRD_ERRMSG, filelist[ file_no ] );
 		errorlevel.store(2);
 		return false;
 	}
-	
-	// free memory from filenames if needed
-	if ( jpgfilename != NULL ) free( jpgfilename );
-	if ( ujgfilename != NULL ) free( ujgfilename );
-	if ( tmpfilename != NULL ) free( tmpfilename );
-	if ( basfilename != NULL ) free( basfilename );
-	// alloc memory for filenames
-	jpgfilename = (char*) calloc( namelen, sizeof( char ) );
-	ujgfilename = (char*) calloc( namelen, sizeof( char ) );
-	tmpfilename = (char*) calloc( namelen, sizeof( char ) );
-	basfilename = (char*) calloc( namelen, sizeof( char ) );
 	
 	// immediately return error if 2 bytes can't be read
 	if ( IOUtil::ReadFull(str_in, fileid, 2 ) != 2 ) { 
 		filetype = UNK;
-		sprintf( errormessage, "file doesn't contain enough data" );
+		fprintf( stderr, "file doesn't contain enough data" );
 		errorlevel.store(2);
 		return false;
-	}
-	
-	// set temp filename & base filename
-	if ( !pipe_on ) {
-		set_extension( basfilename, filelist[ file_no ], "bin" );
-		set_extension( tmpfilename, filelist[ file_no ], "tmp" );
-	}
-	else {
-		strcpy( basfilename, "BINFILE" );
-		strcpy( tmpfilename, "TMPFILE" );
-	}
-	while ( access( tmpfilename, 0 ) == 0 ) {
-		namelen += sizeof( char );
-		tmpfilename = (char*) realloc( tmpfilename, namelen );
-		add_underscore( tmpfilename );
 	}
 	
 	// check file id, determine filetype
@@ -1103,33 +983,19 @@ bool check_file(Sirikata::DecoderReader *reader)
 		filetype = JPEG;
 		// create filenames
 		if ( !pipe_on ) {
-            if (ofilename != NULL) {
-                ujgfilename = ofilename;
-                ofilename = NULL;
+            if (file_no < file_cnt && ofilename != ifilename) {
+                ofilename = filelist[file_no];
             } else {
-                strcpy( jpgfilename, filelist[ file_no ] );
-                set_extension( ujgfilename, filelist[ file_no ],
-                               ofiletype == LEPTON ? (const char*) lepton_ext : ujg_ext );
-                if ( !overwrite ) {
-                    while ( access( ujgfilename, 0 ) == 0 ) {
-                        namelen += sizeof( char );
-                        ujgfilename = (char*) realloc( ujgfilename, namelen );
-                        add_underscore( ujgfilename );
-                    }
-                }
-			}
-		}
-		else {
-			strcpy( jpgfilename, "STDIN" );
-			strcpy( ujgfilename, "STDOUT" );
+                ofilename = ifilename + (ofiletype == UJG ? ".ujg" : ".lep");
+            }
 		}
 		// open output stream, check for errors
 		ujg_out = new Sirikata::SwitchableCompressionWriter<Sirikata::DecoderCompressionWriter>
-            ((ujg_base = IOUtil::OpenWriteFileOrPipe( ujgfilename, ( !pipe_on ) ? 0 : 2, 0, 1 )),
+            ((ujg_base = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 )),
              9,
              Sirikata::JpegAllocator<uint8_t>());
 		if ( !ujg_out ) {
-			sprintf( errormessage, FWR_ERRMSG, ujgfilename );
+			fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
 			errorlevel.store(2);
 			return false;
 		}
@@ -1140,30 +1006,17 @@ bool check_file(Sirikata::DecoderReader *reader)
 		filetype = (( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) ) ? LEPTON : UJG;
 		// create filenames
 		if ( !pipe_on ) {
-            if (ofilename != NULL) {
-                jpgfilename = ofilename;
-                ofilename = NULL;
+            if (file_no < file_cnt && ofilename != ifilename) {
+                ofilename = filelist[file_no];
             } else {
-                strcpy( ujgfilename, filelist[ file_no ] );
-                set_extension( jpgfilename, filelist[ file_no ], (char*) jpg_ext );			
-                if ( !overwrite ) {
-                    while ( access( jpgfilename, 0 ) == 0 ) {
-                        namelen += sizeof( char );
-                        jpgfilename = (char*) realloc( jpgfilename, namelen );
-                        add_underscore( jpgfilename );
-                    }
-                }
-			}
-		}
-		else {
-			strcpy( jpgfilename, "STDOUT" );
-			strcpy( ujgfilename, "STDIN" );
+                ofilename = ifilename + ".lep";
+            }
 		}
 		// open output stream, check for errors
-		str_out = new bounded_iostream( IOUtil::OpenWriteFileOrPipe( jpgfilename, ( !pipe_on ) ? 0 : 2, 0, 1 ),
+		str_out = new bounded_iostream( IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 ),
                                         Sirikata::JpegAllocator<uint8_t>());
 		if ( str_out->chkerr() ) {
-			sprintf( errormessage, FWR_ERRMSG, jpgfilename );
+			fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
 			errorlevel.store(2);
 			return false;
 		}
@@ -1171,7 +1024,7 @@ bool check_file(Sirikata::DecoderReader *reader)
 	else {
 		// file is neither
 		filetype = UNK;
-		sprintf( errormessage, "filetype of file \"%s\" is unknown", filelist[ file_no ] );
+		fprintf( stderr, "filetype of file \"%s\" is unknown", filelist[ file_no ] );
 		errorlevel.store(2);
 		return false;		
 	}
@@ -1215,7 +1068,7 @@ bool read_jpeg( void )
 	// alloc memory for segment data first
 	segment = ( unsigned char* ) calloc( ssize, sizeof( char ) );
 	if ( segment == NULL ) {
-		sprintf( errormessage, MEM_ERRMSG );
+		fprintf( stderr, MEM_ERRMSG );
 		errorlevel.store(2);
 		return false;
 	}
@@ -1267,7 +1120,7 @@ bool read_jpeg( void )
 							if ( rst_err == NULL ) {
 								rst_err = (unsigned char*) calloc( scnc + 1, sizeof( char ) );
 								if ( rst_err == NULL ) {
-									sprintf( errormessage, MEM_ERRMSG );
+									fprintf( stderr, MEM_ERRMSG );
 									errorlevel.store(2);
 									return false;
 								}
@@ -1277,12 +1130,12 @@ bool read_jpeg( void )
 							// realloc and set only if needed
 							rst_err = ( unsigned char* ) realloc( rst_err, ( scnc + 1 ) * sizeof( char ) );
 							if ( rst_err == NULL ) {
-								sprintf( errormessage, MEM_ERRMSG );
+								fprintf( stderr, MEM_ERRMSG );
 								errorlevel.store(2);
 								return false;
 							}
 							if ( crst > 255 ) {
-								sprintf( errormessage, "Severe false use of RST markers (%i)", crst );
+								fprintf( stderr, "Severe false use of RST markers (%i)", crst );
 								errorlevel.store(1);
 								crst = 255;
 							}
@@ -1307,7 +1160,7 @@ bool read_jpeg( void )
 			if ( jpg_in->read( segment, 2 ) != 2 ) break;
 			if ( segment[ 0 ] != 0xFF ) {
 				// ugly fix for incorrect marker segment sizes
-				sprintf( errormessage, "size mismatch in marker segment FF %2X", type );
+				fprintf( stderr, "size mismatch in marker segment FF %2X", type );
 				errorlevel.store(2);
 				if ( type == 0xFE ) { //  if last marker was COM try again
 					if ( jpg_in->read( segment, 1) != 2 ) break;
@@ -1341,7 +1194,7 @@ bool read_jpeg( void )
 		if ( ssize < len ) {
 			segment = ( unsigned char* ) realloc( segment, len );
 			if ( segment == NULL ) {
-				sprintf( errormessage, MEM_ERRMSG );
+				fprintf( stderr, MEM_ERRMSG );
 				errorlevel.store(2);
 				delete ( hdrw );
 				delete ( huffw );
@@ -1363,12 +1216,12 @@ bool read_jpeg( void )
 	
 	// check if everything went OK
 	if ( hdrs == 0 ) {
-		sprintf( errormessage, "unexpected end of data encountered in header" );
+		fprintf( stderr, "unexpected end of data encountered in header" );
 		errorlevel.store(2);
 		return false;
 	}
 	if ( hufs == 0 ) {
-		sprintf( errormessage, "unexpected end of data encountered in huffman" );
+		fprintf( stderr, "unexpected end of data encountered in huffman" );
 		errorlevel.store(2);
 		return false;
 	}
@@ -1518,7 +1371,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
 	
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
-		sprintf( errormessage, "write error, possibly drive is full" );
+		fprintf( stderr, "write error, possibly drive is full" );
 		errorlevel.store(2);		
 		return STREAMING_ERROR;
 	}
@@ -1646,7 +1499,7 @@ bool merge_jpeg( void )
 	
 	// errormessage if write error
 	if ( str_out->chkerr() ) {
-		sprintf( errormessage, "write error, possibly drive is full" );
+		fprintf( stderr, "write error, possibly drive is full" );
 		errorlevel.store(2);		
 		return false;
 	}
@@ -1716,7 +1569,7 @@ bool decode_jpeg( void )
 			cmp = cs_cmp[ csc ];
 			if ( (( cs_sal == 0 ) && ( htset[ 0 ][ cmpnfo[cmp].huffdc ] == 0 )) ||
                  (( cs_sah >  0 ) && ( htset[ 1 ][ cmpnfo[cmp].huffac ] == 0 )) ) {
-				sprintf( errormessage, "huffman table missing in scan%i", scnc );
+				fprintf( stderr, "huffman table missing in scan%i", scnc );
 				delete huffr;
 				errorlevel.store(2);
 				return false;
@@ -1770,7 +1623,7 @@ bool decode_jpeg( void )
 							&(htrees[ 1 ][ cmpnfo[cmp].huffdc ]),
 							block );
 						if ( eob > 1 && !block[ eob - 1 ] ) {
-							sprintf( errormessage, "cannot encode image with eob after last 0" );
+							fprintf( stderr, "cannot encode image with eob after last 0" );
 							errorlevel.store(1);
 						}
 						
@@ -1838,7 +1691,7 @@ bool decode_jpeg( void )
 							&(htrees[ 1 ][ cmpnfo[cmp].huffdc ]),
 							block );
 						if ( eob > 1 && !block[ eob - 1 ] ) {
-							sprintf( errormessage, "cannot encode image with eob after last 0" );
+							fprintf( stderr, "cannot encode image with eob after last 0" );
 							errorlevel.store(1);
 						}
 						// fix dc
@@ -1909,7 +1762,7 @@ bool decode_jpeg( void )
 							if ( ( eob == cs_from ) && ( eobrun > 0 ) &&
 								( peobrun > 0 ) && ( peobrun <
 								hcodes[ 1 ][ cmpnfo[cmp].huffac ].max_eobrun - 1 ) ) {
-								sprintf( errormessage,
+								fprintf( stderr,
 									"reconstruction of non optimal coding not supported" );
 								errorlevel.store(1);
 							}
@@ -1946,7 +1799,7 @@ bool decode_jpeg( void )
 								if ( ( eob == cs_from ) && ( eobrun > 0 ) &&
 									( peobrun > 0 ) && ( peobrun <
 									hcodes[ 1 ][ cmpnfo[cmp].huffac ].max_eobrun - 1 ) ) {
-									sprintf( errormessage,
+									fprintf( stderr,
 										"reconstruction of non optimal coding not supported" );
 									errorlevel.store(1);
 								}
@@ -1960,7 +1813,7 @@ bool decode_jpeg( void )
 								eob = decode_eobrun_sa( huffr,
 									block, &eobrun, cs_from, cs_to );
 								if ( eob > 1 && !block[ eob - 1 ] ) {
-									sprintf( errormessage, "cannot encode image with eob after last 0" );
+									fprintf( stderr, "cannot encode image with eob after last 0" );
 									errorlevel.store(1);
 								}
 							}
@@ -1979,7 +1832,7 @@ bool decode_jpeg( void )
 			// unpad huffman reader / check padbit
 			if ( padbit != -1 ) {
 				if ( padbit != huffr->unpad( padbit ) ) {
-					sprintf( errormessage, "inconsistent use of padbits" );
+					fprintf( stderr, "inconsistent use of padbits" );
 					padbit = 1;
 					errorlevel.store(1);
 				}
@@ -1990,7 +1843,7 @@ bool decode_jpeg( void )
 			
 			// evaluate status
 			if ( sta == -1 ) { // status -1 means error
-				sprintf( errormessage, "decode error in scan%i / mcu%i",
+				fprintf( stderr, "decode error in scan%i / mcu%i",
 					scnc, ( cs_cmpc > 1 ) ? mcu : dpos );
 				delete huffr;
 				errorlevel.store(2);
@@ -2008,7 +1861,7 @@ bool decode_jpeg( void )
     }
 	// check for unneeded data
 	if ( !huffr->eof ) {
-		sprintf( errormessage, "unneeded data found after coded image data" );
+		fprintf( stderr, "unneeded data found after coded image data" );
 		errorlevel.store(1);
 	}
 			
@@ -2332,7 +2185,7 @@ bool recode_jpeg( void )
 			
 			// evaluate status
 			if ( sta == -1 ) { // status -1 means error
-				sprintf( errormessage, "encode error in scan%i / mcu%i",
+				fprintf( stderr, "encode error in scan%i / mcu%i",
 					scnc, ( cs_cmpc > 1 ) ? mcu : dpos );
 				delete huffw;
 				errorlevel.store(2);
@@ -2357,7 +2210,7 @@ bool recode_jpeg( void )
 	// safety check for error in huffwriter
 	if ( huffw->error ) {
 		delete huffw;
-		sprintf( errormessage, MEM_ERRMSG );
+		fprintf( stderr, MEM_ERRMSG );
 		errorlevel.store(2);
 		return false;
 	}
@@ -2427,7 +2280,7 @@ bool check_value_range( void )
             if ( ( colldata.at_nosync(cmp,bpos,dpos) > absmax ) ||
                  ( colldata.at_nosync(cmp,bpos,dpos) < -absmax ) ) {
                 if (!early_eof_encountered) {
-                    sprintf( errormessage, "value out of range error: cmp%i, frq%i, val %i, max %i",
+                    fprintf( stderr, "value out of range error: cmp%i, frq%i, val %i, max %i",
                          cmp, bpos, colldata.at_nosync(cmp,bpos,dpos), absmax );
 			        errorlevel.store(2);
 			        return false;
@@ -2540,7 +2393,7 @@ bool write_ujpg( )
 	
 	// errormessage if write error
 	if ( err != Sirikata::JpegError::nil() ) {
-		sprintf( errormessage, "write error, possibly drive is full" );
+		fprintf( stderr, "write error, possibly drive is full" );
 		errorlevel.store(2);		
 		return false;
 	}
@@ -2566,7 +2419,7 @@ bool read_ujpg( void )
 	// check version number
     Sirikata::JpegError err = str_in->Read( ujpg_mrk, 1).second;
 	if ( err != Sirikata::JpegError::nil() || ujpg_mrk[ 0 ] != ujgversion ) {
-		sprintf( errormessage, "incompatible file, use %s v%i.%i",
+		fprintf( stderr, "incompatible file, use %s v%i.%i",
 			appname, ujpg_mrk[ 0 ] / 10, ujpg_mrk[ 0 ] % 10 );
 		errorlevel.store(2);
 		return false;
@@ -2583,7 +2436,7 @@ bool read_ujpg( void )
         hdrs = LEtoUint32(ujpg_mrk);
 		hdrdata = (unsigned char*) calloc( hdrs, sizeof( char ) );
 		if ( hdrdata == NULL ) {
-			sprintf( errormessage, MEM_ERRMSG );
+			fprintf( stderr, MEM_ERRMSG );
 			errorlevel.store(2);
 			return false;
 		}
@@ -2591,7 +2444,7 @@ bool read_ujpg( void )
 		ReadFull(str_in, hdrdata, hdrs );
 	}
 	else {
-		sprintf( errormessage, "HDR marker not found" );
+		fprintf( stderr, "HDR marker not found" );
 		errorlevel.store(2);
 		return false;
 	}
@@ -2610,7 +2463,7 @@ bool read_ujpg( void )
 		str_in->Read( reinterpret_cast<unsigned char*>(&padbit), 1 );
 	}
 	else {
-		sprintf( errormessage, "PAD marker not found" );
+		fprintf( stderr, "PAD marker not found" );
 		errorlevel.store(2);
 		return false;
 	}
@@ -2624,7 +2477,7 @@ bool read_ujpg( void )
             scnc = LEtoUint32(ujpg_mrk);
 			rst_err = (unsigned char*) calloc( scnc, sizeof( char ) );
 			if ( rst_err == NULL ) {
-				sprintf( errormessage, MEM_ERRMSG );
+				fprintf( stderr, MEM_ERRMSG );
 				errorlevel.store(2);
 				return false;
 			}
@@ -2637,7 +2490,7 @@ bool read_ujpg( void )
             grbs = LEtoUint32(ujpg_mrk);
 			grbgdata = (unsigned char*) calloc( grbs, sizeof( char ) );
 			if ( grbgdata == NULL ) {
-				sprintf( errormessage, MEM_ERRMSG );
+				fprintf( stderr, MEM_ERRMSG );
 				errorlevel.store(2);
 				return false;
 			}
@@ -2665,7 +2518,7 @@ bool read_ujpg( void )
             if (memcmp(ujpg_mrk, "CMP", 3) == 0 ) {
                 break;
             } else {
-                sprintf( errormessage, "unknown data found" );
+                fprintf( stderr, "unknown data found" );
                 errorlevel.store(2);
             }
 			return false;
@@ -2793,7 +2646,7 @@ bool setup_imginfo_jpg( void )
 	
 	// check if information is complete
 	if ( cmpc == 0 ) {
-		sprintf( errormessage, "header contains incomplete information" );
+		fprintf( stderr, "header contains incomplete information" );
 		errorlevel.store(2);
 		return false;
 	}
@@ -2803,7 +2656,7 @@ bool setup_imginfo_jpg( void )
 			 ( cmpnfo[cmp].qtable == NULL ) ||
 			 ( cmpnfo[cmp].qtable[0] == 0 ) ||
 			 ( jpegtype == 0 ) ) {
-			sprintf( errormessage, "header information is incomplete" );
+			fprintf( stderr, "header information is incomplete" );
 			errorlevel.store(2);
 			return false;
 		}
@@ -2880,7 +2733,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			
 			if ( hpos != len ) {
 				// if we get here, something went wrong
-				sprintf( errormessage, "size mismatch in dht marker" );
+				fprintf( stderr, "size mismatch in dht marker" );
 				errorlevel.store(2);
 				return false;
 			}
@@ -2913,7 +2766,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			
 			if ( hpos != len ) {
 				// if we get here, something went wrong
-				sprintf( errormessage, "size mismatch in dqt marker" );
+				fprintf( stderr, "size mismatch in dqt marker" );
 				errorlevel.store(2);
 				return false;
 			}
@@ -2928,7 +2781,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			// prepare next scan
 			cs_cmpc = segment[ hpos ];
 			if ( cs_cmpc > cmpc ) {
-				sprintf( errormessage, "%i components in scan, only %i are allowed",
+				fprintf( stderr, "%i components in scan, only %i are allowed",
 							cs_cmpc, cmpc );
 				errorlevel.store(2);
 				return false;
@@ -2937,7 +2790,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			for ( i = 0; i < cs_cmpc; i++ ) {
 				for ( cmp = 0; ( segment[ hpos ] != cmpnfo[ cmp ].jid ) && ( cmp < cmpc ); cmp++ );
 				if ( cmp == cmpc ) {
-					sprintf( errormessage, "component id mismatch in start-of-scan" );
+					fprintf( stderr, "component id mismatch in start-of-scan" );
 					errorlevel.store(2);
 					return false;
 				}
@@ -2946,7 +2799,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 				cmpnfo[ cmp ].huffac = RBITS( segment[ hpos + 1 ], 4 );
 				if ( ( cmpnfo[ cmp ].huffdc < 0 ) || ( cmpnfo[ cmp ].huffdc >= 4 ) ||
 					 ( cmpnfo[ cmp ].huffac < 0 ) || ( cmpnfo[ cmp ].huffac >= 4 ) ) {
-					sprintf( errormessage, "huffman table number mismatch" );
+					fprintf( stderr, "huffman table number mismatch" );
 					errorlevel.store(2);
 					return false;
 				}
@@ -2958,12 +2811,12 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			cs_sal  = RBITS( segment[ hpos + 2 ], 4 );
 			// check for errors
 			if ( ( cs_from > cs_to ) || ( cs_from > 63 ) || ( cs_to > 63 ) ) {
-				sprintf( errormessage, "spectral selection parameter out of range" );
+				fprintf( stderr, "spectral selection parameter out of range" );
 				errorlevel.store(2);
 				return false;
 			}
 			if ( ( cs_sah >= 12 ) || ( cs_sal >= 12 ) ) {
-				sprintf( errormessage, "successive approximation parameter out of range" );
+				fprintf( stderr, "successive approximation parameter out of range" );
 				errorlevel.store(2);
 				return false;
 			}
@@ -2987,7 +2840,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			// check data precision, only 8 bit is allowed
 			lval = segment[ hpos ];
 			if ( lval != 8 ) {
-				sprintf( errormessage, "%i bit data precision is not supported", lval );
+				fprintf( stderr, "%i bit data precision is not supported", lval );
 				errorlevel.store(2);
 				return false;
 			}
@@ -2997,7 +2850,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 			imgwidth  = B_SHORT( segment[ hpos + 3 ], segment[ hpos + 4 ] );
 			cmpc      = segment[ hpos + 5 ];
 			if ( cmpc > 4 ) {
-				sprintf( errormessage, "image has %i components, max 4 are supported", cmpc );
+				fprintf( stderr, "image has %i components, max 4 are supported", cmpc );
 				errorlevel.store(2);
 				return false;
 			}
@@ -3016,61 +2869,61 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 		
 		case 0xC3: // SOF3 segment
 			// coding process: lossless sequential
-			sprintf( errormessage, "sof3 marker found, image is coded lossless" );
+			fprintf( stderr, "sof3 marker found, image is coded lossless" );
 			errorlevel.store(2);
 			return false;
 		
 		case 0xC5: // SOF5 segment
 			// coding process: differential sequential DCT
-			sprintf( errormessage, "sof5 marker found, image is coded diff. sequential" );
+			fprintf( stderr, "sof5 marker found, image is coded diff. sequential" );
 			errorlevel.store(2);
 			return false;
 		
 		case 0xC6: // SOF6 segment
 			// coding process: differential progressive DCT
-			sprintf( errormessage, "sof6 marker found, image is coded diff. progressive" );
+			fprintf( stderr, "sof6 marker found, image is coded diff. progressive" );
 			errorlevel.store(2);
 			return false;
 		
 		case 0xC7: // SOF7 segment
 			// coding process: differential lossless
-			sprintf( errormessage, "sof7 marker found, image is coded diff. lossless" );
+			fprintf( stderr, "sof7 marker found, image is coded diff. lossless" );
 			errorlevel.store(2);
 			return false;
 			
 		case 0xC9: // SOF9 segment
 			// coding process: arithmetic extended sequential DCT
-			sprintf( errormessage, "sof9 marker found, image is coded arithm. sequential" );
+			fprintf( stderr, "sof9 marker found, image is coded arithm. sequential" );
 			errorlevel.store(2);
 			return false;
 			
 		case 0xCA: // SOF10 segment
 			// coding process: arithmetic extended sequential DCT
-			sprintf( errormessage, "sof10 marker found, image is coded arithm. progressive" );
+			fprintf( stderr, "sof10 marker found, image is coded arithm. progressive" );
 			errorlevel.store(2);
 			return false;
 			
 		case 0xCB: // SOF11 segment
 			// coding process: arithmetic extended sequential DCT
-			sprintf( errormessage, "sof11 marker found, image is coded arithm. lossless" );
+			fprintf( stderr, "sof11 marker found, image is coded arithm. lossless" );
 			errorlevel.store(2);
 			return false;
 			
 		case 0xCD: // SOF13 segment
 			// coding process: arithmetic differntial sequential DCT
-			sprintf( errormessage, "sof13 marker found, image is coded arithm. diff. sequential" );
+			fprintf( stderr, "sof13 marker found, image is coded arithm. diff. sequential" );
 			errorlevel.store(2);
 			return false;
 			
 		case 0xCE: // SOF14 segment
 			// coding process: arithmetic differential progressive DCT
-			sprintf( errormessage, "sof14 marker found, image is coded arithm. diff. progressive" );
+			fprintf( stderr, "sof14 marker found, image is coded arithm. diff. progressive" );
 			errorlevel.store(2);
 			return false;
 		
 		case 0xCF: // SOF15 segment
 			// coding process: arithmetic differntial lossless
-			sprintf( errormessage, "sof15 marker found, image is coded arithm. diff. lossless" );
+			fprintf( stderr, "sof15 marker found, image is coded arithm. diff. lossless" );
 			errorlevel.store(2);
 			return false;
 			
@@ -3103,25 +2956,25 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 		case 0xD6: // RST6 segment
 		case 0xD7: // RST7 segment
 			// return errormessage - RST is out of place here
-			sprintf( errormessage, "rst marker found out of place" );
+			fprintf( stderr, "rst marker found out of place" );
 			errorlevel.store(2);
 			return false;
 		
 		case 0xD8: // SOI segment
 			// return errormessage - start-of-image is out of place here
-			sprintf( errormessage, "soi marker found out of place" );
+			fprintf( stderr, "soi marker found out of place" );
 			errorlevel.store(2);
 			return false;
 		
 		case 0xD9: // EOI segment
 			// return errormessage - end-of-image is out of place here
-			sprintf( errormessage, "eoi marker found out of place" );
+			fprintf( stderr, "eoi marker found out of place" );
 			errorlevel.store(2);
 			return false;
 			
 		default: // unknown marker segment
 			// return warning
-			sprintf( errormessage, "unknown marker found: FF %2X", type );
+			fprintf( stderr, "unknown marker found: FF %2X", type );
 			errorlevel.store(1);
 			return true;
 	}
@@ -4370,88 +4223,12 @@ void set_extension( char* destination, const char* origin, const char* extension
 	strcpy( destination + dotpos + 1, extension );
 }
 
-/* -----------------------------------------------
-	adds underscore after filename
-	----------------------------------------------- */	
-void add_underscore( char* filename )
-{
-	int i;
-	
-	int dotpos = 0;
-	int length = strlen( filename );
-	char* tmpname;
-	
-	// copy filename to tmpname
-	tmpname = new char[ length + 1 ];
-	strcpy( tmpname, filename );
-
-	// find position of dot in filename
-	for ( i = 0; i < length; i++ ) {
-		if ( filename[ i ] == '.' ) {
-			dotpos = i;
-		}
-	}
-	
-	// add underscore before extension
-	if ( !dotpos ) {
-		sprintf( filename, "%s_", tmpname );
-	}
-	else {
-		strncpy( filename, tmpname, dotpos );
-		sprintf( filename + dotpos, "_%s", tmpname + dotpos );
-	}
-}
-
 /* ----------------------- End of miscellaneous helper functions -------------------------- */
 
 /* ----------------------- Begin of developers functions -------------------------- */
 
 
 
-/* -----------------------------------------------
-	Writes error info file
-	----------------------------------------------- */
-bool write_errfile( void )
-{
-	FILE* fp;
-	char* fn;
-	
-	
-	// return immediately if theres no error
-	if ( errorlevel == 0 ) return true;
-	
-	// create filename based on errorlevel
-	if ( errorlevel == 1 ) {
-		fn = create_filename( basfilename, "wrn.nfo" );
-	}
-	else {
-		fn = create_filename( basfilename, "err.nfo" );
-	}
-	
-	// open file for output
-	fp = fopen( fn, "w" );
-	if ( fp == NULL ){
-		sprintf( errormessage, FWR_ERRMSG, fn);
-		errorlevel.store(2);
-		return false;
-	}
-	free( fn );
-	
-	// write status and errormessage to file
-	fprintf( fp, "--> error (level %i) in file \"%s\" <--\n", errorlevel.load(), basfilename );
-	fprintf( fp, "\n" );
-	// write error specification to file
-	get_status( errorfunction );
-	fprintf( fp, " %s -> %s:\n", statusmessage,
-			( errorlevel == 1 ) ? "warning" : "error" );
-	fprintf( fp, " %s\n", errormessage );
-	
-	// done, close file
-	fclose( fp );
-	
-	
-	return true;
-}
 
 
 /* -----------------------------------------------
@@ -4470,20 +4247,17 @@ bool write_info( void )
 	int i;
 	
 	
-	// create filename
-	fn = create_filename( basfilename, "nfo" );
-	
 	// open file for output
-	fp = fopen( fn, "w" );
+	fp = stdout;
 	if ( fp == NULL ){
-		sprintf( errormessage, FWR_ERRMSG, fn);
+		fprintf( stderr, FWR_ERRMSG, fn);
 		errorlevel.store(2);
 		return false;
 	}
 	free( fn );
 
 	// info about image
-	fprintf( fp, "<Infofile for JPEG image %s>\n\n\n", jpgfilename );
+	fprintf( fp, "<Infofile for JPEG image:>\n\n\n");
 	fprintf( fp, "coding process: %s\n", ( jpegtype == 1 ) ? "sequential" : "progressive" );
 	// fprintf( fp, "no of scans: %i\n", scnc );
 	fprintf( fp, "imageheight: %i / imagewidth: %i\n", imgheight, imgwidth );

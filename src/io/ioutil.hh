@@ -67,7 +67,7 @@ public:
     }
 };
 
-SIRIKATA_FUNCTION_EXPORT FileReader * OpenFileOrPipe(char * filename, int is_pipe, int, int);
-SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(char * filename, int is_pipe, int, int);
+SIRIKATA_FUNCTION_EXPORT FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int, int);
+SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe, int, int);
 
 }
