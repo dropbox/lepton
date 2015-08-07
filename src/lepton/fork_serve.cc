@@ -19,7 +19,7 @@ void always_assert(bool expr) {
     if (!expr) exit(1);
 }
 
-const char last_prefix[] = "/dev/shm/";
+const char last_prefix[] = "/tmp/";
 const char last_postfix[2][7]={".iport", ".oport"};
 char last_pipes[sizeof(last_postfix) / sizeof(last_postfix[0])][128] = {};
 
@@ -51,11 +51,12 @@ void exit_on_stdin(pid_t child) {
         return;
     }
     fclose(stdout);
-    fclose(stderr);
     getc(stdin);
     kill(child, SIGQUIT);
     sleep(1); // 1 second to clean up its temp pipes
     kill(child, SIGKILL);
+    fclose(stderr);
+    exit(0);
 }
 
 void cleanup_pipes(int) {
@@ -90,6 +91,9 @@ void fork_serve() {
         unlink(cur_pipes[1]);
         pid_t serve_file = fork();
         if (serve_file == 0) {
+            while (close(1) < 0 && errno == EINTR){ // close stdout
+            }
+            // leave stderr open for complaints
             IOUtil::FileReader reader(reader_pipe);
             IOUtil::FileWriter writer(writer_pipe);
             process_file(&reader, &writer);

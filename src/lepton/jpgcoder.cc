@@ -338,7 +338,7 @@ bool disc_meta  = false;    // discard meta-info yes / no
 bool developer  = false;    // allow developers functions yes/no
 ACTION action   = comp;        // what to do with JPEG/UJG files
 
-FILE*  msgout   = stdout;    // stream for output of messages
+FILE*  msgout   = stderr;    // stream for output of messages
 bool   pipe_on  = false;    // use stdin/stdout instead of filelist
 
 
