@@ -1,9 +1,15 @@
-#include "jpgcoder.hh"
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
+#include <algorithm>
+#include <wait.h>
+#include "jpgcoder.hh"
+#include "../io/ioutil.hh"
 char hex_nibble(uint8_t val) {
     if (val < 10) return val + '0';
     return val - 10 + 'a';
@@ -13,7 +19,7 @@ void always_assert(bool expr) {
     if (!expr) exit(1);
 }
 
-const char last_prefix[] = "/dev/shm"
+const char last_prefix[] = "/dev/shm";
 const char last_postfix[3][7]={".iport", ".jport", ".zport"};
 char last_pipes[sizeof(last_postfix) / sizeof(last_postfix[0])][128] = {};
 
@@ -81,6 +87,24 @@ std::vector<pid_t>::iterator kill_linked_children() {
     return candidate;
 }
 
+
+void single_serve(IOUtil::FileReader * reader, char* reader_pipe, char* writer_pipe, char* twin_pipe, bool zlib) {
+    IOUtil::FileWriter * writer = IOUtil::OpenWriteFileOrPipe(writer_pipe, 0, 0, 0);
+    int twin_status;
+    do {
+        twin_status = open(twin_pipe,O_RDONLY);
+    } while(twin_status == -1 && errno == EINTR);
+    if (twin_status != -1) {
+        int twin_close;
+        do {
+            twin_close = close(twin_status);
+        } while(twin_close == -1 && errno == EINTR);
+    }
+    unlink(reader_pipe);
+    unlink(writer_pipe);
+    unlink(twin_pipe);
+    process_file(reader, writer);
+}
 void wait_for_all_children() {
     while (1) {
         int status;
@@ -88,7 +112,7 @@ void wait_for_all_children() {
         if (pid <= 0) {
             break;
         }
-        removeChildFromTermList(pid);
+        remove_child_from_term_list(pid);
     }
 }
 void sigchild_handler(int) {
@@ -98,7 +122,7 @@ void sigchild_handler(int) {
 
 void add_linked_children(pid_t a, pid_t b) {
     wait_for_all_children();
-    candidate = kill_linked_children();
+    auto candidate = kill_linked_children();
     if (candidate != termList.end()) {
         *candidate = a;
         ++candidate;
@@ -117,24 +141,23 @@ void terminate_all_children() {
         kill(pid, SIGKILL);
     }
 }
-int cleanup_pipes(int) {
+void cleanup_pipes(int) {
     for (size_t i = 0;i < sizeof(last_pipes)/sizeof(last_pipes[0]); ++i) {
         if (last_pipes[i][0]) { // if we've started serving pipes
             unlink(last_pipes[i]);
         }
     }
     terminate_all_children();
-    return 0;
 }
 void fork_serve() {
-    exit_on_stdin(fork);
-    signal(SIGQUIT, cleanup_pipes);
-    signal(SIGTERM, cleanup_pipes);
+    exit_on_stdin(fork());
+    signal(SIGQUIT, &cleanup_pipes);
+    signal(SIGTERM, &cleanup_pipes);
     FILE* dev_random = fopen("/dev/urandom", "rb");
     while (true) {
-        name_cur_pipes(fp);
+        name_cur_pipes(dev_random);
         char cur_pipes[sizeof(last_pipes) / sizeof(last_pipes[0])][sizeof(last_pipes[0])];
-        memcpy(cur_pipes, last_pipes);
+        memcpy(cur_pipes, last_pipes, sizeof(cur_pipes));
         if(mkfifo(last_pipes[0], S_IWUSR | S_IRUSR) == -1) {
             perror("pipe");
         }
@@ -148,16 +171,16 @@ void fork_serve() {
         if (fflush(stdout) != 0) {
             perror("sync");
         }
-        IOUtil::FileReader * reader = OpenFileOrPipe(last_pipes[0], 0, 0, 0);
+        IOUtil::FileReader * reader = IOUtil::OpenFileOrPipe(cur_pipes[0], 0, 0, 0);
         if (reader) {
             pid_t raw_serve = fork();
             if (raw_serve == 0) {
-                single_serve(cur_pipes[0], cur_pipes[1], cur_pipes[2], false);
+                single_serve(reader, cur_pipes[0], cur_pipes[1], cur_pipes[2], false);
                 exit(0);
             }
             pid_t zlib_serve = fork();
             if (zlib_serve == 0) {
-                single_serve(cur_pipes[0], cur_pipes[2], cur_pipes[1], true);
+                single_serve(reader, cur_pipes[0], cur_pipes[2], cur_pipes[1], true);
                 exit(0);
             }
             add_linked_children(raw_serve, zlib_serve);
