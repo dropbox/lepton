@@ -25,7 +25,8 @@ char last_pipes[sizeof(last_postfix) / sizeof(last_postfix[0])][128] = {};
 
 void name_cur_pipes(FILE * dev_random) {
     char random_data[16] = {0};
-    fread(random_data, 1, sizeof(random_data), dev_random);
+    auto retval = fread(random_data, 1, sizeof(random_data), dev_random);
+    (void)retval;// dev random should yield reasonable results
     for (size_t pipe_id = 0; pipe_id < sizeof(last_postfix) / sizeof(last_postfix[0]); ++pipe_id) {
         memcpy(last_pipes[pipe_id], last_prefix, strlen(last_prefix));
         size_t offset = strlen(last_prefix);
