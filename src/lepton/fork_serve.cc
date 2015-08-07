@@ -7,7 +7,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
+#ifndef __APPLE__
 #include <wait.h>
+#else
+#include <sys/wait.h>
+#endif
+#include <errno.h>
 #include "jpgcoder.hh"
 #include "../io/ioutil.hh"
 char hex_nibble(uint8_t val) {
