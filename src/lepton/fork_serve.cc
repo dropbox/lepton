@@ -86,7 +86,7 @@ void fork_serve() {
         if(mkfifo(last_pipes[1], S_IWUSR | S_IRUSR) == -1) {
             perror("pipe");
         }
-        fprintf(stdout, "%s\n", last_pipes[0]);
+        fprintf(stdout, "%s\n%s\n", last_pipes[0], last_pipes[1]);
         if (fflush(stdout) != 0) {
             perror("sync");
         }
