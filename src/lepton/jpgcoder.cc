@@ -639,7 +639,7 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
                  file_no + 1, file_cnt, filelist[ file_no ] );
     }
     // check input file and determine filetype
-    check_file(reader, nullptr);
+    check_file(reader, writer);
 
     // get specific action message
     if ( filetype == UNK ) {

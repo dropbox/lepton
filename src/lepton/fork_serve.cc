@@ -19,8 +19,8 @@ void always_assert(bool expr) {
     if (!expr) exit(1);
 }
 
-const char last_prefix[] = "/dev/shm";
-const char last_postfix[3][7]={".iport", ".jport", ".zport"};
+const char last_prefix[] = "/dev/shm/";
+const char last_postfix[2][7]={".iport", ".oport"};
 char last_pipes[sizeof(last_postfix) / sizeof(last_postfix[0])][128] = {};
 
 void name_cur_pipes(FILE * dev_random) {
@@ -56,98 +56,13 @@ void exit_on_stdin(pid_t child) {
     sleep(1); // 1 second to clean up its temp pipes
     kill(child, SIGKILL);
 }
-std::vector<pid_t> termList;
 
-void remove_child_from_term_list(pid_t pid) {
-    std::vector<pid_t>::iterator where = std::find(termList.begin(), termList.end(), pid);
-    if (where != termList.end()) {
-        *where = 0;
-    }
-}
-
-std::vector<pid_t>::iterator kill_linked_children() {
-    std::vector<pid_t>::iterator candidate = termList.end();
-    always_assert((termList.size() & 1) == 0); // must be even
-    for (std::vector<pid_t>::iterator i = termList.begin(), ie = candidate;
-         i != ie && i + 1 != ie; i += 2) {
-        if (*i == 0 || *(i + 1) == 0) {
-            if (*i) {
-                kill(*i, SIGKILL); // the children are linked together
-                *i = 0;
-            }
-            if (*(i + 1)) {
-                kill(*(i + 1), SIGKILL); // the children are linked together
-                *(i + 1) = 0;
-            }
-            if (ie == candidate) {
-                candidate = i;
-            }
-        }
-    }
-    return candidate;
-}
-
-
-void single_serve(IOUtil::FileReader * reader, char* reader_pipe, char* writer_pipe, char* twin_pipe, bool zlib) {
-    IOUtil::FileWriter * writer = IOUtil::OpenWriteFileOrPipe(writer_pipe, 0, 0, 0);
-    int twin_status;
-    do {
-        twin_status = open(twin_pipe,O_RDONLY);
-    } while(twin_status == -1 && errno == EINTR);
-    if (twin_status != -1) {
-        int twin_close;
-        do {
-            twin_close = close(twin_status);
-        } while(twin_close == -1 && errno == EINTR);
-    }
-    unlink(reader_pipe);
-    unlink(writer_pipe);
-    unlink(twin_pipe);
-    process_file(reader, writer);
-}
-void wait_for_all_children() {
-    while (1) {
-        int status;
-        pid_t pid = waitpid(-1, &status, WNOHANG);
-        if (pid <= 0) {
-            break;
-        }
-        remove_child_from_term_list(pid);
-    }
-}
-void sigchild_handler(int) {
-    wait_for_all_children();
-    kill_linked_children();
-}
-
-void add_linked_children(pid_t a, pid_t b) {
-    wait_for_all_children();
-    auto candidate = kill_linked_children();
-    if (candidate != termList.end()) {
-        *candidate = a;
-        ++candidate;
-        *candidate = b;
-        while (termList.size() > 2 && termList[termList.size() - 2] == 0 && termList.back() == 0) {
-            termList.pop_back();
-            termList.pop_back();
-        }
-    } else {
-        termList.push_back(a);
-        termList.push_back(b);
-    }
-}
-void terminate_all_children() {
-    for (pid_t pid : termList) {
-        kill(pid, SIGKILL);
-    }
-}
 void cleanup_pipes(int) {
     for (size_t i = 0;i < sizeof(last_pipes)/sizeof(last_pipes[0]); ++i) {
         if (last_pipes[i][0]) { // if we've started serving pipes
             unlink(last_pipes[i]);
         }
     }
-    terminate_all_children();
 }
 void fork_serve() {
     exit_on_stdin(fork());
@@ -164,26 +79,28 @@ void fork_serve() {
         if(mkfifo(last_pipes[1], S_IWUSR | S_IRUSR) == -1) {
             perror("pipe");
         }
-        if(mkfifo(last_pipes[2], S_IWUSR | S_IRUSR) == -1) {
-            perror("pipe");
-        }
         fprintf(stdout, "%s\n", last_pipes[0]);
         if (fflush(stdout) != 0) {
             perror("sync");
         }
-        IOUtil::FileReader * reader = IOUtil::OpenFileOrPipe(cur_pipes[0], 0, 0, 0);
-        if (reader) {
-            pid_t raw_serve = fork();
-            if (raw_serve == 0) {
-                single_serve(reader, cur_pipes[0], cur_pipes[1], cur_pipes[2], false);
-                exit(0);
+        FILE * reader_pipe = fopen(cur_pipes[0], "rb");
+        FILE * writer_pipe = fopen(cur_pipes[1], "wb");
+        unlink(cur_pipes[0]);
+        unlink(cur_pipes[1]);
+        pid_t serve_file = fork();
+        if (serve_file == 0) {
+            IOUtil::FileReader reader(reader_pipe);
+            IOUtil::FileWriter writer(writer_pipe);
+            process_file(&reader, &writer);
+            exit(0);
+        } else {
+            fclose(reader_pipe);
+            fclose(writer_pipe);
+        }
+        {
+            int status;
+            while (waitpid(-1, &status, WNOHANG) > 0) {
             }
-            pid_t zlib_serve = fork();
-            if (zlib_serve == 0) {
-                single_serve(reader, cur_pipes[0], cur_pipes[2], cur_pipes[1], true);
-                exit(0);
-            }
-            add_linked_children(raw_serve, zlib_serve);
         }
     }
 }
