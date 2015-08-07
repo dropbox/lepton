@@ -466,8 +466,8 @@ int main( int argc, char** argv )
                  appname, ujgversion / 10, ujgversion % 10, subversion );
     }
     // check if user input is wrong, show help screen if it is
-    if ( ( file_cnt == 0 ) ||
-        ( ( !developer ) && ( (action != comp) ) ) ) {
+    if ( ( file_cnt == 0 && action != forkserve) ||
+        ( ( !developer ) && ( (action != comp && action != forkserve) ) ) ) {
         show_help();
         return -1;
     }
@@ -723,7 +723,7 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     if ( str_out != NULL ) delete( str_out ); str_out = NULL;
     if ( ujg_out != NULL ) delete( ujg_out ); ujg_out = NULL;
     // delete if broken or if output not needed
-    if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp ) ) ) {
+    if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp && action != forkserve) ) ) {
         // FIXME: can't delete broken output--it's gone already
     }
     end = clock();

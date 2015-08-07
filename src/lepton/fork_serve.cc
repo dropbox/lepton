@@ -1,13 +1,23 @@
-#include "jpgcoder.hh"
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include "jpgcoder.hh"
+#include "../io/ioutil.hh"
 char hex_nibble(uint8_t val) {
     if (val < 10) return val + '0';
     return val - 10 + 'a';
 }
+
+pid_t debug_child_or_fork() {
+#if 1
+    return fork();
+#else
+    return 0;
+#endif
+}
+
 void get_temp_name(char data[sizeof(sockaddr_un::sun_path)], const char * postfix) {
     FILE* fp = fopen("/dev/urandom", "rb");
     std::string local = "/tmp/";
@@ -33,9 +43,15 @@ void single_serve(int local_socket, bool do_listen_zlib) {
         if (remote_socket == -1) {
             continue;
         }
-        if (fork() == 0) {
+        fprintf(stderr,"ACCEPTED %d\n", remote_socket);
+        if (debug_child_or_fork() == 0) {
             close(local_socket);
-            printf("HURRAH");
+            FILE * fd = fdopen(remote_socket, "r+b");
+            fprintf(stderr,"fdopened %d\n", remote_socket);
+            IOUtil::FileReader reader(fd);
+            IOUtil::FileWriter writer(fd);
+            fprintf(stderr,"processing file %d\n", remote_socket);
+            process_file(&reader, &writer);
             close(remote_socket);
             exit(0);
         }
@@ -60,6 +76,7 @@ int setup_socket(const char * extension, struct sockaddr_un *local_address) {
         perror("listen");
         exit(1);
     }
+    return local_socket;
 }
 
 void fork_serve() {
@@ -69,12 +86,12 @@ void fork_serve() {
     int local_zlib_socket = setup_socket(".zport", &local_zlib);
     fprintf(stdout, "%s\n%s\n", local_raw.sun_path, local_zlib.sun_path);
     fflush(stdout);
-    pid_t raw_serve = fork();
+    pid_t raw_serve = debug_child_or_fork();
     if (raw_serve == 0) {
         single_serve(local_raw_socket, false);
         exit(0);
     }
-    pid_t zlib_serve = fork();
+    pid_t zlib_serve = debug_child_or_fork();
     if (zlib_serve == 0) {
         single_serve(local_zlib_socket, true);
         exit(0);
