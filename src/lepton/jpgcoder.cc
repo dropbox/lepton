@@ -2273,18 +2273,6 @@ bool write_ujpg( )
     uint32toLE(jpgfilesize, ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
     ujg_out->EnableCompression();
-    if (early_eof_encountered) {
-        unsigned char early_eof[] = {'E', 'E', 'E'};
-        err = ujg_out->Write( early_eof, sizeof(early_eof) ).second;
-        uint32toLE(max_cmp, ujpg_mrk);
-        uint32toLE(max_bpos, ujpg_mrk + 4);
-        uint32toLE(max_sah, ujpg_mrk + 8);
-        uint32toLE(max_dpos[0], ujpg_mrk + 12);
-        uint32toLE(max_dpos[1], ujpg_mrk + 16);
-        uint32toLE(max_dpos[2], ujpg_mrk + 20);
-        uint32toLE(max_dpos[3], ujpg_mrk + 24);
-        err = ujg_out->Write(ujpg_mrk, 28).second;
-    }
 
     // discard meta information from header if needed
     if ( disc_meta )
@@ -2317,6 +2305,18 @@ bool write_ujpg( )
         err = ujg_out->Write( ujpg_mrk, 4).second;
         // data: numbers of false set markers
         err = ujg_out->Write( rst_err, scnc ).second;
+    }
+    if (early_eof_encountered) {
+        unsigned char early_eof[] = {'E', 'E', 'E'};
+        err = ujg_out->Write( early_eof, sizeof(early_eof) ).second;
+        uint32toLE(max_cmp, ujpg_mrk);
+        uint32toLE(max_bpos, ujpg_mrk + 4);
+        uint32toLE(max_sah, ujpg_mrk + 8);
+        uint32toLE(max_dpos[0], ujpg_mrk + 12);
+        uint32toLE(max_dpos[1], ujpg_mrk + 16);
+        uint32toLE(max_dpos[2], ujpg_mrk + 20);
+        uint32toLE(max_dpos[3], ujpg_mrk + 24);
+        err = ujg_out->Write(ujpg_mrk, 28).second;
     }
     // write garbage (data including and after EOI) (if any) to file
     if ( grbs > 0 ) {
