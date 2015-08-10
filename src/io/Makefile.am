@@ -3,4 +3,4 @@ AM_CXXFLAGS = $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 
 noinst_LIBRARIES = libio.a
-libio_a_SOURCES = Compression.cc ioutil.cc
+libio_a_SOURCES = Compression.cc ioutil.cc Zlib0.cc

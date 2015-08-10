@@ -46,10 +46,13 @@ add_executable(lepton
    src/io/Compression.cc
    src/io/Compression.hh
    src/io/Allocator.hh
+   src/io/BufferedIO.hh
    src/io/Error.hh
    src/io/Reader.hh
    src/io/ioutil.hh
    src/io/ioutil.cc
+   src/io/Zlib0.hh
+   src/io/Zlib0.cc
    src/io/DecoderPlatform.hh
    src/vp8/util/slice.hh
    src/vp8/util/mmap.cc
