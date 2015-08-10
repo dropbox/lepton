@@ -27,7 +27,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include <assert.h>
+#include <cstring>
 #include "Zlib0.hh"
+
 namespace Sirikata {
 uint32_t adler32(uint32_t adler, const uint8_t *buf, uint32_t len);
 
@@ -86,7 +88,7 @@ std::pair<uint32, JpegError> Zlib0Writer::Write(const uint8*data, unsigned int s
         buffer[4] = (~buffer[2]) & 0xff;
         uint32_t toSend = 5;
         uint32_t toWrite = std::min((unsigned int)mBilledBytesLeft, size);
-        memcpy(buffer + toSend, data, toWrite);
+        std::memcpy(buffer + toSend, data, toWrite);
         toSend += toWrite;
         std::pair<uint32, JpegError> retval2 = mBase->Write(buffer, toSend);
         if (retval2.second != JpegError::nil()) {
