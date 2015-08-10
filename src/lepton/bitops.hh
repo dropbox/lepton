@@ -16,6 +16,7 @@
 #define BTST_BUFF			1024 * 1024
 
 #include <stdio.h>
+#include <functional>
 #include "../io/Reader.hh"
 #include "../io/ioutil.hh"
 /* -----------------------------------------------
@@ -146,9 +147,13 @@ class bounded_iostream
     unsigned int byte_bound;
     unsigned int byte_position;
     Sirikata::JpegError err;
+    std::function<void(Sirikata::DecoderWriter*, size_t)> size_callback;
 public:
-	bounded_iostream( Sirikata::DecoderWriter * parent, const Sirikata::JpegAllocator<uint8_t> &alloc);
+	bounded_iostream( Sirikata::DecoderWriter * parent,
+                      const std::function<void(Sirikata::DecoderWriter*, size_t)> &size_callback,
+                      const Sirikata::JpegAllocator<uint8_t> &alloc);
 	~bounded_iostream( void );
+    void call_size_callback(size_t size);
     bool chkerr();
     unsigned int getsize();
     void set_bound(size_t bound); // bound of zero = fine

@@ -428,12 +428,17 @@ int abytereader::getpos( void )
 	return cbyte;
 }
 
-bounded_iostream::bounded_iostream(Sirikata::DecoderWriter *w, const Sirikata::JpegAllocator<uint8_t> &alloc) 
+bounded_iostream::bounded_iostream(Sirikata::DecoderWriter *w,
+                                   const std::function<void(Sirikata::DecoderWriter*, size_t)> &size_callback,
+                                   const Sirikata::JpegAllocator<uint8_t> &alloc) 
     : parent(w), err(Sirikata::JpegError::nil()) {
+    this->size_callback = size_callback;
     set_bound(0);
     byte_position = 0;
 }
-
+void bounded_iostream::call_size_callback(size_t size) {
+    size_callback(parent, size);
+}
 bool bounded_iostream::chkerr() {
     return err != Sirikata::JpegError::nil();
 }

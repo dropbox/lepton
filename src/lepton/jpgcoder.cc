@@ -27,6 +27,7 @@
 #include "simple_encoder.hh"
 #include "fork_serve.hh"
 #include "../io/SwitchableCompression.hh"
+#include "../io/Zlib0.hh"
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
 
@@ -352,8 +353,11 @@ static const char*  appname      = "lepton";
 static const char*  ujg_ext      = "ujg";
 static const char*  lepton_ext   = "lep";
 static const char*  jpg_ext      = "jpg";
+static const char*  zjpg_ext      = "jpg.z";
 static const unsigned char   ujg_header[] = { 'U', 'J' };
 static const unsigned char   lepton_header[] = { 0xcf, 0x84 }; // the tau symbol for a tau lepton in utf-8
+static const unsigned char   zlepton_header[] = { 0xce, 0xb6 }; // the zeta symbol for a zlib compressed lepton
+
 
 FILE * timing_log = NULL;
 char current_operation = '\0';
@@ -881,7 +885,11 @@ std::string postfix_uniq(const std::string &filename, const char * ext) {
     }
     return uniq_filename(filename.substr(0, where) + ext);
 }
-
+void nop (Sirikata::DecoderWriter*w, size_t) {
+}
+void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
+    (static_cast<Sirikata::Zlib0Writer*>(w))->setFullFileSize(size);
+}
 /* -----------------------------------------------
     check file and determine filetype
     ----------------------------------------------- */
@@ -948,22 +956,35 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
         }
     }
     else if ( ( ( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) )
-              || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) ) ){
+              || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
+              || ( ( fileid[0] == zlepton_header[0] ) && ( fileid[1] == zlepton_header[1] ) ) ){
+        bool compressed_output = (fileid[0] == zlepton_header[0]) && (fileid[1] == zlepton_header[1]);
         // file is UJG
-        filetype = (( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) ) ? LEPTON : UJG;
+        filetype = (( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) ) ? UJG : LEPTON;
         // create filenames
         if ( !pipe_on ) {
             if (file_no < file_cnt && ofilename != ifilename) {
                 ofilename = filelist[file_no];
             } else {
-                ofilename = postfix_uniq(ifilename, ".jpg");
+                if (compressed_output) {
+                    ofilename = postfix_uniq(ifilename, ".jpg.z");
+                } else {
+                    ofilename = postfix_uniq(ifilename, ".jpg");
+                }
             }
         }
         // open output stream, check for errors
         if (!writer) {
             writer = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
         }
+        std::function<void(Sirikata::DecoderWriter*, size_t file_size)> known_size_callback = &nop;
+        if (compressed_output) {
+            Sirikata::Zlib0Writer *zwriter = new Sirikata::Zlib0Writer(writer, 0);
+            known_size_callback = &static_cast_to_zlib_and_call;
+            writer = zwriter;
+        }
         str_out = new bounded_iostream( writer,
+                                        known_size_callback,
                                         Sirikata::JpegAllocator<uint8_t>());
         if ( str_out->chkerr() ) {
             fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
@@ -2247,7 +2268,23 @@ bool write_ujpg( )
     // store version number
     ujpg_mrk[ 0 ] = ujgversion;
     ujg_out->Write( ujpg_mrk, 1 );
+    unsigned char siz_mrk[] = {'S', 'I', 'Z'};
+    err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
+    uint32toLE(jpgfilesize, ujpg_mrk);
+    err = ujg_out->Write( ujpg_mrk, 4).second;
     ujg_out->EnableCompression();
+    if (early_eof_encountered) {
+        unsigned char early_eof[] = {'E', 'E', 'E'};
+        err = ujg_out->Write( early_eof, sizeof(early_eof) ).second;
+        uint32toLE(max_cmp, ujpg_mrk);
+        uint32toLE(max_bpos, ujpg_mrk + 4);
+        uint32toLE(max_sah, ujpg_mrk + 8);
+        uint32toLE(max_dpos[0], ujpg_mrk + 12);
+        uint32toLE(max_dpos[1], ujpg_mrk + 16);
+        uint32toLE(max_dpos[2], ujpg_mrk + 20);
+        uint32toLE(max_dpos[3], ujpg_mrk + 24);
+        err = ujg_out->Write(ujpg_mrk, 28).second;
+    }
 
     // discard meta information from header if needed
     if ( disc_meta )
@@ -2281,23 +2318,6 @@ bool write_ujpg( )
         // data: numbers of false set markers
         err = ujg_out->Write( rst_err, scnc ).second;
     }
-    unsigned char siz_mrk[] = {'S', 'I', 'Z'};
-    err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
-    uint32toLE(jpgfilesize, ujpg_mrk);
-    err = ujg_out->Write( ujpg_mrk, 4).second;
-    if (early_eof_encountered) {
-        unsigned char early_eof[] = {'E', 'E', 'E'};
-        err = ujg_out->Write( early_eof, sizeof(early_eof) ).second;
-        uint32toLE(max_cmp, ujpg_mrk);
-        uint32toLE(max_bpos, ujpg_mrk + 4);
-        uint32toLE(max_sah, ujpg_mrk + 8);
-        uint32toLE(max_dpos[0], ujpg_mrk + 12);
-        uint32toLE(max_dpos[1], ujpg_mrk + 16);
-        uint32toLE(max_dpos[2], ujpg_mrk + 20);
-        uint32toLE(max_dpos[3], ujpg_mrk + 24);
-        err = ujg_out->Write(ujpg_mrk, 28).second;
-    }
-
     // write garbage (data including and after EOI) (if any) to file
     if ( grbs > 0 ) {
         // marker: "GRB" + [size of garbage]
@@ -2349,6 +2369,15 @@ bool read_ujpg( void )
             appname, ujpg_mrk[ 0 ] / 10, ujpg_mrk[ 0 ] % 10 );
         errorlevel.store(2);
         return false;
+    }
+    ReadFull(str_in, ujpg_mrk, 3 );
+    if ( memcmp( ujpg_mrk, "SIZ", 3 ) == 0 ) {
+            // full size of the original file
+        ReadFull(str_in, ujpg_mrk, 4);
+        max_file_size = LEtoUint32(ujpg_mrk);
+        str_out->call_size_callback(max_file_size);
+    } else {
+        assert(false && "Legacy prerelease format encountered\n");
     }
     str_in->EnableCompression();
     grbs = sizeof(EOI);

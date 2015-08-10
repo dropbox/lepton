@@ -14,6 +14,9 @@ public:
         mBase = base;
         mOffset = end();
     }
+    void init(DecoderReader *base) {
+        mBase = base;
+    }
     std::pair<uint32, JpegError> Read(uint8*data, unsigned int size) {
         uint32_t remaining = end() - mOffset;
         if (!remaining) {
@@ -53,6 +56,9 @@ public:
     BufferedWriter(DecoderWriter *base) {
         mBase = base;
         mOffset = mBuffer;
+    }
+    void init(DecoderWriter *base) {
+        mBase = base;
     }
     std::pair<uint32, JpegError> Write(const uint8*data, unsigned int size) {
         if (size > bufferSize) {

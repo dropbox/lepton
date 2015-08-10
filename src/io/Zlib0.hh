@@ -37,7 +37,6 @@ class SIRIKATA_EXPORT Zlib0Writer : public DecoderWriter {
     // currently the system only works for a preconceived filesize
     size_t mFileSize;
     size_t mWritten;
-    size_t mCompressed;
     uint32_t mAdler32; // adler32 sum
     bool mClosed;
     uint16_t mBilledBytesLeft; // how many bytes are left in this block
@@ -52,12 +51,6 @@ class SIRIKATA_EXPORT Zlib0Writer : public DecoderWriter {
     /// writes the adler32 sum
     virtual void Close();
     static size_t getCompressedSize(size_t originalSize);
-    size_t getDiskSize() {
-        return mCompressed;
-    }
-    size_t getOrigSize(){
-        return mWritten;
-    }
 };
 
 }

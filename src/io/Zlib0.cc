@@ -28,8 +28,8 @@
  */
 #include <assert.h>
 #include <cstring>
-#include "Zlib0.hh"
 
+#include "Zlib0.hh"
 namespace Sirikata {
 uint32_t adler32(uint32_t adler, const uint8_t *buf, uint32_t len);
 
@@ -37,7 +37,6 @@ Zlib0Writer::Zlib0Writer(DecoderWriter * stream, int level){
     mBase = stream;
     mBilledBytesLeft = 0;
     mWritten = 0;
-    mCompressed = 0;
     mClosed = false;
     mAdler32 = adler32(0, NULL, 0);
     assert(level == 0 && "Only support stored/raw/literal zlib");
@@ -63,12 +62,10 @@ std::pair<uint32, JpegError> Zlib0Writer::Write(const uint8*data, unsigned int s
         retval = mBase->Write(data, toWrite);
         if (retval.second != JpegError::nil()) {
             mWritten += retval.first;
-            mCompressed += retval.first;
             return retval;
         }
         mBilledBytesLeft -= toWrite;
         mWritten += toWrite;
-        mCompressed += toWrite;
         size -= toWrite;
         data += toWrite;
     }
@@ -95,15 +92,14 @@ std::pair<uint32, JpegError> Zlib0Writer::Write(const uint8*data, unsigned int s
             if (retval2.first > toSend - toWrite) {
                 retval.first += retval2.first - (toSend - toWrite);
                 mWritten += retval2.first - (toSend - toWrite);
-                mCompressed += retval2.first;
             }
             retval.second = retval2.second;
             return retval;
         }
         mWritten += toWrite;
-        mCompressed += toSend;
-        size -= size;
-        data += size;
+        mBilledBytesLeft -= toWrite;
+        size -= toWrite;
+        data += toWrite;
         retval.first += toWrite;
     }
     return retval;
