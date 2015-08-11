@@ -77,11 +77,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                                                         DecoderCompressionWriter> *str_out)
 {
     /* cmpc is a global variable with the component count */
-    /* verify JFIF is Y'CbCr only (no grayscale images allowed) */
-    if ( colldata->get_num_components() != 3 ) {
-        std::cerr << "JPEG/JFIF was not a three-component Y'CbCr image" << std::endl;
-        return CODING_ERROR;
-    }
     using namespace Sirikata;
     /* construct 8x8 "VP8" blocks to hold 8x8 JPEG blocks */
     Array1d<BlockBasedImage, (uint32_t)ColorChannel::NumBlockTypes>  vp8_blocks;

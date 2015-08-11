@@ -44,11 +44,7 @@ VP8ComponentDecoder::VP8ComponentDecoder()
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     /* cmpc is a global variable with the component count */
-    /* verify JFIF is Y'CbCr only (no grayscale images allowed) */
-    if ( colldata->get_num_components() != 3 ) {
-        std::cerr << "JPEG/JFIF was not a three-component Y'CbCr image" << std::endl;
-        return CODING_ERROR;
-    }
+
 
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
     if ( context_[0].context.isNil() ) {
