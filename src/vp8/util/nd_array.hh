@@ -306,7 +306,8 @@ template <class T,
     }
     const typename Array2d<T, s1, s2>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        const typename Array2d<T, s1, s2>::Slice retval = {&IsReference::dereference(data)[i0]};
+        const typename Array2d<T, s1, s2>::Slice retval = {(typename Array2d<T, s1, s2>::IsReference::ArrayType*)
+                                                           &IsReference::dereference(data)[i0]};
         return retval;
     }
     void memset(uint8_t val) {
@@ -425,7 +426,8 @@ template <class T,
     }
     const typename Array3d<T, s1, s2, s3>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        const typename Array3d<T, s1, s2, s3>::Slice retval ={(typename Array3d<T, s1, s2, s3>::IsReference::ArrayType*)(&IsReference::dereference(data)[i0])};
+        const typename Array3d<T, s1, s2, s3>::Slice retval ={(typename Array3d<T, s1, s2, s3>::IsReference::ArrayType*)
+                                                              (&IsReference::dereference(data)[i0])};
         return retval;
     }
     void memset(uint8_t val) {

@@ -82,9 +82,7 @@ typedef Sirikata::Array5d<Branch,
   ExponentCounts8 exponent_counts_x_;
   ExponentCountsDC exponent_counts_dc_;
 
-  typedef FixedArray<FixedArray<FixedArray<Branch, (COEF_BITS + 2 > 9 ? COEF_BITS + 2 : 9)>,
-                              4>,
-            BLOCK_TYPES> SignCounts;
+  typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, (COEF_BITS + 2 > 9 ? COEF_BITS + 2 : 9)> SignCounts;
   SignCounts sign_counts_;
   
   template <typename lambda>
@@ -99,13 +97,7 @@ typedef Sirikata::Array5d<Branch,
 
       residual_noise_counts_.foreach(proc);
       residual_threshold_counts_.foreach(proc);
-      for ( auto & a : sign_counts_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  proc( c );
-              }
-          }
-      }
+      sign_counts_.foreach(proc);
   }
 
 };
