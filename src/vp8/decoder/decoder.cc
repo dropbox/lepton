@@ -153,11 +153,11 @@ void parse_tokens( BlockContext context,
                    BlockColorContext color,
                    BoolDecoder & data,
                    ProbabilityTables & probability_tables) {
-    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(color.color, context);
+    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(color.color, context);
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
-        int cur_bit = (data.get(num_nonzeros_prob.at(index).at(decoded_so_far))?1:0);
+        int cur_bit = (data.get(num_nonzeros_prob.at(index, decoded_so_far))?1:0);
         num_nonzeros_7x7 |= (cur_bit << index);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -243,12 +243,12 @@ void parse_tokens( BlockContext context,
             }
         }
     }
-    auto &prob_x = probability_tables.nonzero_counts_1x8(color.color,
+    auto &prob_x = probability_tables.x_nonzero_counts_8x1(color.color,
                                                       eob_x,
-                                                         num_nonzeros_7x7, true);
-    auto &prob_y = probability_tables.nonzero_counts_1x8(color.color,
+                                                         num_nonzeros_7x7);
+    auto &prob_y = probability_tables.y_nonzero_counts_1x8(color.color,
                                                       eob_y,
-                                                         num_nonzeros_7x7, false);
+                                                         num_nonzeros_7x7);
     uint8_t num_nonzeros_x = 0;
     decoded_so_far = 0;
     for (int i= 2; i >=0; --i) {

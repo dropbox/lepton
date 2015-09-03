@@ -22,11 +22,11 @@ void serialize_tokens(BlockContext context,
                       ProbabilityTables & probability_tables)
 {
     const AlignedBlock &block = context.here();
-    auto & num_nonzeros_prob = probability_tables.nonzero_counts_7x7(color.color, context);
+    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(color.color, context);
     int serialized_so_far = 0;
     for (int index = 5; index >= 0; --index) {
         int cur_bit = (block.num_nonzeros_7x7() & (1 << index)) ? 1 : 0;
-        encoder.put(cur_bit, num_nonzeros_prob.at(index).at(serialized_so_far));
+        encoder.put(cur_bit, num_nonzeros_prob.at(index, serialized_so_far));
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
@@ -34,34 +34,6 @@ void serialize_tokens(BlockContext context,
         // do DC
         uint8_t coord = 0;
         int16_t coef = probability_tables.predict_or_unpredict_dc(context, false);
-        /*
-        if (color_context.chroma && color_context.luminance[0][0]) {
-            coef = coefficients().at(0);//
-            static double prev_ratio[4] = {};
-
-            fprintf(stderr, "%.3f :: %.3f :: %.3f\n",
-                    context.chroma->coefficients().at(0)/(double)context.luminance[0][0]->coefficients().at(0),
-                    coefficients().at(0)/(double)context.luminance[0][0]->coefficients().at(0),
-                    coefficients().at(0)/(double)context.chroma->coefficients().at(0));
-            double guess = prev_ratio[type_] * color_context.luminance[0][0]->coefficients().at(0);
-            if (type_ == 1) {
-                if (color_context.luminance[0][0]->coefficients().at(0)) {
-                    prev_ratio[type_] = coefficients().at(0) / (double)color_context.luminance[0][0]->coefficients().at(0);
-                }
-            } else {
-                if (color_context.luminance[0][0]->coefficients().at(0)) {
-                    prev_ratio[type_] = coefficients().at(0) / (double)color_context.luminance[0][0]->coefficients().at(0);
-                }
-            }
-            guess = coefficients().at(0) - guess;
-            while (guess >= 1024) {
-                guess -= 1024;
-            }
-            while (guess < -1024) {
-                guess += 1024;
-            }
-            //coef = guess;
-        }*/
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
         auto & exp_prob = probability_tables.exponent_array_7x7(color.color, coord, block.num_nonzeros_7x7(), context);
@@ -146,12 +118,12 @@ void serialize_tokens(BlockContext context,
             }
         }
     }
-    auto &prob_x = probability_tables.nonzero_counts_1x8(color.color,
+    auto &prob_x = probability_tables.x_nonzero_counts_8x1(color.color,
                                                       eob_x,
-                                                         block.num_nonzeros_7x7(), true);
-    auto &prob_y = probability_tables.nonzero_counts_1x8(color.color,
+                                                         block.num_nonzeros_7x7());
+    auto &prob_y = probability_tables.y_nonzero_counts_1x8(color.color,
                                                       eob_y,
-                                                         block.num_nonzeros_7x7(), false);
+                                                         block.num_nonzeros_7x7());
     serialized_so_far = 0;
     for (int i= 2; i >= 0; --i) {
         int cur_bit = (block.num_nonzeros_x() & (1 << i)) ? 1 : 0;

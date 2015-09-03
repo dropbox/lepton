@@ -76,6 +76,7 @@ public:
                                                const Sirikata::Array1d<VContext, 3>&curr_y,
                                                int curr_component) const {
         BlockColorContextIndices retval; // zero initialize
+#ifdef USE_COLOR_VALUES
         if (curr_component > 0) {
             size_t ratioX = std::max(header_[0].info_.bch/header_[curr_component].info_.bch, 1);
             size_t ratioY = std::max(header_[0].info_.bcv/header_[curr_component].info_.bcv, 1);
@@ -90,6 +91,7 @@ public:
                 retval.chromaIndex = std::pair<int, int>(curr_y[1].y - 1, curr_x);
             }
         }
+#endif
         return retval;
     }
     bool get_next_component(const Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes> &curr_y,

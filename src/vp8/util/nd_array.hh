@@ -32,17 +32,15 @@
 
 #ifndef _SIRIKATA_ARRAY_ND_HPP_
 #define _SIRIKATA_ARRAY_ND_HPP_
-#if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
-#include <cassert>
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
+#if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
+#include <cstdint>
 #else
 #include <assert.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #define constexpr
+#define NOCONSTEXPR
 #endif
 
 
@@ -72,7 +70,7 @@ public:
 };
 
 template<class T, uint32_t s0> struct ArrayBaseType1d {
-    typedef T Array[s0];
+    typedef T Array[s0 ? s0 : 1];
 };
 template<class T, uint32_t s0, uint32_t s1> struct ArrayBaseType2d {
     typedef T Array[s0][s1];
@@ -107,6 +105,9 @@ template <class T,
     static constexpr uint32_t size() {
         return s0;
     }
+    static constexpr uint32_t dimsize() {
+        return s0;
+    }
     static constexpr uint32_t dimension() {
         return 1;
     }
@@ -126,6 +127,29 @@ template <class T,
         assert(i0 < s0);
         return IsReference::dereference(data)[i0];
     }
+    template <class StartEnd> typename Array1d<T, StartEnd::END - StartEnd::START>::Slice slice(const StartEnd&range) {
+        return slice<StartEnd::START, StartEnd::END>();
+    }
+    template <class StartEnd> typename Array1d<T, StartEnd::END - StartEnd::START>::Slice slice(const StartEnd&range) const {
+        return slice<StartEnd::START, StartEnd::END>();
+    }
+    template <uint32_t start, uint32_t end> typename Array1d<T, end - start>::Slice slice() {
+            uint8_t assert_slice_legal[end > s0 ? -1 : 1];
+            uint8_t assert_slice_start_legal[end < start ? -1 : 1];
+            (void)assert_slice_legal;
+            (void)assert_slice_start_legal;
+            const typename Array1d<T, end-start>::Slice retval = {(typename Array1d<T, end-start>::Slice::IsReference::ArrayType)&IsReference::dereference(data)[start]};
+            return retval;
+    }
+    template <uint32_t start, uint32_t end> const typename Array1d<T, end - start>::Slice slice() const {
+        uint8_t assert_slice_legal[end > s0 ? -1 : 1];
+        uint8_t assert_slice_start_legal[end < start ? -1 : 1];
+        (void)assert_slice_legal;
+        (void)assert_slice_start_legal;
+        const typename Array1d<T, end-start>::Slice retval = {(typename Array1d<T, end-start>::Slice::IsReference::ArrayType)&IsReference::dereference(data)[start]};
+        return retval;
+    }
+
     void memset(uint8_t val) {
         std::memset(data, val, sizeof(Array));
     }
@@ -153,18 +177,26 @@ template <class T,
         size1 = s1
     };
     static constexpr Array1d<uint32_t, 2> size() {
+#ifdef NOCONSTEXPR
+        Array1d<uint32_t, 2> retval = {{s0, s1}};
+        return retval;
+#else
         return {{s0, s1}};
+#endif
     }
     static uint32_t dimension() {
         return 2;
     }
-    const T& raster(uint32_t offset) const {
-        assert(offset < s0 * s1);
-        return reinterpret_cast<const T*>(&data)[offset];
+    static constexpr uint32_t dimsize() {
+        return s0;
     }
-    T& raster(uint32_t offset) {
-        assert(offset < s0 * s1);
-        return reinterpret_cast<T*>(&data)[offset];
+    T& raster(uint32_t index) {
+        assert(index < s0 * s1);
+        return (&IsReference::dereference(data)[0][0])[index];
+    }
+    const T& raster(uint32_t index) const {
+        assert(index < s0 * s1);
+        return (&IsReference::dereference(data)[0][0])[index];
     }
     T& at(uint32_t i0,
                    uint32_t i1) {
@@ -179,10 +211,14 @@ template <class T,
         return IsReference::dereference(data)[i0][i1];
     }
     typename Array1d<T, s1>::Slice at(uint32_t i0) {
-        return {&IsReference::dereference(data)[i0]};
+        assert(i0 < s0);
+        typename Array1d<T, s1>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     const typename Array1d<T, s1>::Slice at(uint32_t i0) const {
-        return {&IsReference::dereference(data)[i0]};
+        assert(i0 < s0);
+        const typename Array1d<T, s1>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     void memset(uint8_t val) {
         std::memset(data, val, sizeof(Array));
@@ -217,11 +253,20 @@ template <class T,
         size2 = s2
     };
     static constexpr Array1d<uint32_t, 3> size() {
+#ifdef NOCONSTEXPR
+        Array1d<uint32_t, 3> retval = {{s0,s1,s2}};
+        return retval;
+#else
         return {{s0,s1,s2}};
+#endif
     }
     static uint32_t dimension() {
         return 3;
     }
+    static constexpr uint32_t dimsize() {
+        return s0;
+    }
+
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
@@ -242,21 +287,25 @@ template <class T,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(data)[i0][i1]};
+        typename Array1d<T, s2>::Slice retval = {&IsReference::dereference(data)[i0][i1]};
+        return retval;
     }
     const typename Array1d<T, s2>::Slice at(uint32_t i0,
                    uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(data)[i0][i1]};
+        const typename Array1d<T, s2>::Slice retval = {&IsReference::dereference(data)[i0][i1]};
+        return retval;
     }
     typename Array2d<T, s1, s2>::Slice at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        typename Array2d<T, s1, s2>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     const typename Array2d<T, s1, s2>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        const typename Array2d<T, s1, s2>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     void memset(uint8_t val) {
         memset(data, val, sizeof(Array));
@@ -300,11 +349,20 @@ template <class T,
     };
 
     static constexpr Array1d<uint32_t, 4> size() {
+#ifdef NOCONSTEXPR
+        Array1d<uint32_t, 4> retval = {{s0,s1,s2,s3}};
+        return retval;
+#else
         return {{s0,s1,s2,s3}};
+#endif
     }
     static uint32_t dimension() {
         return 4;
     }
+    static constexpr uint32_t dimsize() {
+        return s0;
+    }
+
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -331,7 +389,8 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(data)[i0][i1][i2]};
+        typename Array1d<T, s3>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2]};
+        return retval;
     }
     const typename Array1d<T, s3>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -339,28 +398,33 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(data)[i0][i1][i2]};
+        const typename Array1d<T, s3>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2]};
+        return retval;
     }
     typename Array2d<T, s2, s3>::Slice at(uint32_t i0,
                    uint32_t i1) {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(data)[i0][i1]};
+        typename Array2d<T, s2, s3>::Slice retval ={&IsReference::dereference(data)[i0][i1]};
+        return retval;
     }
     const typename Array2d<T, s2, s3>::Slice at(uint32_t i0,
                    uint32_t i1) const {
         assert(i0 < s0);
         assert(i1 < s1);
-        return {&IsReference::dereference(data)[i0][i1]};
+        const typename Array2d<T, s2, s3>::Slice retval = {&IsReference::dereference(data)[i0][i1]};
+        return retval;
     }
 
     typename Array3d<T, s1, s2, s3>::Slice at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        typename Array3d<T, s1, s2, s3>::Slice retval ={&IsReference::dereference(data)[i0]};
+        return retval;
     }
     const typename Array3d<T, s1, s2, s3>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        const typename Array3d<T, s1, s2, s3>::Slice retval ={(typename Array3d<T, s1, s2, s3>::IsReference::ArrayType*)(&IsReference::dereference(data)[i0])};
+        return retval;
     }
     void memset(uint8_t val) {
         memset(data, val, sizeof(Array));
@@ -410,11 +474,20 @@ template <class T,
         size4 = s4
     };
     static constexpr Array1d<uint32_t, 5> size() {
+#ifdef NOCONSTEXPR
+        Array1d<uint32_t, 5> retval = {{s0,s1,s2,s3,s4}};
+        return retval;
+#else
         return {{s0,s1,s2,s3,s4}};
+#endif
     }
     static uint32_t dimension() {
         return 5;
     }
+    static constexpr uint32_t dimsize() {
+        return s0;
+    }
+
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -447,7 +520,8 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
+        typename Array1d<T, s4>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2][i3]};
+        return retval;
     }
     const typename Array1d<T, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -457,7 +531,8 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
+        const typename Array1d<T, s4>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2][i3]};
+        return retval;
     }
     typename Array2d<T, s3, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -465,7 +540,8 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(data)[i0][i1][i2]};
+        typename Array2d<T, s3, s4>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2]};
+        return retval;
     }
     const typename Array2d<T, s3, s4>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -473,16 +549,19 @@ template <class T,
         assert(i0 < s0);
         assert(i1 < s1);
         assert(i2 < s2);
-        return {&IsReference::dereference(data)[i0][i1][i2]};
+        const typename Array2d<T, s3, s4>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2]};
+        return retval;
     }
 
     typename Array4d<T, s1, s2, s3, s4>::Slice at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        typename Array4d<T, s1, s2, s3, s4>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     const typename Array4d<T, s1, s2, s3, s4>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        const typename Array4d<T, s1, s2, s3, s4>::Slice retval ={&IsReference::dereference(data)[i0]};
+        return retval;
     }
     void memset(uint8_t val) {
         memset(data, val, sizeof(Array));
@@ -535,12 +614,21 @@ template <class T,
         size5 = s5,
     };
     static constexpr Array1d<uint32_t, 6> size() {
+#ifdef NOCONSTEXPR
+        Array1d<uint32_t, 6> retval = {{s0,s1,s2,s3,s4,s5}};
+        return retval;
+#else
         return {{s0,s1,s2,s3,s4,s5}};
+#endif
     }
 
     static uint32_t dimension() {
         return 6;
     }
+    static constexpr uint32_t dimsize() {
+        return s0;
+    }
+
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -579,7 +667,8 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        typename Array1d<T, s5>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        return retval;
     }
     const typename Array1d<T, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -591,7 +680,8 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        const typename Array1d<T, s5>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        return retval;
     }
     typename Array2d<T, s4, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -601,7 +691,8 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
+        typename Array2d<T, s4, s5>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2][i3]};
+        return retval;
     }
     const typename Array2d<T, s4, s5>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -611,16 +702,19 @@ template <class T,
         assert(i1 < s1);
         assert(i2 < s2);
         assert(i3 < s3);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3]};
+        const typename Array2d<T, s4, s5>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2][i3]};
+        return retval;
     }
 
     typename Array5d<T, s1, s2, s3, s4, s5>::Slice at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        typename Array5d<T, s1, s2, s3, s4, s5>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     const typename Array5d<T, s1, s2, s3, s4, s5>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        const typename Array5d<T, s1, s2, s3, s4, s5>::Slice retval = {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     void memset(uint8_t val) {
         memset(data, val, sizeof(Array));
@@ -677,11 +771,20 @@ template <class T,
         size6 = s6,
     };
     static constexpr Array1d<uint32_t, 7> size() {
+#ifdef NOCONSTEXPR
+        Array1d<uint32_t, 7> retval = {{s0,s1,s2,s3,s4,s5,s6}};
+        return retval;
+#else
         return {{s0,s1,s2,s3,s4,s5,s6}};
+#endif
     }
     static uint32_t dimension() {
         return 7;
     }
+    static constexpr uint32_t dimsize() {
+        return s0;
+    }
+
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
@@ -726,7 +829,9 @@ template <class T,
         assert(i3 < s3);
         assert(i4 < s4);
         assert(i5 < s5);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
+        typename Array1d<T, s6>::Slice retval =
+            {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
+        return retval;
     }
     const typename Array1d<T, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -740,7 +845,9 @@ template <class T,
         assert(i3 < s3);
         assert(i4 < s4);
         assert(i5 < s5);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
+        const typename Array1d<T, s6>::Slice retval =
+            {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
+        return retval;
     }
     typename Array2d<T, s5, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -752,7 +859,9 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        typename Array2d<T, s5, s6>::Slice retval =
+            {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        return retval;
     }
     const typename Array2d<T, s5, s6>::Slice at(uint32_t i0,
                    uint32_t i1,
@@ -764,17 +873,23 @@ template <class T,
         assert(i2 < s2);
         assert(i3 < s3);
         assert(i4 < s4);
-        return {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        const typename Array2d<T, s5, s6>::Slice retval =
+            {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
+        return retval;
     }
 
 
     typename Array6d<T, s1, s2, s3, s4, s5, s6>::Slice at(uint32_t i0) {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        typename Array6d<T, s1, s2, s3, s4, s5, s6>::Slice retval =
+            {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     const typename Array6d<T, s1, s2, s3, s4, s5, s6>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        return {&IsReference::dereference(data)[i0]};
+        const typename Array6d<T, s1, s2, s3, s4, s5, s6>::Slice retval =
+            {&IsReference::dereference(data)[i0]};
+        return retval;
     }
     void memset(uint8_t val) {
         std::memset(data, val, sizeof(Array));
@@ -881,5 +996,8 @@ uint32_t s3, uint32_t s4, uint32_t s5,
           uint32_t s6> struct AlignedArray7d : AlignedArrayNd<typename Array7d<T, s0, s1, s2, s3, s4, s5, s6>::Slice > {};
 }
 
-
+#if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
+#undef constexpr
+#undef NOCONSTEXPR
+#endif
 #endif //_SIRIKATA_ARRAY_ND_HPP_

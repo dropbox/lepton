@@ -4,4 +4,4 @@
 #include <assert.h>
 #include <cstring>
 template <class T, size_t dim> using FixedArray = std::array<T, dim>;
-#endif
+#endif /* ARRAY_HH */

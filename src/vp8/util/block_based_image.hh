@@ -57,12 +57,14 @@ public:
 };
 
 inline
-BlockColorContext get_color_context_blocks(const BlockColorContextIndices & indices,
+BlockColorContext get_color_context_blocks(
+                                        const BlockColorContextIndices & indices,
                                            const Sirikata::Array1d<BlockBasedImage,
                                                                    (uint32_t)ColorChannel::NumBlockTypes> &jpeg,
                                            int component) {
-    BlockColorContext retval;
+    BlockColorContext retval = {};
     retval.color = component;
+#ifdef USE_COLOR_VALUES
     for (size_t i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {
         for (size_t j = 0; j < sizeof(indices.luminanceIndex[0])/sizeof(indices.luminanceIndex[0][0]); ++j) {
             if (indices.luminanceIndex[i][j].initialized()) {
@@ -73,6 +75,7 @@ BlockColorContext get_color_context_blocks(const BlockColorContextIndices & indi
     if (indices.chromaIndex.initialized()) {
         retval.chroma = &jpeg[1].at(indices.chromaIndex.get().second,indices.chromaIndex.get().first);
     }
+#endif
     return retval;
 }
 #endif

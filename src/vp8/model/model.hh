@@ -29,42 +29,10 @@ constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = 10;
 
 
-inline int index_to_cat(int index) {
-    return index;
-    constexpr int unzigzag[] =
-{
-	 0,  1,  8, 16,  9,  2,  3, 10,
-	17, 24, 32, 25, 18, 11,  4,  5,
-	12, 19, 26, 33, 40, 48, 41, 34,
-	27, 20, 13,  6,  7, 14, 21, 28,
-	35, 42, 49, 56, 57, 50, 43, 36,
-	29, 22, 15, 23, 30, 37, 44, 51,
-	58, 59, 52, 45, 38, 31, 39, 46,
-	53, 60, 61, 54, 47, 55, 62, 63
-};
-
-        int where = unzigzag[index];
-        int x = where % 8;
-        int y = where / 8;
-        if (x == y) {
-            return 0;
-        }
-        if (x == 0 || y == 0) {
-            return 1;
-        }
-        if (x > y) {
-            return 2;
-        }
-        return 3;
-}
-
-
 
 struct Model
 {
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch, 32>, 6>,
-                        26>, //neighboring zero counts added + 2/ 4
-            BLOCK_TYPES> NonzeroCounts7x7;
+    typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
     NonzeroCounts7x7 num_nonzeros_counts_7x7_;
 
     typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 4>, 3>,
@@ -119,15 +87,7 @@ struct Model
   template <typename lambda>
   void forall( const lambda & proc )
   {
-      for ( auto & a : num_nonzeros_counts_7x7_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for ( auto & d : c ) {
-                      proc( d );
-                  }
-              }
-          }
-      }
+      num_nonzeros_counts_7x7_.foreach(proc);
       for ( auto & a : num_nonzeros_counts_1x8_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
@@ -266,7 +226,7 @@ public:
     void set_quantization_table(const unsigned short quantization_table[64]) {
         quantization_table_ = quantization_table;
     }
-    FixedArray<FixedArray<Branch, 32>, 6>& nonzero_counts_7x7(unsigned int block_type,
+    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(unsigned int block_type,
                                                             const BlockContext block) {
         Optional<uint8_t> num_nonzeros_above;
         Optional<uint8_t> num_nonzeros_left;
@@ -286,22 +246,24 @@ public:
             num_nonzeros_context = (num_nonzeros_above.get() + num_nonzeros_left.get() + 2) / 4;
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
-        return model_->num_nonzeros_counts_7x7_
-            .at(std::min(block_type, BLOCK_TYPES - 1))
-            .at(num_nonzeros_to_bin(num_nonzeros_context));
+        return model_->num_nonzeros_counts_7x7_.at(std::min(block_type, BLOCK_TYPES - 1),
+                                                   num_nonzeros_to_bin(num_nonzeros_context));
     }
-    FixedArray<FixedArray<Branch,4>, 3>& nonzero_counts_1x8(unsigned int block_type,
-                                             unsigned int eob_x,
-                                             unsigned int num_nonzeros,
-                                             bool is_x) {
+    FixedArray<FixedArray<Branch,4>, 3>& x_nonzero_counts_8x1(unsigned int block_type,
+                                                          unsigned int eob_x,
+                                                          unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
-        if (!is_x) {
-            return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
-                .at(eob_x)
-                .at(((num_nonzeros + 3) / 7));
-        }
         return model_->num_nonzeros_counts_8x1_.at(std::min(block_type, BLOCK_TYPES -1))
+        .at(eob_x)
+        .at(((num_nonzeros + 3) / 7));
+    }
+    FixedArray<FixedArray<Branch,4>, 3>& y_nonzero_counts_1x8(unsigned int block_type,
+                                                          unsigned int eob_x,
+                                                          unsigned int num_nonzeros) {
+        ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
+        ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
+        return model_->num_nonzeros_counts_1x8_.at(std::min(block_type, BLOCK_TYPES -1))
             .at(eob_x)
             .at(((num_nonzeros + 3) / 7));
     }

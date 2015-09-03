@@ -40,9 +40,12 @@ template<class BranchArray> void print_helper(const BranchArray& ba,
                                               std::vector<uint32_t> &values,
                                               ProbabilityTables::PrintabilitySpecification print_branch_bitmask) {
     values.push_back(0);
-    for (size_t i = 0; i < ba.size(); ++i) {
+    for (size_t i = 0; i < ba.dimsize(); ++i) {
         values.back() = i;
-        print_helper(ba.at(i), other ? &other->at(i) : nullptr, table_name, names, values, print_branch_bitmask);
+        auto subarray = ba.at(i);
+        auto otherarray = &subarray;
+        otherarray= nullptr;
+        print_helper(subarray, otherarray, table_name, names, values, print_branch_bitmask);
     }
     values.pop_back();
 }
@@ -111,7 +114,7 @@ template<class BranchArray> void print_all(const BranchArray &ba,
                                            const std::vector<std::string> &names,
                                            ProbabilityTables::PrintabilitySpecification spec) {
     std::vector<uint32_t> tmp;
-    print_helper(ba, other_ba, table_name, names, tmp, spec);
+    //print_helper(ba, other_ba, table_name, names, tmp, spec);
 }
 
 const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * other,
