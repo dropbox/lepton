@@ -63,16 +63,20 @@ struct Model
                     NUMBER_OF_EXPONENT_BITS,
                     1<< (NUMBER_OF_EXPONENT_BITS - 1)> ExponentCounts8;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
-                         NUMERIC_LENGTH_MAX>, //neighboring block exp
-                     NUM_NONZEROS_BINS>,
-             49>,
-      BLOCK_TYPES> ExponentCounts7x7;
+    typedef Sirikata::Array6d<Branch,
+                              BLOCK_TYPES,
+                              49,
+                              NUM_NONZEROS_BINS,
+                              NUMERIC_LENGTH_MAX,
+                              NUMBER_OF_EXPONENT_BITS,
+                              1 << (NUMBER_OF_EXPONENT_BITS - 1)> ExponentCounts7x7;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
-                         NUMERIC_LENGTH_MAX>, //neighboring block exp
-                   NUM_NONZEROS_BINS>,
-      BLOCK_TYPES> ExponentCountsDC;
+typedef Sirikata::Array5d<Branch,
+                          BLOCK_TYPES,
+                          NUM_NONZEROS_BINS,
+                          NUMERIC_LENGTH_MAX,
+                          NUMBER_OF_EXPONENT_BITS,
+                          1<<(NUMBER_OF_EXPONENT_BITS - 1)> ExponentCountsDC;
 
   ExponentCounts7x7 exponent_counts_;
   ExponentCounts8 exponent_counts_x_;
@@ -90,6 +94,8 @@ struct Model
       num_nonzeros_counts_1x8_.foreach(proc);
       num_nonzeros_counts_8x1_.foreach(proc);
       exponent_counts_x_.foreach(proc);
+      exponent_counts_.foreach(proc);
+      exponent_counts_dc_.foreach(proc);
       for ( auto & a : sign_counts_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
@@ -111,30 +117,6 @@ struct Model
               for ( auto & c : b ) {
                   for ( auto & d : c ) {
                       proc( d );
-                  }
-              }
-          }
-      }
-      for ( auto & a : exponent_counts_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for ( auto & d : c ) {
-                      for ( auto & e : d ) {
-                          for ( auto & f : e ) {
-                              proc( f );
-                          }
-                      }
-                  }
-              }
-          }
-      }
-      for ( auto & a : exponent_counts_dc_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for ( auto & d : c ) {
-                      for ( auto & e : d ) {
-                          proc( e );
-                      }
                   }
               }
           }
@@ -245,7 +227,9 @@ public:
                                              num_nonzeros_x,
                                              exp_len(abs(compute_lak(for_lak, band))));
     }
-    FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>& exponent_array_7x7(const unsigned int block_type,
+    Sirikata::Array2d<Branch,
+                      NUMBER_OF_EXPONENT_BITS,
+                      1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(const unsigned int block_type,
                                                                const unsigned int band,
                                                                const unsigned int num_nonzeros,
                                                                    const BlockContext&context) {

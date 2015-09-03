@@ -165,7 +165,7 @@ void parse_tokens( BlockContext context,
     { // dc
         unsigned int coord = 0;
         uint8_t length = 0;
-        auto & exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_7x7, context);
+        auto exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_7x7, context);
         unsigned int decoded_so_far = 0;
         for (int i = 3; i >= 0; --i) {
             int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
@@ -199,7 +199,7 @@ void parse_tokens( BlockContext context,
         unsigned int b_y = coord / 8;
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             uint8_t length = 0;
-            auto & exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_left_7x7, context);
+            auto exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_left_7x7, context);
             unsigned int decoded_so_far = 0;
             for (int i = 3; i >= 0; --i) {
                 int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
