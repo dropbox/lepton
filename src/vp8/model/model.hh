@@ -143,8 +143,17 @@ class Slice;
 struct ProbabilityTables
 {
 private:
+    static int32_t icos_idct_edge_8192_dequantized_x_[64] __attribute__ ((aligned (16)));
+
+    static int32_t icos_idct_edge_8192_dequantized_y_[64] __attribute__ ((aligned (16)));
     static Model model_;
     static int32_t icos_idct_linear_8192_dequantized_[64] __attribute__ ((aligned (16)));
+    static int32_t *icos_idct_edge_8192_dequantized_x() {
+        return icos_idct_edge_8192_dequantized_x_;
+    }
+    static int32_t *icos_idct_edge_8192_dequantized_y() {
+        return icos_idct_edge_8192_dequantized_y_;
+    }
     static int32_t *icos_idct_linear_8192_dequantized() {
         return icos_idct_linear_8192_dequantized_;
 #if 0
@@ -164,6 +173,8 @@ public:
         for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
             for (int i = 0; i < 8; ++i) {
                 icos_idct_linear_8192_dequantized()[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
+                icos_idct_edge_8192_dequantized_x()[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[i * 8 + pixel_row]];
+                icos_idct_edge_8192_dequantized_y()[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[pixel_row * 8 + i]];
             }
         }
     }
@@ -457,7 +468,7 @@ public:
     int compute_lak(const BlockContext&context, unsigned int band) {
         int16_t coeffs_x[8];
         int16_t coeffs_a[8];
-        int32_t coef_idct[8];
+        const int32_t *coef_idct = nullptr;
         assert(quantization_table_);
         if ((band & 7) && context.has_above()) {
             // y == 0: we're the x
@@ -467,9 +478,8 @@ public:
                 uint8_t cur_coef = band + i * 8;
                 coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
                 coeffs_a[i]  = above.raster(cur_coef);
-                coef_idct[i] = icos_base_8192_scaled[i * 8]
-                    * quantization_table_[zigzag[cur_coef]];
             }
+            coef_idct = icos_idct_edge_8192_dequantized_x() + band * 8;
         } else if ((band & 7) == 0 && context.has_left()) {
             // x == 0: we're the y
             const auto &left = context.left_unchecked().coefficients();
@@ -477,9 +487,8 @@ public:
                 uint8_t cur_coef = band + i;
                 coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
                 coeffs_a[i]  = left.raster(cur_coef);
-                coef_idct[i] = icos_base_8192_scaled[i * 8]
-                    * quantization_table_[zigzag[cur_coef]];
             }
+            coef_idct = icos_idct_edge_8192_dequantized_y() + band;
         } else if (context.has_above()) {
             return 0; // we don't have data in the correct direction
         } else {

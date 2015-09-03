@@ -4,9 +4,11 @@
 
 #include "model.hh"
 
+int32_t ProbabilityTables::icos_idct_edge_8192_dequantized_x_[64] __attribute__ ((aligned (16))) = {0};
+
+int32_t ProbabilityTables::icos_idct_edge_8192_dequantized_y_[64] __attribute__ ((aligned (16))) = {0};
 Model ProbabilityTables::model_;
 int32_t ProbabilityTables::icos_idct_linear_8192_dequantized_[64] __attribute__ ((aligned (16))) = {0};
-
 #ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 #endif
