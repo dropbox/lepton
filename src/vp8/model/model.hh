@@ -265,15 +265,15 @@ public:
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_scaled[pixel_row * 8 + 0] * quantization_table_[0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(1) * icos_idct_linear_8192_scaled[pixel_row * 8 + 1] * quantization_table_[zigzag[1]];
-        retval += block.coefficients().raster(2) * icos_idct_linear_8192_scaled[pixel_row * 8 + 2] * quantization_table_[zigzag[2]];
-        retval += block.coefficients().raster(3) * icos_idct_linear_8192_scaled[pixel_row * 8 + 3] * quantization_table_[zigzag[3]];
-        retval += block.coefficients().raster(4) * icos_idct_linear_8192_scaled[pixel_row * 8 + 4] * quantization_table_[zigzag[4]];
-        retval += block.coefficients().raster(5) * icos_idct_linear_8192_scaled[pixel_row * 8 + 5] * quantization_table_[zigzag[5]];
-        retval += block.coefficients().raster(6) * icos_idct_linear_8192_scaled[pixel_row * 8 + 6] * quantization_table_[zigzag[6]];
-        retval += block.coefficients().raster(7) * icos_idct_linear_8192_scaled[pixel_row * 8 + 7] * quantization_table_[zigzag[7]];
+        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 7];
         return retval;
     }
 
@@ -282,13 +282,13 @@ public:
         if (!ignore_first) {
             retval = block.coefficients().raster(0) * icos_idct_linear_8192_scaled[pixel_row * 8 + 0] * quantization_table_[0];
         }
-        retval += block.coefficients().raster(8) * icos_idct_linear_8192_scaled[pixel_row * 8 + 1] * quantization_table_[zigzag[8]];
-        retval += block.coefficients().raster(16) * icos_idct_linear_8192_scaled[pixel_row * 8 + 2] * quantization_table_[zigzag[16]];
-        retval += block.coefficients().raster(24) * icos_idct_linear_8192_scaled[pixel_row * 8 + 3] * quantization_table_[zigzag[24]];
-        retval += block.coefficients().raster(32) * icos_idct_linear_8192_scaled[pixel_row * 8 + 4] * quantization_table_[zigzag[32]];
-        retval += block.coefficients().raster(40) * icos_idct_linear_8192_scaled[pixel_row * 8 + 5] * quantization_table_[zigzag[40]];
-        retval += block.coefficients().raster(48) * icos_idct_linear_8192_scaled[pixel_row * 8 + 6] * quantization_table_[zigzag[48]];
-        retval += block.coefficients().raster(56) * icos_idct_linear_8192_scaled[pixel_row * 8 + 7] * quantization_table_[zigzag[56]];
+        retval += block.coefficients().raster(8) * icos_idct_linear_8192_scaled[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(16) * icos_idct_linear_8192_scaled[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(24) * icos_idct_linear_8192_scaled[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(32) * icos_idct_linear_8192_scaled[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(40) * icos_idct_linear_8192_scaled[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(48) * icos_idct_linear_8192_scaled[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(56) * icos_idct_linear_8192_scaled[pixel_row * 8 + 7];
         return retval;
     }
 
