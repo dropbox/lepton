@@ -715,7 +715,7 @@ template <class T,
     }
     const typename Array5d<T, s1, s2, s3, s4, s5>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        const typename Array5d<T, s1, s2, s3, s4, s5>::Slice retval = {&IsReference::dereference(data)[i0]};
+        const typename Array5d<T, s1, s2, s3, s4, s5>::Slice retval = {(typename Sirikata::ReferenceType<typename Sirikata::ArrayBaseType5d<T, s1, s2, s3, s4, s5> >::ArrayType )&IsReference::dereference(data)[i0]};
         return retval;
     }
     void memset(uint8_t val) {

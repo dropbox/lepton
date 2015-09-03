@@ -55,11 +55,13 @@ struct Model
 
     ResidualThresholdCounts residual_threshold_counts_;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
-                         NUMERIC_LENGTH_MAX>, //neighboring block exp
-                      NUM_NONZEROS_BINS>,
-           15>,
-      BLOCK_TYPES> ExponentCounts8;
+    typedef Sirikata::Array6d<Branch,
+                    BLOCK_TYPES,
+                    15,
+                    NUM_NONZEROS_BINS,
+                    NUMERIC_LENGTH_MAX,
+                    NUMBER_OF_EXPONENT_BITS,
+                    1<< (NUMBER_OF_EXPONENT_BITS - 1)> ExponentCounts8;
 
     typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>,
                          NUMERIC_LENGTH_MAX>, //neighboring block exp
@@ -87,6 +89,7 @@ struct Model
       num_nonzeros_counts_7x7_.foreach(proc);
       num_nonzeros_counts_1x8_.foreach(proc);
       num_nonzeros_counts_8x1_.foreach(proc);
+      exponent_counts_x_.foreach(proc);
       for ( auto & a : sign_counts_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
@@ -131,19 +134,6 @@ struct Model
                   for ( auto & d : c ) {
                       for ( auto & e : d ) {
                           proc( e );
-                      }
-                  }
-              }
-          }
-      }
-      for ( auto & a : exponent_counts_x_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for ( auto & d : c ) {
-                      for ( auto & e : d ) {
-                          for ( auto & f : e ) {
-                              proc( f );
-                          }
                       }
                   }
               }
@@ -242,15 +232,18 @@ public:
             .at(eob_x)
             .at(((num_nonzeros + 3) / 7));
     }
-    FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>& exponent_array_x(const unsigned int block_type,
-                                                                 const unsigned int band,
-                                                                 const unsigned int num_nonzeros_x,
-                                                                 const BlockContext&for_lak) {
+    Sirikata::Array2d<Branch,
+                      NUMBER_OF_EXPONENT_BITS,
+                      1<<(NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_x(unsigned int block_type,
+                                                                                 unsigned int band,
+                                                                                 unsigned int num_nonzeros_x,
+                                                                                 const BlockContext&for_lak) {
         ANNOTATE_CTX(band, EXP8, 0, exp_len(abs(compute_lak(for_lak, band))));
         ANNOTATE_CTX(band, EXP8, 1, num_nonzeros_x);
-        return model_->exponent_counts_x_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( (band & 7)== 0 ? ((band >>3) + 7) : band - 1 ).at(num_nonzeros_x)
-            .at(exp_len(abs(compute_lak(for_lak, band))));
+        return model_->exponent_counts_x_.at(std::min(block_type, BLOCK_TYPES - 1), 
+                                             (band & 7)== 0 ? ((band >>3) + 7) : band - 1 ,
+                                             num_nonzeros_x,
+                                             exp_len(abs(compute_lak(for_lak, band))));
     }
     FixedArray<FixedArray<Branch, 1<<(NUMBER_OF_EXPONENT_BITS - 1)>, NUMBER_OF_EXPONENT_BITS>& exponent_array_7x7(const unsigned int block_type,
                                                                const unsigned int band,

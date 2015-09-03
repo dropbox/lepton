@@ -156,7 +156,7 @@ void serialize_tokens(BlockContext context,
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
             assert(coord != 9);
-            auto &exp_array = probability_tables.exponent_array_x(color.color, coord, num_nonzeros_edge, context);
+            auto exp_array = probability_tables.exponent_array_x(color.color, coord, num_nonzeros_edge, context);
             uint8_t length = bit_length(abs_coef);
             uint8_t slen = prefix_remap(length);
             unsigned int serialized_so_far = 0;

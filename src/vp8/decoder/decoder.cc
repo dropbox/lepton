@@ -279,7 +279,7 @@ void parse_tokens( BlockContext context,
             num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            auto &exp_array = probability_tables.exponent_array_x(color.color, coord, num_nonzeros_edge, context);
+            auto exp_array = probability_tables.exponent_array_x(color.color, coord, num_nonzeros_edge, context);
 
             uint8_t length = 0;
             unsigned int decoded_so_far = 0;            
