@@ -232,26 +232,24 @@ ProbabilityTables ProbabilityTables::get_probability_tables()
 }
 
 ProbabilityTables::ProbabilityTables()
-  : model_( new Model )
 {
     quantization_table_ = nullptr;
-    model_->forall( [&] ( Branch & x ) { x = Branch(); } );
+    model_.forall( [&] ( Branch & x ) { x = Branch(); } );
 }
 
 
 void ProbabilityTables::normalize()
 {
-  model_->forall( [&] ( Branch & x ) { x.normalize(); } );
+  model_.forall( [&] ( Branch & x ) { x.normalize(); } );
 }
 
-ProbabilityTables::ProbabilityTables( const Slice & slice )
-  : model_( new Model )
+ProbabilityTables::ProbabilityTables(const Slice & slice)
 {
     quantization_table_ = nullptr;
-    const size_t expected_size = sizeof( *model_ );
+    const size_t expected_size = sizeof( model_ );
     assert(slice.size() == expected_size && "unexpected model file size.");
 
-    memcpy( model_.get(), slice.buffer(), slice.size() );
+    memcpy( &model_, slice.buffer(), slice.size() );
 }
 
 Branch::Branch()

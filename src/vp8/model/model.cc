@@ -3,17 +3,21 @@
 #include <iostream>
 
 #include "model.hh"
+
+Model ProbabilityTables::model_;
+int32_t ProbabilityTables::icos_idct_linear_8192_dequantized_[8] = {0};
+
 #ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 #endif
 void ProbabilityTables::serialize( std::ofstream & output ) const
 {
-  output.write( reinterpret_cast<char*>( model_.get() ), sizeof( *model_ ) );
+  output.write( reinterpret_cast<char*>( &model_ ), sizeof( model_ ) );
 }
 
 void ProbabilityTables::optimize()
 {
-  model_->forall( [&] ( Branch & x ) { x.optimize(); } );
+  model_.forall( [&] ( Branch & x ) { x.optimize(); } );
 }
 
 
@@ -120,41 +124,41 @@ template<class BranchArray> void print_all(const BranchArray &ba,
 const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * other,
                                                         ProbabilityTables::PrintabilitySpecification spec)const
 {
-    print_all(model_->num_nonzeros_counts_7x7_,
-              other ? &other->model_->num_nonzeros_counts_7x7_ : nullptr,
+    print_all(model_.num_nonzeros_counts_7x7_,
+              other ? &other->model_.num_nonzeros_counts_7x7_ : nullptr,
               "NONZERO 7x7",
               {"cmp","nbr","bit","prevbits"}, spec);
     
-    print_all(model_->num_nonzeros_counts_1x8_,
-              other ? &other->model_->num_nonzeros_counts_1x8_ : nullptr,
+    print_all(model_.num_nonzeros_counts_1x8_,
+              other ? &other->model_.num_nonzeros_counts_1x8_ : nullptr,
               "NONZERO_1x8",
               {"cmp","eobx","num_nonzeros","bit","prevbits"}, spec);
-    print_all(model_->num_nonzeros_counts_8x1_,
-              other ? &other->model_->num_nonzeros_counts_8x1_ : nullptr,
+    print_all(model_.num_nonzeros_counts_8x1_,
+              other ? &other->model_.num_nonzeros_counts_8x1_ : nullptr,
               "NONZERO_8x1",
               {"cmp","eobx","num_nonzeros","bit","prevbits"}, spec);
-    print_all(model_->exponent_counts_dc_,
-              other ? &other->model_->exponent_counts_dc_ : nullptr,
+    print_all(model_.exponent_counts_dc_,
+              other ? &other->model_.exponent_counts_dc_ : nullptr,
               "EXP_DC",
               {"cmp","num_nonzeros","neigh_exp","bit","prevbits"}, spec);
-    print_all(model_->exponent_counts_,
-              other ? &other->model_->exponent_counts_ : nullptr,
+    print_all(model_.exponent_counts_,
+              other ? &other->model_.exponent_counts_ : nullptr,
               "EXP7x7",
               {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"}, spec);
-    print_all(model_->exponent_counts_x_,
-              other ? &other->model_->exponent_counts_x_: nullptr,
+    print_all(model_.exponent_counts_x_,
+              other ? &other->model_.exponent_counts_x_: nullptr,
               "EXP_8x1",
               {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"}, spec);
-    print_all(model_->residual_noise_counts_,
-              other ? &other->model_->residual_noise_counts_: nullptr,
+    print_all(model_.residual_noise_counts_,
+              other ? &other->model_.residual_noise_counts_: nullptr,
               "NOISE",
               {"cmp","coef","num_nonzeros","bit"}, spec);
-    print_all(model_->residual_threshold_counts_,
-              other ? &other->model_->residual_threshold_counts_ : nullptr,
+    print_all(model_.residual_threshold_counts_,
+              other ? &other->model_.residual_threshold_counts_ : nullptr,
               "THRESH8",
               {"cmp","max","exp","prevbits"}, spec);
-    print_all(model_->sign_counts_,
-              other ? &other->model_->sign_counts_ : nullptr,
+    print_all(model_.sign_counts_,
+              other ? &other->model_.sign_counts_ : nullptr,
               "SIGN",
               {"cmp","lakh","exp"}, spec);
     
