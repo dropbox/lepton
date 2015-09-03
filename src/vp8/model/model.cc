@@ -5,7 +5,7 @@
 #include "model.hh"
 
 Model ProbabilityTables::model_;
-int32_t ProbabilityTables::icos_idct_linear_8192_dequantized_[8] = {0};
+int32_t ProbabilityTables::icos_idct_linear_8192_dequantized_[64] = {0};
 
 #ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));

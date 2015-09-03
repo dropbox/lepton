@@ -144,13 +144,18 @@ struct ProbabilityTables
 {
 private:
     static Model model_;
-    static int32_t icos_idct_linear_8192_dequantized_[8];
+    static int32_t icos_idct_linear_8192_dequantized_[64];
     const unsigned short *quantization_table_;
 public:
     ProbabilityTables();
     ProbabilityTables(const Slice & slice);
     void set_quantization_table(const unsigned short quantization_table[64]) {
         quantization_table_ = quantization_table;
+        for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
+            for (int i = 0; i < 8; ++i) {
+                icos_idct_linear_8192_dequantized_[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
+            }
+        }
     }
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(unsigned int block_type,
                                                             const BlockContext block) {
