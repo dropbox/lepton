@@ -144,7 +144,17 @@ struct ProbabilityTables
 {
 private:
     static Model model_;
-    static int32_t icos_idct_linear_8192_dequantized_[64];
+    static int32_t icos_idct_linear_8192_dequantized_[64] __attribute__ ((aligned (16)));
+    static int32_t *icos_idct_linear_8192_dequantized() {
+        return icos_idct_linear_8192_dequantized_;
+#if 0
+        unsigned char * retval = (icos_idct_linear_8192_dequantized_x + 15);
+        size_t mask = (size_t)(retval - (unsigned char*)nullptr);
+        mask &= 15;
+        retval -= mask;
+        return (uint32_t*)retval;
+#endif
+    }
     const unsigned short *quantization_table_;
 public:
     ProbabilityTables();
@@ -153,7 +163,7 @@ public:
         quantization_table_ = quantization_table;
         for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
             for (int i = 0; i < 8; ++i) {
-                icos_idct_linear_8192_dequantized_[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
+                icos_idct_linear_8192_dequantized()[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
             }
         }
     }
@@ -265,30 +275,30 @@ public:
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 7];
+        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 7];
         return retval;
     }
 
     int idct_2d_1x8(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized_[pixel_row * 8 + 7];
+        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 7];
         return retval;
     }
 
