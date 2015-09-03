@@ -1,9 +1,7 @@
 #include "bool_decoder.hh"
-#include "fixed_array.hh"
 #include "model.hh"
 #include "block.hh"
-#include "context.hh"
-
+#include "weight.hh"
 using namespace std;
 
 

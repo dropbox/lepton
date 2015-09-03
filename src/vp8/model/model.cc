@@ -114,7 +114,7 @@ template<class BranchArray> void print_all(const BranchArray &ba,
                                            const std::vector<std::string> &names,
                                            ProbabilityTables::PrintabilitySpecification spec) {
     std::vector<uint32_t> tmp;
-    //print_helper(ba, other_ba, table_name, names, tmp, spec);
+    print_helper(ba, other_ba, table_name, names, tmp, spec);
 }
 
 const ProbabilityTables &ProbabilityTables::debug_print(const ProbabilityTables * other,

@@ -58,13 +58,12 @@ add_executable(lepton
    src/vp8/util/mmap.cc
    src/vp8/util/mmap.hh
    src/vp8/util/handle.hh
-   src/vp8/util/fixed_array.hh
+   src/vp8/util/nd_array.hh
    src/vp8/util/option.hh
    src/vp8/model/block.hh
    src/vp8/model/JpegArithmeticCoder.cc
    src/vp8/model/JpegArithmeticCoder.hh
    src/vp8/model/branch.hh
-   src/vp8/model/context.hh
    src/vp8/model/legacy.hh
    src/vp8/model/model.cc
    src/vp8/model/model.hh

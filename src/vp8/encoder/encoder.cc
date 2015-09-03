@@ -5,7 +5,7 @@
 #include "model.hh"
 #include "mmap.hh"
 #include "encoder.hh"
-#include "context.hh"
+#include "weight.hh"
 #include <fstream>
 
 using namespace std;

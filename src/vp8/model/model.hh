@@ -10,7 +10,6 @@
 #include "block.hh"
 #include "weight.hh"
 #include "../util/option.hh"
-#include "../util/fixed_array.hh"
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 

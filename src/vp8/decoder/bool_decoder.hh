@@ -4,6 +4,7 @@
 
 #include "../util/arithmetic_code.hh"
 typedef uint8_t Probability;
+#include "slice.hh"
 #include "model.hh"
 #include "../../io/Reader.hh"
 #include "JpegArithmeticCoder.hh"
