@@ -177,7 +177,7 @@ void parse_tokens( BlockContext context,
         length = prefix_unremap(length);
         int16_t coef = (1 << (length - 1));
         if (length > 1){
-            auto &res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_7x7);
+            auto res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_7x7);
             for (int i = length - 2; i >= 0; --i) {
                 coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
             }
@@ -211,7 +211,7 @@ void parse_tokens( BlockContext context,
             length = prefix_unremap(length);
             int16_t coef = (1 << (length - 1));
             if (length > 1){
-                auto &res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_left_7x7);
+                auto res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_left_7x7);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
@@ -305,7 +305,7 @@ void parse_tokens( BlockContext context,
                 }
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
-                    auto &thresh_prob = probability_tables.residual_thresh_array(color.color, coord, length,
+                    auto thresh_prob = probability_tables.residual_thresh_array(color.color, coord, length,
                                                                                  context, min_threshold, max_val);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
@@ -319,7 +319,7 @@ void parse_tokens( BlockContext context,
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far / 2);
                 }
                 for (; i >= 0; --i) {
-                    auto &res_prob = probability_tables.residual_noise_array_x(color.color, coord, num_nonzeros_edge);
+                    auto res_prob = probability_tables.residual_noise_array_x(color.color, coord, num_nonzeros_edge);
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }

@@ -39,19 +39,19 @@ struct Model
     NonzeroCounts1x8 num_nonzeros_counts_1x8_;
     NonzeroCounts1x8 num_nonzeros_counts_8x1_;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch,
-				          COEF_BITS>,
-                      (8>NUM_NONZEROS_BINS?8:NUM_NONZEROS_BINS)>, //num zeros
-					COEF_BANDS>,
-		    BLOCK_TYPES> ResidualNoiseCounts;
+    typedef Sirikata::Array4d<Branch,
+                              BLOCK_TYPES,
+                              COEF_BANDS,
+                              (8>NUM_NONZEROS_BINS?8:NUM_NONZEROS_BINS),
+                              COEF_BITS> ResidualNoiseCounts;
 
     ResidualNoiseCounts residual_noise_counts_;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<Branch,
-                                                              1<<RESIDUAL_NOISE_FLOOR >,
-               1 + RESIDUAL_NOISE_FLOOR>, // the exponent minus the current bit
-         (1<<(1 + RESIDUAL_NOISE_FLOOR)) >, // max number over noise floor = 1<<4
-    BLOCK_TYPES> ResidualThresholdCounts;
+    typedef Sirikata::Array4d<Branch,
+                              BLOCK_TYPES,
+                              (1<<(1 + RESIDUAL_NOISE_FLOOR)),
+                              1 + RESIDUAL_NOISE_FLOOR,
+                              1<<RESIDUAL_NOISE_FLOOR > ResidualThresholdCounts;
 
     ResidualThresholdCounts residual_threshold_counts_;
 
@@ -96,28 +96,13 @@ typedef Sirikata::Array5d<Branch,
       exponent_counts_x_.foreach(proc);
       exponent_counts_.foreach(proc);
       exponent_counts_dc_.foreach(proc);
+
+      residual_noise_counts_.foreach(proc);
+      residual_threshold_counts_.foreach(proc);
       for ( auto & a : sign_counts_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
                   proc( c );
-              }
-          }
-      }
-      for ( auto & a : residual_noise_counts_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for ( auto & d : c ) {
-                      proc( d );
-                  }
-              }
-          }
-      }
-      for ( auto & a : residual_threshold_counts_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for ( auto & d : c ) {
-                      proc( d );
-                  }
               }
           }
       }
@@ -249,7 +234,7 @@ public:
             .at( band - 8 - band / 8).at(num_nonzeros_to_bin(num_nonzeros))
             .at(exp_len(abs(compute_aavrg(block_type, context, band))));
     }
-    FixedArray<Branch, COEF_BITS> & residual_noise_array_x(const unsigned int block_type,
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(const unsigned int block_type,
                                                           const unsigned int band,
                                                           const uint8_t num_nonzeros_x) {
         ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
@@ -258,14 +243,14 @@ public:
                                            num_nonzeros_x);
     }
 
-    FixedArray<Branch, COEF_BITS> & residual_noise_array_shared(const unsigned int block_type,
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(const unsigned int block_type,
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros_x) {
-        return model_->residual_noise_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at( band/band_divisor )
-            .at(num_nonzeros_x);
+        return model_->residual_noise_counts_.at(std::min(block_type, BLOCK_TYPES - 1),
+                                                 band/band_divisor,
+                                                 num_nonzeros_x);
     }
-    FixedArray<Branch, COEF_BITS> & residual_noise_array_7x7(const unsigned int block_type,
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(const unsigned int block_type,
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros) {
         if (band == 0) {
@@ -515,8 +500,8 @@ public:
         }
         return 0;
         }*/
-    FixedArray<Branch,
-              (1<<RESIDUAL_NOISE_FLOOR)> &
+    Sirikata::Array1d<Branch,
+            (1<<RESIDUAL_NOISE_FLOOR)>::Slice
         residual_thresh_array(const unsigned int block_type,
                               const unsigned int band,
                               const uint8_t cur_exponent,
@@ -530,9 +515,9 @@ public:
         ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
         ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
 
-        return model_->residual_threshold_counts_.at( std::min(block_type, BLOCK_TYPES - 1) )
-            .at(std::min(abs(compute_lak(context, band)), max_value - 1) >> min_threshold)
-            .at(cur_exponent - min_threshold);
+        return model_->residual_threshold_counts_.at(std::min(block_type, BLOCK_TYPES - 1),
+                                                     std::min(abs(compute_lak(context, band)), max_value - 1) >> min_threshold,
+                                                     cur_exponent - min_threshold);
     }
     void residual_thresh_array_annot_update(const unsigned int band,
                                             uint16_t cur_serialized_thresh_value) {
