@@ -138,7 +138,8 @@ template <class T,
             uint8_t assert_slice_start_legal[end < start ? -1 : 1];
             (void)assert_slice_legal;
             (void)assert_slice_start_legal;
-            const typename Array1d<T, end-start>::Slice retval = {(typename Array1d<T, end-start>::Slice::IsReference::ArrayType)&IsReference::dereference(data)[start]};
+            const typename Array1d<T, end-start>::Slice retval = {(typename Array1d<T, end-start>::Slice::IsReference::ArrayType)
+                                                                  &IsReference::dereference(data)[start]};
             return retval;
     }
     template <uint32_t start, uint32_t end> const typename Array1d<T, end - start>::Slice slice() const {
@@ -146,7 +147,8 @@ template <class T,
         uint8_t assert_slice_start_legal[end < start ? -1 : 1];
         (void)assert_slice_legal;
         (void)assert_slice_start_legal;
-        const typename Array1d<T, end-start>::Slice retval = {(typename Array1d<T, end-start>::Slice::IsReference::ArrayType)&IsReference::dereference(data)[start]};
+        const typename Array1d<T, end-start>::Slice retval = {(typename Array1d<T, end-start>::Slice::IsReference::ArrayType)
+                                                              &IsReference::dereference(data)[start]};
         return retval;
     }
 
@@ -560,7 +562,7 @@ template <class T,
     }
     const typename Array4d<T, s1, s2, s3, s4>::Slice at(uint32_t i0) const {
         assert(i0 < s0);
-        const typename Array4d<T, s1, s2, s3, s4>::Slice retval ={&IsReference::dereference(data)[i0]};
+        const typename Array4d<T, s1, s2, s3, s4>::Slice retval ={(typename Sirikata::ReferenceType<typename Sirikata::ArrayBaseType4d<T, s1, s2, s3, s4> >::ArrayType )&IsReference::dereference(data)[i0]};
         return retval;
     }
     void memset(uint8_t val) {

@@ -35,10 +35,7 @@ struct Model
     typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
     NonzeroCounts7x7 num_nonzeros_counts_7x7_;
 
-    typedef FixedArray<FixedArray<FixedArray<FixedArray<FixedArray<Branch, 4>, 3>,
-            8>, //lower num_nonzeros_count
-          8>, //eob in this dimension
-        BLOCK_TYPES> NonzeroCounts1x8;
+    typedef Sirikata::Array5d<Branch, BLOCK_TYPES, 8, 8, 3, 4> NonzeroCounts1x8;
     NonzeroCounts1x8 num_nonzeros_counts_1x8_;
     NonzeroCounts1x8 num_nonzeros_counts_8x1_;
 
@@ -88,28 +85,8 @@ struct Model
   void forall( const lambda & proc )
   {
       num_nonzeros_counts_7x7_.foreach(proc);
-      for ( auto & a : num_nonzeros_counts_1x8_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for (auto &d : c) {
-                      for (auto &e : d) {
-                          proc( e );
-                      }
-                  }
-              }
-          }
-      }
-      for ( auto & a : num_nonzeros_counts_8x1_ ) {
-          for ( auto & b : a ) {
-              for ( auto & c : b ) {
-                  for (auto &d : c) {
-                      for (auto &e : d) {
-                          proc( e );
-                      }
-                  }
-              }
-          }
-      }
+      num_nonzeros_counts_1x8_.foreach(proc);
+      num_nonzeros_counts_8x1_.foreach(proc);
       for ( auto & a : sign_counts_ ) {
           for ( auto & b : a ) {
               for ( auto & c : b ) {
@@ -249,16 +226,14 @@ public:
         return model_->num_nonzeros_counts_7x7_.at(std::min(block_type, BLOCK_TYPES - 1),
                                                    num_nonzeros_to_bin(num_nonzeros_context));
     }
-    FixedArray<FixedArray<Branch,4>, 3>& x_nonzero_counts_8x1(unsigned int block_type,
+    Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(unsigned int block_type,
                                                           unsigned int eob_x,
                                                           unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
-        return model_->num_nonzeros_counts_8x1_.at(std::min(block_type, BLOCK_TYPES -1))
-        .at(eob_x)
-        .at(((num_nonzeros + 3) / 7));
+        return model_->num_nonzeros_counts_8x1_.at(std::min(block_type, BLOCK_TYPES -1), eob_x, ((num_nonzeros + 3) / 7));
     }
-    FixedArray<FixedArray<Branch,4>, 3>& y_nonzero_counts_1x8(unsigned int block_type,
+    Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(unsigned int block_type,
                                                           unsigned int eob_x,
                                                           unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));

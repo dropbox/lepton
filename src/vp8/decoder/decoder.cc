@@ -243,10 +243,10 @@ void parse_tokens( BlockContext context,
             }
         }
     }
-    auto &prob_x = probability_tables.x_nonzero_counts_8x1(color.color,
+    auto prob_x = probability_tables.x_nonzero_counts_8x1(color.color,
                                                       eob_x,
                                                          num_nonzeros_7x7);
-    auto &prob_y = probability_tables.y_nonzero_counts_1x8(color.color,
+    auto prob_y = probability_tables.y_nonzero_counts_1x8(color.color,
                                                       eob_y,
                                                          num_nonzeros_7x7);
     uint8_t num_nonzeros_x = 0;
