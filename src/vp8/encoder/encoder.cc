@@ -36,7 +36,7 @@ void serialize_tokens(BlockContext context,
         int16_t coef = probability_tables.predict_or_unpredict_dc(context, false);
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_7x7(coord, block.num_nonzeros_7x7(), context);
+        auto exp_prob = probability_tables.exponent_array_dc(block.num_nonzeros_7x7(), context);
         uint8_t slen = prefix_remap(length);
         unsigned int serialized_so_far = 0;
         for (int i = 3;i >= 0; --i) {

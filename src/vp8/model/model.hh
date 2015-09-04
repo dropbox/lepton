@@ -273,27 +273,30 @@ public:
                                              exp_len(abs(compute_lak(for_lak, band))));
     }
     Sirikata::Array2d<Branch,
-                      NUMBER_OF_EXPONENT_BITS,
-                      1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(
-                                                               const unsigned int band,
-                                                               const unsigned int num_nonzeros,
-                                                                   const BlockContext&context) {
-        if (band > 0) {
-            ANNOTATE_CTX(band, EXP7x7, 0, exp_len(abs(compute_aavrg(block_type, context, band))));
-            ANNOTATE_CTX(band, EXP7x7, 1, num_nonzeros_to_bin(num_nonzeros));
-        } else {
-            ANNOTATE_CTX(0, EXPDC, 0, exp_len(abs(compute_aavrg(block_type, context, band))));
-            ANNOTATE_CTX(0, EXPDC, 1, num_nonzeros_to_bin(num_nonzeros));
+    NUMBER_OF_EXPONENT_BITS,
+    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(
+                                                                  const unsigned int band,
+                                                                  const unsigned int num_nonzeros,
+                                                                  const BlockContext&context) {
+        ANNOTATE_CTX(band, EXP7x7, 0, exp_len(abs(compute_aavrg(block_type, context, band))));
+        ANNOTATE_CTX(band, EXP7x7, 1, num_nonzeros_to_bin(num_nonzeros));
+        return model_.exponent_counts_
+        .at(color_index(),
+            band - 8 - band / 8,
+            num_nonzeros_to_bin(num_nonzeros),
+            exp_len(abs(compute_aavrg(context, band))));
+    }
+    Sirikata::Array2d<Branch,
+    NUMBER_OF_EXPONENT_BITS,
+    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_dc(
+                                                                  const unsigned int num_nonzeros,
+                                                                  const BlockContext&context) {
+        ANNOTATE_CTX(0, EXPDC, 0, exp_len(abs(compute_aavrg(block_type, context, band))));
+        ANNOTATE_CTX(0, EXPDC, 1, num_nonzeros_to_bin(num_nonzeros));
         return model_.exponent_counts_dc_
             .at(color_index(),
                 num_nonzeros_to_bin(num_nonzeros),
-                exp_len(abs(compute_aavrg(context, band))));
-        }
-        return model_.exponent_counts_
-            .at(color_index(),
-                band - 8 - band / 8,
-                num_nonzeros_to_bin(num_nonzeros),
-                exp_len(abs(compute_aavrg(context, band))));
+                exp_len(abs(compute_aavrg(context, 0))));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(
                                                           const unsigned int band,
