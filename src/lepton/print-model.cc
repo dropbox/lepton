@@ -11,8 +11,8 @@ int main( int argc, char *argv[] )
   if ( argc <= 0 ) {
     abort();
   }
-  ProbabilityTables::PrintabilitySpecification spec;
-  spec.printability_bitmask = ProbabilityTables::CLOSE_TO_50 | ProbabilityTables::CLOSE_TO_ONE_ANOTHER;
+  Model::PrintabilitySpecification spec;
+  spec.printability_bitmask = Model::CLOSE_TO_50 | Model::CLOSE_TO_ONE_ANOTHER;
   spec.tolerance = .25;
   spec.min_samples = 25;
   for (int i = 1; i < argc; ++i) {
@@ -21,7 +21,7 @@ int main( int argc, char *argv[] )
           if (argv[i][1] == 't') {
               spec.tolerance = arg;
           } else if (argv[i][1] == 'o') {
-              spec.printability_bitmask = ProbabilityTables::PRINTABLE_OK;
+              spec.printability_bitmask = Model::PRINTABLE_OK;
           }else {
               spec.min_samples = (int64_t)arg;
           }
@@ -37,10 +37,12 @@ int main( int argc, char *argv[] )
   }
 
   MMapFile model_file { argv[ 1 ] };
-  ProbabilityTables<true, true, true> model_tables { model_file.slice() };
+  Model model_tables;
+  load_model(model_tables, model_file.slice());
   if (argc > 2) {
     MMapFile orig_file { argv[ 2 ] };
-    ProbabilityTables<true, true, true> orig_tables { orig_file.slice() };
+    Model orig_tables;
+    load_model(orig_tables, orig_file.slice());
     model_tables.debug_print(&orig_tables, spec);
   } else {
     model_tables.debug_print(nullptr, spec);
