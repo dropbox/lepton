@@ -350,10 +350,6 @@ bool   pipe_on  = false;    // use stdin/stdout instead of filelist
 const unsigned char ujgversion   = 129;
 static const char*  subversion   = "a";
 static const char*  appname      = "lepton";
-static const char*  ujg_ext      = "ujg";
-static const char*  lepton_ext   = "lep";
-static const char*  jpg_ext      = "jpg";
-static const char*  zjpg_ext      = "jpg.z";
 static const unsigned char   ujg_header[] = { 'U', 'J' };
 static const unsigned char   lepton_header[] = { 0xcf, 0x84 }; // the tau symbol for a tau lepton in utf-8
 static const unsigned char   zlepton_header[] = { 0xce, 0xb6 }; // the zeta symbol for a zlib compressed lepton
@@ -868,8 +864,8 @@ void show_help( void )
     fprintf( msgout, " [-pgm]   convert and write to pgm files\n" );
     }
     fprintf( msgout, "\n" );
-    fprintf( msgout, "Examples: \"%s -v1 -o baboon.%s\"\n", appname, ujg_ext );
-    fprintf( msgout, "          \"%s -p *.%s\"\n", appname, jpg_ext );
+    fprintf( msgout, "Examples: \"%s -v1 -o baboon.%s\"\n", appname, "lep");
+    fprintf( msgout, "          \"%s -p *.%s\"\n", appname, "jpg" );
 }
 
 /* ----------------------- End of main interface functions -------------------------- */
