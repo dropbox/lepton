@@ -809,7 +809,7 @@ void execute( bool (*function)() )
 {
     clock_t begin, end;
     bool success;
-    int i;
+
 
 
     if ( errorlevel.load() < err_tresh )
@@ -897,7 +897,7 @@ void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
 bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer)
 {
     unsigned char fileid[ 2 ] = { 0, 0 };
-    int namelen = 128;
+
     std::string ifilename;
     std::string ofilename;
     if (!reader) {
@@ -3746,7 +3746,7 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
 bool write_info( void )
 {
     FILE* fp;
-    char* fn;
+    const char* fn = "stdout";
 
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
@@ -3763,7 +3763,6 @@ bool write_info( void )
         errorlevel.store(2);
         return false;
     }
-    free( fn );
 
     // info about image
     fprintf( fp, "<Infofile for JPEG image:>\n\n\n");

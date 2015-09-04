@@ -98,6 +98,18 @@ typedef Sirikata::Array5d<Branch,
       residual_threshold_counts_.foreach(proc);
       sign_counts_.foreach(proc);
   }
+    enum Printability{
+        PRINTABLE_INSIGNIFICANT = 1,
+        PRINTABLE_OK = 2,
+        CLOSE_TO_50 = 4,
+        CLOSE_TO_ONE_ANOTHER = 8
+    };
+    struct PrintabilitySpecification {
+        uint64_t printability_bitmask;
+        double tolerance;
+        uint64_t min_samples;
+    };
+    const Model& debug_print(const Model* other, PrintabilitySpecification spec)const;
 
 };
 
@@ -138,24 +150,43 @@ extern Context *gctx;
 #else
 #define ANNOTATE_CTX(bpos, annot_type, ctxnum, value)
 #endif
+
 class Slice;
+void optimize_model(Model&model);
+void serialize_model(const Model & model, std::ofstream & output);
+void reset_model(Model &model);
+void normalize_model(Model &model);
+void load_model(Model &model, const Slice&slice);
 
-struct ProbabilityTables
-{
-private:
-    static int32_t icos_idct_edge_8192_dequantized_x_[64] __attribute__ ((aligned (16)));
-
-    static int32_t icos_idct_edge_8192_dequantized_y_[64] __attribute__ ((aligned (16)));
+class ProbabilityTablesBase {
+protected:
     static Model model_;
-    static int32_t icos_idct_linear_8192_dequantized_[64] __attribute__ ((aligned (16)));
-    static int32_t *icos_idct_edge_8192_dequantized_x() {
-        return icos_idct_edge_8192_dequantized_x_;
+    static int32_t icos_idct_edge_8192_dequantized_x_[3][64] __attribute__ ((aligned (16)));
+    
+    static int32_t icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16)));
+    
+    static int32_t icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16)));
+    static const unsigned short *quantization_table_;
+public:
+    static void load_probability_tables();
+    static void set_quantization_table(BlockType color, const unsigned short quantization_table[64]) {
+        quantization_table_ = quantization_table;
+        for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
+            for (int i = 0; i < 8; ++i) {
+                icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
+                icos_idct_edge_8192_dequantized_x(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[i * 8 + pixel_row]];
+                icos_idct_edge_8192_dequantized_y(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[pixel_row * 8 + i]];
+            }
+        }
     }
-    static int32_t *icos_idct_edge_8192_dequantized_y() {
-        return icos_idct_edge_8192_dequantized_y_;
+    static int32_t *icos_idct_edge_8192_dequantized_x(BlockType color) {
+        return icos_idct_edge_8192_dequantized_x_[(int)color];
     }
-    static int32_t *icos_idct_linear_8192_dequantized() {
-        return icos_idct_linear_8192_dequantized_;
+    static int32_t *icos_idct_edge_8192_dequantized_y(BlockType color) {
+        return icos_idct_edge_8192_dequantized_y_[(int)color];
+    }
+    static int32_t *icos_idct_linear_8192_dequantized(BlockType color) {
+        return icos_idct_linear_8192_dequantized_[(int)color];
 #if 0
         unsigned char * retval = (icos_idct_linear_8192_dequantized_x + 15);
         size_t mask = (size_t)(retval - (unsigned char*)nullptr);
@@ -164,20 +195,24 @@ private:
         return (uint32_t*)retval;
 #endif
     }
-    const unsigned short *quantization_table_;
+};
+
+template <bool left_present, bool above_present, bool above_right_present, BlockType color>
+class ProbabilityTables : public ProbabilityTablesBase
+{
+private:
+
 public:
-    ProbabilityTables();
-    ProbabilityTables(const Slice & slice);
-    void set_quantization_table(const unsigned short quantization_table[64]) {
-        quantization_table_ = quantization_table;
-        for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
-            for (int i = 0; i < 8; ++i) {
-                icos_idct_linear_8192_dequantized()[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
-                icos_idct_edge_8192_dequantized_x()[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[i * 8 + pixel_row]];
-                icos_idct_edge_8192_dequantized_y()[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[pixel_row * 8 + i]];
-            }
-        }
+    enum Color {
+        COLOR = (int)color
+    };
+    static void reset() {
+        reset_model(model_);
     }
+    static void load( const Slice & slice ) {
+        load_model(model_, slice);
+    }
+
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(unsigned int block_type,
                                                             const BlockContext block) {
         Optional<uint8_t> num_nonzeros_above;
@@ -286,30 +321,30 @@ public:
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 7];
+        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 7];
         return retval;
     }
 
     int idct_2d_1x8(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized()[pixel_row * 8 + 7];
+        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 7];
         return retval;
     }
 
@@ -479,7 +514,7 @@ public:
                 coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
                 coeffs_a[i]  = above.raster(cur_coef);
             }
-            coef_idct = icos_idct_edge_8192_dequantized_x() + band * 8;
+            coef_idct = icos_idct_edge_8192_dequantized_x(color) + band * 8;
         } else if ((band & 7) == 0 && context.has_left()) {
             // x == 0: we're the y
             const auto &left = context.left_unchecked().coefficients();
@@ -488,7 +523,7 @@ public:
                 coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
                 coeffs_a[i]  = left.raster(cur_coef);
             }
-            coef_idct = icos_idct_edge_8192_dequantized_y() + band;
+            coef_idct = icos_idct_edge_8192_dequantized_y(color) + band;
         } else if (context.has_above()) {
             return 0; // we don't have data in the correct direction
         } else {
@@ -599,27 +634,18 @@ public:
             };
         return (freqmax[zigzag[coord]] + quantization_table_[zigzag[coord]] - 1) / quantization_table_[zigzag[coord]];
     }
-    void optimize();
-    void serialize( std::ofstream & output ) const;
-
-    static ProbabilityTables get_probability_tables();
+    void optimize() {
+        optimize_model(model_);
+    }
+    void serialize( std::ofstream & output ) const{
+        serialize_model(model_, output);
+    }
 
     // this reduces the counts to something easier to override by new data
-    void normalize();
+    void normalize() {
+        normalize_model(model_);
+    }
     
-
-    enum Printability{
-        PRINTABLE_INSIGNIFICANT = 1,
-        PRINTABLE_OK = 2,
-        CLOSE_TO_50 = 4,
-        CLOSE_TO_ONE_ANOTHER = 8
-    };
-    struct PrintabilitySpecification {
-        uint64_t printability_bitmask;
-        double tolerance;
-        uint64_t min_samples;
-    };
-    const ProbabilityTables& debug_print(const ProbabilityTables* other, PrintabilitySpecification spec)const;
 };
 
 #endif /* DECODER_HH */

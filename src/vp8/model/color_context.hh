@@ -1,6 +1,9 @@
 #ifndef _COLOR_CONTEXT_HH_
 #define _COLOR_CONTEXT_HH_
 #include "../util/option.hh"
+
+enum class BlockType { Y, Cb, Cr };
+
 class AlignedBlock;
 
 struct BlockColorContext {
@@ -10,7 +13,6 @@ struct BlockColorContext {
     const AlignedBlock *chroma;
 #endif
 };
-
 struct BlockColorContextIndices {
 #ifdef USE_COLOR_VALUES
     Optional<std::pair<int, int> > luminanceIndex[2][2];

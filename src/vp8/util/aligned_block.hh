@@ -17,7 +17,6 @@ static constexpr Sirikata::Array1d< uint8_t, 64 > jpeg_zigzag = {{
     58, 59, 52, 45, 38, 31, 39, 46,
     53, 60, 61, 54, 47, 55, 62, 63 }};
 
-struct ProbabilityTables;
 class BoolEncoder;
 class BoolDecoder;
 struct BlockColorContext;

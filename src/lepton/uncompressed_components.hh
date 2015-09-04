@@ -62,8 +62,8 @@ public:
         colldata_ = NULL;
         allocated_ = 0;
     }
-    unsigned short *get_quantization_tables(unsigned int component) const {
-        return header_[component].info_.qtable;
+    unsigned short *get_quantization_tables(BlockType component) const {
+        return header_[(int)component].info_.qtable;
     }
     void worker_wait_for_begin_signal() {
         if (use_threading) {
@@ -95,7 +95,7 @@ public:
         return retval;
     }
     bool get_next_component(const Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes> &curr_y,
-                            int *out_component) const {
+                            BlockType *out_component) const {
         int min_height = header_[0].info_.bcv;
         for (int i = 1; i < cmpc_; ++i) {
             min_height = std::min(header_[i].info_.bcv, min_height);
@@ -112,7 +112,7 @@ public:
         }
         if (curr_y[best_selection].y < header_[best_selection].trunc_bcv_) {
             //DEBUG ONLY fprintf(stderr, "BEST COMPONNET for %d = %d\n", curr_y[best_selection], best_selection);
-            *out_component = best_selection;
+            *out_component = (BlockType)best_selection;
             return true;
         }
         return false;
@@ -138,9 +138,9 @@ public:
         copy_data_to_main_thread();
         coefficient_position_progress_ += add_coefficient_position_progress;
     }
-    void worker_update_cmp_progress(int cmp, int add_bit_progress) {
+    void worker_update_cmp_progress(BlockType cmp, int add_bit_progress) {
         copy_data_to_main_thread();
-        header_[cmp].dpos_block_progress_ += add_bit_progress;
+        header_[(int)cmp].dpos_block_progress_ += add_bit_progress;
     }
     CodingReturnValue do_more_work() {
         if (use_threading) {
@@ -251,8 +251,8 @@ public:
     unsigned int component_size_in_blocks(int cmp) const {
         return header_[cmp].trunc_bc_;
     }
-    signed short* full_component_write(int cmp) const {
-        return header_[cmp].component_;
+    signed short* full_component_write(BlockType cmp) const {
+        return header_[(int)cmp].component_;
     }
     const signed short* full_component_nosync(int cmp) const{
         return header_[cmp].component_;
@@ -262,23 +262,23 @@ public:
         wait_for_worker(cmp, 63, header_[cmp].trunc_bc_ - 1);
         return full_component_nosync(cmp);
     }
-    signed short&set(int cmp, int bpos, int x, int y) {
+    signed short&set(BlockType cmp, int bpos, int x, int y) {
         return header_[cmp].component_[64 * (y * bch_(cmp) + x) + bpos]; // fixme: do we care bout nch?
     }
-    signed short at(int cmp, int bpos, int x, int y) {
+    signed short at(BlockType cmp, int bpos, int x, int y) {
         int dpos = header_[cmp].info.bch * y + x;
         wait_for_worker_on_dpos(cmp, dpos);
         return header_[cmp].component_[64 * dpos + bpos]; // fixme: do we care bout nch?
     }
-    signed short&set(int cmp, int bpos, int dpos) {
-        return header_[cmp].component_[dpos * 64 + bpos];
+    signed short&set(BlockType cmp, int bpos, int dpos) {
+        return header_[(int)cmp].component_[dpos * 64 + bpos];
     }
-    signed short at(int cmp, int bpos, int dpos) {
-        wait_for_worker_on_dpos(cmp, dpos);
-        return header_[cmp].component_[dpos * 64 + bpos];
+    signed short at(BlockType cmp, int bpos, int dpos) {
+        wait_for_worker_on_dpos((int)cmp, dpos);
+        return header_[(int)cmp].component_[dpos * 64 + bpos];
     }
-    signed short at_nosync(int cmp, int bpos, int dpos) const {
-        return header_[cmp].component_[dpos * 64 + bpos];
+    signed short at_nosync(BlockType cmp, int bpos, int dpos) const {
+        return header_[(int)cmp].component_[dpos * 64 + bpos];
     }
 
     int block_height( const int cmp ) const
@@ -290,7 +290,12 @@ public:
     {
         return bch_(cmp);
     }
-
+    
+    int block_width( const BlockType cmp ) const
+    {
+        return bch_((int)cmp);
+    }
+    
     void reset() {
         if (colldata_) {
             delete []colldata_;

@@ -37,10 +37,10 @@ int main( int argc, char *argv[] )
   }
 
   MMapFile model_file { argv[ 1 ] };
-  ProbabilityTables model_tables { model_file.slice() };
+  ProbabilityTables<true, true, true> model_tables { model_file.slice() };
   if (argc > 2) {
     MMapFile orig_file { argv[ 2 ] };
-    ProbabilityTables orig_tables { orig_file.slice() };
+    ProbabilityTables<true, true, true> orig_tables { orig_file.slice() };
     model_tables.debug_print(&orig_tables, spec);
   } else {
     model_tables.debug_print(nullptr, spec);

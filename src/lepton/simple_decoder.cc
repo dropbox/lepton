@@ -33,14 +33,14 @@ void SimpleComponentDecoder::simple_continuous_decoder(UncompressedComponents* c
     }
 }
 
-unsigned int get_cmp(int cur_read_batch[4], int target[4]) {
-    unsigned int cmp = 0;
-    double cmp_progress = cur_read_batch[cmp]/(double)target[cmp];
-    for (unsigned int icmp = 1; icmp < 4; ++icmp) {
-        if (target[cmp] && cur_read_batch[icmp] != target[icmp]) {
+BlockType get_cmp(int cur_read_batch[3], int target[3]) {
+    BlockType cmp = BlockType::Y;
+    double cmp_progress = cur_read_batch[(int)cmp]/(double)target[(int)cmp];
+    for (unsigned int icmp = 1; icmp < 3; ++icmp) {
+        if (target[(int)cmp] && cur_read_batch[icmp] != target[icmp]) {
             double cprogress = cur_read_batch[icmp]/(double)target[icmp];
             if (cprogress < cmp_progress) {
-                cmp = icmp;
+                cmp = (BlockType)icmp;
                 cmp_progress = cprogress;
             }
         }
@@ -63,25 +63,25 @@ CodingReturnValue SimpleComponentDecoder::decode_chunk(UncompressedComponents* c
         batch_size |= bs[1];
         batch_size <<= 8;
         batch_size |= bs[0];
-        for (unsigned int cmp = 0; cmp < 4; ++cmp) {
+        for (unsigned int cmp = 0; cmp < 3; ++cmp) {
             target[cmp] = colldata->component_size_in_blocks(cmp);
         }
     }
-    unsigned int cmp = get_cmp(cur_read_batch, target);
-    if (cmp == sizeof(cur_read_batch)/sizeof(cur_read_batch[0]) || cur_read_batch[cmp] == target[cmp]) {
+    BlockType cmp = get_cmp(cur_read_batch, target);
+    if ((size_t)cmp == sizeof(cur_read_batch)/sizeof(cur_read_batch[0]) || cur_read_batch[(size_t)cmp] == target[(size_t)cmp]) {
         return CODING_DONE;
     }
     // read coefficient data from file
     signed short * start = colldata->full_component_write( cmp );
-    while (cur_read_batch[cmp] < target[cmp]) {
-        int cur_read_size = std::min((int)batch_size, target[cmp] - cur_read_batch[cmp]);
-        size_t retval = IOUtil::ReadFull(str_in, start + cur_read_batch[cmp] * 64 , sizeof( short ) * 64 * cur_read_size);
+    while (cur_read_batch[(int)cmp] < target[(int)cmp]) {
+        int cur_read_size = std::min((int)batch_size, target[(int)cmp] - cur_read_batch[(int)cmp]);
+        size_t retval = IOUtil::ReadFull(str_in, start + cur_read_batch[(int)cmp] * 64 , sizeof( short ) * 64 * cur_read_size);
         if (retval != sizeof( short) * 64 * cur_read_size) {
             errormessage = "Unexpected end of file blocks";
             errorlevel = 2;
             return CODING_ERROR;
         }
-        cur_read_batch[cmp] += cur_read_size;
+        cur_read_batch[(int)cmp] += cur_read_size;
         colldata->worker_update_cmp_progress(cmp, cur_read_size);
         
         return CODING_PARTIAL;

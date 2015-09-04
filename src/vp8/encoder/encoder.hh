@@ -1,11 +1,10 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #ifndef ENCODER_HH
 #define ENCODER_HH
-#include <cassert>
-
-void serialize_tokens( BlockContext context,
-                       BlockColorContext,
+#include "model.hh"
+template<bool has_left, bool has_above, bool has_above_right, BlockType color> void serialize_tokens( BlockContext context,
                        BoolEncoder & encoder,
-                       ProbabilityTables & probability_tables);
+                       ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables);
+
 
 #endif /* ENCODER_HH */

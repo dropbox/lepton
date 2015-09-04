@@ -70,6 +70,77 @@ CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents
                                                                                 DecoderCompressionWriter> *output) {
     return vp8_full_encoder(input, output);
 }
+void copy_zigzag_to_coef(const UncompressedComponents * const colldata, AlignedBlock& block, BlockType component, int coord) {
+    for ( int coeff = 0; coeff < 64; coeff++ ) {
+        block.mutable_coefficients().raster(jpeg_zigzag.at(coeff)) = colldata->at_nosync(component,
+                                                                                         coeff,
+                                                                                         coord);
+    }
+}
+template<class Left, class Middle, class Right>
+void VP8ComponentEncoder::process_row(Left & left_model,
+                                      Middle& middle_model,
+                                      Right& right_model,
+                                      int block_width,
+                                      const UncompressedComponents * const colldata,
+                                      Sirikata::Array1d<VContext,
+                                              (uint32_t)ColorChannel::NumBlockTypes> &context,
+                                      Sirikata::Array1d<BlockBasedImage,
+                                                        (uint32_t)ColorChannel::NumBlockTypes> &vp8_blocks,
+                                      BoolEncoder &bool_encoder) {
+    int curr_y = context.at((int)Middle::COLOR).y;
+    if (block_width > 0) {
+        BlockContext block_context = context.at((int)Middle::COLOR).context;
+        AlignedBlock &block = block_context.here();
+        copy_zigzag_to_coef(colldata, block, (BlockType)Middle::COLOR, curr_y * block_width + 0);
+#ifdef ANNOTATION_ENABLED
+        gctx->cur_cmp = component; // for debug purposes only, not to be used in production
+        gctx->cur_jpeg_x = 0;
+        gctx->cur_jpeg_y = curr_y;
+#endif
+        block.recalculate_coded_length();
+        serialize_tokens(block_context,
+                         bool_encoder,
+                         left_model);
+        context.at((int)Middle::COLOR).context = vp8_blocks.at((int)Middle::COLOR).next(block_context);
+    }
+    for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
+        BlockContext block_context = context.at((int)Middle::COLOR).context;
+        AlignedBlock &block = block_context.here();
+        copy_zigzag_to_coef(colldata,
+                            block,
+                            (BlockType)Middle::COLOR,
+                            curr_y * block_width + jpeg_x);
+#ifdef ANNOTATION_ENABLED
+        gctx->cur_cmp = component; // for debug purposes only, not to be used in production
+        gctx->cur_jpeg_x = jpeg_x;
+        gctx->cur_jpeg_y = curr_y;
+#endif
+        block.recalculate_coded_length();
+        serialize_tokens(block_context,
+                         bool_encoder,
+                         middle_model);
+        context.at((int)Middle::COLOR).context = vp8_blocks.at((int)Middle::COLOR).next(block_context);
+    }
+    if (block_width > 1) {
+        BlockContext block_context = context.at((int)Middle::COLOR).context;
+        AlignedBlock &block = block_context.here();
+        copy_zigzag_to_coef(colldata,
+                            block,
+                            (BlockType)Middle::COLOR,
+                            curr_y * block_width + block_width - 1);
+#ifdef ANNOTATION_ENABLED
+        gctx->cur_cmp = Middle::COLOR; // for debug purposes only, not to be used in production
+        gctx->cur_jpeg_x = block_width - 1;
+        gctx->cur_jpeg_y = curr_y;
+#endif
+        block.recalculate_coded_length();
+        serialize_tokens(block_context,
+                         bool_encoder,
+                         right_model);
+        context.at((int)Middle::COLOR).context = vp8_blocks.at((int)Middle::COLOR).next(block_context);
+    }
+}
 
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                             Sirikata::
@@ -92,40 +163,143 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     str_out->EnableCompression();
 
     /* read in probability table coeff probs */
-    ProbabilityTables probability_tables = ProbabilityTables::get_probability_tables();
+    ProbabilityTablesBase::load_probability_tables();
 
     /* get ready to serialize the blocks */
     BoolEncoder bool_encoder;
-    int component = 0;
-    while(colldata->get_next_component(context, &component)) {
-        int curr_y = context.at(component).y;
-        int block_width = colldata->block_width( component );
-        for ( int jpeg_x = 0; jpeg_x < block_width; jpeg_x++ ) {
-            BlockContext block_context = context.at(component).context;
-            AlignedBlock &block = block_context.here();
-            for ( int coeff = 0; coeff < 64; coeff++ ) {
-                block.mutable_coefficients().raster( jpeg_zigzag.at( coeff ) )
-                    = colldata->at_nosync( component, coeff, curr_y * block_width + jpeg_x);
-            }
-#ifdef ANNOTATION_ENABLED
-            gctx->cur_cmp = component; // for debug purposes only, not to be used in production
-            gctx->cur_jpeg_x = jpeg_x;
-            gctx->cur_jpeg_y = curr_y;
-#endif
-            block.recalculate_coded_length();
-            probability_tables.set_quantization_table( colldata->get_quantization_tables(component));
-            serialize_tokens(block_context,
-                             get_color_context_blocks(colldata->get_color_context(jpeg_x,
-                                                                                  context,
-                                                                                  component),
-                                                      vp8_blocks,
-                                                      component),
-                             bool_encoder,
-                             probability_tables);
+    BlockType component = BlockType::Y;
+    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(component));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(component));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(component));
+    tuple<ProbabilityTables<false, false, false, BlockType::Y>,
+          ProbabilityTables<false, false, false, BlockType::Cb>,
+          ProbabilityTables<false, false, false, BlockType::Cr> > corner;
 
-            context.at(component).context = vp8_blocks.at(component).next(block_context);
+    tuple<ProbabilityTables<true, false, false, BlockType::Y>,
+          ProbabilityTables<true, false, false, BlockType::Cb>,
+          ProbabilityTables<true, false, false, BlockType::Cr> > top;
+
+    tuple<ProbabilityTables<false, true, true, BlockType::Y>,
+          ProbabilityTables<false, true, true, BlockType::Cb>,
+          ProbabilityTables<false, true, true, BlockType::Cr> > midleft;
+
+    tuple<ProbabilityTables<true, true, true, BlockType::Y>,
+          ProbabilityTables<true, true, true, BlockType::Cb>,
+          ProbabilityTables<true, true, true, BlockType::Cr> > middle;
+
+    tuple<ProbabilityTables<true, true, false, BlockType::Y>,
+          ProbabilityTables<true, true, false, BlockType::Cb>,
+          ProbabilityTables<true, true, false, BlockType::Cr> > midright;
+
+    tuple<ProbabilityTables<false, true, false, BlockType::Y>,
+          ProbabilityTables<false, true, false, BlockType::Cb>,
+          ProbabilityTables<false, true, false, BlockType::Cr> > width_one;
+    while(colldata->get_next_component(context, &component)) {
+        int curr_y = context.at((int)component).y;
+        int block_width = colldata->block_width( component );
+        if (curr_y == 0) {
+            switch(component) {
+                case BlockType::Y:
+                    process_row(std::get<(int)BlockType::Y>(corner),
+                                std::get<(int)BlockType::Y>(top),
+                                std::get<(int)BlockType::Y>(top),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+                case BlockType::Cb:
+                    process_row(std::get<(int)BlockType::Cb>(corner),
+                                std::get<(int)BlockType::Cb>(top),
+                                std::get<(int)BlockType::Cb>(top),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+                case BlockType::Cr:
+                    process_row(std::get<(int)BlockType::Cr>(corner),
+                                std::get<(int)BlockType::Cr>(top),
+                                std::get<(int)BlockType::Cr>(top),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+            }
+        } else if (block_width > 1) {
+            switch(component) {
+                case BlockType::Y:
+                    process_row(std::get<(int)BlockType::Y>(midleft),
+                                std::get<(int)BlockType::Y>(middle),
+                                std::get<(int)BlockType::Y>(midright),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+                case BlockType::Cb:
+                    process_row(std::get<(int)BlockType::Cb>(midleft),
+                                std::get<(int)BlockType::Cb>(middle),
+                                std::get<(int)BlockType::Cb>(midright),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+                case BlockType::Cr:
+                    process_row(std::get<(int)BlockType::Cr>(midleft),
+                                std::get<(int)BlockType::Cr>(middle),
+                                std::get<(int)BlockType::Cr>(midright),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+            }
+        } else {
+            assert(block_width == 1);
+            switch(component) {
+                case BlockType::Y:
+                    process_row(std::get<(int)BlockType::Y>(width_one),
+                                std::get<(int)BlockType::Y>(width_one),
+                                std::get<(int)BlockType::Y>(width_one),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+                case BlockType::Cb:
+                    process_row(std::get<(int)BlockType::Cb>(width_one),
+                                std::get<(int)BlockType::Cb>(width_one),
+                                std::get<(int)BlockType::Cb>(width_one),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+                case BlockType::Cr:
+                    process_row(std::get<(int)BlockType::Cr>(width_one),
+                                std::get<(int)BlockType::Cr>(width_one),
+                                std::get<(int)BlockType::Cr>(width_one),
+                                block_width,
+                                colldata,
+                                context,
+                                vp8_blocks,
+                                bool_encoder);
+                    break;
+            }
         }
-        ++context.at(component).y;
+
+        ++context.at((int)component).y;
     }
 
     /* get coded output */
@@ -154,8 +328,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             return CODING_ERROR;
         }
 
-        probability_tables.optimize();
-        probability_tables.serialize( model_file );
+        std::get<(int)BlockType::Y>(middle).optimize();
+        std::get<(int)BlockType::Y>(middle).serialize( model_file );
     }
 #ifdef ANNOTATION_ENABLED
     {

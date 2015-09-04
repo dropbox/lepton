@@ -14,9 +14,14 @@ class VP8ComponentDecoder : public BaseDecoder {
     Sirikata::SwitchableDecompressionReader<Sirikata::
                                             SwitchableXZBase> *str_in {};
 
-    ProbabilityTables probability_tables_;
     Optional<BoolDecoder> bool_decoder_;
     std::vector<uint8_t> file_;
+    template<class Left, class Middle, class Right>
+    void process_row(Left & left_model,
+                      Middle& middle_model,
+                      Right& right_model,
+                      int block_width,
+                      UncompressedComponents * const colldata);
 
 public:
     VP8ComponentDecoder();

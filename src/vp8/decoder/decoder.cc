@@ -147,11 +147,11 @@ uint8_t prefix_unremap(uint8_t v) {
     return v - 3;
 }
 
+template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void parse_tokens( BlockContext context,
-                   BlockColorContext color,
                    BoolDecoder & data,
-                   ProbabilityTables & probability_tables) {
-    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(color.color, context);
+                   ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables) {
+    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7((int)color, context);
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
@@ -163,7 +163,7 @@ void parse_tokens( BlockContext context,
     { // dc
         unsigned int coord = 0;
         uint8_t length = 0;
-        auto exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_7x7, context);
+        auto exp_prob = probability_tables.exponent_array_7x7((int)color, coord, num_nonzeros_7x7, context);
         unsigned int decoded_so_far = 0;
         for (int i = 3; i >= 0; --i) {
             int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
@@ -175,13 +175,13 @@ void parse_tokens( BlockContext context,
         length = prefix_unremap(length);
         int16_t coef = (1 << (length - 1));
         if (length > 1){
-            auto res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_7x7);
+            auto res_prob = probability_tables.residual_noise_array_7x7((int)color, coord, num_nonzeros_7x7);
             for (int i = length - 2; i >= 0; --i) {
                 coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array(color.color, coord, context);
+            auto &sign_prob = probability_tables.sign_array((int)color, coord, context);
             if (!data.get(sign_prob)) {
                 coef = -coef;
             }
@@ -197,7 +197,7 @@ void parse_tokens( BlockContext context,
         unsigned int b_y = coord / 8;
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             uint8_t length = 0;
-            auto exp_prob = probability_tables.exponent_array_7x7(color.color, coord, num_nonzeros_left_7x7, context);
+            auto exp_prob = probability_tables.exponent_array_7x7((int)color, coord, num_nonzeros_left_7x7, context);
             unsigned int decoded_so_far = 0;
             for (int i = 3; i >= 0; --i) {
                 int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
@@ -209,13 +209,13 @@ void parse_tokens( BlockContext context,
             length = prefix_unremap(length);
             int16_t coef = (1 << (length - 1));
             if (length > 1){
-                auto res_prob = probability_tables.residual_noise_array_7x7(color.color, coord, num_nonzeros_left_7x7);
+                auto res_prob = probability_tables.residual_noise_array_7x7((int)color, coord, num_nonzeros_left_7x7);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(color.color, coord, context);
+                auto &sign_prob = probability_tables.sign_array((int)color, coord, context);
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
@@ -241,10 +241,10 @@ void parse_tokens( BlockContext context,
             }
         }
     }
-    auto prob_x = probability_tables.x_nonzero_counts_8x1(color.color,
+    auto prob_x = probability_tables.x_nonzero_counts_8x1((int)color,
                                                       eob_x,
                                                          num_nonzeros_7x7);
-    auto prob_y = probability_tables.y_nonzero_counts_1x8(color.color,
+    auto prob_y = probability_tables.y_nonzero_counts_1x8((int)color,
                                                       eob_y,
                                                          num_nonzeros_7x7);
     uint8_t num_nonzeros_x = 0;
@@ -277,7 +277,7 @@ void parse_tokens( BlockContext context,
             num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            auto exp_array = probability_tables.exponent_array_x(color.color, coord, num_nonzeros_edge, context);
+            auto exp_array = probability_tables.exponent_array_x((int)color, coord, num_nonzeros_edge, context);
 
             uint8_t length = 0;
             unsigned int decoded_so_far = 0;            
@@ -303,7 +303,7 @@ void parse_tokens( BlockContext context,
                 }
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
-                    auto thresh_prob = probability_tables.residual_thresh_array(color.color, coord, length,
+                    auto thresh_prob = probability_tables.residual_thresh_array((int)color, coord, length,
                                                                                  context, min_threshold, max_val);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
@@ -317,12 +317,12 @@ void parse_tokens( BlockContext context,
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far / 2);
                 }
                 for (; i >= 0; --i) {
-                    auto res_prob = probability_tables.residual_noise_array_x(color.color, coord, num_nonzeros_edge);
+                    auto res_prob = probability_tables.residual_noise_array_x((int)color, coord, num_nonzeros_edge);
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(color.color, coord, context);
+                auto &sign_prob = probability_tables.sign_array((int)color, coord, context);
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
@@ -339,3 +339,28 @@ void parse_tokens( BlockContext context,
     context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context, true);
     context.here().recalculate_coded_length();
 }
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Y>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Cb>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Cr>&);
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Y>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Cb>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Cr>&);
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Y>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Cb>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Cr>&);
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Y>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Cb>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Cr>&);
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Y>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Cb>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Cr>&);
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Y>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Cb>&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Cr>&);
+
