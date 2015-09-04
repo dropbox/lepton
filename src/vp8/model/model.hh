@@ -166,16 +166,18 @@ protected:
     static int32_t icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16)));
     
     static int32_t icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16)));
-    static const unsigned short *quantization_table_[3];
+    static unsigned short quantization_table_[3][64] __attribute__ ((aligned(16)));
 public:
     static void load_probability_tables();
     static void set_quantization_table(BlockType color, const unsigned short quantization_table[64]) {
-        quantization_table_[(int)color] = quantization_table;
+        for (int i = 0; i < 64; ++i) {
+            quantization_table_[(int)color][i] = quantization_table[zigzag[i]];
+        }
         for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
             for (int i = 0; i < 8; ++i) {
-                icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
-                icos_idct_edge_8192_dequantized_x(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[i * 8 + pixel_row]];
-                icos_idct_edge_8192_dequantized_y(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table[zigzag[pixel_row * 8 + i]];
+                icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table_[(int)color][i];
+                icos_idct_edge_8192_dequantized_x(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][i * 8 + pixel_row];
+                icos_idct_edge_8192_dequantized_y(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][pixel_row * 8 + i];
             }
         }
     }
@@ -433,19 +435,17 @@ public:
         if (context.has_left()) {
             left = abs(context.left_unchecked().coefficients().raster(0));
         }
-       
-        const auto &weight_array = component ? abs_ctx_weights_chr : abs_ctx_weights_lum;
-         if (topleft.initialized()) {
-            total += weight_array[0][1][1] * (int)topleft.get();
-            weights += weight_array[0][1][1];
+        if (topleft.initialized()) {
+            total += 1 * (int)topleft.get();
+            weights += 1;
         }
         if (top.initialized()) {
-            total += weight_array[0][1][2] * (int)top.get();
-            weights += weight_array[0][1][2];
+            total += 2 * (int)top.get();
+            weights += 2;
         }
         if (left.initialized()) {
-            total += weight_array[0][2][1] * (int)left.get();
-            weights += weight_array[0][2][1];
+            total += 2 * (int)left.get();
+            weights += 2;
         }
         if (weights == 0) {
             weights = 1;
@@ -462,7 +462,6 @@ public:
         uint32_t total = 0;
         uint32_t weights = 0;
         uint32_t coef_index = band;
-        uint8_t zz = zigzag[band];
         if (context.has_above()) {
             top = abs(context.above_unchecked().coefficients().raster(coef_index));
             if (context.has_left()) {
@@ -475,19 +474,18 @@ public:
         if (context.has_left()) {
             left = abs(context.left_unchecked().coefficients().raster(coef_index));
         }
-        const auto &weight_array = component ? abs_ctx_weights_chr : abs_ctx_weights_lum;
 
         if (topleft.initialized()) {
-            total += weight_array[zz][1][1] * (int)topleft.get();
-            weights += weight_array[zz][1][1];
+            total += (int)topleft.get();
+            weights += 1;
         }
         if (top.initialized()) {
-            total += weight_array[zz][1][2] * (int)top.get();
-            weights += weight_array[zz][1][2];
+            total += 2 * (int)top.get();
+            weights += 2;
         }
         if (left.initialized()) {
-            total += weight_array[zz][2][1] * (int)left.get();
-            weights += weight_array[zz][2][1];
+            total += 2 * (int)left.get();
+            weights += 2;
         }
         if (weights == 0) {
             weights = 1;
@@ -632,7 +630,7 @@ public:
                 854,  838, 1010,  838, 1020,  837, 1020,  969, 
                 969, 1020,  838, 1020,  838, 1020, 1020,  838
             };
-        return (freqmax[zigzag[coord]] + quantization_table_[COLOR][zigzag[coord]] - 1) / quantization_table_[COLOR][zigzag[coord]];
+        return (freqmax[zigzag[coord]] + quantization_table_[COLOR][coord] - 1) / quantization_table_[COLOR][coord];
     }
     void optimize() {
         optimize_model(model_);

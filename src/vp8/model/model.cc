@@ -13,7 +13,7 @@ int32_t ProbabilityTablesBase::icos_idct_linear_8192_dequantized_[3][64] __attri
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 #endif
 
-const unsigned short *ProbabilityTablesBase::quantization_table_[3] = {nullptr, nullptr, nullptr};
+unsigned short ProbabilityTablesBase::quantization_table_[3][64] __attribute__ ((aligned(16)));
 
 void serialize_model(const Model & model, std::ofstream & output )
 {
