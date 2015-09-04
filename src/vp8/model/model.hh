@@ -166,7 +166,8 @@ protected:
     static int32_t icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16)));
     
     static int32_t icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16)));
-    static unsigned short quantization_table_[3][64] __attribute__ ((aligned(16)));
+    static uint16_t quantization_table_[3][64] __attribute__ ((aligned(16)));
+    static uint16_t freqmax_[3][64] __attribute__ ((aligned (16)));
 public:
     static void load_probability_tables();
     static void set_quantization_table(BlockType color, const unsigned short quantization_table[64]) {
@@ -179,6 +180,19 @@ public:
                 icos_idct_edge_8192_dequantized_x(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][i * 8 + pixel_row];
                 icos_idct_edge_8192_dequantized_y(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][pixel_row * 8 + i];
             }
+        }
+        static const unsigned short int freqmax[] =
+        {
+            1024, 931, 985, 968, 1020, 968, 1020, 1020,
+            932, 858, 884, 840, 932, 838, 854, 854,
+            985, 884, 871, 875, 985, 878, 871, 854,
+            967, 841, 876, 844, 967, 886, 870, 837,
+            1020, 932, 985, 967, 1020, 969, 1020, 1020,
+            969, 838, 878, 886, 969, 838, 969, 838
+        };
+        for (int coord = 0; coord < 64; ++coord) {
+            freqmax_[(int)color][coord] = (freqmax[coord] + quantization_table_[(int)color][coord] - 1)
+                / quantization_table_[(int)color][coord];
         }
     }
     static int32_t *icos_idct_edge_8192_dequantized_x(BlockType color) {
@@ -619,18 +633,7 @@ public:
             .at(ctx1).at(ctx0);
     }
     int get_max_value(int coord) {
-        static const unsigned short int freqmax[] =
-            {
-                1024,  931,  932,  985,  858,  985,  968,  884, 
-                884,  967, 1020,  841,  871,  840, 1020,  968, 
-                932,  875,  876,  932,  969, 1020,  838,  985, 
-                844,  985,  838, 1020, 1020,  854,  878,  967, 
-                967,  878,  854, 1020,  854,  871,  886, 1020, 
-                886,  871,  854,  854,  870,  969,  969,  870, 
-                854,  838, 1010,  838, 1020,  837, 1020,  969, 
-                969, 1020,  838, 1020,  838, 1020, 1020,  838
-            };
-        return (freqmax[zigzag[coord]] + quantization_table_[COLOR][coord] - 1) / quantization_table_[COLOR][coord];
+        return freqmax_[COLOR][coord];
     }
     void optimize() {
         optimize_model(model_);
