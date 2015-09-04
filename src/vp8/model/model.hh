@@ -233,20 +233,20 @@ public:
     CoefficientContext get_dc_coefficient_context(const BlockContext block, uint8_t num_nonzeros) {
         CoefficientContext retval;
         retval.best_prior = compute_aavrg(block, 0);
-        retval.bsr_best_prior = exp_len(abs(retval.best_prior));
+        retval.bsr_best_prior = exp_len(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
         return retval;
     }
     void update_coefficient_context7x7(CoefficientContext & retval,
                                      uint8_t coefficient, const BlockContext block, uint8_t num_nonzeros_left) {
         retval.best_prior = compute_aavrg(block, coefficient);
-        retval.bsr_best_prior = exp_len(abs(retval.best_prior));
+        retval.bsr_best_prior = exp_len(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
     }
     void update_coefficient_context8(CoefficientContext & retval,
                                    uint8_t coefficient, const BlockContext block, uint8_t num_nonzeros_x) {
         retval.best_prior = compute_lak(block, coefficient);
-        retval.bsr_best_prior = exp_len(abs(retval.best_prior));
+        retval.bsr_best_prior = exp_len(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_x;
     }
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const BlockContext block) {
@@ -523,7 +523,10 @@ public:
         if (v < 0) {
             v = -v;
         }
-        return bit_length(std::min(v, 1023));
+        if (v > 1023) {
+            v = 1023;
+        }
+        return bit_length(v);
     }
     int compute_lak(const BlockContext&context, unsigned int band) {
         int16_t coeffs_x[8];

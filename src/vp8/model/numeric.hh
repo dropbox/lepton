@@ -110,13 +110,13 @@ template<typename intt> intt log2(intt v) {
                                    : (sizeof(intt) == 2 ? 3
                                       : (sizeof(intt) == 4 ? 4
                                          : 5)));
-    const intt b[] = {0x2,
+    constexpr intt b[] = {0x2,
         0xC,
         0xF0,
         (intt)0xFF00,
         (intt)0xFFFF0000U,
-        std::numeric_limits<intt>::max() - (intt)0xFFFFFFFFU};
-    const intt S[] = {1, 2, 4, 8, 16, 32};
+        (intt)0xFFFFFFFF00000000ULL};
+    constexpr intt S[] = {1, 2, 4, 8, 16, 32};
     
     intt r = 0; // result of log2(v) will go here
     
@@ -130,10 +130,8 @@ template<typename intt> intt log2(intt v) {
     }
     return r;
 }
-template <typename intt> intt bit_length(intt value) {
-    if (value == 0) return 0;
-    auto l2 = log2(value) + 1;
-    return (uint8_t)l2;
+template <typename intt> intt bit_length(intt v) {
+    return v == 0 ? 0 : log2(v) + 1;
 }
 template<class EncoderT> uint8_t put_ceil_log_coefficient( EncoderT &e,
                                                            const uint16_t token_value ) {
