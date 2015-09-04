@@ -460,7 +460,16 @@ int main( int argc, char** argv )
     float cr;
 
     errorlevel.store(0);
-
+#ifdef __APPLE__
+    // the profiler doesn't enjoy passing along command line arguments
+    char default_argv0[] = "/Users/danielrh/src/lepton/src/lepton";
+    char default_argv1[] = "/Users/danielrh/src/lepton/images/iphone.lep";
+    char *default_argv[]= {default_argv0, default_argv1, NULL};
+    if (argc == 1) {
+        argc = 2;
+        argv = default_argv;
+    }
+#endif
 
     // read options from command line
     initialize_options( argc, argv );

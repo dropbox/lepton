@@ -35,71 +35,7 @@ template <class ParentContext> struct PerBitDecoderState : public ParentContext{
     }
 };
 
-/*
-PerBitContext2u::PerBitContext2u(NestedProbabilityArray  *prob,
-                                 Optional<uint16_t> left_coded_length,
-                                 Optional<uint16_t> above_coded_length)
-   : left_value_(left_coded_length),
-     above_value_(above_coded_length) {
-    put_one_unsigned_coefficient(left_bits_, left_coded_length.get_or(0));
-    put_one_unsigned_coefficient(above_bits_, above_coded_length.get_or(0));
-    
-    probability_ = prob;
-}
 
-PerBitContext4s::PerBitContext4s(NestedProbabilityArray  *prob,
-                                 Optional<int16_t> left_block_value,
-                                 Optional<int16_t> above_block_value,
-                                 Optional<int16_t> left_coef_value,
-                                 Optional<int16_t> above_coef_value)
-    : left_block_value_(left_block_value),
-     above_block_value_(above_block_value),
-     left_coef_value_(left_coef_value),
-     above_coef_value_(above_coef_value) {
-    put_one_signed_coefficient(left_block_bits_, false, false, left_block_value.get_or(0));
-    put_one_signed_coefficient(above_block_bits_, false, false, above_block_value.get_or(0));
-    put_one_signed_coefficient(left_coef_bits_, false, false, left_coef_value.get_or(0));
-    put_one_signed_coefficient(above_coef_bits_, false, false, above_coef_value.get_or(0));
-    
-        probability_ = prob;
-}
-
-typedef PerBitDecoderState<DefaultContext> DecoderState;
-typedef PerBitDecoderState<ExponentContext> DecoderStateExp;
-typedef PerBitDecoderState<PerBitContext2u> DecoderState2u;
-typedef PerBitDecoderState<PerBitContext4s> DecoderState4s;
-
-template<class DecoderT> uint8_t get_ceil_log2_coefficient(DecoderT& d) {
-    bool l0 = d.decode_one(TokenNode::LENGTH0);
-    bool l1 = d.decode_one(TokenNode::LENGTH1);
-    if (l0 == false && l1 == false) {
-        return 1;
-    }
-    bool l2 = d.decode_one(TokenNode::LENGTH2);
-    if (l0 == true && l1 == false && l2 == false) {
-        return 2;
-    }
-    bool l3 = d.decode_one(TokenNode::LENGTH3);
-    //uint8_t prefix_coded_length = (l0 ? 1 : 0) + (l1 ? 2 : 0) + (l2 ? 4 : 0) + (l3 ? 8 : 0);
-    return 3 + (l2 ? 1 : 0) + (l3 ? 2 : 0) + (l0? 4 : 0);
-}
-template<class DecoderT> uint16_t get_one_natural_significand_coefficient(DecoderT& d, uint8_t ceil_log2) {
-    uint8_t length = ceil_log2;
-    uint16_t value = (1 << (length - 1));
-    for (uint8_t i = 0; i + 1 < length; ++i) {
-        value += (1 << i) * d.decode_one((int)TokenNode::VAL0 + i);
-    }
-    return value;
-}
-template<class DecoderT> uint16_t get_one_natural_coefficient(DecoderT& d) {
-    uint8_t length = get_ceil_log2_coefficient(d);
-    uint16_t value = (1 << (length - 1));
-    for (uint8_t i = 0; i + 1 < length; ++i) {
-        value += (1 << i) * d.decode_one((int)TokenNode::VAL0 + i);
-    }
-    return value;
-}
- */
 
 /* The unfolded token decoder is not pretty, but it is considerably faster
    than using a tree decoder */
@@ -160,10 +96,12 @@ void parse_tokens( BlockContext context,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
+    ProbabilityTablesBase::CoefficientContext prior = probability_tables.get_dc_coefficient_context(context,
+                                                                                                    num_nonzeros_7x7);
     { // dc
-        unsigned int coord = 0;
+        const unsigned int coord = 0;
         uint8_t length = 0;
-        auto exp_prob = probability_tables.exponent_array_dc(num_nonzeros_7x7, context);
+        auto exp_prob = probability_tables.exponent_array_dc(prior);
         unsigned int decoded_so_far = 0;
         for (int i = 3; i >= 0; --i) {
             int cur_bit = data.get(exp_prob.at(i, decoded_so_far)) ? 1 : 0;
@@ -175,13 +113,13 @@ void parse_tokens( BlockContext context,
         length = prefix_unremap(length);
         int16_t coef = (1 << (length - 1));
         if (length > 1){
-            auto res_prob = probability_tables.residual_noise_array_7x7(coord, num_nonzeros_7x7);
+            auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
             for (int i = length - 2; i >= 0; --i) {
                 coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array(coord, context);
+            auto &sign_prob = probability_tables.sign_array(coord, prior);
             if (!data.get(sign_prob)) {
                 coef = -coef;
             }
@@ -194,10 +132,11 @@ void parse_tokens( BlockContext context,
     for (unsigned int zz = 0; zz < 64; ++zz) {
         unsigned int coord = unzigzag[zz];
         unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord / 8;
+        unsigned int b_y = (coord >> 3);
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
+            probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_left_7x7);
             uint8_t length = 0;
-            auto exp_prob = probability_tables.exponent_array_7x7(coord, num_nonzeros_left_7x7, context);
+            auto exp_prob = probability_tables.exponent_array_7x7(coord, prior);
             unsigned int decoded_so_far = 0;
             for (int i = 3; i >= 0; --i) {
                 int cur_bit = data.get(exp_prob.at(i, decoded_so_far)) ? 1 : 0;
@@ -209,13 +148,13 @@ void parse_tokens( BlockContext context,
             length = prefix_unremap(length);
             int16_t coef = (1 << (length - 1));
             if (length > 1){
-                auto res_prob = probability_tables.residual_noise_array_7x7(coord, num_nonzeros_left_7x7);
+                auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(coord, context);
+                auto &sign_prob = probability_tables.sign_array(coord, prior);
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
@@ -277,7 +216,8 @@ void parse_tokens( BlockContext context,
             num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            auto exp_array = probability_tables.exponent_array_x(coord, num_nonzeros_edge, context);
+            probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge);
+            auto exp_array = probability_tables.exponent_array_x(coord, prior);
 
             uint8_t length = 0;
             unsigned int decoded_so_far = 0;            
@@ -304,7 +244,7 @@ void parse_tokens( BlockContext context,
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
                     auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
-                                                                                 context, min_threshold, max_val);
+                                                                                 prior, min_threshold, max_val);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
@@ -316,13 +256,13 @@ void parse_tokens( BlockContext context,
                     }
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far / 2);
                 }
+                auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
                 for (; i >= 0; --i) {
-                    auto res_prob = probability_tables.residual_noise_array_x(coord, num_nonzeros_edge);
                     coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(coord, context);
+                auto &sign_prob = probability_tables.sign_array(coord, prior);
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }

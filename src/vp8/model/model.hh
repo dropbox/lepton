@@ -204,6 +204,12 @@ public:
     static int32_t *icos_idct_linear_8192_dequantized(BlockType color) {
         return icos_idct_linear_8192_dequantized_[(int)color];
     }
+    struct CoefficientContext {
+        int best_prior; //lakhani or aavrg depending on coefficient number
+        uint8_t bsr_best_prior;
+        uint8_t num_nonzeros_bin; // num_nonzeros mapped into a bin
+    };
+
 };
 
 template <bool left_present, bool above_present, bool above_right_present, BlockType color>
@@ -224,8 +230,26 @@ public:
     static constexpr int color_index() {
         return (int)color >= BLOCK_TYPES ? BLOCK_TYPES - 1 : (int)color;
     }
-    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(
-                                                            const BlockContext block) {
+    CoefficientContext get_dc_coefficient_context(const BlockContext block, uint8_t num_nonzeros) {
+        CoefficientContext retval;
+        retval.best_prior = compute_aavrg(block, 0);
+        retval.bsr_best_prior = exp_len(abs(retval.best_prior));
+        retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
+        return retval;
+    }
+    void update_coefficient_context7x7(CoefficientContext & retval,
+                                     uint8_t coefficient, const BlockContext block, uint8_t num_nonzeros_left) {
+        retval.best_prior = compute_aavrg(block, coefficient);
+        retval.bsr_best_prior = exp_len(abs(retval.best_prior));
+        retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
+    }
+    void update_coefficient_context8(CoefficientContext & retval,
+                                   uint8_t coefficient, const BlockContext block, uint8_t num_nonzeros_x) {
+        retval.best_prior = compute_lak(block, coefficient);
+        retval.bsr_best_prior = exp_len(abs(retval.best_prior));
+        retval.num_nonzeros_bin = num_nonzeros_x;
+    }
+    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const BlockContext block) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
         if (above_present) {
@@ -245,7 +269,7 @@ public:
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
         return model_.num_nonzeros_counts_7x7_.at(color_index(),
-                                                   num_nonzeros_to_bin(num_nonzeros_context));
+                                                  num_nonzeros_to_bin(num_nonzeros_context));
     }
     Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(
                                                           unsigned int eob_x,
@@ -263,67 +287,60 @@ public:
     }
     Sirikata::Array2d<Branch,
                       NUMBER_OF_EXPONENT_BITS,
-                      1<<(NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_x(
-                                                                                 unsigned int band,
-                                                                                 unsigned int num_nonzeros_x,
-                                                                                 const BlockContext&for_lak) {
-        ANNOTATE_CTX(band, EXP8, 0, exp_len(abs(compute_lak(for_lak, band))));
-        ANNOTATE_CTX(band, EXP8, 1, num_nonzeros_x);
+                      1<<(NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_x(int band, CoefficientContext context) {
+        ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
+        ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         return model_.exponent_counts_x_.at(color_index(),
                                              (band & 7)== 0 ? ((band >>3) + 7) : band - 1 ,
-                                             num_nonzeros_x,
-                                             exp_len(abs(compute_lak(for_lak, band))));
+                                             context.num_nonzeros_bin,
+                                             context.bsr_best_prior);
     }
     Sirikata::Array2d<Branch,
     NUMBER_OF_EXPONENT_BITS,
-    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(
-                                                                  const unsigned int band,
-                                                                  const unsigned int num_nonzeros,
-                                                                  const BlockContext&context) {
-        ANNOTATE_CTX(band, EXP7x7, 0, exp_len(abs(compute_aavrg(block_type, context, band))));
-        ANNOTATE_CTX(band, EXP7x7, 1, num_nonzeros_to_bin(num_nonzeros));
+    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(const unsigned int band,
+                                                                  const CoefficientContext context) {
+        ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
+        ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
         return model_.exponent_counts_
         .at(color_index(),
             band - 8 - band / 8,
-            num_nonzeros_to_bin(num_nonzeros),
-            exp_len(abs(compute_aavrg(context, band))));
+            context.bsr_best_prior,
+            context.num_nonzeros_bin);
     }
     Sirikata::Array2d<Branch,
     NUMBER_OF_EXPONENT_BITS,
-    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_dc(
-                                                                  const unsigned int num_nonzeros,
-                                                                  const BlockContext&context) {
-        ANNOTATE_CTX(0, EXPDC, 0, exp_len(abs(compute_aavrg(block_type, context, band))));
-        ANNOTATE_CTX(0, EXPDC, 1, num_nonzeros_to_bin(num_nonzeros));
+    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_dc(const CoefficientContext context) {
+        ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
+        ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return model_.exponent_counts_dc_
             .at(color_index(),
-                num_nonzeros_to_bin(num_nonzeros),
-                exp_len(abs(compute_aavrg(context, 0))));
+                context.num_nonzeros_bin,
+                context.bsr_best_prior);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(
                                                           const unsigned int band,
-                                                          const uint8_t num_nonzeros_x) {
+                                                          const CoefficientContext context) {
         ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
         return residual_noise_array_shared(band,
-                                           num_nonzeros_x);
+                                           context);
     }
 
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(
                                                             const unsigned int band,
-                                                            const uint8_t num_nonzeros_x) {
+                                                            const CoefficientContext context) {
         return model_.residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
-                                                 num_nonzeros_x);
+                                                 context.num_nonzeros_bin);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(
                                                             const unsigned int band,
-                                                            const uint8_t num_nonzeros) {
+                                                            const CoefficientContext context) {
         if (band == 0) {
             ANNOTATE_CTX(0, RESDC, 0, num_nonzeros_to_bin(num_nonzeros));
         } else {
             ANNOTATE_CTX(band, RES7x7, 0, num_nonzeros_to_bin(num_nonzeros));
         }
-        return residual_noise_array_shared(band, num_nonzeros_to_bin(num_nonzeros));
+        return residual_noise_array_shared(band, context);
     }
     unsigned int num_nonzeros_to_bin(unsigned int num_nonzeros) {
 
@@ -563,10 +580,10 @@ public:
             (1<<RESIDUAL_NOISE_FLOOR)>::Slice
         residual_thresh_array(const unsigned int band,
                               const uint8_t cur_exponent,
-                              const BlockContext&context,
+                              const CoefficientContext context,
                               int min_threshold,
                               int max_value) {
-        uint16_t ctx_abs = abs(compute_lak(context, band));
+        uint16_t ctx_abs = abs(context.best_prior);
         if (ctx_abs >= max_value) {
             ctx_abs = max_value - 1;
         }
@@ -589,35 +606,19 @@ public:
         NEGATIVE_SIGN=2,
     };
     Branch& sign_array(const unsigned int band,
-                       BlockContext context) {
+                       CoefficientContext context) {
         int ctx0 = 0;
         int ctx1 = 0;
         if (band == 0) {
             ANNOTATE_CTX(0, SIGNDC, 0, 1);
         } else if (band < 8 || band % 8 == 0) {
-            int16_t val = compute_lak(context, band);
-            ctx0 = exp_len(abs(val));
+            int16_t val = context.best_prior;
+            ctx0 = context.bsr_best_prior;
             ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
             ANNOTATE_CTX(band, SIGN8, 0, ctx0);
             ANNOTATE_CTX(band, SIGN8, 1, ctx1);
             ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
-            if (left_present) {
-                int16_t coef = context.left_unchecked().coefficients().raster(band);
-                if (coef < 0) {
-                    ctx0 += 2;
-                } else if (coef > 0) {
-                    ctx0 += 1;
-                }
-            }
-            if (above_present) {
-                int16_t coef = context.above_unchecked().coefficients().raster(band);
-                if (coef < 0) {
-                    ctx0 += 6;
-                } else if (coef > 0) {
-                    ctx0 += 3;
-                }
-            }
             ANNOTATE_CTX(band, SIGN7x7, 0, ctx0);
             ctx0 = 0;
             ctx1 = 0;
