@@ -41,7 +41,7 @@ void serialize_tokens(BlockContext context,
         unsigned int serialized_so_far = 0;
         for (int i = 3;i >= 0; --i) {
             bool cur_bit = (slen & (1 << i)) ? true : false;
-            encoder.put(cur_bit, exp_prob.at(i).at(serialized_so_far));
+            encoder.put(cur_bit, exp_prob.at(i, serialized_so_far));
             serialized_so_far <<= 1;
             if (cur_bit) {
                 serialized_so_far |=1;
@@ -77,7 +77,7 @@ void serialize_tokens(BlockContext context,
             unsigned int serialized_so_far = 0;
             for (int i = 3;i >= 0; --i) {
                 bool cur_bit = (slen & (1 << i)) ? true : false;
-                encoder.put(cur_bit, exp_prob.at(i).at(serialized_so_far));
+                encoder.put(cur_bit, exp_prob.at(i, serialized_so_far));
                 serialized_so_far <<= 1;
                 if (cur_bit) {
                     serialized_so_far |=1;
@@ -127,7 +127,7 @@ void serialize_tokens(BlockContext context,
     serialized_so_far = 0;
     for (int i= 2; i >= 0; --i) {
         int cur_bit = (block.num_nonzeros_x() & (1 << i)) ? 1 : 0;
-        encoder.put(cur_bit, prob_x.at(i).at(serialized_so_far));
+        encoder.put(cur_bit, prob_x.at(i, serialized_so_far));
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
 
@@ -135,7 +135,7 @@ void serialize_tokens(BlockContext context,
     serialized_so_far = 0;
     for (int i= 2; i >= 0; --i) {
         int cur_bit = (block.num_nonzeros_y() & (1 << i)) ? 1 : 0;
-        encoder.put(cur_bit, prob_y.at(i).at(serialized_so_far));
+        encoder.put(cur_bit, prob_y.at(i, serialized_so_far));
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
@@ -162,7 +162,7 @@ void serialize_tokens(BlockContext context,
             unsigned int serialized_so_far = 0;
             for (int i = 3; i >= 0; --i) {
                 bool cur_bit = ((slen & (1 << i)) ? true : false);
-                encoder.put(cur_bit, exp_array.at(i).at(serialized_so_far));
+                encoder.put(cur_bit, exp_array.at(i, serialized_so_far));
                 serialized_so_far <<= 1;
                 if (cur_bit) {
                     serialized_so_far |= 1;

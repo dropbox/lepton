@@ -166,7 +166,7 @@ void parse_tokens( BlockContext context,
         auto exp_prob = probability_tables.exponent_array_dc(num_nonzeros_7x7, context);
         unsigned int decoded_so_far = 0;
         for (int i = 3; i >= 0; --i) {
-            int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
+            int cur_bit = data.get(exp_prob.at(i, decoded_so_far)) ? 1 : 0;
             length |= (cur_bit << i);
             decoded_so_far <<= 1;
             decoded_so_far |= cur_bit;
@@ -200,7 +200,7 @@ void parse_tokens( BlockContext context,
             auto exp_prob = probability_tables.exponent_array_7x7(coord, num_nonzeros_left_7x7, context);
             unsigned int decoded_so_far = 0;
             for (int i = 3; i >= 0; --i) {
-                int cur_bit = data.get(exp_prob.at(i).at(decoded_so_far)) ? 1 : 0;
+                int cur_bit = data.get(exp_prob.at(i, decoded_so_far)) ? 1 : 0;
                 length |= (cur_bit << i);
                 decoded_so_far <<= 1;
                 decoded_so_far |= cur_bit;
@@ -250,7 +250,7 @@ void parse_tokens( BlockContext context,
     uint8_t num_nonzeros_x = 0;
     decoded_so_far = 0;
     for (int i= 2; i >=0; --i) {
-        int cur_bit = data.get(prob_x.at(i).at(decoded_so_far))?1:0;
+        int cur_bit = data.get(prob_x.at(i, decoded_so_far))?1:0;
         num_nonzeros_x |= (cur_bit << i);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -258,7 +258,7 @@ void parse_tokens( BlockContext context,
     uint8_t num_nonzeros_y = 0;
     decoded_so_far = 0;
     for (int i= 2; i >=0; --i) {
-        int cur_bit = data.get(prob_y.at(i).at(decoded_so_far))?1:0;
+        int cur_bit = data.get(prob_y.at(i, decoded_so_far))?1:0;
         num_nonzeros_y |= (cur_bit << i);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -282,7 +282,7 @@ void parse_tokens( BlockContext context,
             uint8_t length = 0;
             unsigned int decoded_so_far = 0;            
             for (int i = 3; i >= 0; --i) {
-                int cur_bit = (data.get(exp_array.at(i).at(decoded_so_far)) ? 1 : 0);
+                int cur_bit = (data.get(exp_array.at(i, decoded_so_far)) ? 1 : 0);
                 length |= (cur_bit << i);
                 decoded_so_far <<= 1;
                 decoded_so_far |= cur_bit;
