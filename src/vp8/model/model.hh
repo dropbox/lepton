@@ -222,7 +222,7 @@ public:
     static constexpr int color_index() {
         return (int)color >= BLOCK_TYPES ? BLOCK_TYPES - 1 : (int)color;
     }
-    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(unsigned int block_type,
+    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(
                                                             const BlockContext block) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
@@ -245,14 +245,14 @@ public:
         return model_.num_nonzeros_counts_7x7_.at(color_index(),
                                                    num_nonzeros_to_bin(num_nonzeros_context));
     }
-    Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(unsigned int block_type,
+    Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(
                                                           unsigned int eob_x,
                                                           unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
         return model_.num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
-    Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(unsigned int block_type,
+    Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(
                                                           unsigned int eob_x,
                                                           unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
@@ -261,7 +261,7 @@ public:
     }
     Sirikata::Array2d<Branch,
                       NUMBER_OF_EXPONENT_BITS,
-                      1<<(NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_x(unsigned int block_type,
+                      1<<(NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_x(
                                                                                  unsigned int band,
                                                                                  unsigned int num_nonzeros_x,
                                                                                  const BlockContext&for_lak) {
@@ -274,7 +274,7 @@ public:
     }
     Sirikata::Array2d<Branch,
                       NUMBER_OF_EXPONENT_BITS,
-                      1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(const unsigned int block_type,
+                      1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(
                                                                const unsigned int band,
                                                                const unsigned int num_nonzeros,
                                                                    const BlockContext&context) {
@@ -287,31 +287,30 @@ public:
         return model_.exponent_counts_dc_
             .at(color_index(),
                 num_nonzeros_to_bin(num_nonzeros),
-                exp_len(abs(compute_aavrg(block_type, context, band))));
+                exp_len(abs(compute_aavrg(context, band))));
         }
         return model_.exponent_counts_
             .at(color_index(),
                 band - 8 - band / 8,
                 num_nonzeros_to_bin(num_nonzeros),
-                exp_len(abs(compute_aavrg(block_type, context, band))));
+                exp_len(abs(compute_aavrg(context, band))));
     }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(const unsigned int block_type,
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(
                                                           const unsigned int band,
                                                           const uint8_t num_nonzeros_x) {
         ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
-        return residual_noise_array_shared(color_index(),
-                                           band,
+        return residual_noise_array_shared(band,
                                            num_nonzeros_x);
     }
 
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(const unsigned int block_type,
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros_x) {
         return model_.residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
                                                  num_nonzeros_x);
     }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(const unsigned int block_type,
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(
                                                             const unsigned int band,
                                                             const uint8_t num_nonzeros) {
         if (band == 0) {
@@ -319,7 +318,7 @@ public:
         } else {
             ANNOTATE_CTX(band, RES7x7, 0, num_nonzeros_to_bin(num_nonzeros));
         }
-        return residual_noise_array_shared(color_index(), band, num_nonzeros_to_bin(num_nonzeros));
+        return residual_noise_array_shared(band, num_nonzeros_to_bin(num_nonzeros));
     }
     unsigned int num_nonzeros_to_bin(unsigned int num_nonzeros) {
 
@@ -423,7 +422,7 @@ public:
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
     }
-    int compute_aavrg_dc(int component, BlockContext context) {
+    int compute_aavrg_dc(BlockContext context) {
         uint16_t topleft = 0;
         uint16_t top = 0;
         uint16_t left = 0;
@@ -458,9 +457,9 @@ public:
         }
         return (total + weights / 2) / weights;
     }
-    int compute_aavrg(int component, BlockContext context, unsigned int band) {
+    int compute_aavrg(BlockContext context, unsigned int band) {
         if (band == 0) {
-            return compute_aavrg_dc(component, context);
+            return compute_aavrg_dc(context);
         }
         uint16_t topleft = 0;
         uint16_t top = 0;
@@ -557,8 +556,7 @@ public:
         }*/
     Sirikata::Array1d<Branch,
             (1<<RESIDUAL_NOISE_FLOOR)>::Slice
-        residual_thresh_array(const unsigned int block_type,
-                              const unsigned int band,
+        residual_thresh_array(const unsigned int band,
                               const uint8_t cur_exponent,
                               const BlockContext&context,
                               int min_threshold,
@@ -585,8 +583,7 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array(const unsigned int block_type,
-                       const unsigned int band,
+    Branch& sign_array(const unsigned int band,
                        BlockContext context) {
         int ctx0 = 0;
         int ctx1 = 0;

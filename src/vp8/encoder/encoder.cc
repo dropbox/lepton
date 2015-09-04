@@ -22,7 +22,7 @@ void serialize_tokens(BlockContext context,
                       ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables)
 {
     const AlignedBlock &block = context.here();
-    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7((int)color, context);
+    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(context);
     int serialized_so_far = 0;
     for (int index = 5; index >= 0; --index) {
         int cur_bit = (block.num_nonzeros_7x7() & (1 << index)) ? 1 : 0;
@@ -36,7 +36,7 @@ void serialize_tokens(BlockContext context,
         int16_t coef = probability_tables.predict_or_unpredict_dc(context, false);
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_7x7((int)color, coord, block.num_nonzeros_7x7(), context);
+        auto exp_prob = probability_tables.exponent_array_7x7(coord, block.num_nonzeros_7x7(), context);
         uint8_t slen = prefix_remap(length);
         unsigned int serialized_so_far = 0;
         for (int i = 3;i >= 0; --i) {
@@ -49,7 +49,7 @@ void serialize_tokens(BlockContext context,
             if (i == 2 && !length) break;
         }
         if (length > 1){
-            auto res_prob = probability_tables.residual_noise_array_7x7((int)color, coord, block.num_nonzeros_7x7());
+            auto res_prob = probability_tables.residual_noise_array_7x7(coord, block.num_nonzeros_7x7());
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {
@@ -57,7 +57,7 @@ void serialize_tokens(BlockContext context,
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array((int)color, coord, context);
+            auto &sign_prob = probability_tables.sign_array(coord, context);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
     }
@@ -72,7 +72,7 @@ void serialize_tokens(BlockContext context,
         uint16_t abs_coef = abs(coef);
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             uint8_t length = bit_length(abs_coef);
-            auto exp_prob = probability_tables.exponent_array_7x7((int)color, coord, num_nonzeros_left_7x7, context);
+            auto exp_prob = probability_tables.exponent_array_7x7(coord, num_nonzeros_left_7x7, context);
             uint8_t slen = prefix_remap(length);
             unsigned int serialized_so_far = 0;
             for (int i = 3;i >= 0; --i) {
@@ -85,7 +85,7 @@ void serialize_tokens(BlockContext context,
                 if (i == 2 && !length) break;
             }
             if (length > 1){
-                auto res_prob = probability_tables.residual_noise_array_7x7((int)color, coord, num_nonzeros_left_7x7);
+                auto res_prob = probability_tables.residual_noise_array_7x7(coord, num_nonzeros_left_7x7);
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
                 
@@ -94,7 +94,7 @@ void serialize_tokens(BlockContext context,
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array((int)color, coord, context);
+                auto &sign_prob = probability_tables.sign_array(coord, context);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob);
                 --num_nonzeros_left_7x7;
             }
@@ -118,10 +118,10 @@ void serialize_tokens(BlockContext context,
             }
         }
     }
-    auto prob_x = probability_tables.x_nonzero_counts_8x1((int)color,
+    auto prob_x = probability_tables.x_nonzero_counts_8x1(
                                                       eob_x,
                                                          block.num_nonzeros_7x7());
-    auto prob_y = probability_tables.y_nonzero_counts_1x8((int)color,
+    auto prob_y = probability_tables.y_nonzero_counts_1x8(
                                                       eob_y,
                                                          block.num_nonzeros_7x7());
     serialized_so_far = 0;
@@ -156,7 +156,7 @@ void serialize_tokens(BlockContext context,
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
             assert(coord != 9);
-            auto exp_array = probability_tables.exponent_array_x((int)color, coord, num_nonzeros_edge, context);
+            auto exp_array = probability_tables.exponent_array_x(coord, num_nonzeros_edge, context);
             uint8_t length = bit_length(abs_coef);
             uint8_t slen = prefix_remap(length);
             unsigned int serialized_so_far = 0;
@@ -186,7 +186,7 @@ void serialize_tokens(BlockContext context,
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
                     uint16_t encoded_so_far = 1;
-                    auto thresh_prob = probability_tables.residual_thresh_array((int)color, coord, length,
+                    auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
                                                                                  context, min_threshold, max_val);
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
@@ -199,12 +199,12 @@ void serialize_tokens(BlockContext context,
                     probability_tables.residual_thresh_array_annot_update(coord, encoded_so_far / 2);
                 }
                 for (; i >= 0; --i) {
-                    auto res_prob = probability_tables.residual_noise_array_x((int)color, coord, num_nonzeros_edge);
+                    auto res_prob = probability_tables.residual_noise_array_x(coord, num_nonzeros_edge);
                     encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array((int)color, coord, context);
+                auto &sign_prob = probability_tables.sign_array(coord, context);
                 encoder.put(coef >= 0, sign_prob);
                 if ( b_x == 0) {
                     --num_nonzeros_left_y;
