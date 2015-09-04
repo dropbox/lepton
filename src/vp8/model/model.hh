@@ -203,13 +203,6 @@ public:
     }
     static int32_t *icos_idct_linear_8192_dequantized(BlockType color) {
         return icos_idct_linear_8192_dequantized_[(int)color];
-#if 0
-        unsigned char * retval = (icos_idct_linear_8192_dequantized_x + 15);
-        size_t mask = (size_t)(retval - (unsigned char*)nullptr);
-        mask &= 15;
-        retval -= mask;
-        return (uint32_t*)retval;
-#endif
     }
 };
 
@@ -370,21 +363,21 @@ public:
         Optional<int> left_edge;
         Optional<int> above_block;
         Optional<int> above_edge;
-        if (context.has_left()) {
+        if (left_present) {
             left_block = idct_2d_8x1(context.left_unchecked(), 0, 7);
             left_edge = idct_2d_8x1(context.here(), 1, 0);
         }
-        if (context.has_above()) {
+        if (above_present) {
             above_block = idct_2d_1x8(context.above_unchecked(), 0, 7);
             above_edge = idct_2d_1x8(context.here(), 1, 0);
         }
-        if (left_block.initialized()) {
-            if (above_block.initialized()) {
+        if (left_present) {
+            if (above_present) {
                 prediction = ( ( left_block.get() - left_edge.get() ) + (above_block.get() - above_edge.get()) ) * 4;
             } else {
                 prediction = ( left_block.get() - left_edge.get() ) * 8;
             }
-        } else if (above_block.initialized()) {
+        } else if (above_present) {
             prediction = ( above_block.get() - above_edge.get() ) * 8;
         }
         int DCT_RSC = 8192; 
@@ -397,7 +390,7 @@ public:
         return (prediction + round) / DCT_RSC;
     }
     int predict_locoi_dc_deprecated(const BlockContext&context) {
-        if (context.has_left()) {
+        if (left_present) {
             int a = context.left_unchecked().coefficients().raster(0);
             if (context.has_above()) {
                 int b = context.above_unchecked().coefficients().raster(0);
@@ -411,7 +404,7 @@ public:
             }else { 
                 return a;
             }
-        } else if (context.has_above()) {
+        } else if (above_present) {
             return context.above_unchecked().coefficients().raster(0);
         } else {
             return 0;
@@ -432,33 +425,33 @@ public:
         return retval;
     }
     int compute_aavrg_dc(int component, BlockContext context) {
-        Optional<uint16_t> topleft;
-        Optional<uint16_t> top;
-        Optional<uint16_t> left;
+        uint16_t topleft = 0;
+        uint16_t top = 0;
+        uint16_t left = 0;
         uint32_t total = 0;
         uint32_t weights = 0;
-        if (context.has_above()) {
+        if (above_present) {
             top = abs(context.above_unchecked().coefficients().raster(0));
-            if (context.has_left()) {
+            if (left_present) {
                 topleft = abs(context.above_left_unchecked().coefficients().raster(0));
             }
         }
         //if (block.context().above_right.initialized()) {
         //topright = abs(block.context().above_right.get()->coefficients().at(0));
         //}
-        if (context.has_left()) {
+        if (left_present) {
             left = abs(context.left_unchecked().coefficients().raster(0));
         }
-        if (topleft.initialized()) {
-            total += 1 * (int)topleft.get();
+        if (left_present && above_present) {
+            total += 1 * (int)topleft;
             weights += 1;
         }
-        if (top.initialized()) {
-            total += 2 * (int)top.get();
+        if (above_present) {
+            total += 2 * (int)top;
             weights += 2;
         }
-        if (left.initialized()) {
-            total += 2 * (int)left.get();
+        if (left_present) {
+            total += 2 * (int)left;
             weights += 2;
         }
         if (weights == 0) {
@@ -470,35 +463,35 @@ public:
         if (band == 0) {
             return compute_aavrg_dc(component, context);
         }
-        Optional<uint16_t> topleft;
-        Optional<uint16_t> top;
-        Optional<uint16_t> left;
+        uint16_t topleft = 0;
+        uint16_t top = 0;
+        uint16_t left = 0;
         uint32_t total = 0;
         uint32_t weights = 0;
         uint32_t coef_index = band;
-        if (context.has_above()) {
+        if (above_present) {
             top = abs(context.above_unchecked().coefficients().raster(coef_index));
-            if (context.has_left()) {
+            if (left_present) {
                 topleft = abs(context.above_left_unchecked().coefficients().raster(coef_index));
             }
         }
         //if (block.context().above_right.initialized()) {
         //topright = abs(block.context().above_right.get()->coefficients().at(coef_index));
         //}
-        if (context.has_left()) {
+        if (left_present) {
             left = abs(context.left_unchecked().coefficients().raster(coef_index));
         }
 
-        if (topleft.initialized()) {
-            total += (int)topleft.get();
+        if (left_present && above_present) {
+            total += (int)topleft;
             weights += 1;
         }
-        if (top.initialized()) {
-            total += 2 * (int)top.get();
+        if (above_present) {
+            total += 2 * (int)top;
             weights += 2;
         }
-        if (left.initialized()) {
-            total += 2 * (int)left.get();
+        if (left_present) {
+            total += 2 * (int)left;
             weights += 2;
         }
         if (weights == 0) {
@@ -517,7 +510,7 @@ public:
         int16_t coeffs_a[8];
         const int32_t *coef_idct = nullptr;
         assert(quantization_table_);
-        if ((band & 7) && context.has_above()) {
+        if ((band & 7) && above_present) {
             // y == 0: we're the x
             assert(band/8 == 0); //this function only works for the edge
             const auto &above = context.above_unchecked().coefficients();
@@ -527,7 +520,7 @@ public:
                 coeffs_a[i]  = above.raster(cur_coef);
             }
             coef_idct = icos_idct_edge_8192_dequantized_x(color) + band * 8;
-        } else if ((band & 7) == 0 && context.has_left()) {
+        } else if ((band & 7) == 0 && left_present) {
             // x == 0: we're the y
             const auto &left = context.left_unchecked().coefficients();
             for (int i = 0; i < 8; ++i) {
@@ -608,7 +601,7 @@ public:
             ANNOTATE_CTX(band, SIGN8, 1, ctx1);
             ctx0 += 1; // so as not to interfere with SIGNDC
         } else {
-            if (context.has_left()) {
+            if (left_present) {
                 int16_t coef = context.left_unchecked().coefficients().raster(band);
                 if (coef < 0) {
                     ctx0 += 2;
@@ -616,7 +609,7 @@ public:
                     ctx0 += 1;
                 }
             }
-            if (context.has_above()) {
+            if (above_present) {
                 int16_t coef = context.above_unchecked().coefficients().raster(band);
                 if (coef < 0) {
                     ctx0 += 6;
