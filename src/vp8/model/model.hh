@@ -166,11 +166,11 @@ protected:
     static int32_t icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16)));
     
     static int32_t icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16)));
-    static const unsigned short *quantization_table_;
+    static const unsigned short *quantization_table_[3];
 public:
     static void load_probability_tables();
     static void set_quantization_table(BlockType color, const unsigned short quantization_table[64]) {
-        quantization_table_ = quantization_table;
+        quantization_table_[(int)color] = quantization_table;
         for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
             for (int i = 0; i < 8; ++i) {
                 icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table[zigzag[i]];
@@ -373,7 +373,7 @@ public:
         }
         int DCT_RSC = 8192; 
         prediction = std::max(-1024 * DCT_RSC, std::min(1016 * DCT_RSC, prediction));
-        prediction /= quantization_table_[0];
+        prediction /= quantization_table_[COLOR][0];
         int round = DCT_RSC/2;
         if (prediction < 0) {
             round = -round;
@@ -403,8 +403,8 @@ public:
     }
     int predict_or_unpredict_dc(const BlockContext&context, bool recover_original) {
         int max_value = 0;
-        if (quantization_table_[0]){
-            max_value = (1024 + quantization_table_[0] - 1) / quantization_table_[0];
+        if (quantization_table_[COLOR][0]){
+            max_value = (1024 + quantization_table_[COLOR][0] - 1) / quantization_table_[COLOR][0];
         }
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
@@ -632,7 +632,7 @@ public:
                 854,  838, 1010,  838, 1020,  837, 1020,  969, 
                 969, 1020,  838, 1020,  838, 1020, 1020,  838
             };
-        return (freqmax[zigzag[coord]] + quantization_table_[zigzag[coord]] - 1) / quantization_table_[zigzag[coord]];
+        return (freqmax[zigzag[coord]] + quantization_table_[COLOR][zigzag[coord]] - 1) / quantization_table_[COLOR][zigzag[coord]];
     }
     void optimize() {
         optimize_model(model_);

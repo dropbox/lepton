@@ -1604,7 +1604,7 @@ bool decode_jpeg( void )
 
                         // copy to colldata
                         for ( bpos = 0; bpos < eob; bpos++ )
-                            colldata.set( cmp , bpos , dpos ) = block[ bpos ];
+                            colldata.set( (BlockType)cmp , bpos , dpos ) = block[ bpos ];
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
@@ -1621,11 +1621,11 @@ bool decode_jpeg( void )
                             block );
 
                         // fix dc for diff coding
-                        colldata.set(cmp,0,dpos) = block[0] + lastdc[ cmp ];
-                        lastdc[ cmp ] = colldata.set(cmp,0,dpos);
+                        colldata.set((BlockType)cmp,0,dpos) = block[0] + lastdc[ cmp ];
+                        lastdc[ cmp ] = colldata.set((BlockType)cmp,0,dpos);
 
                         // bitshift for succesive approximation
-                        colldata.set(cmp,0,dpos) <<= cs_sal;
+                        colldata.set((BlockType)cmp,0,dpos) <<= cs_sal;
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
@@ -1642,7 +1642,7 @@ bool decode_jpeg( void )
                             block );
 
                         // shift in next bit
-                        colldata.set(cmp,0,dpos) += block[0] << cs_sal;
+                        colldata.set((BlockType)cmp,0,dpos) += block[0] << cs_sal;
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
@@ -1671,7 +1671,7 @@ bool decode_jpeg( void )
 
                         // copy to colldata
                         for ( bpos = 0; bpos < eob; bpos++ )
-                            colldata.set( cmp , bpos , dpos ) = block[ bpos ];
+                            colldata.set((BlockType)cmp , bpos , dpos ) = block[ bpos ];
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
@@ -1689,11 +1689,11 @@ bool decode_jpeg( void )
                                 block );
 
                             // fix dc for diff coding
-                            colldata.set(cmp,0,dpos) = block[0] + lastdc[ cmp ];
-                            lastdc[ cmp ] = colldata.set(cmp,0,dpos);
+                            colldata.set((BlockType)cmp,0,dpos) = block[0] + lastdc[ cmp ];
+                            lastdc[ cmp ] = colldata.set((BlockType)cmp,0,dpos);
 
                             // bitshift for succesive approximation
-                            colldata.set(cmp,0,dpos) <<= cs_sal;
+                            colldata.set((BlockType)cmp,0,dpos) <<= cs_sal;
 
                             // check for errors, increment dpos otherwise
                             if ( sta != -1 )
@@ -1710,7 +1710,7 @@ bool decode_jpeg( void )
                                 block );
 
                             // shift in next bit
-                            colldata.set(cmp,0,dpos) += block[0] << cs_sal;
+                            colldata.set((BlockType)cmp,0,dpos) += block[0] << cs_sal;
 
                             // check for errors, increment dpos otherwise
                             if ( sta != -1 )
@@ -1740,7 +1740,7 @@ bool decode_jpeg( void )
 
                             // copy to colldata
                             for ( bpos = cs_from; bpos < eob; bpos++ )
-                                colldata.set( cmp , bpos , dpos ) = block[ bpos ] << cs_sal;
+                                colldata.set((BlockType)cmp , bpos , dpos ) = block[ bpos ] << cs_sal;
 
                             // check for errors
                             if ( eob < 0 ) sta = -1;
@@ -1757,7 +1757,7 @@ bool decode_jpeg( void )
                         while ( sta == 0 ) {
                             // copy from colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ )
-                                block[ bpos ] = colldata.set( cmp , bpos , dpos );
+                                block[ bpos ] = colldata.set((BlockType)cmp , bpos , dpos );
 
                             if ( eobrun == 0 ) {
                                 if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
@@ -1791,7 +1791,7 @@ bool decode_jpeg( void )
 
                             // copy back to colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ )
-                                colldata.set( cmp , bpos , dpos ) += block[ bpos ] << cs_sal;
+                                colldata.set((BlockType)cmp , bpos , dpos ) += block[ bpos ] << cs_sal;
 
                             // proceed only if no error encountered
                             if ( eob < 0 ) sta = -1;
@@ -1955,11 +1955,11 @@ bool recode_jpeg( void )
                     while ( sta == 0 ) {
                         // copy from colldata
                         for ( bpos = 0; bpos < 64; bpos++ )
-                            block[ bpos ] = colldata.at( cmp , bpos , dpos );
+                            block[ bpos ] = colldata.at((BlockType)cmp , bpos , dpos );
 
                         // diff coding for dc
                         block[ 0 ] -= lastdc[ cmp ];
-                        lastdc[ cmp ] = colldata.at( cmp , 0 , dpos );
+                        lastdc[ cmp ] = colldata.at((BlockType)cmp , 0 , dpos );
 
                         // encode block
                         eob = encode_block_seq( huffw,
@@ -1980,7 +1980,7 @@ bool recode_jpeg( void )
                     // ---> succesive approximation first stage <---
                     while ( sta == 0 ) {
                         // diff coding & bitshifting for dc
-                        tmp = colldata.at( cmp , 0 , dpos ) >> cs_sal;
+                        tmp = colldata.at((BlockType)cmp , 0 , dpos ) >> cs_sal;
                         block[ 0 ] = tmp - lastdc[ cmp ];
                         lastdc[ cmp ] = tmp;
 
@@ -2002,7 +2002,7 @@ bool recode_jpeg( void )
                     // ---> succesive approximation later stage <---
                     while ( sta == 0 ) {
                         // fetch bit from current bitplane
-                        block[ 0 ] = BITN( colldata.at( cmp , 0 , dpos ), cs_sal );
+                        block[ 0 ] = BITN( colldata.at((BlockType)cmp , 0 , dpos ), cs_sal );
 
                         // encode dc correction bit
                         sta = encode_dc_prg_sa( huffw, block );
@@ -2024,11 +2024,11 @@ bool recode_jpeg( void )
                     while ( sta == 0 ) {
                         // copy from colldata
                         for ( bpos = 0; bpos < 64; bpos++ )
-                            block[ bpos ] = colldata.at( cmp , bpos , dpos );
+                            block[ bpos ] = colldata.at((BlockType)cmp , bpos , dpos );
 
                         // diff coding for dc
                         block[ 0 ] -= lastdc[ cmp ];
-                        lastdc[ cmp ] = colldata.at( cmp , 0 , dpos );
+                        lastdc[ cmp ] = colldata.at((BlockType)cmp , 0 , dpos );
 
                         // encode block
                         eob = encode_block_seq( huffw,
@@ -2051,7 +2051,7 @@ bool recode_jpeg( void )
                         // ---> succesive approximation first stage <---
                         while ( sta == 0 ) {
                             // diff coding & bitshifting for dc
-                            tmp = colldata.at( cmp , 0 , dpos ) >> cs_sal;
+                            tmp = colldata.at((BlockType)cmp , 0 , dpos ) >> cs_sal;
                             block[ 0 ] = tmp - lastdc[ cmp ];
                             lastdc[ cmp ] = tmp;
 
@@ -2074,7 +2074,7 @@ bool recode_jpeg( void )
                         // ---> succesive approximation later stage <---
                         while ( sta == 0 ) {
                             // fetch bit from current bitplane
-                            block[ 0 ] = BITN( colldata.at( cmp , 0 , dpos ), cs_sal );
+                            block[ 0 ] = BITN( colldata.at((BlockType)cmp , 0 , dpos ), cs_sal );
 
                             // encode dc correction bit
                             sta = encode_dc_prg_sa( huffw, block );
@@ -2096,7 +2096,7 @@ bool recode_jpeg( void )
                             // copy from colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ )
                                 block[ bpos ] =
-                                    FDIV2( colldata.at( cmp , bpos , dpos ), cs_sal );
+                                    FDIV2( colldata.at((BlockType)cmp , bpos , dpos ), cs_sal );
 
                             // encode block
                             eob = encode_ac_prg_fs( huffw,
@@ -2124,7 +2124,7 @@ bool recode_jpeg( void )
                             // copy from colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ )
                                 block[ bpos ] =
-                                    FDIV2( colldata.at( cmp , bpos , dpos ), cs_sal );
+                                    FDIV2( colldata.at((BlockType)cmp , bpos , dpos ), cs_sal );
 
                             // encode block
                             eob = encode_ac_prg_sa( huffw, storw,
@@ -2222,25 +2222,25 @@ bool check_value_range( void )
     for ( bpos = 0; bpos < 64; bpos++ ) {
         absmax = MAX_V( cmp, bpos );
         for ( dpos = 0; dpos < cmpnfo[cmp].bc; dpos++ ) {
-            if ( ( colldata.at_nosync(cmp,bpos,dpos) > absmax ) ||
-                 ( colldata.at_nosync(cmp,bpos,dpos) < -absmax ) ) {
+            if ( ( colldata.at_nosync((BlockType)cmp,bpos,dpos) > absmax ) ||
+                 ( colldata.at_nosync((BlockType)cmp,bpos,dpos) < -absmax ) ) {
                 if (!early_eof_encountered) {
                     fprintf( stderr, "value out of range error: cmp%i, frq%i, val %i, max %i",
-                         cmp, bpos, colldata.at_nosync(cmp,bpos,dpos), absmax );
+                         cmp, bpos, colldata.at_nosync((BlockType)cmp,bpos,dpos), absmax );
                     errorlevel.store(2);
                     return false;
                 }
                 bad_cmp = cmp;
                 bad_bpos = bpos;
                 bad_dpos = dpos;
-                colldata.set(bad_cmp, bad_bpos, bad_dpos) = 0; // zero this puppy out
+                colldata.set((BlockType)bad_cmp, bad_bpos, bad_dpos) = 0; // zero this puppy out
                 bad_colldata = true;
             }
         }
     }
     }
     if (bad_colldata) {
-        colldata.set(bad_cmp, bad_bpos, bad_dpos) = 0; // zero this puppy out
+        colldata.set((BlockType)bad_cmp, bad_bpos, bad_dpos) = 0; // zero this puppy out
     }
 
 
