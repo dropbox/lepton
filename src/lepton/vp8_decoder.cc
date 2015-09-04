@@ -78,6 +78,7 @@ void VP8ComponentDecoder::process_row(Left & left_model,
                      bool_decoder_.get(),
                      right_model);
         copy_coef_to_zigzag(colldata, context.here(), (BlockType)Middle::COLOR, curr_y * block_width + block_width - 1);
+        context_.at(Middle::COLOR).context = vp8_blocks_.at(Middle::COLOR).next(context_.at(Middle::COLOR).context);
     }
 }
 
@@ -134,9 +135,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     /* deserialize each block in planar order */
     using namespace std;
     BlockType component = BlockType::Y;
-    ProbabilityTablesBase::set_quantization_table(component, colldata->get_quantization_tables(BlockType::Y));
-    ProbabilityTablesBase::set_quantization_table(component, colldata->get_quantization_tables(BlockType::Cb));
-    ProbabilityTablesBase::set_quantization_table(component, colldata->get_quantization_tables(BlockType::Cr));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
     tuple<ProbabilityTables<false, false, false, BlockType::Y>,
           ProbabilityTables<false, false, false, BlockType::Cb>,
           ProbabilityTables<false, false, false, BlockType::Cr> > corner;

@@ -168,9 +168,9 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     /* get ready to serialize the blocks */
     BoolEncoder bool_encoder;
     BlockType component = BlockType::Y;
-    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(component));
-    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(component));
-    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(component));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
     tuple<ProbabilityTables<false, false, false, BlockType::Y>,
           ProbabilityTables<false, false, false, BlockType::Cb>,
           ProbabilityTables<false, false, false, BlockType::Cr> > corner;
