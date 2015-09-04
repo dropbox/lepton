@@ -8,8 +8,6 @@
 #include "numeric.hh"
 #include "branch.hh"
 #include "block.hh"
-#include "weight.hh"
-#include "../util/option.hh"
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 
@@ -224,22 +222,22 @@ public:
 
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(unsigned int block_type,
                                                             const BlockContext block) {
-        Optional<uint8_t> num_nonzeros_above;
-        Optional<uint8_t> num_nonzeros_left;
-        if (block.above()) {
+        uint8_t num_nonzeros_above = 0;
+        uint8_t num_nonzeros_left = 0;
+        if (above_present) {
             num_nonzeros_above = block.above()->num_nonzeros_7x7();
         }
-        if (block.left()) {
+        if (left_present) {
             num_nonzeros_left = block.left()->num_nonzeros_7x7();
         }
 
         uint8_t num_nonzeros_context = 0;
-        if (!num_nonzeros_left.initialized()) {
-            num_nonzeros_context = (num_nonzeros_above.get_or(0) + 1) / 2;
-        } else if (!num_nonzeros_above.initialized()) {
-            num_nonzeros_context = (num_nonzeros_left.get_or(0) + 1) / 2;
-        } else {
-            num_nonzeros_context = (num_nonzeros_above.get() + num_nonzeros_left.get() + 2) / 4;
+        if (above_present && !left_present) {
+            num_nonzeros_context = (num_nonzeros_above + 1) / 2;
+        } else if (left_present && !above_present) {
+            num_nonzeros_context = (num_nonzeros_left + 1) / 2;
+        } else if (left_present && above_present) {
+            num_nonzeros_context = (num_nonzeros_above + num_nonzeros_left + 2) / 4;
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
         return model_.num_nonzeros_counts_7x7_.at(std::min(block_type, BLOCK_TYPES - 1),
@@ -359,10 +357,10 @@ public:
 
     int predict_dc_dct(const BlockContext&context) {
         int prediction = 0;
-        Optional<int> left_block;
-        Optional<int> left_edge;
-        Optional<int> above_block;
-        Optional<int> above_edge;
+        int left_block = 0;
+        int left_edge = 0;
+        int above_block = 0;
+        int above_edge = 0;
         if (left_present) {
             left_block = idct_2d_8x1(context.left_unchecked(), 0, 7);
             left_edge = idct_2d_8x1(context.here(), 1, 0);
@@ -373,12 +371,12 @@ public:
         }
         if (left_present) {
             if (above_present) {
-                prediction = ( ( left_block.get() - left_edge.get() ) + (above_block.get() - above_edge.get()) ) * 4;
+                prediction = ( ( left_block - left_edge ) + (above_block - above_edge) ) * 4;
             } else {
-                prediction = ( left_block.get() - left_edge.get() ) * 8;
+                prediction = ( left_block - left_edge ) * 8;
             }
         } else if (above_present) {
-            prediction = ( above_block.get() - above_edge.get() ) * 8;
+            prediction = ( above_block - above_edge ) * 8;
         }
         int DCT_RSC = 8192; 
         prediction = std::max(-1024 * DCT_RSC, std::min(1016 * DCT_RSC, prediction));
@@ -392,7 +390,7 @@ public:
     int predict_locoi_dc_deprecated(const BlockContext&context) {
         if (left_present) {
             int a = context.left_unchecked().coefficients().raster(0);
-            if (context.has_above()) {
+            if (above_present) {
                 int b = context.above_unchecked().coefficients().raster(0);
                 int c = context.above_left_unchecked().coefficients().raster(0);
                 if (c >= std::max(a,b)) {
