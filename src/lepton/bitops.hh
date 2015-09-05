@@ -46,11 +46,50 @@ private:
 
 class abitwriter
 {
+    unsigned char* data;
+    int dsize;
+    int adds;
+    int cbyte;
+    int cbit;
+    bool fmem;
 public:
 	abitwriter( int size );
 	~abitwriter( void );	
-	void write( unsigned int val, int nbits );
-	void pad ( unsigned char fillbit );
+    /* -----------------------------------------------
+     writes n bits to abitwriter
+     ----------------------------------------------- */
+    
+    void write( unsigned int val, int nbits )
+    {
+        // safety check for error
+        if ( __builtin_expect(error, false) ) return;
+        
+        // test if pointer beyond flush treshold
+        if ( __builtin_expect(cbyte > ( dsize - 5 ), false) ) {
+            dsize += adds;
+            data = (unsigned char*) realloc( data, dsize );
+            if ( data == NULL ) {
+                error = true;
+                return;
+            }
+            memset( ( data + cbyte + 1 ), 0, ( dsize - ( cbyte + 1 ) ) * sizeof( char ) );
+            // for ( int i = cbyte + 1; i < dsize; i++ ) data[i] = 0;
+        }
+        
+        // write data
+        while ( nbits >= cbit ) {
+            data[cbyte] |= ( MBITS32(val, nbits, (nbits-cbit)) );
+            nbits -= cbit;		
+            cbyte++;
+            cbit = 8;
+        }
+        
+        if ( nbits > 0 ) {		
+            data[cbyte] |= ( (RBITS32(val, nbits)) << (cbit - nbits) );
+            cbit -= nbits;		
+        }	
+    }
+    void pad ( unsigned char fillbit );
 	unsigned char* getptr( void );
 	const unsigned char* peekptr( void )const;
 	int getpos( void );
@@ -60,13 +99,6 @@ public:
 	bool error;	
 	unsigned char fillbit;
 	
-private:
-	unsigned char* data;
-	int dsize;
-	int adds;
-	int cbyte;
-	int cbit;
-	bool fmem;
 };
 
 
@@ -142,6 +174,8 @@ public:
 
 class bounded_iostream
 {
+    uint8_t buffer[65536];
+    uint32_t buffer_position;
     Sirikata::DecoderWriter *parent;
     unsigned int byte_bound;
     unsigned int byte_position;
@@ -156,6 +190,25 @@ public:
     bool chkerr();
     unsigned int getsize();
     void set_bound(size_t bound); // bound of zero = fine
-	unsigned int write( const void* from, unsigned int tpsize, unsigned int dtsize );
+    unsigned int write_no_buffer( const void* from, size_t bytes_to_write );
+    unsigned int write(const void *from, unsigned int nbytes) {
+        size_t bytes_to_write = nbytes;
+        if (bytes_to_write + buffer_position > sizeof(buffer)) {
+            if (buffer_position) {
+                write_no_buffer(buffer, buffer_position);
+                buffer_position = 0;
+            }
+            if (bytes_to_write < 64) {
+                memcpy(buffer + buffer_position, from, bytes_to_write);
+                buffer_position += bytes_to_write;
+            } else {
+                return write_no_buffer(from, bytes_to_write);
+            }
+        } else {
+            memcpy(buffer + buffer_position, from, bytes_to_write);
+            buffer_position += bytes_to_write;
+        }
+        return bytes_to_write;
+    }
     void close();
 };

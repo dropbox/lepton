@@ -127,40 +127,6 @@ abitwriter::~abitwriter( void )
 	if ( fmem )	free( data );
 }
 
-/* -----------------------------------------------
-	writes n bits to abitwriter
-	----------------------------------------------- */	
-
-void abitwriter::write( unsigned int val, int nbits )
-{
-	// safety check for error
-	if ( error ) return;
-	
-	// test if pointer beyond flush treshold
-	if ( cbyte > ( dsize - 5 ) ) {
-		dsize += adds;
-		data = (unsigned char*) realloc( data, dsize );
-		if ( data == NULL ) {
-			error = true;
-			return;
-		}
-		memset( ( data + cbyte + 1 ), 0, ( dsize - ( cbyte + 1 ) ) * sizeof( char ) );
-		// for ( int i = cbyte + 1; i < dsize; i++ ) data[i] = 0;
-	}
-	
-	// write data
-	while ( nbits >= cbit ) {
-		data[cbyte] |= ( MBITS32(val, nbits, (nbits-cbit)) );		
-		nbits -= cbit;		
-		cbyte++;
-		cbit = 8;
-	}
-	
-	if ( nbits > 0 ) {		
-		data[cbyte] |= ( (RBITS32(val, nbits)) << (cbit - nbits) );
-		cbit -= nbits;		
-	}	
-}
 
 /* -----------------------------------------------
 	pads data using fillbit
@@ -445,11 +411,15 @@ void bounded_iostream::set_bound(size_t bound) {
     byte_bound = bound;
 }
 void bounded_iostream::close() {
+    if (buffer_position) {
+        write_no_buffer(buffer, buffer_position);
+        buffer_position = 0;
+    }
     parent->Close();
 }
-unsigned int bounded_iostream::write(const void *from, unsigned int tpsize, unsigned int dtsize) {
+
+unsigned int bounded_iostream::write_no_buffer(const void *from, size_t bytes_to_write) {
     //return iostream::write(from,tpsize,dtsize);
-    size_t bytes_to_write = (size_t)tpsize * (size_t)dtsize;
     std::pair<unsigned int, Sirikata::JpegError> retval;
     if (byte_bound != 0 && byte_position + bytes_to_write > byte_bound) {
         bytes_to_write = byte_bound - byte_position;
@@ -457,20 +427,19 @@ unsigned int bounded_iostream::write(const void *from, unsigned int tpsize, unsi
         retval = parent->Write(reinterpret_cast<const unsigned char*>(from), bytes_to_write);
         if (retval.first < bytes_to_write) {
             err = retval.second;
-            retval.first /= tpsize;
             return retval.first;
         }
-        return dtsize; // pretend we wrote it all
+        return bytes_to_write; // pretend we wrote it all
     }
-    unsigned int total = tpsize * dtsize;
+    size_t total = bytes_to_write;
     retval = parent->Write(reinterpret_cast<const unsigned char*>(from), total);
     unsigned int written = retval.first;
     byte_position += written;
     if (written < total ) {
         err = retval.second;
-        return written / tpsize;
+        return written;
     }
-    return dtsize;
+    return bytes_to_write;
 }
 
 unsigned int bounded_iostream::getsize() {

@@ -1264,7 +1264,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         str_out->set_bound(max_file_size - grbs);
 
         // write SOI
-        str_out->write( SOI, 1, 2 );
+        str_out->write( SOI, 2 );
     }
 
     // JPEG writing loop
@@ -1284,7 +1284,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                 progress.hpos += len;
             }
             // write header data to file
-            str_out->write( hdrdata + tmp, 1, ( progress.hpos - tmp ) );
+            str_out->write( hdrdata + tmp, ( progress.hpos - tmp ) );
             if (post_byte == 0) {
                 post_byte = clock();
             }
@@ -1305,16 +1305,16 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         // write & expand huffman coded image data
         for ( ; progress.ipos < max_byte_coded && (scnp[ progress.scan ] == 0 || progress.ipos < scnp[ progress.scan ]); progress.ipos++ ) {
             // write current byte
-            str_out->write( local_huff_data + progress.ipos, 1, 1 );
+            str_out->write( local_huff_data + progress.ipos, 1 );
             // check current byte, stuff if needed
             if ( local_huff_data[ progress.ipos ] == 0xFF )
-                str_out->write( &stv, 1, 1 );
+                str_out->write( &stv, 1 );
             // insert restart markers if needed
             if ( !rstp.empty() ) {
                 if ( progress.ipos == rstp[ progress.rpos ] ) {
                     rst = 0xD0 + ( progress.cpos % 8 );
-                    str_out->write( &mrk, 1, 1 );
-                    str_out->write( &rst, 1, 1 );
+                    str_out->write( &mrk, 1 );
+                    str_out->write( &rst, 1 );
                     progress.rpos++; progress.cpos++;
                 }
             }
@@ -1329,8 +1329,8 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         if ( rst_err != NULL ) {
             while ( rst_err[ progress.scan - 1 ] > 0 ) {
                 rst = 0xD0 + ( progress.cpos % 8 );
-                str_out->write( &mrk, 1, 1 );
-                str_out->write( &rst, 1, 1 );
+                str_out->write( &mrk, 1 );
+                str_out->write( &rst, 1 );
                 progress.cpos++;    rst_err[ progress.scan - 1 ]--;
             }
         }
@@ -1344,7 +1344,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     str_out->set_bound(max_file_size);
     // write garbage if needed
     if ( grbs > 0 )
-        str_out->write( grbgdata, 1, grbs );
+        str_out->write( grbgdata, grbs );
 
     // errormessage if write error
     if ( str_out->chkerr() ) {
@@ -1409,7 +1409,7 @@ bool merge_jpeg( void )
     unsigned int   tmp  = 0;
     str_out->set_bound(max_file_size);
     // write SOI
-    str_out->write( SOI, 1, 2 );
+    str_out->write( SOI, 2 );
 
     // JPEG writing loop
     while ( true )
@@ -1426,7 +1426,7 @@ bool merge_jpeg( void )
         }
 
         // write header data to file
-        str_out->write( hdrdata + tmp, 1, ( hpos - tmp ) );
+        str_out->write( hdrdata + tmp, ( hpos - tmp ) );
 
         // get out if last marker segment type was not SOS
         if ( type != 0xDA ) break;
@@ -1439,16 +1439,16 @@ bool merge_jpeg( void )
         // write & expand huffman coded image data
         for ( ipos = scnp[ scan - 1 ]; ipos < scnp[ scan ]; ipos++ ) {
             // write current byte
-            str_out->write( huffdata + ipos, 1, 1 );
+            str_out->write( huffdata + ipos, 1 );
             // check current byte, stuff if needed
             if ( huffdata[ ipos ] == 0xFF )
-                str_out->write( &stv, 1, 1 );
+                str_out->write( &stv, 1 );
             // insert restart markers if needed
             if ( !rstp.empty() ) {
                 if ( ipos == rstp[ rpos ] ) {
                     rst = 0xD0 + ( cpos % 8 );
-                    str_out->write( &mrk, 1, 1 );
-                    str_out->write( &rst, 1, 1 );
+                    str_out->write( &mrk, 1 );
+                    str_out->write( &rst, 1 );
                     rpos++; cpos++;
                 }
             }
@@ -1457,8 +1457,8 @@ bool merge_jpeg( void )
         if ( rst_err != NULL ) {
             while ( rst_err[ scan - 1 ] > 0 ) {
                 rst = 0xD0 + ( cpos % 8 );
-                str_out->write( &mrk, 1, 1 );
-                str_out->write( &rst, 1, 1 );
+                str_out->write( &mrk, 1 );
+                str_out->write( &rst, 1 );
                 cpos++;    rst_err[ scan - 1 ]--;
             }
         }
@@ -1468,11 +1468,11 @@ bool merge_jpeg( void )
     }
 
     // write EOI
-    str_out->write( EOI, 1, 2 );
+    str_out->write( EOI, 2 );
 
     // write garbage if needed
     if ( grbs > 0 )
-        str_out->write( grbgdata, 1, grbs );
+        str_out->write( grbgdata, grbs );
 
     // errormessage if write error
     if ( str_out->chkerr() ) {
