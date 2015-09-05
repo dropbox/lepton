@@ -158,8 +158,7 @@ public:
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
             allocated_ += cmpinfo[cmp].bc * 64;
         }
-        colldata_ = new signed short[allocated_];
-        memset(colldata_, 0, sizeof(signed short) * allocated_);
+        colldata_ = (signed short*)calloc(allocated_, sizeof(signed short));
         int total = 0;
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]); cmp++) {
             this->header_[cmp].component_ = this->colldata_ + total;
@@ -298,7 +297,7 @@ public:
     
     void reset() {
         if (colldata_) {
-            delete []colldata_;
+            free(colldata_);
         }
         bit_progress_ -= bit_progress_;
         colldata_ = NULL;

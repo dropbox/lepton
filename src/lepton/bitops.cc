@@ -108,14 +108,12 @@ abitwriter::abitwriter( int size )
 	fmem  = true;
 	
 	dsize = ( size > 0 ) ? size : adds;
-	data = ( unsigned char* ) malloc ( dsize );
+	data = ( unsigned char* ) calloc ( dsize , 1);
 	if ( data == NULL ) {
 		error = true;
 		return;
 	}
 	
-	// fill buffer with zeroes
-	memset( data, 0, dsize * sizeof( char ) );
 	// for ( int i = 0; i < dsize; i++ ) data[i] = 0;
 }
 

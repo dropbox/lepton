@@ -724,8 +724,6 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
                 break;
         }
     }
-    // reset buffers
-    reset_buffers();
 
     // close iostreams
     if ( str_in  != NULL ) delete( str_in  ); str_in  = NULL;
@@ -803,6 +801,9 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
 
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
+    exit(0);
+    // reset buffers
+    reset_buffers();
 }
 
 
@@ -1875,11 +1876,11 @@ bool recode_jpeg( void )
 
 
     // open huffman coded image data in abitwriter
-    huffw = new abitwriter( 0 );
+    huffw = new abitwriter( 4096 * 1024 + 1024 );
     huffw->fillbit = padbit;
 
     // init storage writer
-    storw = new abytewriter( 0 );
+    storw = new abytewriter( 4096 * 1024 + 1024);
 
     // preset count of scans and restarts
     scnc = 0;
@@ -3045,7 +3046,7 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     unsigned char  z;
     int bpos;
     int hc;
-    int tmp;
+    short tmp;
 
 
     // encode DC
