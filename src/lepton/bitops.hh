@@ -10,7 +10,6 @@
 #define LBITS32( c, n )		( c >> (32 - n) )
 #define MBITS32( c, l, r )	( RBITS32( c,l ) >> r )
 #define BITN( c, n )		( (c >> n) & 0x1 )
-#define BITLEN( l, v )		for ( l = 0; ( v >> l ) > 0; l++ )
 #define FDIV2( v, p )		( ( v < 0 ) ? -( (-v) >> p ) : ( v >> p ) )
 
 #define BTST_BUFF			1024 * 1024
