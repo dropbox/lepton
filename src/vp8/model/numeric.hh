@@ -99,7 +99,8 @@ inline uint16_t min_from_entropy_node_index(int index) {
         return 0;
       default:
         assert(false && "Entropy node");
-    }    
+    }
+    return 0;
 }
 
 constexpr uint16_t max_from_entropy_node_index_inclusive(int /*index*/) {

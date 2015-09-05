@@ -42,6 +42,7 @@ class SIRIKATA_EXPORT SwitchableXZBase : public DecoderDecompressionReader {
         if (!mStreamEndEncountered) {
             unsigned char nop[1];
             std::pair<uint32, JpegError> fake_read = Read(nop, 1);
+            (void)fake_read;
             assert(fake_read.first == 0);
         }
         Close();

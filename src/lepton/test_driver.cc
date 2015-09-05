@@ -257,6 +257,7 @@ std::vector<unsigned char> load(const char *filename) {
     fseek(fp, 0, SEEK_SET);
     std::vector<unsigned char> retval(where);
     size_t readd = fread(retval.data(), where, 1, fp);
+    (void)readd;
     assert(readd == 1);
     fclose(fp);
     return retval;
