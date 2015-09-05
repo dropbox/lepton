@@ -35,7 +35,9 @@
 # define htole16 OSSwapHostToLittleInt16
 # define le16toh OSSwapLittleToHostInt16
 #else
+#ifndef _BSD_SOURCE
 #define _BSD_SOURCE       /* See feature_test_macros(7) */
+#endif
 #include <endian.h>
 #endif
 
