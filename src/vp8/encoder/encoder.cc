@@ -1,10 +1,12 @@
 #include "bool_encoder.hh"
+#include "boolwriter.hh"
 #include "jpeg_meta.hh"
 #include "block.hh"
 #include "numeric.hh"
 #include "model.hh"
 #include "mmap.hh"
 #include "encoder.hh"
+
 #include "weight.hh"
 #include <fstream>
 

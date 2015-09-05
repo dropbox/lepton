@@ -1,4 +1,5 @@
 #include "bool_decoder.hh"
+#include "boolreader.hh"
 #include "model.hh"
 #include "block.hh"
 #include "weight.hh"

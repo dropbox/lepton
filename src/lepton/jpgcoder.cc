@@ -132,25 +132,25 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
 int decode_dc_prg_fs( abitreader* huffr, huffTree* dctree, short* block );
 int encode_dc_prg_fs( abitwriter* huffw, huffCodes* dctbl, short* block );
 int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block,
-                        int* eobrun, int from, int to );
+                        unsigned int* eobrun, int from, int to );
 int encode_ac_prg_fs( abitwriter* huffw, huffCodes* actbl, short* block,
-                        int* eobrun, int from, int to );
+                        unsigned int* eobrun, int from, int to );
 
 int decode_dc_prg_sa( abitreader* huffr, short* block );
 int encode_dc_prg_sa( abitwriter* huffw, short* block );
 int decode_ac_prg_sa( abitreader* huffr, huffTree* actree, short* block,
-                        int* eobrun, int from, int to );
+                        unsigned int* eobrun, int from, int to );
 int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl,
-                        short* block, int* eobrun, int from, int to );
+                        short* block, unsigned int* eobrun, int from, int to );
 
-int decode_eobrun_sa( abitreader* huffr, short* block, int* eobrun, int from, int to );
-int encode_eobrun( abitwriter* huffw, huffCodes* actbl, int* eobrun );
+int decode_eobrun_sa( abitreader* huffr, short* block, unsigned int* eobrun, int from, int to );
+int encode_eobrun( abitwriter* huffw, huffCodes* actbl, unsigned int* eobrun );
 int encode_crbits( abitwriter* huffw, abytewriter* storw );
 
 int next_huffcode( abitreader *huffw, huffTree *ctree );
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 int next_mcuposn( int* cmp, int* dpos, int* rstw );
-int skip_eobrun( int* cmp, int* dpos, int* rstw, int* eobrun );
+int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun );
 
 void build_huffcodes( unsigned char *clen, unsigned char *cval,
                 huffCodes *hc, huffTree *ht );
@@ -1042,7 +1042,7 @@ bool read_jpeg( void )
     hufs  = 0; // size of image data, start with 0
 
     // alloc memory for segment data first
-    segment = ( unsigned char* ) calloc( ssize, sizeof( char ) );
+    segment = ( unsigned char* ) calloc( ssize, sizeof( unsigned char ) );
     if ( segment == NULL ) {
         fprintf( stderr, MEM_ERRMSG );
         errorlevel.store(2);
@@ -1094,7 +1094,7 @@ bool read_jpeg( void )
                         // store number of falsely set rst markers
                         if ( crst > 0 ) {
                             if ( rst_err == NULL ) {
-                                rst_err = (unsigned char*) calloc( scnc + 1, sizeof( char ) );
+                                rst_err = (unsigned char*) calloc( scnc + 1, sizeof( unsigned char ) );
                                 if ( rst_err == NULL ) {
                                     fprintf( stderr, MEM_ERRMSG );
                                     errorlevel.store(2);
@@ -1104,7 +1104,7 @@ bool read_jpeg( void )
                         }
                         if ( rst_err != NULL ) {
                             // realloc and set only if needed
-                            rst_err = ( unsigned char* ) realloc( rst_err, ( scnc + 1 ) * sizeof( char ) );
+                            rst_err = ( unsigned char* ) realloc( rst_err, ( scnc + 1 ) * sizeof( unsigned char ) );
                             if ( rst_err == NULL ) {
                                 fprintf( stderr, MEM_ERRMSG );
                                 errorlevel.store(2);
@@ -1503,7 +1503,7 @@ bool decode_jpeg( void )
     int lastdc[ 4 ]; // last dc for each component
     short block[ 64 ]; // store block for coeffs
     int peobrun; // previous eobrun
-    int eobrun; // run of eobs
+    unsigned int eobrun; // run of eobs
     int rstw; // restart wait counter
 
     int cmp, bpos, dpos;
@@ -1865,7 +1865,7 @@ bool recode_jpeg( void )
 
     int lastdc[ 4 ]; // last dc for each component
     short block[ 64 ]; // store block for coeffs
-    int eobrun; // run of eobs
+    unsigned int eobrun; // run of eobs
     int rstw; // restart wait counter
 
     int cmp, bpos, dpos;
@@ -2394,7 +2394,7 @@ bool read_ujpg( void )
         // read size of header, alloc memory
         ReadFull(str_in, ujpg_mrk, 4 );
         hdrs = LEtoUint32(ujpg_mrk);
-        hdrdata = (unsigned char*) calloc( hdrs, sizeof( char ) );
+        hdrdata = (unsigned char*) calloc( hdrs, sizeof( unsigned char ) );
         if ( hdrdata == NULL ) {
             fprintf( stderr, MEM_ERRMSG );
             errorlevel.store(2);
@@ -2435,7 +2435,7 @@ bool read_ujpg( void )
             // read number of false set RST markers per scan from file
             ReadFull(str_in, ujpg_mrk, 4);
             scnc = LEtoUint32(ujpg_mrk);
-            rst_err = (unsigned char*) calloc( scnc, sizeof( char ) );
+            rst_err = (unsigned char*) calloc( scnc, sizeof( unsigned char ) );
             if ( rst_err == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
@@ -2448,7 +2448,7 @@ bool read_ujpg( void )
             // read garbage (data after end of JPG) from file
             ReadFull(str_in, ujpg_mrk, 4);
             grbs = LEtoUint32(ujpg_mrk);
-            grbgdata = (unsigned char*) calloc( grbs, sizeof( char ) );
+            grbgdata = (unsigned char*) calloc( grbs, sizeof( unsigned char ) );
             if ( grbgdata == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
@@ -3139,7 +3139,7 @@ int encode_dc_prg_fs( abitwriter* huffw, huffCodes* dctbl, short* block )
 /* -----------------------------------------------
     progressive AC decoding routine
     ----------------------------------------------- */
-int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block, int* eobrun, int from, int to )
+int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block, unsigned int* eobrun, int from, int to )
 {
     unsigned short n;
     unsigned char  s;
@@ -3201,7 +3201,7 @@ int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block, int* eo
 /* -----------------------------------------------
     progressive AC encoding routine
     ----------------------------------------------- */
-int encode_ac_prg_fs( abitwriter* huffw, huffCodes* actbl, short* block, int* eobrun, int from, int to )
+int encode_ac_prg_fs( abitwriter* huffw, huffCodes* actbl, short* block, unsigned int* eobrun, int from, int to )
 {
     unsigned short n;
     unsigned char  s;
@@ -3282,7 +3282,7 @@ int encode_dc_prg_sa( abitwriter* huffw, short* block )
 /* -----------------------------------------------
     progressive AC SA decoding routine
     ----------------------------------------------- */
-int decode_ac_prg_sa( abitreader* huffr, huffTree* actree, short* block, int* eobrun, int from, int to )
+int decode_ac_prg_sa( abitreader* huffr, huffTree* actree, short* block, unsigned int* eobrun, int from, int to )
 {
     unsigned short n;
     unsigned char  s;
@@ -3359,7 +3359,7 @@ int decode_ac_prg_sa( abitreader* huffr, huffTree* actree, short* block, int* eo
 /* -----------------------------------------------
     progressive AC SA encoding routine
     ----------------------------------------------- */
-int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl, short* block, int* eobrun, int from, int to )
+int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl, short* block, unsigned int* eobrun, int from, int to )
 {
     unsigned short n;
     unsigned char  s;
@@ -3444,7 +3444,7 @@ int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl, s
 /* -----------------------------------------------
     run of EOB SA decoding routine
     ----------------------------------------------- */
-int decode_eobrun_sa( abitreader* huffr, short* block, int* eobrun, int from, int to )
+int decode_eobrun_sa( abitreader* huffr, short* block, unsigned int* eobrun, int from, int to )
 {
     unsigned short n;
     int bpos;
@@ -3469,10 +3469,10 @@ int decode_eobrun_sa( abitreader* huffr, short* block, int* eobrun, int from, in
 /* -----------------------------------------------
     run of EOB encoding routine
     ----------------------------------------------- */
-int encode_eobrun( abitwriter* huffw, huffCodes* actbl, int* eobrun )
+int encode_eobrun( abitwriter* huffw, huffCodes* actbl, unsigned int* eobrun )
 {
     unsigned short n;
-    unsigned char  s;
+    unsigned int  s;
     int hc;
 
 
@@ -3483,7 +3483,8 @@ int encode_eobrun( abitwriter* huffw, huffCodes* actbl, int* eobrun )
             (*eobrun) -= actbl->max_eobrun;
         }
         BITLEN( s, (*eobrun) );
-        s--;
+        assert(s && "actbl->max_eobrun needs to be > 0");
+        if (s) s--;
         n = E_ENVLI( s, (*eobrun) );
         hc = ( s << 4 );
         huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );
@@ -3619,7 +3620,7 @@ int next_mcuposn( int* cmp, int* dpos, int* rstw )
 /* -----------------------------------------------
     skips the eobrun, calculates next position
     ----------------------------------------------- */
-int skip_eobrun( int* cmp, int* dpos, int* rstw, int* eobrun )
+int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun )
 {
     if ( (*eobrun) > 0 ) // error check for eobrun
     {

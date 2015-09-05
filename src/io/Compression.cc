@@ -651,7 +651,7 @@ JpegError Copy(DecoderReader &r, DecoderWriter &w, const JpegAllocator<uint8> &a
         }
         uint32 offset = 0;
         std::pair<uint32, JpegError> wret = w.Write(&buffer[offset], ret.first - offset);
-        offset += wret.first;
+        //offset += wret.first;
         if (wret.second != JpegError::nil()) {
             w.Close();
             return wret.second;

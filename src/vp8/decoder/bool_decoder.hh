@@ -8,7 +8,7 @@ typedef uint8_t Probability;
 #include "model.hh"
 #include "../../io/Reader.hh"
 #include "JpegArithmeticCoder.hh"
-#include "slice.hh"
+#include "vpx_bool_reader.hh"
 typedef int8_t TreeNode;
 
 class Branch;
@@ -84,10 +84,17 @@ class BoolDecoder : public JpegBoolDecoder {public:
     BoolDecoder(const Slice&c) : JpegBoolDecoder(c){}
 };
 #else
+#if VP8_ENCODER
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public VP8BoolDecoder { public:
     BoolDecoder(const Slice&c) : VP8BoolDecoder(c){}
 };
+#else
+//easier than a typedef so that we can forward declare this class elsewhere
+class BoolDecoder : public VPXBoolReader { public:
+    BoolDecoder(const Slice&c) : VPXBoolReader(c){}
+};
+#endif
 #endif
 
 

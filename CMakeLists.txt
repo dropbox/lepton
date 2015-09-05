@@ -71,9 +71,16 @@ add_executable(lepton
    src/vp8/model/numeric.hh
    src/vp8/model/jpeg_meta.hh
    src/vp8/encoder/encoder.cc
-   src/vp8/encoder/bool_encoder.hh
    src/vp8/decoder/decoder.cc
+   src/vp8/encoder/bool_encoder.hh
    src/vp8/decoder/bool_decoder.hh
+   src/vp8/encoder/boolwriter.hh
+   src/vp8/encoder/boolwriter.cc
+   src/vp8/decoder/boolreader.hh
+   src/vp8/decoder/boolreader.cc
+   src/vp8/encoder/vpx_bool_writer.hh
+   src/vp8/decoder/vpx_bool_reader.hh
+
                )
 SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
