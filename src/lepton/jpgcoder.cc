@@ -801,7 +801,7 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
 
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
-    exit(0);
+    exit(errorlevel.load());
     // reset buffers
     reset_buffers();
 }
