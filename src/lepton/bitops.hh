@@ -1,6 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #include <assert.h>
-
+#include <cstring>
 #define RBITS( c, n )		( c & ( 0xFF >> (8 - n) ) )
 #define LBITS( c, n )		( c >> (8 - n) )
 #define MBITS( c, l, r )	( RBITS( c,l ) >> r )
