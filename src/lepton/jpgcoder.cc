@@ -1345,6 +1345,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     // write garbage if needed
     if ( grbs > 0 )
         str_out->write( grbgdata, grbs );
+    str_out->flush();
 
     // errormessage if write error
     if ( str_out->chkerr() ) {
@@ -1352,7 +1353,6 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         errorlevel.store(2);
         return STREAMING_ERROR;
     }
-
     // get filesize
     jpgfilesize = str_out->getsize();
     clock_t final = clock();

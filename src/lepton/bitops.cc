@@ -408,13 +408,17 @@ bool bounded_iostream::chkerr() {
 }
 
 void bounded_iostream::set_bound(size_t bound) {
+    flush();
     byte_bound = bound;
 }
-void bounded_iostream::close() {
+void bounded_iostream::flush() {
     if (buffer_position) {
         write_no_buffer(buffer, buffer_position);
         buffer_position = 0;
     }
+}
+void bounded_iostream::close() {
+    flush();
     parent->Close();
 }
 

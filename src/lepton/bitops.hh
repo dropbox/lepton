@@ -210,5 +210,6 @@ public:
         }
         return bytes_to_write;
     }
+    void flush();
     void close();
 };
