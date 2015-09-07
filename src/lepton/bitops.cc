@@ -101,8 +101,6 @@ abitwriter::abitwriter( int size )
 {
 	fillbit = 1;
 	adds    = 65536;
-	cbyte   = 0;
-	cbit    = 8;
     cbyte2   = 0;
     cbit2    = 64;
     buf = 0;
@@ -111,9 +109,8 @@ abitwriter::abitwriter( int size )
 	fmem  = true;
 	
 	dsize = ( size > 0 ) ? size : adds;
-	data = ( unsigned char* ) calloc ( dsize , 1);
     data2 = ( unsigned char* ) calloc ( dsize , 1);
-	if ( data == NULL ) {
+	if ( data2 == NULL ) {
 		error = true;
 		return;
 	}
@@ -128,7 +125,6 @@ abitwriter::abitwriter( int size )
 abitwriter::~abitwriter( void )
 {
 	// free memory if pointer was not given out
-    if ( fmem )	free( data );
     if ( fmem )	free( data2 );
 }
 
