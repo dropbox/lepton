@@ -2176,6 +2176,7 @@ bool recode_jpeg( void )
                 if ( rsti > 0 ) // store rstp & stay in the loop
                     rstp[ rstc++ ] = huffw->getpos() - 1;
             }
+            huffw->flush_no_pad();
             assert(huffw->no_remainder() && "this should have been padded");
             if (huffw->no_remainder()) {
                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);

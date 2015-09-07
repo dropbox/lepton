@@ -103,12 +103,16 @@ abitwriter::abitwriter( int size )
 	adds    = 65536;
 	cbyte   = 0;
 	cbit    = 8;
+    cbyte2   = 0;
+    cbit2    = 64;
+    buf = 0;
 	
 	error = false;
 	fmem  = true;
 	
 	dsize = ( size > 0 ) ? size : adds;
 	data = ( unsigned char* ) calloc ( dsize , 1);
+    data2 = ( unsigned char* ) calloc ( dsize , 1);
 	if ( data == NULL ) {
 		error = true;
 		return;
@@ -124,53 +128,11 @@ abitwriter::abitwriter( int size )
 abitwriter::~abitwriter( void )
 {
 	// free memory if pointer was not given out
-	if ( fmem )	free( data );
+    if ( fmem )	free( data );
+    if ( fmem )	free( data2 );
 }
 
 
-/* -----------------------------------------------
-	pads data using fillbit
-	----------------------------------------------- */
-	
-void abitwriter::pad( unsigned char fillbit )
-{
-	while ( cbit < 8 )
-		write( fillbit, 1 );
-}
-
-/* -----------------------------------------------
-	gets data array from abitwriter
-	----------------------------------------------- */	
-
-unsigned char* abitwriter::getptr( void )
-{
-	// data is padded here
-	pad( fillbit );
-	// forbid freeing memory
-	fmem = false;
-	// realloc data
-	data = (unsigned char*) realloc( data, cbyte );
-	
-	return data;
-}
-
-/* -----------------------------------------------
-	gets data array from abitwriter
-	----------------------------------------------- */	
-
-const unsigned char* abitwriter::peekptr( void ) const
-{
-	return data;
-}
-
-/* -----------------------------------------------
-	gets size of data array from abitwriter
-	----------------------------------------------- */	
-
-int abitwriter::getpos( void )
-{
-	return cbyte;
-}
 
 
 /* -----------------------------------------------

@@ -1,4 +1,5 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+#include <assert.h>
 
 #define RBITS( c, n )		( c & ( 0xFF >> (8 - n) ) )
 #define LBITS( c, n )		( c >> (8 - n) )
@@ -9,6 +10,11 @@
 #define RBITS32( c, n )		( c & ( 0xFFFFFFFF >> (32 - n) ) )
 #define LBITS32( c, n )		( c >> (32 - n) )
 #define MBITS32( c, l, r )	( RBITS32( c,l ) >> r )
+
+#define RBITS64( c, n )		( c & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - n) ) )
+#define LBITS64( c, n )		( c >> (64 - n) )
+#define MBITS64( c, l, r )	( RBITS64( c,l ) >> r )
+
 #define BITN( c, n )		( (c >> n) & 0x1 )
 #define FDIV2( v, p )		( ( v < 0 ) ? -( (-v) >> p ) : ( v >> p ) )
 
@@ -18,6 +24,7 @@
 #include <functional>
 #include "../io/Reader.hh"
 #include "../io/ioutil.hh"
+#include "../vp8/util/vpx_config.hh"
 /* -----------------------------------------------
 	class to read arrays bitwise
 	----------------------------------------------- */
@@ -47,20 +54,43 @@ private:
 class abitwriter
 {
     unsigned char* data;
+    unsigned char* data2;
+    uint64_t buf;
     int dsize;
     int adds;
     int cbyte;
     int cbit;
+    int cbyte2;
+    int cbit2;
     bool fmem;
 public:
 	abitwriter( int size );
-	~abitwriter( void );	
+	~abitwriter( void );
+    
+    void flush_no_pad() {
+        assert(((64 - cbit2) & 7) == 0);
+        buf = htobe64(buf);
+        uint32_t bytes_to_write = (64 - cbit2) / 8;
+        memcpy(data2 + cbyte2, &buf, bytes_to_write);
+        cbyte2 += bytes_to_write;
+        buf = 0;
+        assert(cbyte +1 == cbyte2 || cbyte == cbyte2 || cbyte == cbyte2 + 1 || cbyte == cbyte2 + 2 || cbyte == cbyte2 + 3);
+        //assert(memcmp(data2, data, cbyte2) == 0);
+        
+        cbit2 = 64;
+    }
     /* -----------------------------------------------
      writes n bits to abitwriter
      ----------------------------------------------- */
     
     void write( unsigned int val, int nbits )
     {
+
+        int nbitsbak = nbits;
+        int nbits2 = nbits;
+        unsigned int val2 = val;
+        int cbytebak = cbyte;
+        assert(nbits <= 64);
         // safety check for error
         if ( __builtin_expect(error, false) ) return;
         
@@ -79,22 +109,83 @@ public:
         // write data
         while ( nbits >= cbit ) {
             data[cbyte] |= ( MBITS32(val, nbits, (nbits-cbit)) );
-            nbits -= cbit;		
+            nbits -= cbit;
             cbyte++;
             cbit = 8;
         }
         
         if ( nbits > 0 ) {		
             data[cbyte] |= ( (RBITS32(val, nbits)) << (cbit - nbits) );
-            cbit -= nbits;		
+            cbit -= nbits;
+            cbytebak = cbyte;
         }	
+        // write data
+        if ( nbits2 >= cbit2 ) {
+            /*
+            uint64_t tmp = val2;
+            uint64_t mask = 1;
+            mask <<= nbits2 - cbit2;
+            mask -=1;
+            tmp &= mask;
+            buf <<= nbits2;
+            buf |= tmp;
+             */
+            buf |= MBITS64(val2, nbits2, (nbits2-cbit2));
+            nbits2 -= cbit2;
+            cbit2 = 0;
+            flush_no_pad();
+        }
+        if ( nbits2 > 0 ) {
+            uint64_t tmp = (RBITS64(val2, nbits2));
+            tmp <<= cbit2 - nbits2;
+            buf |= tmp;
+            cbit2 -= nbits2;
+        }
+
+        uint64_t to_print = htobe64(buf);
+        to_print >>= (cbit2+nbitsbak)/8*8;
+        to_print &= 255;
+        /*
+        fprintf(stderr, "%x & %d =>\n", val2, nbitsbak);
+        for (int i = 0; i <= cbyte;++i) {
+            fprintf(stderr, "%x", (int)data[i]);
+        }
+        fprintf(stderr, "\n");
+        for (int i = 0; i <= cbyte2;++i) {
+            fprintf(stderr, "%x", (int)data2[i]);
+        }
+        fprintf(stderr, "%07llx", buf);
+        fprintf(stderr,"\n");
+         */
+
+
     }
-    void pad ( unsigned char fillbit );
-	unsigned char* getptr( void );
-	const unsigned char* peekptr( void )const;
-	int getpos( void );
+    void pad ( unsigned char fillbit ) {
+        while ( cbit < 8 ) {
+            assert(cbit2 & 7);
+            write( fillbit, 1 );
+        }
+        flush_no_pad();
+        assert((cbit2 & 7) == 0);
+    }
+    unsigned char* getptr( void ) {
+        // data is padded here
+        pad( fillbit );
+        flush_no_pad();
+        // forbid freeing memory
+        fmem = false;
+        // realloc data
+        return data2;
+    }
+    const unsigned char* peekptr( void ) {
+        flush_no_pad();
+        return data2;
+    }
+    int getpos( void ) {
+        return cbyte2;
+    }
     bool no_remainder() const {
-        return cbit == 8;
+        return cbit2 == 64;
     }
 	bool error;	
 	unsigned char fillbit;
