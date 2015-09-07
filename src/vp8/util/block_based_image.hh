@@ -61,8 +61,8 @@ BlockColorContext get_color_context_blocks(
                                         const BlockColorContextIndices & indices,
                                            const Sirikata::Array1d<BlockBasedImage,
                                                                    (uint32_t)ColorChannel::NumBlockTypes> &jpeg,
-                                           int component) {
-    BlockColorContext retval = {};
+                                           uint8_t component) {
+    BlockColorContext retval = {(uint8_t)component};
     retval.color = component;
 #ifdef USE_COLOR_VALUES
     for (size_t i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {

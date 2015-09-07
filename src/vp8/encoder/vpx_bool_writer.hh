@@ -11,7 +11,7 @@ public:
     }
     void put( const bool value, Branch & branch) {
         vpx_write(&boolwriter, value, branch.prob());
-        if (__builtin_expect(boolwriter.pos & 0xff400000, false)) {
+        if (__builtin_expect(boolwriter.pos & 0xffc00000, false)) {
             // check if we're out of buffer space
             if (boolwriter.pos + 128 > output_.size()) {
                 output_.resize(output_.size() * 2);
