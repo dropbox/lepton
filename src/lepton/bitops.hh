@@ -88,6 +88,16 @@ public:
         assert(nbits <= 64);
         // safety check for error
         if ( __builtin_expect(error, false) ) return;
+        if ( cbyte2 > ( dsize - 5 ) ) {
+            dsize += adds;
+            data2 = (unsigned char*) realloc(data2, dsize );
+            if ( data2 == NULL ) {
+                error = true;
+                return;
+            }
+            memset((data2 + cbyte2 + 1 ), 0, ( dsize - ( cbyte2 + 1 ) ) * sizeof(char));
+        }
+
         // write data
         if ( nbits2 >= cbit2 ) {
             /*
