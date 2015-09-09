@@ -6,7 +6,7 @@
 #include "model.hh"
 #include "mmap.hh"
 #include "encoder.hh"
-
+#include <map>
 #include "weight.hh"
 #include <fstream>
 
@@ -18,6 +18,18 @@ uint8_t prefix_remap(uint8_t v) {
     }
     return v + 3;
 }
+#ifdef TRACK_HISTOGRAM
+map<int, int> histogram[3];// 0 is center, 1 is dc, 2 is edge
+struct Blah {
+    ~Blah() {
+        for (int typ = 0; typ < 3; ++typ) {
+            for (map<int,int>::iterator i = histogram[typ].begin(); i != histogram[typ].end(); ++i) {
+                printf("%c\t%d\t%d\n", 'c' + typ, i->second, i->first);
+            }
+        }
+    }
+} blah;
+#endif
 template <bool has_left, bool has_above, bool has_above_right, BlockType color>
 void serialize_tokens(BlockContext context,
                       BoolEncoder & encoder,
@@ -40,19 +52,18 @@ void serialize_tokens(BlockContext context,
         // do DC
         uint8_t coord = 0;
         int16_t coef = probability_tables.predict_or_unpredict_dc(context, false);
+#ifdef TRACK_HISTOGRAM
+        ++histogram[1][coef];
+#endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
         auto exp_prob = probability_tables.exponent_array_dc(prior);
-        uint8_t slen = prefix_remap(length);
-        unsigned int serialized_so_far = 0;
-        for (int i = 3;i >= 0; --i) {
-            bool cur_bit = (slen & (1 << i)) ? true : false;
-            encoder.put(cur_bit, exp_prob.at(i, serialized_so_far));
-            serialized_so_far <<= 1;
-            if (cur_bit) {
-                serialized_so_far |=1;
+        for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
+            bool cur_bit = (length != i);
+            encoder.put(cur_bit, exp_prob.at(i));
+            if (!cur_bit) {
+                break;
             }
-            if (i == 2 && !length) break;
         }
         if (length > 1){
             auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
@@ -77,19 +88,18 @@ void serialize_tokens(BlockContext context,
         int16_t coef = block.coefficients().raster( coord );
         uint16_t abs_coef = abs(coef);
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
+#ifdef TRACK_HISTOGRAM
+            ++histogram[0][coef];
+#endif
             probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_left_7x7);
-            uint8_t length = bit_length(abs_coef);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, prior);
-            uint8_t slen = prefix_remap(length);
-            unsigned int serialized_so_far = 0;
-            for (int i = 3;i >= 0; --i) {
-                bool cur_bit = (slen & (1 << i)) ? true : false;
-                encoder.put(cur_bit, exp_prob.at(i, serialized_so_far));
-                serialized_so_far <<= 1;
-                if (cur_bit) {
-                    serialized_so_far |=1;
+            uint8_t length = bit_length(abs_coef);
+            for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
+                bool cur_bit = (i != length);
+                encoder.put(cur_bit, exp_prob.at(i));
+                if (!cur_bit) {
+                    break;
                 }
-                if (i == 2 && !length) break;
             }
             if (length > 1){
                 auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
@@ -162,20 +172,20 @@ void serialize_tokens(BlockContext context,
             num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
+#ifdef TRACK_HISTOGRAM
+            ++histogram[2][coef];
+#endif
+
             assert(coord != 9);
             probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge);
             auto exp_array = probability_tables.exponent_array_x(coord, prior);
             uint8_t length = bit_length(abs_coef);
-            uint8_t slen = prefix_remap(length);
-            unsigned int serialized_so_far = 0;
-            for (int i = 3; i >= 0; --i) {
-                bool cur_bit = ((slen & (1 << i)) ? true : false);
-                encoder.put(cur_bit, exp_array.at(i, serialized_so_far));
-                serialized_so_far <<= 1;
-                if (cur_bit) {
-                    serialized_so_far |= 1;
+            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
+                bool cur_bit = (i != length);
+                encoder.put(cur_bit, exp_array.at(i));
+                if (!cur_bit) {
+                    break;
                 }
-                if (i == 2 && !length) break;
             }
             if (length > 0) {
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");

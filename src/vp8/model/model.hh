@@ -14,7 +14,7 @@
 class BoolEncoder;
 class Slice;
 
-
+constexpr unsigned int MAX_EXPONENT = 10;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
 constexpr unsigned int band_divisor = 1;
@@ -52,28 +52,25 @@ struct Model
 
     ResidualThresholdCounts residual_threshold_counts_;
 
-    typedef Sirikata::Array6d<Branch,
+    typedef Sirikata::Array5d<Branch,
                     BLOCK_TYPES,
                     15,
                     NUM_NONZEROS_BINS,
                     NUMERIC_LENGTH_MAX,
-                    NUMBER_OF_EXPONENT_BITS,
-                    1<< (NUMBER_OF_EXPONENT_BITS - 1)> ExponentCounts8;
+                    MAX_EXPONENT> ExponentCounts8;
 
-    typedef Sirikata::Array6d<Branch,
+    typedef Sirikata::Array5d<Branch,
                               BLOCK_TYPES,
                               49,
                               NUM_NONZEROS_BINS,
                               NUMERIC_LENGTH_MAX,
-                              NUMBER_OF_EXPONENT_BITS,
-                              1 << (NUMBER_OF_EXPONENT_BITS - 1)> ExponentCounts7x7;
+                              MAX_EXPONENT> ExponentCounts7x7;
 
-typedef Sirikata::Array5d<Branch,
+typedef Sirikata::Array4d<Branch,
                           BLOCK_TYPES,
                           NUM_NONZEROS_BINS,
                           NUMERIC_LENGTH_MAX,
-                          NUMBER_OF_EXPONENT_BITS,
-                          1<<(NUMBER_OF_EXPONENT_BITS - 1)> ExponentCountsDC;
+                          MAX_EXPONENT> ExponentCountsDC;
 
   ExponentCounts7x7 exponent_counts_;
   ExponentCounts8 exponent_counts_x_;
@@ -285,9 +282,7 @@ public:
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
         return model_.num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
-    Sirikata::Array2d<Branch,
-                      NUMBER_OF_EXPONENT_BITS,
-                      1<<(NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_x(int band, CoefficientContext context) {
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(int band, CoefficientContext context) {
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         return model_.exponent_counts_x_.at(color_index(),
@@ -295,9 +290,7 @@ public:
                                              context.num_nonzeros_bin,
                                              context.bsr_best_prior);
     }
-    Sirikata::Array2d<Branch,
-    NUMBER_OF_EXPONENT_BITS,
-    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_7x7(const unsigned int band,
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(const unsigned int band,
                                                                   const CoefficientContext context) {
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
@@ -307,9 +300,7 @@ public:
             context.bsr_best_prior,
             context.num_nonzeros_bin);
     }
-    Sirikata::Array2d<Branch,
-    NUMBER_OF_EXPONENT_BITS,
-    1 << (NUMBER_OF_EXPONENT_BITS - 1)>::Slice exponent_array_dc(const CoefficientContext context) {
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(const CoefficientContext context) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return model_.exponent_counts_dc_

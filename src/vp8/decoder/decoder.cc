@@ -32,15 +32,14 @@ void parse_tokens( BlockContext context,
         const unsigned int coord = 0;
         uint8_t length = 0;
         auto exp_prob = probability_tables.exponent_array_dc(prior);
-        unsigned int decoded_so_far = 0;
-        for (int i = 3; i >= 0; --i) {
-            int cur_bit = data.get(exp_prob.at(i, decoded_so_far)) ? 1 : 0;
-            length |= (cur_bit << i);
-            decoded_so_far <<= 1;
-            decoded_so_far |= cur_bit;
-            if (length == 0 && i == 2) break;
+        length = 10;
+        for (int i = 0; i < length; ++i) {
+            bool cur_bit = data.get(exp_prob.at(i));
+            if (!cur_bit) {
+                length = i;
+                break;
+            }
         }
-        length = prefix_unremap(length);
         int16_t coef = (1 << (length - 1));
         if (length > 1){
             auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
@@ -65,17 +64,16 @@ void parse_tokens( BlockContext context,
         unsigned int b_y = (coord >> 3);
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
             probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_left_7x7);
-            uint8_t length = 0;
             auto exp_prob = probability_tables.exponent_array_7x7(coord, prior);
-            unsigned int decoded_so_far = 0;
-            for (int i = 3; i >= 0; --i) {
-                int cur_bit = data.get(exp_prob.at(i, decoded_so_far)) ? 1 : 0;
-                length |= (cur_bit << i);
-                decoded_so_far <<= 1;
-                decoded_so_far |= cur_bit;
-                if (length == 0 && i == 2) break;
+            uint8_t length = MAX_EXPONENT;
+            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
+                bool cur_bit = data.get(exp_prob.at(i));
+                if (!cur_bit) {
+                    length = i;
+                    break;
+                }
             }
-            length = prefix_unremap(length);
+
             int16_t coef = (1 << (length - 1));
             if (length > 1){
                 auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
@@ -149,16 +147,14 @@ void parse_tokens( BlockContext context,
             probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge);
             auto exp_array = probability_tables.exponent_array_x(coord, prior);
 
-            uint8_t length = 0;
-            unsigned int decoded_so_far = 0;            
-            for (int i = 3; i >= 0; --i) {
-                int cur_bit = (data.get(exp_array.at(i, decoded_so_far)) ? 1 : 0);
-                length |= (cur_bit << i);
-                decoded_so_far <<= 1;
-                decoded_so_far |= cur_bit;
-                if (i == 2 && !length) break;
+            uint8_t length = MAX_EXPONENT;
+            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
+                bool cur_bit = data.get(exp_array.at(i));
+                if (!cur_bit) {
+                    length = i;
+                    break;
+                }
             }
-            length = prefix_unremap(length);
             int16_t coef = 0;
             if (length > 0) {
                 coef = (1 << (length - 1));
