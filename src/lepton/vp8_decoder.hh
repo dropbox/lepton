@@ -10,7 +10,6 @@
 class VP8ComponentDecoder : public BaseDecoder {
 
     Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes > context_;
-    Sirikata::Array1d<BlockBasedImage, (size_t)ColorChannel::NumBlockTypes> vp8_blocks_;
     Sirikata::SwitchableDecompressionReader<Sirikata::
                                             SwitchableXZBase> *str_in {};
 

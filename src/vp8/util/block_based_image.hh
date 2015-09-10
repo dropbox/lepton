@@ -54,6 +54,14 @@ public:
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
         return image_[width_ * y + x];
     }
+
+
+    AlignedBlock& raster(uint32_t offset) {
+        return image_[offset];
+    }
+    const AlignedBlock& raster(uint32_t offset) const {
+        return image_[offset];
+    }
 };
 
 inline

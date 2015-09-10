@@ -23,19 +23,18 @@ template <bool use_threading, typename counter_type> class BaseUncompressedCompo
         ExtendedComponentInfo(const ExtendedComponentInfo&); // not implemented
         ExtendedComponentInfo operator=(const ExtendedComponentInfo&); // not implemented
     public:
-        signed short *component_; // pointers to the beginning of this component
+        BlockBasedImage component_;
         counter_type dpos_block_progress_;
         componentInfo info_;
         int trunc_bcv_; // the number of vertical components in this (truncated) image
         int trunc_bc_;
-        ExtendedComponentInfo() :component_(NULL), dpos_block_progress_(0),
+        ExtendedComponentInfo() :dpos_block_progress_(0),
                                  trunc_bcv_(0), trunc_bc_(0) {
         }
     };
 
     int cmpc_; // the number of components
     ExtendedComponentInfo header_[4];
-    signed short *colldata_; // we may want to swizzle this for locality
 
     counter_type coefficient_position_progress_;
     counter_type bit_progress_;
@@ -59,7 +58,6 @@ template <bool use_threading, typename counter_type> class BaseUncompressedCompo
 public:
     BaseUncompressedComponents() : coefficient_position_progress_(0), bit_progress_(0), worker_start_read_signal_(0) {
         decoder_ = NULL;
-        colldata_ = NULL;
         allocated_ = 0;
     }
     unsigned short *get_quantization_tables(BlockType component) const {
@@ -158,13 +156,9 @@ public:
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
             allocated_ += cmpinfo[cmp].bc * 64;
         }
-        colldata_ = (signed short*)calloc(allocated_, sizeof(signed short));
-        int total = 0;
-        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]); cmp++) {
-            this->header_[cmp].component_ = this->colldata_ + total;
-            if (cmp < cmpc) {
-                total += cmpinfo[cmp].bc * 64;
-            }
+        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
+            this->header_[cmp].component_.init(cmpinfo[cmp].bch, cmpinfo[cmp].bcv, cmpinfo[cmp].bc);
+
         }
     }
     void set_block_count_dpos(ExtendedComponentInfo *ci, int trunc_bc) {
@@ -250,14 +244,14 @@ public:
     unsigned int component_size_in_blocks(int cmp) const {
         return header_[cmp].trunc_bc_;
     }
-    signed short* full_component_write(BlockType cmp) const {
+    BlockBasedImage& full_component_write(BlockType cmp) {
         return header_[(int)cmp].component_;
     }
-    const signed short* full_component_nosync(int cmp) const{
+    const BlockBasedImage& full_component_nosync(int cmp) const{
         return header_[cmp].component_;
 
     }
-    const signed short* full_component_read(int cmp) {
+    const BlockBasedImage& full_component_read(int cmp) {
         wait_for_worker(cmp, 63, header_[cmp].trunc_bc_ - 1);
         return full_component_nosync(cmp);
     }
@@ -270,14 +264,17 @@ public:
         return header_[cmp].component_[64 * dpos + bpos]; // fixme: do we care bout nch?
     }
     signed short&set(BlockType cmp, int bpos, int dpos) {
-        return header_[(int)cmp].component_[dpos * 64 + bpos];
+        return header_[(int)cmp].component_.
+            raster(dpos).mutable_coefficients().raster(zigzag[bpos]);
     }
     signed short at(BlockType cmp, int bpos, int dpos) {
         wait_for_worker_on_dpos((int)cmp, dpos);
-        return header_[(int)cmp].component_[dpos * 64 + bpos];
+        return header_[(int)cmp].component_.
+            raster(dpos).coefficients().raster(zigzag[bpos]);
     }
     signed short at_nosync(BlockType cmp, int bpos, int dpos) const {
-        return header_[(int)cmp].component_[dpos * 64 + bpos];
+        return header_[(int)cmp].component_.
+            raster(dpos).coefficients().raster(zigzag[bpos]);
     }
 
     int block_height( const int cmp ) const
@@ -296,11 +293,7 @@ public:
     }
     
     void reset() {
-        if (colldata_) {
-            free(colldata_);
-        }
         bit_progress_ -= bit_progress_;
-        colldata_ = NULL;
     }
     ~BaseUncompressedComponents() {
         reset();

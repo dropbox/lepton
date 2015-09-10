@@ -41,12 +41,6 @@ VP8ComponentDecoder::VP8ComponentDecoder() {
     ProbabilityTablesBase::load_probability_tables();
 }
 
-void copy_coef_to_zigzag(UncompressedComponents * const colldata, AlignedBlock& block, BlockType component, int coord) {
-    for ( int coeff = 0; coeff < 64; coeff++ ) {
-        colldata->set(component, coeff, coord )
-        = block.coefficients().raster( jpeg_zigzag.at( coeff ) );
-    }
-}
 
 template<class Left, class Middle, class Right>
 void VP8ComponentDecoder::process_row(Left & left_model,
@@ -54,31 +48,26 @@ void VP8ComponentDecoder::process_row(Left & left_model,
                                        Right& right_model,
                                        int block_width,
                                        UncompressedComponents * const colldata) {
-    int curr_y = context_.at((int)Middle::COLOR).y;
     if (block_width > 0) {
         BlockContext context = context_.at((int)Middle::COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      left_model); //FIXME
-        copy_coef_to_zigzag(colldata, context.here(), (BlockType)Middle::COLOR, curr_y * block_width + 0);
-        context_.at(Middle::COLOR).context = vp8_blocks_.at(Middle::COLOR).next(context_.at(Middle::COLOR).context);
+        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context);
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)Middle::COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      middle_model); //FIXME
-        copy_coef_to_zigzag(colldata, context.here(), (BlockType)Middle::COLOR, curr_y * block_width + jpeg_x);
-        context_.at(Middle::COLOR).context = vp8_blocks_.at(Middle::COLOR).next(context_.at(Middle::COLOR).context);
+        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context);
     }
     if (block_width > 1) {
-        int curr_y = context_.at((int)Middle::COLOR).y;
         BlockContext context = context_.at((int)Middle::COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      right_model);
-        copy_coef_to_zigzag(colldata, context.here(), (BlockType)Middle::COLOR, curr_y * block_width + block_width - 1);
-        context_.at(Middle::COLOR).context = vp8_blocks_.at(Middle::COLOR).next(context_.at(Middle::COLOR).context);
+        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context);
     }
 }
 
@@ -102,14 +91,8 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         str_in->DisableCompression();
 
-        /* populate the VP8 blocks */
-        for (size_t i = 0; i < sizeof(context_)/sizeof(context_[0]); ++i) {
-             // FIXME: we may be able to truncate here if we are faced with a truncated image
-            vp8_blocks_.at(i).init(colldata->block_width( i ), colldata->block_height( i ),
-                                colldata->block_width( i ) * colldata->block_height( i ) );
-        }
-        for (size_t i = 0; i < sizeof(context_)/sizeof(context_[0]); ++i) {
-            context_.at(i).context = vp8_blocks_.at(i).begin();
+        for (int i = 0; i < colldata->get_num_components(); ++i) {
+            context_.at(i).context = colldata->full_component_write((BlockType)i).begin();
             context_.at(i).y = 0;
         }
 

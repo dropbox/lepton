@@ -34,11 +34,14 @@ CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedCompone
     if (cmp == sizeof(cur_read_batch)/sizeof(cur_read_batch[0]) || cur_read_batch[cmp] == target[cmp]) {
         return CODING_DONE;
     }
-    const signed short * start = colldata->full_component_nosync( cmp );
+    const BlockBasedImage& start = colldata->full_component_nosync( cmp );
     while (cur_read_batch[cmp] < target[cmp]) {
         int cur_write_size = std::min((int)batch_size, target[cmp] - cur_read_batch[cmp]);
-        str_out->Write(reinterpret_cast<const unsigned char*>(start + cur_read_batch[cmp] * 64) , sizeof( short ) * 64 * cur_write_size);
-        cur_read_batch[cmp] += cur_write_size;        
+        for (int i = 0; i < cur_write_size; ++i) {
+            str_out->Write(reinterpret_cast<const unsigned char*>(&start.raster(cur_read_batch[cmp] + i).coef.raster(0)),
+                           sizeof( short ) * 64);
+        }
+        cur_read_batch[cmp] += cur_write_size;
         return CODING_PARTIAL;
     }
     assert(false && "UNREACHABLE");

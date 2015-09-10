@@ -72,14 +72,16 @@ CodingReturnValue SimpleComponentDecoder::decode_chunk(UncompressedComponents* c
         return CODING_DONE;
     }
     // read coefficient data from file
-    signed short * start = colldata->full_component_write( cmp );
+    BlockBasedImage &start = colldata->full_component_write( cmp );
     while (cur_read_batch[(int)cmp] < target[(int)cmp]) {
         int cur_read_size = std::min((int)batch_size, target[(int)cmp] - cur_read_batch[(int)cmp]);
-        size_t retval = IOUtil::ReadFull(str_in, start + cur_read_batch[(int)cmp] * 64 , sizeof( short ) * 64 * cur_read_size);
-        if (retval != sizeof( short) * 64 * cur_read_size) {
-            errormessage = "Unexpected end of file blocks";
-            errorlevel = 2;
-            return CODING_ERROR;
+        for (int i = 0;i < cur_read_size; ++i) {
+            size_t retval = IOUtil::ReadFull(str_in, &start.raster(cur_read_batch[(int)cmp] + i), sizeof(short) * 16);
+            if (retval != sizeof( short) * 64 * cur_read_size) {
+                errormessage = "Unexpected end of file blocks";
+                errorlevel = 2;
+                return CODING_ERROR;
+            }
         }
         cur_read_batch[(int)cmp] += cur_read_size;
         colldata->worker_update_cmp_progress(cmp, cur_read_size);
