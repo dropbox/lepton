@@ -36,7 +36,13 @@ private:
   mutable uint8_t num_nonzeros_y_ = 0;
 public:
   AlignedBlock() {}
-
+  void recalculate_coded_length(uint8_t num_nonzeros_7x7, uint8_t num_nonzeros_x, uint8_t num_nonzeros_y) const
+  {
+      num_nonzeros_7x7_ = num_nonzeros_7x7;
+      num_nonzeros_x_ = num_nonzeros_x;
+      num_nonzeros_y_ = num_nonzeros_y;
+      num_nonzeros_ = num_nonzeros_7x7 + num_nonzeros_x + num_nonzeros_y + (coef.raster(0) ? 1 : 0);
+  }
   void recalculate_coded_length() const
   {
     num_nonzeros_ = 0;

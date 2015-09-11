@@ -198,6 +198,7 @@ void reset_model(Model&model)
 void load_model(Model&model, const Slice & slice )
 {
     const size_t expected_size = sizeof( model );
+    (void)expected_size;
     assert(slice.size() == expected_size && "unexpected model file size.");
     
     memcpy( &model, slice.buffer(), slice.size() );

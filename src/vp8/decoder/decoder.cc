@@ -182,7 +182,7 @@ void parse_tokens( BlockContext context,
         }
     }
     context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
-    context.here().recalculate_coded_length();
+    context.here().recalculate_coded_length(num_nonzeros_7x7, num_nonzeros_x, num_nonzeros_y);
 }
 
 template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Y>&);
