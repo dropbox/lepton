@@ -85,6 +85,8 @@ void serialize_tokens(ConstBlockContext context,
         unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord >> 3;
+        (void)b_x;
+        (void)b_y;
         assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
         {
             int16_t coef = block.coefficients().raster( coord );
@@ -125,15 +127,15 @@ void serialize_tokens(ConstBlockContext context,
 
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
-    for (unsigned int zz = 0; zz < 64; ++zz) {
-        unsigned int coord = unzigzag[zz];
+    for (unsigned int zz = 0; zz < 49; ++zz) {
+        unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord / 8;
-        if ((b_x > 0 && b_y > 0)) { // this does the DC and the lower 7x7 AC
-            if (block.coefficients().raster( coord )){
-                eob_x = std::max(eob_x, (uint8_t)b_x);
-                eob_y = std::max(eob_y, (uint8_t)b_y);
-            }
+        unsigned int b_y = coord >> 3;
+        (void)b_x;
+        (void)b_y;
+        if (block.coefficients().raster( coord )){
+            eob_x = std::max(eob_x, (uint8_t)b_x);
+            eob_y = std::max(eob_y, (uint8_t)b_y);
         }
     }
     auto prob_x = probability_tables.x_nonzero_counts_8x1(
