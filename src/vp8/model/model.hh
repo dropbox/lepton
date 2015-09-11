@@ -229,15 +229,15 @@ public:
     }
     CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
         CoefficientContext retval;
-        retval.best_prior = compute_aavrg(block, 0);
-        retval.bsr_best_prior = exp_len(retval.best_prior);
+        retval.best_prior = compute_aavrg_dc(block);
+        retval.bsr_best_prior = bit_length(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
         return retval;
     }
     void update_coefficient_context7x7(CoefficientContext & retval,
                                      uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_left) {
         retval.best_prior = compute_aavrg(block, coefficient);
-        retval.bsr_best_prior = exp_len(retval.best_prior);
+        retval.bsr_best_prior = bit_length(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
     }
     void update_coefficient_context8(CoefficientContext & retval,
@@ -334,9 +334,7 @@ public:
         }
         return residual_noise_array_shared(band, context);
     }
-    unsigned int num_nonzeros_to_bin(unsigned int num_nonzeros) {
-
-        // this divides by 7 to get the initial value
+    unsigned int num_nonzeros_to_bin(uint8_t num_nonzeros) {
         return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
     }
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
@@ -472,9 +470,7 @@ public:
         return (total + weights / 2) / weights;
     }
     int compute_aavrg(ConstBlockContext context, unsigned int band) {
-        if (band == 0) {
-            return compute_aavrg_dc(context);
-        }
+        assert(band != 0 && "Call compute_aavrg_dc for dc computation");
         uint16_t topleft = 0;
         uint16_t top = 0;
         uint16_t left = 0;
