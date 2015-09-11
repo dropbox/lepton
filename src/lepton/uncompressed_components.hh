@@ -251,30 +251,23 @@ public:
         return header_[cmp].component_;
 
     }
-    const BlockBasedImage& full_component_read(int cmp) {
-        wait_for_worker(cmp, 63, header_[cmp].trunc_bc_ - 1);
-        return full_component_nosync(cmp);
-    }
-    signed short&set(BlockType cmp, int bpos, int x, int y) {
-        return header_[cmp].component_[64 * (y * bch_(cmp) + x) + bpos]; // fixme: do we care bout nch?
-    }
     signed short at(BlockType cmp, int bpos, int x, int y) {
         int dpos = header_[cmp].info.bch * y + x;
         wait_for_worker_on_dpos(cmp, dpos);
-        return header_[cmp].component_[64 * dpos + bpos]; // fixme: do we care bout nch?
+        return header_[cmp].component_[64 * dpos + unzigzag[bpos]]; // fixme: do we care bout nch?
     }
     signed short&set(BlockType cmp, int bpos, int dpos) {
         return header_[(int)cmp].component_.
-            raster(dpos).mutable_coefficients().raster(zigzag[bpos]);
+            raster(dpos).mutable_coefficients().raster(unzigzag[bpos]);
     }
     signed short at(BlockType cmp, int bpos, int dpos) {
         wait_for_worker_on_dpos((int)cmp, dpos);
         return header_[(int)cmp].component_.
-            raster(dpos).coefficients().raster(zigzag[bpos]);
+            raster(dpos).coefficients().raster(unzigzag[bpos]);
     }
     signed short at_nosync(BlockType cmp, int bpos, int dpos) const {
         return header_[(int)cmp].component_.
-            raster(dpos).coefficients().raster(zigzag[bpos]);
+            raster(dpos).coefficients().raster(unzigzag[bpos]);
     }
 
     int block_height( const int cmp ) const

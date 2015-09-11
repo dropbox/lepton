@@ -71,10 +71,10 @@ CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents
     return vp8_full_encoder(input, output);
 }
 void copy_zigzag_to_coef(const UncompressedComponents * const colldata, AlignedBlock& block, BlockType component, int coord) {
+    const BlockBasedImage& start = colldata->full_component_nosync((int)component);
     for ( int coeff = 0; coeff < 64; coeff++ ) {
-        block.mutable_coefficients().raster(jpeg_zigzag.at(coeff)) = colldata->at_nosync(component,
-                                                                                         coeff,
-                                                                                         coord);
+        short val = start.raster(coord).coefficients().raster(coeff);
+        block.mutable_coefficients().raster(coeff) = val;
     }
 }
 template<class Left, class Middle, class Right>
