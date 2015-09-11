@@ -3052,7 +3052,7 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
 
     // encode DC
     tmp = block[ 0 ];
-    s = bit_length(ABS(tmp));
+    s = uint16bit_length(ABS(tmp));
     n = ENVLI( s, tmp );
     huffw->write( dctbl->cval[ s ], dctbl->clen[ s ] );
     huffw->write( n, s );
@@ -3070,7 +3070,7 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
             }
             // vli encode
             tmp = block[ bpos ];
-            s = bit_length(ABS(tmp));
+            s = uint16bit_length(ABS(tmp));
             n = ENVLI(s, tmp);
             hc = ( ( z << 4 ) + s );
             // write to huffman writer
@@ -3127,7 +3127,7 @@ int encode_dc_prg_fs( abitwriter* huffw, huffCodes* dctbl, short* block )
 
     // encode DC
     tmp = block[ 0 ];
-    s = bit_length(ABS(tmp));
+    s = uint16bit_length(ABS(tmp));
     n = ENVLI( s, tmp );
     huffw->write( dctbl->cval[ s ], dctbl->clen[ s ] );
     huffw->write( n, s );
@@ -3227,7 +3227,7 @@ int encode_ac_prg_fs( abitwriter* huffw, huffCodes* actbl, short* block, unsigne
             }
             // vli encode
             tmp = block[ bpos ];
-            s = bit_length(ABS(tmp));
+            s = uint16bit_length(ABS(tmp));
             n = ENVLI( s, tmp);
             hc = ( ( z << 4 ) + s );
             // write to huffman writer
@@ -3402,7 +3402,7 @@ int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl, s
         else if ( ( block[ bpos ] == 1 ) || ( block[ bpos ] == -1 ) ) {
             // vli encode
             tmp = block[ bpos ];
-            s = bit_length(ABS(tmp));
+            s = uint16bit_length(ABS(tmp));
             n = ENVLI( s, tmp );
             hc = ( ( z << 4 ) + s );
             // write to huffman writer
@@ -3484,7 +3484,7 @@ int encode_eobrun( abitwriter* huffw, huffCodes* actbl, unsigned int* eobrun )
             huffw->write( E_ENVLI( 14, 32767 ), 14 );
             (*eobrun) -= actbl->max_eobrun;
         }
-        s = bit_length((*eobrun));
+        s = uint16bit_length((*eobrun));
         assert(s && "actbl->max_eobrun needs to be > 0");
         if (s) s--;
         n = E_ENVLI( s, (*eobrun) );
