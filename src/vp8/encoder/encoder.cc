@@ -80,6 +80,8 @@ void serialize_tokens(ConstBlockContext context,
     }
 
 
+    uint8_t eob_x = 0;
+    uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = block.num_nonzeros_7x7();
     for (unsigned int zz = 0; zz < 49; ++zz) {
         unsigned int coord = unzigzag49[zz];
@@ -117,6 +119,8 @@ void serialize_tokens(ConstBlockContext context,
                 auto &sign_prob = probability_tables.sign_array(coord, prior);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob);
                 --num_nonzeros_left_7x7;
+                eob_x = std::max(eob_x, (uint8_t)b_x);
+                eob_y = std::max(eob_y, (uint8_t)b_y);
             }
 
             if (num_nonzeros_left_7x7 == 0) {
@@ -125,19 +129,6 @@ void serialize_tokens(ConstBlockContext context,
         }
     }
 
-    uint8_t eob_x = 0;
-    uint8_t eob_y = 0;
-    for (unsigned int zz = 0; zz < 49; ++zz) {
-        unsigned int coord = unzigzag49[zz];
-        unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord >> 3;
-        (void)b_x;
-        (void)b_y;
-        if (block.coefficients().raster( coord )){
-            eob_x = std::max(eob_x, (uint8_t)b_x);
-            eob_y = std::max(eob_y, (uint8_t)b_y);
-        }
-    }
     auto prob_x = probability_tables.x_nonzero_counts_8x1(
                                                       eob_x,
                                                          block.num_nonzeros_7x7());

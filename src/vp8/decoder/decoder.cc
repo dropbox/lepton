@@ -56,7 +56,8 @@ void parse_tokens( BlockContext context,
         context.here().mutable_coefficients().memset(0);
         context.here().mutable_coefficients().raster( coord ) = coef;
     }
-
+    uint8_t eob_x = 0;
+    uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     for (unsigned int zz = 0; zz < 49; ++zz) {
         unsigned int coord = unzigzag49[zz];
@@ -89,27 +90,14 @@ void parse_tokens( BlockContext context,
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
-                if (coord != 0) {
-                    --num_nonzeros_left_7x7;
-                }
+                eob_x = std::max(eob_x, (uint8_t)b_x);
+                eob_y = std::max(eob_y, (uint8_t)b_y);
+                --num_nonzeros_left_7x7;
             }
             context.here().mutable_coefficients().raster( coord ) = coef;
             if (num_nonzeros_left_7x7 == 0) {
                 break; // done with the 49x49
             }
-        }
-    }
-    uint8_t eob_x = 0;
-    uint8_t eob_y = 0;
-    for (unsigned int zz = 0; zz < 49; ++zz) {
-        unsigned int coord = unzigzag49[zz];
-        unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord >> 3;
-        (void)b_x;
-        (void)b_y;
-        if (context.here().coefficients().raster( coord )){
-            eob_x = std::max(eob_x, (uint8_t)b_x);
-            eob_y = std::max(eob_y, (uint8_t)b_y);
         }
     }
     auto prob_x = probability_tables.x_nonzero_counts_8x1(
