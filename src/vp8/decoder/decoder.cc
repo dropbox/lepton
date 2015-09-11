@@ -131,17 +131,12 @@ void parse_tokens( BlockContext context,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
-    uint8_t num_nonzeros_left_x = num_nonzeros_x;
-    uint8_t num_nonzeros_left_y = num_nonzeros_y;
-    uint8_t zig15offset = 0;
     for (int delta = 1; delta <= 8; delta += 7) {
         unsigned int coord = delta;
-        uint8_t num_nonzeros_edge = num_nonzeros_left_y;
-        if (delta == 1) {
-            num_nonzeros_edge = num_nonzeros_left_x;
-        }
+        uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
+        uint8_t num_nonzeros_edge = (delta == 1 ? num_nonzeros_x : num_nonzeros_y);
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        for (unsigned int zz = 1; zz < 8 && num_nonzeros_edge_left; ++zz, coord += delta, ++zig15offset) {
+        for (;num_nonzeros_edge_left; coord += delta, ++zig15offset) {
             probability_tables.update_coefficient_context8(prior, coord, context.copy(), num_nonzeros_edge);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
 

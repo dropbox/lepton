@@ -159,15 +159,12 @@ void serialize_tokens(ConstBlockContext context,
     }
     uint8_t num_nonzeros_left_x = block.num_nonzeros_x();
     uint8_t num_nonzeros_left_y = block.num_nonzeros_y();
-    uint8_t zig15offset = 0;
     for (int delta = 1; delta <= 8; delta += 7) {
         unsigned int coord = delta;
-        uint8_t num_nonzeros_edge = num_nonzeros_left_y;
-        if (delta == 1) {
-            num_nonzeros_edge = num_nonzeros_left_x;
-        }
+        uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
+        uint8_t num_nonzeros_edge = (delta == 1 ? num_nonzeros_left_x : num_nonzeros_left_y);
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        for (unsigned int zz = 1; zz < 8 && num_nonzeros_edge_left; ++zz, coord += delta, ++zig15offset) {
+        for (;num_nonzeros_edge_left; coord += delta, ++zig15offset) {
 #ifdef TRACK_HISTOGRAM
             ++histogram[2][coef];
 #endif
