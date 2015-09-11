@@ -70,29 +70,19 @@ CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents
                                                                                 DecoderCompressionWriter> *output) {
     return vp8_full_encoder(input, output);
 }
-void copy_zigzag_to_coef(const UncompressedComponents * const colldata, AlignedBlock& block, BlockType component, int coord) {
-    const BlockBasedImage& start = colldata->full_component_nosync((int)component);
-    for ( int coeff = 0; coeff < 64; coeff++ ) {
-        short val = start.raster(coord).coefficients().raster(coeff);
-        block.mutable_coefficients().raster(coeff) = val;
-    }
-}
+
 template<class Left, class Middle, class Right>
 void VP8ComponentEncoder::process_row(Left & left_model,
                                       Middle& middle_model,
                                       Right& right_model,
                                       int block_width,
                                       const UncompressedComponents * const colldata,
-                                      Sirikata::Array1d<VContext,
+                                      Sirikata::Array1d<KVContext,
                                               (uint32_t)ColorChannel::NumBlockTypes> &context,
-                                      Sirikata::Array1d<BlockBasedImage,
-                                                        (uint32_t)ColorChannel::NumBlockTypes> &vp8_blocks,
                                       BoolEncoder &bool_encoder) {
-    int curr_y = context.at((int)Middle::COLOR).y;
     if (block_width > 0) {
-        BlockContext block_context = context.at((int)Middle::COLOR).context;
-        AlignedBlock &block = block_context.here();
-        copy_zigzag_to_coef(colldata, block, (BlockType)Middle::COLOR, curr_y * block_width + 0);
+        ConstBlockContext block_context = context.at((int)Middle::COLOR).context;
+        const AlignedBlock &block = block_context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = 0;
@@ -102,15 +92,11 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         serialize_tokens(block_context,
                          bool_encoder,
                          left_model);
-        context.at((int)Middle::COLOR).context = vp8_blocks.at((int)Middle::COLOR).next(block_context);
+        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context);
     }
     for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        BlockContext block_context = context.at((int)Middle::COLOR).context;
-        AlignedBlock &block = block_context.here();
-        copy_zigzag_to_coef(colldata,
-                            block,
-                            (BlockType)Middle::COLOR,
-                            curr_y * block_width + jpeg_x);
+        ConstBlockContext block_context = context.at((int)Middle::COLOR).context;
+        const AlignedBlock &block = block_context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = jpeg_x;
@@ -120,15 +106,11 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         serialize_tokens(block_context,
                          bool_encoder,
                          middle_model);
-        context.at((int)Middle::COLOR).context = vp8_blocks.at((int)Middle::COLOR).next(block_context);
+        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context);
     }
     if (block_width > 1) {
-        BlockContext block_context = context.at((int)Middle::COLOR).context;
-        AlignedBlock &block = block_context.here();
-        copy_zigzag_to_coef(colldata,
-                            block,
-                            (BlockType)Middle::COLOR,
-                            curr_y * block_width + block_width - 1);
+        ConstBlockContext block_context = context.at((int)Middle::COLOR).context;
+        const AlignedBlock &block = block_context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = Middle::COLOR; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = block_width - 1;
@@ -138,7 +120,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         serialize_tokens(block_context,
                          bool_encoder,
                          right_model);
-        context.at((int)Middle::COLOR).context = vp8_blocks.at((int)Middle::COLOR).next(block_context);
+        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context);
     }
 }
 
@@ -149,15 +131,9 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
-    /* construct 8x8 "VP8" blocks to hold 8x8 JPEG blocks */
-    Array1d<BlockBasedImage, (uint32_t)ColorChannel::NumBlockTypes>  vp8_blocks;
-    Array1d<VContext, (uint32_t)ColorChannel::NumBlockTypes> context;
-    for (size_t i = 0; i < vp8_blocks.size(); ++i) {
-        vp8_blocks.at(i).init( colldata->block_width( i ), colldata->block_height( i ),
-                               colldata->block_width( i ) * colldata->block_height( i ) );
-    }
+    Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
     for (size_t i = 0; i < context.size(); ++i) {
-        context[i].context = vp8_blocks[i].begin();
+        context[i].context = colldata->full_component_nosync(i).begin();
         context[i].y = 0;
     }
     str_out->EnableCompression();
@@ -206,7 +182,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
                 case BlockType::Cb:
@@ -216,7 +191,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
                 case BlockType::Cr:
@@ -226,7 +200,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
             }
@@ -239,7 +212,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
                 case BlockType::Cb:
@@ -249,7 +221,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
                 case BlockType::Cr:
@@ -259,7 +230,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
             }
@@ -273,7 +243,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
                 case BlockType::Cb:
@@ -283,7 +252,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
                 case BlockType::Cr:
@@ -293,7 +261,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                vp8_blocks,
                                 bool_encoder);
                     break;
             }

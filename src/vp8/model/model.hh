@@ -227,7 +227,7 @@ public:
     static constexpr int color_index() {
         return (int)color >= BLOCK_TYPES ? BLOCK_TYPES - 1 : (int)color;
     }
-    CoefficientContext get_dc_coefficient_context(const BlockContext block, uint8_t num_nonzeros) {
+    CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
         CoefficientContext retval;
         retval.best_prior = compute_aavrg(block, 0);
         retval.bsr_best_prior = exp_len(retval.best_prior);
@@ -235,18 +235,18 @@ public:
         return retval;
     }
     void update_coefficient_context7x7(CoefficientContext & retval,
-                                     uint8_t coefficient, const BlockContext block, uint8_t num_nonzeros_left) {
+                                     uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_left) {
         retval.best_prior = compute_aavrg(block, coefficient);
         retval.bsr_best_prior = exp_len(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
     }
     void update_coefficient_context8(CoefficientContext & retval,
-                                   uint8_t coefficient, const BlockContext block, uint8_t num_nonzeros_x) {
+                                   uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_x) {
         retval.best_prior = compute_lak(block, coefficient);
         retval.bsr_best_prior = exp_len(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_x;
     }
-    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const BlockContext block) {
+    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
         if (above_present) {
@@ -368,7 +368,7 @@ public:
         return retval;
     }
 
-    int predict_dc_dct(const BlockContext&context) {
+    int predict_dc_dct(const ConstBlockContext&context) {
         int prediction = 0;
         int left_block = 0;
         int left_edge = 0;
@@ -400,7 +400,7 @@ public:
         }
         return (prediction + round) / DCT_RSC;
     }
-    int predict_locoi_dc_deprecated(const BlockContext&context) {
+    int predict_locoi_dc_deprecated(const ConstBlockContext&context) {
         if (left_present) {
             int a = context.left_unchecked().coefficients().raster(0);
             if (above_present) {
@@ -421,7 +421,7 @@ public:
             return 0;
         }
     }
-    int predict_or_unpredict_dc(const BlockContext&context, bool recover_original) {
+    int predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original) {
         int max_value = 0;
         if (quantization_table_[COLOR][0]){
             max_value = (1024 + quantization_table_[COLOR][0] - 1) / quantization_table_[COLOR][0];
@@ -435,7 +435,7 @@ public:
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
     }
-    int compute_aavrg_dc(BlockContext context) {
+    int compute_aavrg_dc(ConstBlockContext context) {
         uint16_t topleft = 0;
         uint16_t top = 0;
         uint16_t left = 0;
@@ -470,7 +470,7 @@ public:
         }
         return (total + weights / 2) / weights;
     }
-    int compute_aavrg(BlockContext context, unsigned int band) {
+    int compute_aavrg(ConstBlockContext context, unsigned int band) {
         if (band == 0) {
             return compute_aavrg_dc(context);
         }
@@ -519,7 +519,7 @@ public:
         }
         return bit_length(v);
     }
-    int compute_lak(const BlockContext&context, unsigned int band) {
+    int compute_lak(const ConstBlockContext&context, unsigned int band) {
         int16_t coeffs_x[8];
         int16_t coeffs_a[8];
         const int32_t *coef_idct = nullptr;

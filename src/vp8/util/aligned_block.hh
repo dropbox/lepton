@@ -26,19 +26,18 @@ enum class ColorChannel { Y, Cb, Cr, NumBlockTypes };
 
 class AlignedBlock
 {
-private:
-
-  uint8_t num_nonzeros_ = 0;
-  uint8_t num_nonzeros_7x7_ = 0;
-  uint8_t num_nonzeros_x_ = 0;
-  uint8_t num_nonzeros_y_ = 0;
-
 public:
     Sirikata::Array2d<int16_t, 8, 8> coef = {{{}}};
+private:
 
+  mutable uint8_t num_nonzeros_ = 0;
+  mutable uint8_t num_nonzeros_7x7_ = 0;
+  mutable uint8_t num_nonzeros_x_ = 0;
+  mutable uint8_t num_nonzeros_y_ = 0;
+public:
   AlignedBlock() {}
 
-  void recalculate_coded_length()
+  void recalculate_coded_length() const
   {
     num_nonzeros_ = 0;
     num_nonzeros_7x7_ = 0;

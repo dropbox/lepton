@@ -92,7 +92,7 @@ public:
 #endif
         return retval;
     }
-    bool get_next_component(const Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes> &curr_y,
+    template<class Context> bool get_next_component(const Sirikata::Array1d<Context, (size_t)ColorChannel::NumBlockTypes> &curr_y,
                             BlockType *out_component) const {
         int min_height = header_[0].info_.bcv;
         for (int i = 1; i < cmpc_; ++i) {

@@ -9,10 +9,8 @@ class VP8ComponentEncoder : public BaseEncoder {
                          Right& right_model,
                          int block_width,
                          const UncompressedComponents * const colldata,
-                         Sirikata::Array1d<VContext,
+                         Sirikata::Array1d<KVContext,
                                            (uint32_t)ColorChannel::NumBlockTypes> &context,
-                         Sirikata::Array1d<BlockBasedImage,
-                                           (uint32_t)ColorChannel::NumBlockTypes> &vp8_blocks,
                          BoolEncoder &bool_encoder);
 public:
     static CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,

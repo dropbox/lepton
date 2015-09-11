@@ -17,7 +17,7 @@ template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void parse_tokens( BlockContext context,
                    BoolDecoder & data,
                    ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables) {
-    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(context);
+    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(context.copy());
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
@@ -26,7 +26,7 @@ void parse_tokens( BlockContext context,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
-    ProbabilityTablesBase::CoefficientContext prior = probability_tables.get_dc_coefficient_context(context,
+    ProbabilityTablesBase::CoefficientContext prior = probability_tables.get_dc_coefficient_context(context.copy(),
                                                                                                     num_nonzeros_7x7);
     { // dc
         const unsigned int coord = 0;
@@ -63,7 +63,7 @@ void parse_tokens( BlockContext context,
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
         if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
-            probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_left_7x7);
+            probability_tables.update_coefficient_context7x7(prior, coord, context.copy(), num_nonzeros_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, prior);
             uint8_t length = MAX_EXPONENT;
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
@@ -144,7 +144,7 @@ void parse_tokens( BlockContext context,
             num_nonzeros_edge = num_nonzeros_left_y;
         }
         if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
-            probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge);
+            probability_tables.update_coefficient_context8(prior, coord, context.copy(), num_nonzeros_edge);
             auto exp_array = probability_tables.exponent_array_x(coord, prior);
 
             uint8_t length = MAX_EXPONENT;
@@ -202,7 +202,7 @@ void parse_tokens( BlockContext context,
             context.here().mutable_coefficients().raster( coord ) = coef;
         }
     }
-    context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context, true);
+    context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
     context.here().recalculate_coded_length();
 }
 

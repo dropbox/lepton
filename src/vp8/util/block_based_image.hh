@@ -34,7 +34,10 @@ public:
     BlockContext begin() {
         return {image_, 0, 0};
     }
-    BlockContext next(BlockContext it) {
+    ConstBlockContext begin() const {
+        return {image_, 0, 0};
+    }
+    template <class BlockContext> BlockContext next(BlockContext it) const {
         it.cur += 1;
         ptrdiff_t offset = it.cur - image_;
         if (offset >= width_) {
