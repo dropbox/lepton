@@ -17,6 +17,10 @@ uint16_t ProbabilityTablesBase::quantization_table_[3][64] __attribute__ ((align
 
 uint16_t ProbabilityTablesBase::freqmax_[3][64] __attribute__ ((aligned (16)));
 
+uint8_t ProbabilityTablesBase::min_noise_threshold_[3][64] __attribute__ ((aligned (16)));
+
+uint8_t ProbabilityTablesBase::bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
+
 void serialize_model(const Model & model, std::ofstream & output )
 {
   output.write( reinterpret_cast<const char*>( &model ), sizeof( model ) );

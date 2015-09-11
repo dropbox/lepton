@@ -144,17 +144,12 @@ void parse_tokens( BlockContext context,
                 coef = (1 << (length - 1));
             }
             if (length > 1){
-                int min_threshold = 0;
-
-                int max_val = probability_tables.get_max_value(coord);
-                int max_len = bit_length(max_val);
-                if (max_len > (int)RESIDUAL_NOISE_FLOOR) {
-                    min_threshold = max_len - RESIDUAL_NOISE_FLOOR;
-                }
+                uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
                 int i = length - 2;
                 if (length - 2 >= min_threshold) {
                     auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
-                                                                                 prior, min_threshold, max_val);
+                                                                                prior, min_threshold,
+                                                                                probability_tables.get_max_value(coord));
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
@@ -164,7 +159,7 @@ void parse_tokens( BlockContext context,
                             decoded_so_far |= 1;
                         }
                     }
-                    probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far / 2);
+                    probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
                 }
                 auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
                 for (; i >= 0; --i) {

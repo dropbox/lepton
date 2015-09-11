@@ -163,6 +163,8 @@ protected:
     static int32_t icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16)));
     static uint16_t quantization_table_[3][64] __attribute__ ((aligned(16)));
     static uint16_t freqmax_[3][64] __attribute__ ((aligned (16)));
+    static uint8_t bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
+    static uint8_t min_noise_threshold_[3][64] __attribute__((aligned(16)));
 public:
     static void load_probability_tables();
     static void set_quantization_table(BlockType color, const unsigned short quantization_table[64]) {
@@ -190,6 +192,11 @@ public:
         for (int coord = 0; coord < 64; ++coord) {
             freqmax_[(int)color][coord] = (freqmax[coord] + quantization_table_[(int)color][coord] - 1)
                 / quantization_table_[(int)color][coord];
+            uint8_t max_len = uint16bit_length(freqmax_[(int)color][coord]);
+            bitlen_freqmax_[(int)color][coord] = max_len;
+            if (max_len > (int)RESIDUAL_NOISE_FLOOR) {
+                min_noise_threshold_[(int)color][coord] = max_len - RESIDUAL_NOISE_FLOOR;
+            }
         }
     }
     static int32_t *icos_idct_edge_8192_dequantized_x(BlockType color) {
@@ -243,7 +250,7 @@ public:
     void update_coefficient_context8(CoefficientContext & retval,
                                    uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_x) {
         retval.best_prior = compute_lak(block, coefficient);
-        retval.bsr_best_prior = exp_len(retval.best_prior);
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         retval.num_nonzeros_bin = num_nonzeros_x;
     }
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const ConstBlockContext block) {
@@ -507,15 +514,6 @@ public:
         }
         return (total + weights / 2) /weights;
     }
-    unsigned int exp_len(int v) {
-        if (v < 0) {
-            v = -v;
-        }
-        if (v > 1023) {
-            v = 1023;
-        }
-        return bit_length(v);
-    }
     int compute_lak(const ConstBlockContext&context, unsigned int band) {
         int16_t coeffs_x[8];
         int16_t coeffs_a[8];
@@ -618,6 +616,9 @@ public:
     }
     int get_max_value(int coord) {
         return freqmax_[COLOR][coord];
+    }
+    uint8_t get_noise_threshold(int coord) {
+        return min_noise_threshold_[COLOR][coord];
     }
     void optimize() {
         optimize_model(model_);

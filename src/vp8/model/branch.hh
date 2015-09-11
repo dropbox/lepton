@@ -22,70 +22,36 @@ public:
   void record_false( void ) { false_count_ = false_count_ + 1; }
   void record_true_and_update( void ) {
       ++full_count_;
-      if (true_count_ < 512) {
+      if (true_count_ < 511) {
           true_count_ += 1;
       } else {
-          true_count_ = true_count_ / 2 + (true_count_ & 1);
-          false_count_ = false_count_ / 2 + (false_count_ & 1);
+          normalize();
       }
 #ifdef STOP_TRAINING
       if (full_count_ < 1024)
 #endif
       {
-          normalize();
           optimize();
       }
   }
   void record_false_and_update( void ) {
       ++full_count_;
-      if (false_count_ < 512) {// 2x the size of prob
+      if (false_count_ < 511) {// 2x the size of prob
           false_count_ += 1;
       } else {
-          true_count_ = true_count_ / 2 + (true_count_ & 1);
-          false_count_ = false_count_ / 2 + (false_count_ & 1);
+          normalize();
       }
 #ifdef STOP_TRAINING
       if (full_count_ < 1024)
 #endif
       {//4x the size of prob
-          normalize();
           optimize();
       }
   }
-  void normalize()
-  {
-#ifndef JPEG_ENCODER
-#if 0
-      while (true_count() > 254 || false_count() > 254) {
-          true_count_ = true_count_ / 2 + (true_count_ & 1);
-          false_count_ = false_count_ / 2 + (false_count_ & 1);
-      }
-#endif
-#endif
-      /*    
-     if (probability_ > 204) {
-          true_count_ = 0;
-          false_count_ = 3;
-      } else if (probability_ < 51) {
-          true_count_ = 3;
-          false_count_ = 0;
-      } else if (probability_ < 64) {
-          true_count_ = 2;
-          false_count_ = 0;
-      } else if (probability_ > 192) {
-          true_count_ = 0;
-          false_count_ = 2;
-      } else if (probability_ > 168) {
-          true_count_ = 1;
-          false_count_ = 2;
-      } else if (probability_ < 85) {
-          true_count_ = 2;
-          false_count_ = 1;
-      } else {
-          true_count_ = 2;
-          false_count_ = 2;
-      }
-*/
+  void normalize() {
+      true_count_ = true_count_ / 2 + (true_count_ & 1);
+      false_count_ = false_count_ / 2 + (false_count_ & 1);
+      
   }
   void optimize()
   {

@@ -11,21 +11,6 @@
 class BoolEncoder;
 class BoolDecoder;
 
-template < unsigned int length , uint16_t base_value_, uint16_t prob_offset_>
-struct TokenDecoder
-{
-    enum {
-        prob_offset = prob_offset_,
-        bits = length,
-        base_value = base_value_,
-        upper_limit = base_value_ + (1 << length)
-    };
-    template <class ProbabilityFunctor> static uint16_t decode( BoolDecoder & data, const ProbabilityFunctor &probAt);
-    template <class ProbabilityFunctor> static void encode( BoolEncoder & encoder, const uint16_t value, const ProbabilityFunctor& probAt);
-    static std::pair<uint64_t, uint64_t> bits_and_liveness(const uint16_t value);
-};
-static constexpr uint8_t NUMERIC_LENGTH_MAX = 12;
-static constexpr uint8_t NUMERIC_LENGTH_BITS = 4;
 enum class TokenNode : uint8_t {
     ZERO,
     LENGTH0,//[0,0] = 1      [0,1,0,1] = 5 [1,1,0,1] = 9
@@ -45,67 +30,10 @@ enum class TokenNode : uint8_t {
     EOB,
     BaseOffset // do not use
 };
-constexpr uint8_t NUMBER_OF_EXPONENT_BITS = (uint8_t)TokenNode::LENGTH3;
-class BitsAndLivenessFromEncoding {
-    uint64_t bits_;
-    uint64_t liveness_;
-public:
-   BitsAndLivenessFromEncoding() {
-        bits_ = 0;
-        liveness_ = 0;
-    }
-    void encode_one(bool value, int entropy_node_index) {
-        liveness_ |= (1 << entropy_node_index);
-        if (value) {
-            bits_ |= (1 << entropy_node_index);
-        }
-    }
-    void encode_one(bool value, TokenNode entropy_node_index) {
-        encode_one(value, (int)entropy_node_index);
-    }
-    uint64_t bits()const {
-        return bits_;
-    }
-    uint64_t liveness()const {
-        return liveness_;
-    }
-};
 
-inline uint16_t min_from_entropy_node_index(int index) {
-    switch((TokenNode)index) {
-      case TokenNode::EOB:
-        return 0;
-      case TokenNode::LENGTH0:
-      case TokenNode::LENGTH1:
-        return 1;
-      case TokenNode::LENGTH2:
-        return 2;
-      case TokenNode::LENGTH3:
-        return 4;
-      case TokenNode::VAL0:
-        return 2;
-      case TokenNode::VAL1:
-      case TokenNode::VAL2:
-      case TokenNode::VAL3:
-      case TokenNode::VAL4:
-      case TokenNode::VAL5:
-      case TokenNode::VAL6:
-      case TokenNode::VAL7:
-      case TokenNode::VAL8:
-        return 1+ (1 << (1 + index - (int)TokenNode::VAL0));
-      case TokenNode::NEGATIVE:
-        return 1;
-      case TokenNode::ZERO:
-        return 0;
-      default:
-        assert(false && "Entropy node");
-    }
-    return 0;
-}
+static constexpr uint8_t NUMERIC_LENGTH_MAX = 12;
+static constexpr uint8_t NUMERIC_LENGTH_BITS = 4;
 
-constexpr uint16_t max_from_entropy_node_index_inclusive(int /*index*/) {
-    return 2048;
-}
 template<typename intt> intt log2(intt v) {
     constexpr int loop_max = (int)(sizeof(intt) == 1 ? 2
                                    : (sizeof(intt) == 2 ? 3
@@ -118,9 +46,7 @@ template<typename intt> intt log2(intt v) {
         (intt)0xFFFF0000U,
         (intt)0xFFFFFFFF00000000ULL};
     constexpr intt S[] = {1, 2, 4, 8, 16, 32};
-    
     intt r = 0; // result of log2(v) will go here
-    
     for (signed int i = loop_max; i >= 0; i--) // unroll for speed...
     {
         if (v & b[i])
@@ -131,6 +57,27 @@ template<typename intt> intt log2(intt v) {
     }
     return r;
 }
+static constexpr uint8_t LogTable16[16] = {
+    0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3
+};
+inline constexpr uint8_t uint16log2(uint16_t v) {
+    return (v & 0xfff0) ? (v & 0xff00) ? (v & 0xf000)
+        ? 12 + LogTable16[v >> 12]
+            : 8 + LogTable16[v>>8]
+                : 4 + LogTable16[v>>4]
+                    : LogTable16[v];
+}
+static constexpr uint8_t LenTable16[16] = {
+    0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4
+};
+inline constexpr uint8_t uint16bit_length(uint16_t v) {
+    return (v & 0xfff0) ? (v & 0xff00) ? (v & 0xf000)
+        ? 12 + LenTable16[v >> 12]
+            : 8 + LenTable16[v>>8]
+                : 4 + LenTable16[v>>4]
+                    : LenTable16[v];
+}
+
 template <typename intt> intt bit_length(intt v) {
     return v == 0 ? 0 : log2(v) + 1;
 }
@@ -227,24 +174,6 @@ template<class EncoderT> void put_one_unsigned_coefficient( EncoderT &e,
 
   e.encode_one( false, TokenNode::ZERO );
   put_one_natural_coefficient(e, coefficient);
-}
-template <unsigned int length, uint16_t base_value_, uint16_t prob_offset_>
-std::pair<uint64_t, uint64_t> TokenDecoder<length, base_value_, prob_offset_>::bits_and_liveness(const uint16_t value) {
-    uint64_t bits = 0;
-    uint64_t liveness = 0;
-    assert( value >= base_value_ );
-    uint16_t increment = value - base_value_;
-    for ( uint8_t i = 0; i < length; i++ ) {
-        uint64_t prob_offset_bit = 1ULL; // this needs to be 64 bit math here
-        prob_offset_bit <<= (i + prob_offset);
-        uint64_t bit_to_check = 1ULL;
-        bit_to_check <<= (length - 1 - i);
-        if (increment & bit_to_check) {
-            bits |= prob_offset_bit;
-        }
-        liveness |= prob_offset_bit;
-    }
-    return {bits, liveness};
 }
 
 #endif

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include "../vp8/util/nd_array.hh"
+#include "../vp8/model/numeric.hh"
 #include "../io/MuxReader.hh"
 #include <stdio.h>
 struct Data {
@@ -298,6 +299,11 @@ int main() {
     podtest(4, a7);
     testEof();
     testRoundtrip();
+    for (int i = 0; i < 65536; ++i) {
+        assert(bit_length((uint16_t)i) == uint16bit_length(i));
+        assert(log2((uint16_t)i) == uint16log2(i));
+        
+    }
     printf("OK\n");
 }
 
