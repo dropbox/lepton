@@ -133,20 +133,17 @@ void parse_tokens( BlockContext context,
     }
     uint8_t num_nonzeros_left_x = num_nonzeros_x;
     uint8_t num_nonzeros_left_y = num_nonzeros_y;
-    for (unsigned int zz = 1; zz < 64; ++zz) {    
-        unsigned int coord = unzigzag[zz];        
-        unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord / 8;
-        uint8_t num_nonzeros_edge = 0;
-        if (b_y == 0 && num_nonzeros_left_x) {
+    uint8_t zig15offset = 0;
+    for (int delta = 1; delta <= 8; delta += 7) {
+        unsigned int coord = delta;
+        uint8_t num_nonzeros_edge = num_nonzeros_left_y;
+        if (delta == 1) {
             num_nonzeros_edge = num_nonzeros_left_x;
         }
-        if (b_x == 0 && num_nonzeros_left_y) {
-            num_nonzeros_edge = num_nonzeros_left_y;
-        }
-        if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
+        uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
+        for (unsigned int zz = 1; zz < 8 && num_nonzeros_edge_left; ++zz, coord += delta, ++zig15offset) {
             probability_tables.update_coefficient_context8(prior, coord, context.copy(), num_nonzeros_edge);
-            auto exp_array = probability_tables.exponent_array_x(coord, prior);
+            auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
 
             uint8_t length = MAX_EXPONENT;
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
@@ -193,12 +190,7 @@ void parse_tokens( BlockContext context,
                 if (!data.get(sign_prob)) {
                     coef = -coef;
                 }
-                if ( b_y == 0) {
-                    --num_nonzeros_left_x;
-                }
-                if ( b_x == 0) {
-                    --num_nonzeros_left_y;
-                }
+                --num_nonzeros_edge_left;
             }
             context.here().mutable_coefficients().raster( coord ) = coef;
         }

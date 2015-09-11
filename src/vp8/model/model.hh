@@ -282,11 +282,12 @@ public:
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
         return model_.num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(int band, CoefficientContext context) {
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(int band, int zig15, CoefficientContext context) {
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
+        assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
         return model_.exponent_counts_x_.at(color_index(),
-                                             (band & 7)== 0 ? ((band >>3) + 7) : band - 1 ,
+                                             zig15,
                                              context.num_nonzeros_bin,
                                              context.bsr_best_prior);
     }

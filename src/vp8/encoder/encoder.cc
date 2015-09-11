@@ -159,27 +159,24 @@ void serialize_tokens(ConstBlockContext context,
     }
     uint8_t num_nonzeros_left_x = block.num_nonzeros_x();
     uint8_t num_nonzeros_left_y = block.num_nonzeros_y();
-    for (unsigned int zz = 1; zz < 64; ++zz) {
-        unsigned int coord = unzigzag[zz];
-        unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord / 8;
-        int16_t coef = block.coefficients().raster( coord );
-        uint16_t abs_coef = abs(coef);
-        uint8_t num_nonzeros_edge = 0;
-        if (b_y == 0 && num_nonzeros_left_x) {
+    uint8_t zig15offset = 0;
+    for (int delta = 1; delta <= 8; delta += 7) {
+        unsigned int coord = delta;
+        uint8_t num_nonzeros_edge = num_nonzeros_left_y;
+        if (delta == 1) {
             num_nonzeros_edge = num_nonzeros_left_x;
         }
-        if (b_x == 0 && num_nonzeros_left_y) {
-            num_nonzeros_edge = num_nonzeros_left_y;
-        }
-        if ((b_x == 0 && num_nonzeros_left_y) || (b_y == 0 && num_nonzeros_left_x)) {
+        uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
+        for (unsigned int zz = 1; zz < 8 && num_nonzeros_edge_left; ++zz, coord += delta, ++zig15offset) {
 #ifdef TRACK_HISTOGRAM
             ++histogram[2][coef];
 #endif
 
             assert(coord != 9);
             probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge);
-            auto exp_array = probability_tables.exponent_array_x(coord, prior);
+            auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
+            int16_t coef = block.coefficients().raster( coord );
+            uint16_t abs_coef = abs(coef);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
                 bool cur_bit = (i != length);
@@ -225,12 +222,7 @@ void serialize_tokens(ConstBlockContext context,
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array(coord, prior);
                 encoder.put(coef >= 0, sign_prob);
-                if ( b_x == 0) {
-                    --num_nonzeros_left_y;
-                }
-                if ( b_y == 0) {
-                    --num_nonzeros_left_x;
-                }
+                --num_nonzeros_edge_left;
             }
         }
     }
