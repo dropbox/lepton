@@ -58,13 +58,14 @@ void parse_tokens( BlockContext context,
     }
 
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
-    for (unsigned int zz = 0; zz < 64; ++zz) {
-        unsigned int coord = unzigzag[zz];
+    for (unsigned int zz = 0; zz < 49; ++zz) {
+        unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
-        if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
+        assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
+        {
             probability_tables.update_coefficient_context7x7(prior, coord, context.copy(), num_nonzeros_left_7x7);
-            auto exp_prob = probability_tables.exponent_array_7x7(coord, prior);
+            auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length = MAX_EXPONENT;
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
                 bool cur_bit = data.get(exp_prob.at(i));

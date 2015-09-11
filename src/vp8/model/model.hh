@@ -291,12 +291,12 @@ public:
                                              context.bsr_best_prior);
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(const unsigned int band,
-                                                                  const CoefficientContext context) {
+                                                                      const unsigned int zig49,
+                                                                      const CoefficientContext context) {
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
-        return model_.exponent_counts_
-        .at(color_index(),
-            band - 8 - band / 8,
+        return model_.exponent_counts_.at(color_index(),
+            zig49,
             context.bsr_best_prior,
             context.num_nonzeros_bin);
     }

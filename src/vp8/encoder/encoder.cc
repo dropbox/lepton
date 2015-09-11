@@ -81,18 +81,19 @@ void serialize_tokens(ConstBlockContext context,
 
 
     uint8_t num_nonzeros_left_7x7 = block.num_nonzeros_7x7();
-    for (unsigned int zz = 0; zz < 64; ++zz) {
-        unsigned int coord = unzigzag[zz];
+    for (unsigned int zz = 0; zz < 49; ++zz) {
+        unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
-        unsigned int b_y = coord / 8;
-        int16_t coef = block.coefficients().raster( coord );
-        uint16_t abs_coef = abs(coef);
-        if (b_x > 0 && b_y > 0) { // this does the DC and the lower 7x7 AC
+        unsigned int b_y = coord >> 3;
+        assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
+        {
+            int16_t coef = block.coefficients().raster( coord );
+            uint16_t abs_coef = abs(coef);
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
 #endif
             probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_left_7x7);
-            auto exp_prob = probability_tables.exponent_array_7x7(coord, prior);
+            auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
                 bool cur_bit = (i != length);

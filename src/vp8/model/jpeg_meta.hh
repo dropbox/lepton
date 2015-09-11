@@ -28,6 +28,18 @@ static const unsigned char unzigzag[] =
 	58, 59, 52, 45, 38, 31, 39, 46,
 	53, 60, 61, 54, 47, 55, 62, 63
 };
+static const unsigned char unzigzag49[] =
+{
+    9, 10,
+    17, 25, 18, 11,
+    12, 19, 26, 33, 41, 34,
+    27, 20, 13, 14, 21, 28,
+    35, 42, 49, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63
+};
+
 // precalculated int base values for 8x8 DCT, multplied by 8192
 const int icos_base_8192_scaled[ 64 ] =
 {
