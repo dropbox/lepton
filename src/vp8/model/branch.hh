@@ -1,5 +1,6 @@
 #ifndef _BRANCH_HH_
 #define _BRANCH_HH_
+#include "numeric.hh"
 typedef uint8_t Probability;
 //#define JPEG_ENCODER
 // ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
@@ -7,8 +8,7 @@ typedef uint8_t Probability;
 class Branch
 {
 private:
-  uint32_t false_count_ = 1, true_count_ = 0;
-    uint32_t full_count_ =0;
+  uint16_t false_count_ = 1, true_count_ = 1;
   Probability probability_ = 128;
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
@@ -21,43 +21,39 @@ public:
   void record_true( void ) { true_count_ = true_count_ + 1; }
   void record_false( void ) { false_count_ = false_count_ + 1; }
   void record_true_and_update( void ) {
-      ++full_count_;
-      if (true_count_ < 511) {
-          true_count_ += 1;
-      } else {
+      if (true_count_ & 0xfe00) { // check less than 512
           normalize();
+      } else {
+          true_count_ += 1;
       }
-#ifdef STOP_TRAINING
-      if (full_count_ < 1024)
-#endif
       {
           optimize();
       }
   }
   void record_false_and_update( void ) {
-      ++full_count_;
-      if (false_count_ < 511) {// 2x the size of prob
-          false_count_ += 1;
-      } else {
+      if (false_count_ & 0xfe00) {// 2x the size of prob
           normalize();
+      } else {
+          false_count_ += 1;
       }
-#ifdef STOP_TRAINING
-      if (full_count_ < 1024)
-#endif
       {//4x the size of prob
           optimize();
       }
   }
   void normalize() {
-      true_count_ = true_count_ / 2 + (true_count_ & 1);
-      false_count_ = false_count_ / 2 + (false_count_ & 1);
+      true_count_ = (true_count_ >> 1) + (true_count_ & 1);
+      false_count_ = (false_count_ >> 1) + (false_count_ & 1);
       
   }
   void optimize()
   {
+    assert(false_count() && true_count());
 #ifndef JPEG_ENCODER
-    const int prob = 256 * (false_count() + 1) / (false_count() + true_count() + 2);
-
+#if 0
+    const int prob = 256 * (false_count()) / (false_count() + true_count());
+#else
+    const int prob = fast_divide10bit(false_count() << 8, (false_count() + true_count()));
+#endif
     assert( prob >= 0 );
     assert( prob <= 255 );
 
@@ -65,6 +61,6 @@ public:
 #endif
   }
 
-  Branch();
+  Branch(){}
 };
 #endif

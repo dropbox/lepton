@@ -237,10 +237,6 @@ template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTable
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Cr>&);
 
 
-Branch::Branch()
-{
-  optimize();
-}
 
 inline void VP8BoolEncoder::put( const bool value, Branch & branch )
 {

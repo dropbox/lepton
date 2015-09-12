@@ -304,8 +304,8 @@ int main() {
         assert(log2((uint16_t)i) == uint16log2(i));
         
     }
-    for (int denom = 1; denom < 1024; ++denom) {
-        for (int num = 256; num < 65536; num += 256) {
+    for (int denom = 1; denom < 1026; ++denom) {
+        for (int num = 256; num < 262144; num += 256) {
             assert(slow_divide10bit(num, denom) == num/denom);
             assert(fast_divide10bit(num, denom) == num / denom);
         }

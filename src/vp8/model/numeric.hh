@@ -53,7 +53,7 @@ inline constexpr uint8_t uint16bit_length(uint16_t v) {
 }
 
 inline constexpr uint32_t computeDivisor(uint16_t d) {
-    return (((( 1 << uint16bit_length(d)) - d) << 16) / d) + 1;
+    return (((( 1 << uint16bit_length(d)) - d) << 18) / d) + 1;
 }
 #define COMPUTE_DIVISOR(off) \
    computeDivisor(off) \
@@ -102,7 +102,7 @@ COMPUTE_LOG2(off + 0x00) \
 ,COMPUTE_LOG2(off + 0x20) \
 ,COMPUTE_LOG2(off + 0x30)
 
-static constexpr uint32_t Log2Table[1024] = {
+static constexpr uint32_t Log2Table[1026] = {
     COMPUTE_LOG2_x100(0x00)
     ,COMPUTE_LOG2_x100(0x40)
     ,COMPUTE_LOG2_x100(0x80)
@@ -119,10 +119,11 @@ static constexpr uint32_t Log2Table[1024] = {
     ,COMPUTE_LOG2_x100(0x340)
     ,COMPUTE_LOG2_x100(0x380)
     ,COMPUTE_LOG2_x100(0x3c0)
-
+    ,uint16log2(0x400)
+    ,uint16log2(0x401)
 };
 
-static constexpr uint32_t DivisorMultipliers[1024] = {
+static constexpr uint32_t DivisorMultipliers[1026] = {
     0
     ,computeDivisor(1)
     ,computeDivisor(2)
@@ -157,6 +158,8 @@ static constexpr uint32_t DivisorMultipliers[1024] = {
     ,COMPUTE_DIVISOR_x100(0x340)
     ,COMPUTE_DIVISOR_x100(0x380)
     ,COMPUTE_DIVISOR_x100(0x3c0)
+    ,computeDivisor(0x400)
+    ,computeDivisor(0x401)
 };
 /*
 template<int N>
@@ -194,9 +197,9 @@ template<uint32_t... RemainingValues>
 constexpr int Log2TableGen<0, RemainingValues...>::value[];
 */
 
-constexpr uint16_t fast_divide10bit(uint16_t num, uint16_t denom) {
-    return (((DivisorMultipliers[denom] * (uint32_t)num) >> 16)
-         + ((num - (((uint32_t)DivisorMultipliers[denom] * (uint32_t)num) >> 16)) >> 1))
+constexpr uint32_t fast_divide10bit(uint32_t num, uint16_t denom) {
+    return (((DivisorMultipliers[denom] * (uint64_t)num) >> 18)
+         + ((num - (((uint64_t)DivisorMultipliers[denom] * (uint64_t)num) >> 18)) >> 1))
           >> Log2Table[denom];
     /*
     return ((DivisorTableGen<10>::value[denom] * num
@@ -204,9 +207,9 @@ constexpr uint16_t fast_divide10bit(uint16_t num, uint16_t denom) {
      */
 }
 
-constexpr uint16_t slow_divide10bit(uint16_t num, uint16_t denom) {
+inline uint32_t slow_divide10bit(uint32_t num, uint16_t denom) {
     uint64_t m = DivisorMultipliers[denom];
-    uint64_t t = (m * num) >> 16;
+    uint64_t t = (m * num) >> 18;
     uint64_t n_minus_t = num - t;
     uint64_t t_plus_shr = t + (n_minus_t >> 1);
     int log2d = Log2Table[denom];
