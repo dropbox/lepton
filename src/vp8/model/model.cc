@@ -28,7 +28,7 @@ void serialize_model(const Model & model, std::ofstream & output )
 
 void optimize_model(Model &model)
 {
-  model.forall( [&] ( Branch & x ) { x.optimize(); } );
+  //model.forall( [&] ( Branch & x ) { x.optimize(); } );
 }
 
 

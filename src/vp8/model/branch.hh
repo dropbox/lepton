@@ -26,9 +26,7 @@ public:
       } else {
           true_count_ += 1;
       }
-      {
-          optimize();
-      }
+      probability_ = optimize();
   }
   void record_false_and_update( void ) {
       if (false_count_ & 0xfe00) {// 2x the size of prob
@@ -36,16 +34,14 @@ public:
       } else {
           false_count_ += 1;
       }
-      {//4x the size of prob
-          optimize();
-      }
+      probability_ = optimize();
   }
   void normalize() {
       true_count_ = (true_count_ >> 1) + (true_count_ & 1);
       false_count_ = (false_count_ >> 1) + (false_count_ & 1);
       
   }
-  void optimize()
+  Probability optimize() const
   {
     assert(false_count() && true_count());
 #ifndef JPEG_ENCODER
@@ -57,7 +53,7 @@ public:
     assert( prob >= 0 );
     assert( prob <= 255 );
 
-    probability_ = prob;
+    return (Probability)prob;
 #endif
   }
 
