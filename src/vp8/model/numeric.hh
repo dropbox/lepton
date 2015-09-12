@@ -34,6 +34,27 @@ enum class TokenNode : uint8_t {
 static constexpr uint8_t LogTable16[16] = {
     0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3
 };
+static constexpr char LogTable256[256] = 
+{
+#define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+    0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+    LT(4), LT(5), LT(5), LT(6), LT(6), LT(6), LT(6),
+    LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
+#undef LT
+};
+static constexpr uint8_t LenTable16[16] = {
+    0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4
+};
+static constexpr char LenTable256[256] = 
+{
+#define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+    0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+    LT(5), LT(6), LT(6), LT(7), LT(7), LT(7), LT(7),
+    LT(8), LT(8), LT(8), LT(8), LT(8), LT(8), LT(8), LT(8)
+#undef LT
+};
+
+#if 0
 inline constexpr uint8_t uint16log2(uint16_t v) {
     return (v & 0xfff0) ? (v & 0xff00) ? (v & 0xf000)
     ? 12 + LogTable16[v >> 12]
@@ -41,9 +62,6 @@ inline constexpr uint8_t uint16log2(uint16_t v) {
     : 4 + LogTable16[v>>4]
     : LogTable16[v];
 }
-static constexpr uint8_t LenTable16[16] = {
-    0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4
-};
 inline constexpr uint8_t uint16bit_length(uint16_t v) {
     return (v & 0xfff0) ? (v & 0xff00) ? (v & 0xf000)
     ? 12 + LenTable16[v >> 12]
@@ -51,6 +69,18 @@ inline constexpr uint8_t uint16bit_length(uint16_t v) {
     : 4 + LenTable16[v>>4]
     : LenTable16[v];
 }
+#else
+inline constexpr uint8_t uint16log2(uint16_t v) {
+    return (v & 0xff00)
+    ? 8 + LogTable256[v >> 8]
+    : LogTable256[v];
+}
+inline constexpr uint8_t uint16bit_length(uint16_t v) {
+    return (v & 0xff00)
+    ? 8 + LenTable256[v >> 8]
+    : LenTable256[v];
+}
+#endif
 
 constexpr uint8_t log_max_numerator = 18;
 
