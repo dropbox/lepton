@@ -46,7 +46,7 @@ public:
     assert(false_count() && true_count());
 #ifndef JPEG_ENCODER
 #if 0
-    const int prob = 256 * (false_count()) / (false_count() + true_count());
+    const int prob = (false_count() << 8) / (false_count() + true_count());
 #else
     const int prob = fast_divide10bit(false_count() << 8, (false_count() + true_count()));
 #endif

@@ -102,6 +102,74 @@ COMPUTE_LOG2(off + 0x00) \
 ,COMPUTE_LOG2(off + 0x20) \
 ,COMPUTE_LOG2(off + 0x30)
 
+
+#define COMPUTE_DIVISOR_AND_LOG2(off) \
+{computeDivisor(off), uint16log2(off)} \
+,{computeDivisor(off + 1), uint16log2(off + 1)} \
+,{computeDivisor(off + 2), uint16log2(off + 2)} \
+,{computeDivisor(off + 3), uint16log2(off + 3)} \
+,{computeDivisor(off + 4), uint16log2(off + 4)} \
+,{computeDivisor(off + 5), uint16log2(off + 5)} \
+,{computeDivisor(off + 6), uint16log2(off + 6)} \
+,{computeDivisor(off + 7), uint16log2(off + 7)} \
+,{computeDivisor(off + 8), uint16log2(off + 8)} \
+,{computeDivisor(off + 9), uint16log2(off + 9)} \
+,{computeDivisor(off + 10), uint16log2(off + 10)} \
+,{computeDivisor(off + 11), uint16log2(off + 11)} \
+,{computeDivisor(off + 12), uint16log2(off + 12)} \
+,{computeDivisor(off + 13), uint16log2(off + 13)} \
+,{computeDivisor(off + 14), uint16log2(off + 14)} \
+,{computeDivisor(off + 15), uint16log2(off + 15)}
+#define COMPUTE_DIVISOR_AND_LOG2_x100(off) \
+COMPUTE_DIVISOR_AND_LOG2(off + 0x00) \
+,COMPUTE_DIVISOR_AND_LOG2(off + 0x10) \
+,COMPUTE_DIVISOR_AND_LOG2(off + 0x20) \
+,COMPUTE_DIVISOR_AND_LOG2(off + 0x30)
+
+
+struct DivisorLog2 {
+    uint32_t divisor;
+    uint8_t len;
+};
+static constexpr DivisorLog2 DivisorAndLog2Table[1026] = {
+    {0,0}
+    ,{computeDivisor(1), uint16log2(1)}
+    ,{computeDivisor(2), uint16log2(2)}
+    ,{computeDivisor(3), uint16log2(3)}
+    ,{computeDivisor(4), uint16log2(4)}
+    ,{computeDivisor(5), uint16log2(5)}
+    ,{computeDivisor(6), uint16log2(6)}
+    ,{computeDivisor(7), uint16log2(7)}
+    ,{computeDivisor(8), uint16log2(8)}
+    ,{computeDivisor(9), uint16log2(9)}
+    ,{computeDivisor(10), uint16log2(10)}
+    ,{computeDivisor(11), uint16log2(11)}
+    ,{computeDivisor(12), uint16log2(12)}
+    ,{computeDivisor(13), uint16log2(13)}
+    ,{computeDivisor(14), uint16log2(14)}
+    ,{computeDivisor(15), uint16log2(15)}
+    ,COMPUTE_DIVISOR_AND_LOG2(0x10)
+    ,COMPUTE_DIVISOR_AND_LOG2(0x20)
+    ,COMPUTE_DIVISOR_AND_LOG2(0x30)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x40)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x80)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0xc0)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x100)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x140)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x180)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x1c0)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x200)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x240)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x280)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x2c0)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x300)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x340)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x380)
+    ,COMPUTE_DIVISOR_AND_LOG2_x100(0x3c0)
+    ,{computeDivisor(0x400), uint16log2(0x400)}
+    ,{computeDivisor(0x401), uint16log2(0x401)}
+};
+
 static constexpr uint32_t Log2Table[1026] = {
     COMPUTE_LOG2_x100(0x00)
     ,COMPUTE_LOG2_x100(0x40)
@@ -198,9 +266,9 @@ constexpr int Log2TableGen<0, RemainingValues...>::value[];
 */
 
 constexpr uint32_t fast_divide10bit(uint32_t num, uint16_t denom) {
-    return (((DivisorMultipliers[denom] * (uint64_t)num) >> 18)
-         + ((num - (((uint64_t)DivisorMultipliers[denom] * (uint64_t)num) >> 18)) >> 1))
-          >> Log2Table[denom];
+    return ((uint32_t)((DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> 18)
+         + ((uint32_t)(num - (((uint64_t)DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> 18)) >> 1))
+          >> DivisorAndLog2Table[denom].len;
     /*
     return ((DivisorTableGen<10>::value[denom] * num
             + ((num - DivisorTableGen<10>::value[denom] * num) >> 1)) >> Log2TableGen<10>::value[denom]);
@@ -208,15 +276,21 @@ constexpr uint32_t fast_divide10bit(uint32_t num, uint16_t denom) {
 }
 
 inline uint32_t slow_divide10bit(uint32_t num, uint16_t denom) {
+#if 0
     uint64_t m = DivisorMultipliers[denom];
-    uint64_t t = (m * num) >> 18;
-    uint64_t n_minus_t = num - t;
-    uint64_t t_plus_shr = t + (n_minus_t >> 1);
-    int log2d = Log2Table[denom];
-    int lend = uint16bit_length(denom);
-    assert(lend - 1 == log2d);
-    uint64_t retval = t_plus_shr >> (log2d);
-    assert(num / denom == retval);
+    int log2d = uint16log2(denom);
+    //assert(log2d==DivisorAndLog2Table[denom].len);
+#else
+    auto dl = DivisorAndLog2Table[denom];
+    uint64_t m = dl.divisor;
+    uint8_t log2d = dl.len;
+#endif
+    uint32_t t = (m * num) >> 18;
+    uint32_t n_minus_t = num - t;
+    uint32_t t_plus_shr = t + (n_minus_t >> 1);
+    //assert(uint16bit_length(denom) - 1 == log2d);
+    uint32_t retval = t_plus_shr >> (log2d);
+    //assert(num / denom == retval);
     return retval;
 
 }
