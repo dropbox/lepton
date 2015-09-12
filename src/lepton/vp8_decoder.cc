@@ -53,21 +53,21 @@ void VP8ComponentDecoder::process_row(Left & left_model,
         parse_tokens(context,
                      bool_decoder_.get(),
                      left_model); //FIXME
-        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context);
+        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context, true);
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)Middle::COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      middle_model); //FIXME
-        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context);
+        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context, true);
     }
     if (block_width > 1) {
         BlockContext context = context_.at((int)Middle::COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      right_model);
-        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context);
+        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context, false);
     }
 }
 

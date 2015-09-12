@@ -5,7 +5,7 @@
 #ifdef DEBUG_ARICODER
 #include <cstdio>
 #endif
-#define INLINE
+#define INLINE inline
 #endif
 
 

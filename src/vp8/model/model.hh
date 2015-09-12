@@ -257,10 +257,10 @@ public:
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
         if (above_present) {
-            num_nonzeros_above = block.above()->num_nonzeros_7x7();
+            num_nonzeros_above = block.above_unchecked().num_nonzeros_7x7();
         }
         if (left_present) {
-            num_nonzeros_left = block.left()->num_nonzeros_7x7();
+            num_nonzeros_left = block.left_unchecked().num_nonzeros_7x7();
         }
 
         uint8_t num_nonzeros_context = 0;
@@ -442,77 +442,47 @@ public:
         return retval;
     }
     int compute_aavrg_dc(ConstBlockContext context) {
-        uint16_t topleft = 0;
-        uint16_t top = 0;
-        uint16_t left = 0;
-        uint32_t total = 0;
-        uint32_t weights = 0;
+        constexpr uint16_t weights = (left_present && above_present ? 1 : 0)
+            + (left_present ? 2 : 0)
+            + (above_present ? 2 : 0)
+            + (left_present == false && above_present == false ? 1 : 0);
+
+        uint32_t total = (weights >> 1);
         if (above_present) {
-            top = abs(context.above_unchecked().coefficients().raster(0));
+            total += abs(context.above_unchecked().coefficients().raster(0)) << 1;
             if (left_present) {
-                topleft = abs(context.above_left_unchecked().coefficients().raster(0));
+                total += abs(context.above_left_unchecked().coefficients().raster(0));
             }
         }
+        if (left_present) {
+            total += abs(context.left_unchecked().coefficients().raster(0)) << 1;
+        }
         //if (block.context().above_right.initialized()) {
-        //topright = abs(block.context().above_right.get()->coefficients().at(0));
+        //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
-        if (left_present) {
-            left = abs(context.left_unchecked().coefficients().raster(0));
-        }
-        if (left_present && above_present) {
-            total += 1 * (int)topleft;
-            weights += 1;
-        }
-        if (above_present) {
-            total += 2 * (int)top;
-            weights += 2;
-        }
-        if (left_present) {
-            total += 2 * (int)left;
-            weights += 2;
-        }
-        if (weights == 0) {
-            weights = 1;
-        }
-        return (total + weights / 2) / weights;
+        return total / weights;
     }
     int compute_aavrg(ConstBlockContext context, unsigned int band) {
         assert(band != 0 && "Call compute_aavrg_dc for dc computation");
-        uint16_t topleft = 0;
-        uint16_t top = 0;
-        uint16_t left = 0;
-        uint32_t total = 0;
-        uint32_t weights = 0;
-        uint32_t coef_index = band;
+        constexpr uint16_t weights = (left_present && above_present ? 1 : 0)
+            + (left_present ? 2 : 0)
+            + (above_present ? 2 : 0)
+            + (left_present == false && above_present == false ? 1 : 0);
+
+        uint32_t total = (weights >> 1);
         if (above_present) {
-            top = abs(context.above_unchecked().coefficients().raster(coef_index));
+            total += abs(context.above_unchecked().coefficients().raster(band)) << 1;
             if (left_present) {
-                topleft = abs(context.above_left_unchecked().coefficients().raster(coef_index));
+                total += abs(context.above_left_unchecked().coefficients().raster(band));
             }
         }
+        if (left_present) {
+            total += abs(context.left_unchecked().coefficients().raster(band)) << 1;
+        }
         //if (block.context().above_right.initialized()) {
-        //topright = abs(block.context().above_right.get()->coefficients().at(coef_index));
+        //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
-        if (left_present) {
-            left = abs(context.left_unchecked().coefficients().raster(coef_index));
-        }
-
-        if (left_present && above_present) {
-            total += (int)topleft;
-            weights += 1;
-        }
-        if (above_present) {
-            total += 2 * (int)top;
-            weights += 2;
-        }
-        if (left_present) {
-            total += 2 * (int)left;
-            weights += 2;
-        }
-        if (weights == 0) {
-            weights = 1;
-        }
-        return (total + weights / 2) /weights;
+        return total / weights;
     }
     int compute_lak(const ConstBlockContext&context, unsigned int band) {
         int16_t coeffs_x[8];
@@ -538,8 +508,6 @@ public:
                 coeffs_a[i]  = left.raster(cur_coef);
             }
             coef_idct = icos_idct_edge_8192_dequantized_y(color) + band;
-        } else if (context.has_above()) {
-            return 0; // we don't have data in the correct direction
         } else {
             return 0;
         }

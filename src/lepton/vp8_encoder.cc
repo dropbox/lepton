@@ -92,7 +92,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         serialize_tokens(block_context,
                          bool_encoder,
                          left_model);
-        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context);
+        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context, true);
     }
     for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
         ConstBlockContext block_context = context.at((int)Middle::COLOR).context;
@@ -106,7 +106,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         serialize_tokens(block_context,
                          bool_encoder,
                          middle_model);
-        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context);
+        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context, true);
     }
     if (block_width > 1) {
         ConstBlockContext block_context = context.at((int)Middle::COLOR).context;
@@ -120,7 +120,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         serialize_tokens(block_context,
                          bool_encoder,
                          right_model);
-        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context);
+        context.at((int)Middle::COLOR).context = colldata->full_component_nosync(Middle::COLOR).next(block_context, false);
     }
 }
 

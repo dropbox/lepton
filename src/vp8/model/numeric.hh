@@ -52,8 +52,10 @@ inline constexpr uint8_t uint16bit_length(uint16_t v) {
     : LenTable16[v];
 }
 
+constexpr uint8_t log_max_numerator = 18;
+
 inline constexpr uint32_t computeDivisor(uint16_t d) {
-    return (((( 1 << uint16bit_length(d)) - d) << 18) / d) + 1;
+    return (((( 1 << uint16bit_length(d)) - d) << log_max_numerator) / d) + 1;
 }
 #define COMPUTE_DIVISOR(off) \
    computeDivisor(off) \
@@ -229,50 +231,11 @@ static constexpr uint32_t DivisorMultipliers[1026] = {
     ,computeDivisor(0x400)
     ,computeDivisor(0x401)
 };
-/*
-template<int N>
-struct minus_one {
-    enum {
-       value = N -1
-    };
-};
-template<int N, uint32_t... RemainingValues>
-struct DivisorTableGen {
-    static constexpr auto & value = DivisorTableGen<N - 1,
-    computeDivisor(N ),
-                                                   RemainingValues... >:: value;
-};
-template<uint32_t... RemainingValues>
-struct DivisorTableGen<0, RemainingValues...> {
-    static constexpr int value[] = {0, computeDivisor(1), computeDivisor(2), computeDivisor(3), RemainingValues... };
-};
-template<uint32_t... RemainingValues>
-constexpr int DivisorTableGen<0, RemainingValues...>::value[];
-
-
-
-template<int N, uint32_t... RemainingValues>
-struct Log2TableGen {
-    static constexpr auto & value = Log2TableGen<N - 4,
-    uint16log2(N),
-    RemainingValues... >:: value;
-};
-template<uint32_t... RemainingValues>
-struct Log2TableGen<0, RemainingValues...> {
-    static constexpr int value[] = {0, RemainingValues... };
-};
-template<uint32_t... RemainingValues>
-constexpr int Log2TableGen<0, RemainingValues...>::value[];
-*/
 
 constexpr uint32_t fast_divide10bit(uint32_t num, uint16_t denom) {
-    return ((uint32_t)((DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> 18)
-         + ((uint32_t)(num - (((uint64_t)DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> 18)) >> 1))
+    return ((uint32_t)((DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> log_max_numerator)
+         + ((uint32_t)(num - (((uint64_t)DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> log_max_numerator)) >> 1))
           >> DivisorAndLog2Table[denom].len;
-    /*
-    return ((DivisorTableGen<10>::value[denom] * num
-            + ((num - DivisorTableGen<10>::value[denom] * num) >> 1)) >> Log2TableGen<10>::value[denom]);
-     */
 }
 
 inline uint32_t slow_divide10bit(uint32_t num, uint16_t denom) {
@@ -285,7 +248,7 @@ inline uint32_t slow_divide10bit(uint32_t num, uint16_t denom) {
     uint64_t m = dl.divisor;
     uint8_t log2d = dl.len;
 #endif
-    uint32_t t = (m * num) >> 18;
+    uint32_t t = (m * num) >> log_max_numerator;
     uint32_t n_minus_t = num - t;
     uint32_t t_plus_shr = t + (n_minus_t >> 1);
     //assert(uint16bit_length(denom) - 1 == log2d);

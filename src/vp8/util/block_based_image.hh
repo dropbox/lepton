@@ -32,23 +32,19 @@ public:
         }
     }
     BlockContext begin() {
-        return {image_, 0, 0};
+        return {image_, nullptr};
     }
     ConstBlockContext begin() const {
-        return {image_, 0, 0};
+        return {image_, nullptr};
     }
-    template <class BlockContext> BlockContext next(BlockContext it) const {
+    template <class BlockContext> BlockContext next(BlockContext it, bool has_left) const {
         it.cur += 1;
         ptrdiff_t offset = it.cur - image_;
         if (offset >= width_) {
-            it.up_offset = -width_;
+            it.above = it.cur - width_;
+        } else {
+            it.above = nullptr;
         }
-        assert(((offset >= width_ && it.up_offset) ||
-               (offset < width_ && it.up_offset == 0)) && "up neighbor must be present after width");
-        if (it.is_left_avail == 0) {
-            it.is_left_avail = width_;
-        }
-        --it.is_left_avail;
         return it;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
