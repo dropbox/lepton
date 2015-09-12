@@ -23,7 +23,7 @@ public:
         assert(nblocks <= width * height);
         width_ = width;
         nblocks_ = nblocks;
-        storage_ = (uint8_t*)malloc(nblocks * sizeof(Block) + 15);
+        storage_ = (uint8_t*)calloc(nblocks * sizeof(Block) + 15, 1);
         size_t offset = storage_ - (uint8_t*)nullptr;
         if (offset & 15) { //needs alignment adjustment
             image_ = (Block*)(storage_ + 16 - offset);
