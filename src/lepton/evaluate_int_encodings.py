@@ -4,8 +4,15 @@ def load_histogram(fn):
     ret = defaultdict(dict)
     with open(fn) as f:
         for line in f:
-            cat,a,b = line.split()
-            ret[cat][int(b)] = int(a)
+            try:
+                cat,a,b = line.split()
+            except:
+                cat,b = line.split()
+                a = 1
+            if not int(b) in ret[cat]:
+                ret[cat][int(b)] = int(a)
+            else:
+                ret[cat][int(b)] += int(a)
     return ret
 
 def make_unary_sign_cost():
@@ -111,6 +118,16 @@ binary_cost = {0 : 2, # 2 exp
               8 : 12,
               9 : 13,
               10 : 14}
+def eval_binary_cost(h):
+    count = 0
+    max = 0
+    for i in h:
+        if i > max:
+            max = i
+        count += h[i]
+    bin_cost = log2_length(max)
+    #print "max was ", max, "count was ", count, "cost was ",bin_cost,"per item"
+    return count * bin_cost
 
 def eval_cost(h, c, dolog=False):
     ret = 0
@@ -126,7 +143,9 @@ def eval_cost(h, c, dolog=False):
     return ret
 for arg in sys.argv[1:]:
     hists = load_histogram(arg)
+    total_count = 0
     for name, count in hists.iteritems():
+        print arg + '.' + name, 'pure_bin_cost', eval_binary_cost(count)
         print arg + '.' + name, 'unary_exp_cost', eval_cost(count, unary_exponent_cost, dolog=True)
         print arg + '.' + name, 'unary0exp_cost', eval_cost(count, unary_one_case_exponent_cost, dolog=True)
         print arg + '.' + name, 'binaryexp_cost', eval_cost(count, binary_cost, dolog=True)

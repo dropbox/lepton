@@ -39,6 +39,11 @@ void serialize_tokens(ConstBlockContext context,
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(context);
     int serialized_so_far = 0;
     uint8_t num_nonzeros_7x7 = block.num_nonzeros_7x7();
+#if 0
+    fprintf(stderr, "7\t%d\n", (int)block.num_nonzeros_7x7());
+    fprintf(stderr, "x\t%d\n", (int)block.num_nonzeros_x());
+    fprintf(stderr, "y\t%d\n", (int)block.num_nonzeros_y());
+#endif
     for (int index = 5; index >= 0; --index) {
         int cur_bit = (num_nonzeros_7x7 & (1 << index)) ? 1 : 0;
         encoder.put(cur_bit, num_nonzeros_prob.at(index, serialized_so_far));
