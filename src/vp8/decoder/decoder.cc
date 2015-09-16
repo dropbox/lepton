@@ -145,12 +145,12 @@ void parse_tokens( BlockContext context,
             }
             int16_t coef = 0;
             if (nonzero) {
+                uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
                 auto &sign_prob = probability_tables.sign_array(coord, prior);
                 --num_nonzeros_edge_left;
                 bool neg = !data.get(sign_prob);
                 coef = (1 << (length - 1));
                 if (length > 1){
-                    uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
                     int i = length - 2;
                     if (length - 2 >= min_threshold) {
                         auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
