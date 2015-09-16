@@ -22,16 +22,19 @@ public:
   uint32_t false_count() const { return counts_[0]; }
   
   void record_obs_and_update(bool obs) {
+      uint32_t fcount = counts_[0];
+      uint32_t tcount = counts_[1];
+
       if (__builtin_expect(counts_[obs] == 0xff, 0)) { // check less than 512
-          counts_[0] = ((counts_[0] + 1) >> 1);
-          counts_[1] = ((counts_[1] + 1) >> 1);
+          counts_[0] = (((uint32_t)fcount + 1) >> 1);
+          counts_[1] = (((uint32_t)tcount + 1) >> 1);
       }
       counts_[obs] += 1;
-      probability_ = optimize(counts_[0] + counts_[1]);
+      probability_ = optimize(tcount + fcount + 1);
   }
   void normalize() {
-      counts_[0] = ((counts_[0] + 1) >> 1);
-      counts_[1] = ((counts_[1] + 1) >> 1);
+      counts_[0] = (((uint32_t)counts_[0] + 1) >> 1);
+      counts_[1] = (((uint32_t)counts_[1] + 1) >> 1);
       
   }
   Probability optimize(int sum) const
