@@ -64,11 +64,14 @@ public:
         return header_[(int)component].info_.qtable;
     }
     void worker_wait_for_begin_signal() {
+        assert(!use_threading);
+#if 0
         if (use_threading) {
             while ((worker_start_read_signal_ += 0) == 0) {
             }
             std::atomic_thread_fence(std::memory_order_acquire);
         }
+#endif
     }
     BlockColorContextIndices get_color_context(int curr_x,
                                                const Sirikata::Array1d<VContext, 3>&curr_y,
@@ -119,14 +122,20 @@ public:
         return cmpc_;
     }
     void copy_data_to_main_thread() {
+        assert(!use_threading);
+#if 0
         if (use_threading) {
             std::atomic_thread_fence(std::memory_order_release);
         }
+#endif
     }
     void copy_data_from_worker_thread() {
+        assert(!use_threading);
+#if 0
         if (use_threading) {
             std::atomic_thread_fence(std::memory_order_acquire);
         }
+#endif
     }
     void worker_update_bit_progress(int add_bit_progress) {
         copy_data_to_main_thread();
@@ -232,7 +241,7 @@ public:
         }
     }
     void signal_worker_should_begin() {
-        std::atomic_thread_fence(std::memory_order_release);        
+        //std::atomic_thread_fence(std::memory_order_release);
         worker_start_read_signal_++;
     }
     unsigned int component_size_in_bytes(int cmp) const {

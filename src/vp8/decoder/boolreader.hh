@@ -135,6 +135,8 @@ constexpr static uint8_t vpx_norm[256] = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
+
+///__attribute__((always_inline))
 static INLINE bool vpx_read(vpx_reader *r, int prob) {
   bool bit = false;
   BD_VALUE value;

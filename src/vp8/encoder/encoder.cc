@@ -246,9 +246,5 @@ template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTable
 inline void VP8BoolEncoder::put( const bool value, Branch & branch )
 {
   put( value, branch.prob() );
-  if ( value ) {
-    branch.record_true_and_update();
-  } else {
-    branch.record_false_and_update();
-  }
+  branch.record_obs_and_update(value);
 }

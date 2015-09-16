@@ -18,11 +18,7 @@ public:
                 boolwriter.buffer = &output_[0]; //reset buffer
             }
         }
-        if ( value ) {
-            branch.record_true_and_update();
-        } else {
-            branch.record_false_and_update();
-        }
+        branch.record_obs_and_update(value);
     }
     std::vector<uint8_t> &finish() {
         vpx_stop_encode(&boolwriter);

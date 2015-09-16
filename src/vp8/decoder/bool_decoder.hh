@@ -68,11 +68,7 @@ public:
 
   bool get( Branch & branch ) {
   bool retval = get( branch.prob() );
-  if (retval) {
-      branch.record_true_and_update();
-  } else {
-      branch.record_false_and_update();
-  }
+  branch.record_obs_and_update(retval);
   return retval;
 }
   

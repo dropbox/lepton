@@ -12,13 +12,10 @@ public:
                         slice.buffer(),
                         slice.size());
     }
+    ///__attribute__((always_inline))
     bool get(Branch &branch) {
         bool retval = vpx_read(&bit_reader, branch.prob());
-        if (retval) {
-            branch.record_true_and_update();
-        } else {
-            branch.record_false_and_update();
-        }
+        branch.record_obs_and_update(retval);
         return retval;
     }
 };
