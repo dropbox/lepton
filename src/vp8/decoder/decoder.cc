@@ -30,31 +30,35 @@ void parse_tokens( BlockContext context,
                                                                                                     num_nonzeros_7x7);
     { // dc
         const unsigned int coord = 0;
-        uint8_t length = 0;
+        uint8_t length;
+        bool nonzero = false;
         auto exp_prob = probability_tables.exponent_array_dc(prior);
-        length = 10;
-        for (int i = 0; i < length; ++i) {
-            bool cur_bit = data.get(exp_prob.at(i));
+        for (length = 0; length < MAX_EXPONENT; ++length) {
+            bool cur_bit = data.get(exp_prob.at(length));
             if (!cur_bit) {
-                length = i;
                 break;
             }
+            nonzero = true;
         }
-        int16_t coef = (1 << (length - 1));
-        if (length > 1){
-            auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
-            for (int i = length - 2; i >= 0; --i) {
-                coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
-            }
-        }
-        if (length != 0) {
+        int16_t coef = 0;
+        if (nonzero) {
             auto &sign_prob = probability_tables.sign_array(coord, prior);
-            if (!data.get(sign_prob)) {
+            bool neg = !data.get(sign_prob);
+        
+
+            coef = (1 << (length - 1));
+            if (length > 1){
+                auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
+                for (int i = length - 2; i >= 0; --i) {
+                    coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                }
+            }
+            if (neg) {
                 coef = -coef;
             }
         }
         context.here().mutable_coefficients().memset(0);
-        context.here().mutable_coefficients().raster( coord ) = coef;
+        context.here().mutable_coefficients().raster(0) = coef;
     }
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
@@ -84,14 +88,13 @@ void parse_tokens( BlockContext context,
                 neg = !data.get(sign_prob);
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
-
+                coef = (1 << (length - 1));
                 if (length > 1){
                     auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
                     for (int i = length - 2; i >= 0; --i) {
                         coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
                     }
                 }
-                coef |= (1 << (length - 1));
                 if (neg) {
                     coef = -coef;
                 }
@@ -131,47 +134,47 @@ void parse_tokens( BlockContext context,
             probability_tables.update_coefficient_context8(prior, coord, context.copy(), num_nonzeros_edge_left);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
 
-            uint8_t length = MAX_EXPONENT;
-            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
-                bool cur_bit = data.get(exp_array.at(i));
+            uint8_t length;
+            bool nonzero = false;
+            for (length = 0; length != MAX_EXPONENT; ++length) {
+                bool cur_bit = data.get(exp_array.at(length));
                 if (!cur_bit) {
-                    length = i;
                     break;
                 }
+                nonzero = true;
             }
             int16_t coef = 0;
-            if (length > 0) {
-                coef = (1 << (length - 1));
-            }
-            if (length > 1){
-                uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                int i = length - 2;
-                if (length - 2 >= min_threshold) {
-                    auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
-                                                                                prior, min_threshold,
-                                                                                probability_tables.get_max_value(coord));
-                    uint16_t decoded_so_far = 1;
-                    for (; i >= min_threshold; --i) {
-                        int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
-                        coef |= (cur_bit << i);
-                        decoded_so_far <<= 1;
-                        if (cur_bit) {
-                            decoded_so_far |= 1;
-                        }
-                    }
-                    probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
-                }
-                auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
-                for (; i >= 0; --i) {
-                    coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
-                }
-            }
-            if (length != 0) {
+            if (nonzero) {
                 auto &sign_prob = probability_tables.sign_array(coord, prior);
-                if (!data.get(sign_prob)) {
+                --num_nonzeros_edge_left;
+                bool neg = !data.get(sign_prob);
+                coef = (1 << (length - 1));
+                if (length > 1){
+                    uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
+                    int i = length - 2;
+                    if (length - 2 >= min_threshold) {
+                        auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
+                                                                                    prior, min_threshold,
+                                                                                    probability_tables.get_max_value(coord));
+                        uint16_t decoded_so_far = 1;
+                        for (; i >= min_threshold; --i) {
+                            int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                            coef |= (cur_bit << i);
+                            decoded_so_far <<= 1;
+                            if (cur_bit) {
+                                decoded_so_far |= 1;
+                            }
+                        }
+                        probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
+                    }
+                    auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
+                    for (; i >= 0; --i) {
+                        coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                    }
+                }
+                if (neg) {
                     coef = -coef;
                 }
-                --num_nonzeros_edge_left;
             }
             context.here().mutable_coefficients().raster( coord ) = coef;
         }

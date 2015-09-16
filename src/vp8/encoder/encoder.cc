@@ -70,6 +70,10 @@ void serialize_tokens(ConstBlockContext context,
                 break;
             }
         }
+        if (length != 0) {
+            auto &sign_prob = probability_tables.sign_array(coord, prior);
+            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+        }
         if (length > 1){
             auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
@@ -77,10 +81,6 @@ void serialize_tokens(ConstBlockContext context,
             for (int i = length - 2; i >= 0; --i) {
                 encoder.put((abs_coef & (1 << i)), res_prob.at(i));
             }
-        }
-        if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array(coord, prior);
-            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
     }
 
@@ -184,6 +184,11 @@ void serialize_tokens(ConstBlockContext context,
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             }
+            if (length != 0) {
+                --num_nonzeros_edge_left;
+                auto &sign_prob = probability_tables.sign_array(coord, prior);
+                encoder.put(coef >= 0, sign_prob);
+            }
             if (length > 1) {
                 
                 uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
@@ -207,11 +212,6 @@ void serialize_tokens(ConstBlockContext context,
                 for (; i >= 0; --i) {
                     encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
                 }
-            }
-            if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(coord, prior);
-                encoder.put(coef >= 0, sign_prob);
-                --num_nonzeros_edge_left;
             }
         }
     }
