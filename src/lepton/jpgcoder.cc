@@ -3062,15 +3062,15 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     for ( bpos = 1; bpos < 64; bpos++ )
     {
         // if nonzero is encountered
-        if ( block[ bpos ] != 0 ) {
+        tmp = block[bpos];
+        if ( tmp != 0 ) {
             // write remaining zeroes
             while ( z >= 16 ) {
                 huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
                 z -= 16;
             }
             // vli encode
-            tmp = block[ bpos ];
-            s = uint16bit_length(ABS(tmp));
+            s = nonzero_bit_length(ABS(tmp));
             n = ENVLI(s, tmp);
             hc = ( ( z << 4 ) + s );
             // write to huffman writer
@@ -3217,7 +3217,8 @@ int encode_ac_prg_fs( abitwriter* huffw, huffCodes* actbl, short* block, unsigne
     for ( bpos = from; bpos <= to; bpos++ )
     {
         // if nonzero is encountered
-        if ( block[ bpos ] != 0 ) {
+        tmp = block[ bpos ];
+        if ( tmp != 0 ) {
             // encode eobrun
             encode_eobrun( huffw, actbl, eobrun );
             // write remaining zeroes
@@ -3226,8 +3227,7 @@ int encode_ac_prg_fs( abitwriter* huffw, huffCodes* actbl, short* block, unsigne
                 z -= 16;
             }
             // vli encode
-            tmp = block[ bpos ];
-            s = uint16bit_length(ABS(tmp));
+            s = nonzero_bit_length(ABS(tmp));
             n = ENVLI( s, tmp);
             hc = ( ( z << 4 ) + s );
             // write to huffman writer
@@ -3389,8 +3389,9 @@ int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl, s
     z = 0;
     for ( bpos = from; bpos < eob; bpos++ )
     {
+        tmp = block[ bpos ];
         // if zero is encountered
-        if ( block[ bpos ] == 0 ) {
+        if ( tmp == 0 ) {
             z++; // increment zero counter
             if ( z == 16 ) { // write zeroes if needed
                 huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
@@ -3399,10 +3400,9 @@ int encode_ac_prg_sa( abitwriter* huffw, abytewriter* storw, huffCodes* actbl, s
             }
         }
         // if nonzero is encountered
-        else if ( ( block[ bpos ] == 1 ) || ( block[ bpos ] == -1 ) ) {
+        else if ( ( tmp == 1 ) || ( tmp == -1 ) ) {
             // vli encode
-            tmp = block[ bpos ];
-            s = uint16bit_length(ABS(tmp));
+            s = nonzero_bit_length(ABS(tmp));
             n = ENVLI( s, tmp );
             hc = ( ( z << 4 ) + s );
             // write to huffman writer

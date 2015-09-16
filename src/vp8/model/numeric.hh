@@ -83,6 +83,10 @@ inline constexpr uint8_t k16bit_length(uint16_t v) {
 inline uint8_t uint16log2(uint16_t v) {
     return 31 - __builtin_clz((uint32_t)v);
 }
+inline uint8_t nonzero_bit_length(uint16_t v) {
+    assert(v);
+    return 32 - __builtin_clz((uint32_t)v);
+}
 inline uint8_t uint16bit_length(uint16_t v) {
     return v ? 32 - __builtin_clz((uint32_t)v) : 0;
 }
