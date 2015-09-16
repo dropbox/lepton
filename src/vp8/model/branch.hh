@@ -22,19 +22,21 @@ public:
   uint32_t false_count() const { return counts_[0]; }
   
   void record_obs_and_update(bool obs) {
-      uint32_t fcount = counts_[0];
-      uint32_t tcount = counts_[1];
-
-      if (__builtin_expect(counts_[obs] == 0xff, 0)) { // check less than 512
-          counts_[0] = ((1 + (uint32_t)fcount) >> 1);
-          counts_[1] = ((1 + (uint32_t)tcount) >> 1);
+      unsigned int fcount = counts_[0];
+      unsigned int tcount = counts_[1];
+      bool overflow = (counts_[obs]++ == 0xff);
+      if (__builtin_expect(overflow, 0)) { // check less than 512
+          counts_[0] = ((1 + (unsigned int)fcount) >> 1);
+          counts_[1] = ((1 + (unsigned int)tcount) >> 1);
+          counts_[obs] = 129;
+          probability_ = optimize(counts_[0] + counts_[1]);
+      } else {
+          probability_ = optimize(fcount + tcount + 1);
       }
-      counts_[obs] += 1;
-      probability_ = optimize(tcount + fcount + 1);
   }
   void normalize() {
-      counts_[0] = ((1 + (uint32_t)counts_[0]) >> 1);
-      counts_[1] = ((1 + (uint32_t)counts_[1]) >> 1);
+      counts_[0] = ((1 + (unsigned int)counts_[0]) >> 1);
+      counts_[1] = ((1 + (unsigned int)counts_[1]) >> 1);
       
   }
   Probability optimize(int sum) const
