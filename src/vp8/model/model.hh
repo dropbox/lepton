@@ -173,9 +173,9 @@ public:
         }
         for (int pixel_row = 0; pixel_row < 8; ++pixel_row) {
             for (int i = 0; i < 8; ++i) {
-                icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table_[(int)color][i];
-                icos_idct_edge_8192_dequantized_x(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][i * 8 + pixel_row];
-                icos_idct_edge_8192_dequantized_y(color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][pixel_row * 8 + i];
+                icos_idct_linear_8192_dequantized((int)color)[pixel_row * 8 + i] = icos_idct_linear_8192_scaled[pixel_row * 8 + i] * quantization_table_[(int)color][i];
+                icos_idct_edge_8192_dequantized_x((int)color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][i * 8 + pixel_row];
+                icos_idct_edge_8192_dequantized_y((int)color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][pixel_row * 8 + i];
             }
         }
         static const unsigned short int freqmax[] =
@@ -199,13 +199,13 @@ public:
             }
         }
     }
-    static int32_t *icos_idct_edge_8192_dequantized_x(BlockType color) {
+    static int32_t *icos_idct_edge_8192_dequantized_x(int color) {
         return icos_idct_edge_8192_dequantized_x_[(int)color];
     }
-    static int32_t *icos_idct_edge_8192_dequantized_y(BlockType color) {
+    static int32_t *icos_idct_edge_8192_dequantized_y(int color) {
         return icos_idct_edge_8192_dequantized_y_[(int)color];
     }
-    static int32_t *icos_idct_linear_8192_dequantized(BlockType color) {
+    static int32_t *icos_idct_linear_8192_dequantized(int color) {
         return icos_idct_linear_8192_dequantized_[(int)color];
     }
     struct CoefficientContext {
@@ -216,23 +216,53 @@ public:
 
 };
 
-template <bool left_present, bool above_present, bool above_right_present, BlockType color>
+#define USE_TEMPLATIZED_COLOR
+#ifdef USE_TEMPLATIZED_COLOR
+#define TEMPLATE_ARG_COLOR0 BlockType::Y
+#define TEMPLATE_ARG_COLOR1 BlockType::Cb
+#define TEMPLATE_ARG_COLOR2 BlockType::Cr
+
+#else
+#define TEMPLATE_ARG_COLOR0 BlockType::Y
+#define TEMPLATE_ARG_COLOR1 BlockType::Y
+#define TEMPLATE_ARG_COLOR2 BlockType::Y
+#endif
+template <bool left_present, bool above_present, bool above_right_present, BlockType
+#ifdef USE_TEMPLATIZED_COLOR
+              color
+#else
+              deprecated_color
+#endif
+>
 class ProbabilityTables : public ProbabilityTablesBase
 {
 private:
 
 public:
-    enum Color {
+#ifdef USE_TEMPLATIZED_COLOR
+    enum {
         COLOR = (int)color
     };
+    ProbabilityTables(BlockType kcolor) {
+        assert(kcolor == color);
+    }
+#else
+    const BlockType COLOR;
+    ProbabilityTables(BlockType color) : COLOR(color){
+        static_assert((int)deprecated_color == 0, "Using dynamic color");
+    }
+#endif
     static void reset() {
         reset_model(model_);
     }
     static void load( const Slice & slice ) {
         load_model(model_, slice);
     }
-    static constexpr int color_index() {
-        return (int)color >= BLOCK_TYPES ? BLOCK_TYPES - 1 : (int)color;
+    int color_index() {
+        if ((int)COLOR == BLOCK_TYPES || ((int)BLOCK_TYPES == 1 && COLOR > BLOCK_TYPES)) {
+            return BLOCK_TYPES - 1;
+        }
+        return (int)COLOR;
     }
     CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
         CoefficientContext retval;
@@ -347,30 +377,30 @@ public:
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 7];
+        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
         return retval;
     }
 
     int idct_2d_1x8(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 0];
+            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized(color)[pixel_row * 8 + 7];
+        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
+        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
+        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
+        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
+        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
+        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
+        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
         return retval;
     }
 
@@ -399,7 +429,7 @@ public:
         }
         int DCT_RSC = 8192; 
         prediction = std::max(-1024 * DCT_RSC, std::min(1016 * DCT_RSC, prediction));
-        prediction /= quantization_table_[COLOR][0];
+        prediction /= quantization_table_[(int)COLOR][0];
         int round = DCT_RSC/2;
         if (prediction < 0) {
             round = -round;
@@ -429,8 +459,8 @@ public:
     }
     int predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original) {
         int max_value = 0;
-        if (quantization_table_[COLOR][0]){
-            max_value = (1024 + quantization_table_[COLOR][0] - 1) / quantization_table_[COLOR][0];
+        if (quantization_table_[(int)COLOR][0]){
+            max_value = (1024 + quantization_table_[(int)COLOR][0] - 1) / quantization_table_[(int)COLOR][0];
         }
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
@@ -498,7 +528,7 @@ public:
                 coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
                 coeffs_a[i]  = above.raster(cur_coef);
             }
-            coef_idct = icos_idct_edge_8192_dequantized_x(color) + band * 8;
+            coef_idct = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
         } else if ((band & 7) == 0 && left_present) {
             // x == 0: we're the y
             const auto &left = context.left_unchecked().coefficients();
@@ -507,7 +537,7 @@ public:
                 coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
                 coeffs_a[i]  = left.raster(cur_coef);
             }
-            coef_idct = icos_idct_edge_8192_dequantized_y(color) + band;
+            coef_idct = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
         } else {
             return 0;
         }
@@ -583,10 +613,10 @@ public:
         return model_.sign_counts_.at(color_index(), ctx1, ctx0);
     }
     int get_max_value(int coord) {
-        return freqmax_[COLOR][coord];
+        return freqmax_[(int)COLOR][coord];
     }
     uint8_t get_noise_threshold(int coord) {
-        return min_noise_threshold_[COLOR][coord];
+        return min_noise_threshold_[(int)COLOR][coord];
     }
     void optimize() {
         optimize_model(model_);

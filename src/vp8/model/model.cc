@@ -187,7 +187,7 @@ void ProbabilityTablesBase::load_probability_tables()
         std::cerr << "Using default (bad!) probability tables!" << std::endl;
     } else {
         MMapFile model_file { model_name };
-        ProbabilityTables<false, false, false, BlockType::Y> model_tables;
+        ProbabilityTables<false, false, false, BlockType::Y> model_tables(BlockType::Y);
         model_tables.load(model_file.slice());
         model_tables.normalize();
     }

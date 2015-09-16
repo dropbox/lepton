@@ -49,25 +49,25 @@ void VP8ComponentDecoder::process_row(Left & left_model,
                                        int block_width,
                                        UncompressedComponents * const colldata) {
     if (block_width > 0) {
-        BlockContext context = context_.at((int)Middle::COLOR).context;
+        BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      left_model); //FIXME
-        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context, true);
+        context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
-        BlockContext context = context_.at((int)Middle::COLOR).context;
+        BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      middle_model); //FIXME
-        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context, true);
+        context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     if (block_width > 1) {
-        BlockContext context = context_.at((int)Middle::COLOR).context;
+        BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_.get(),
                      right_model);
-        context_.at(Middle::COLOR).context = colldata->full_component_write((BlockType)Middle::COLOR).next(context_.at(Middle::COLOR).context, false);
+        context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
     }
 }
 
@@ -121,29 +121,29 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
     ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
     ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
-    tuple<ProbabilityTables<false, false, false, BlockType::Y>,
-          ProbabilityTables<false, false, false, BlockType::Cb>,
-          ProbabilityTables<false, false, false, BlockType::Cr> > corner;
+    tuple<ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR0>,
+          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR2> > corner(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
-    tuple<ProbabilityTables<true, false, false, BlockType::Y>,
-          ProbabilityTables<true, false, false, BlockType::Cb>,
-          ProbabilityTables<true, false, false, BlockType::Cr> > top;
+    tuple<ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR0>,
+          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR2> > top(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
-    tuple<ProbabilityTables<false, true, true, BlockType::Y>,
-          ProbabilityTables<false, true, true, BlockType::Cb>,
-          ProbabilityTables<false, true, true, BlockType::Cr> > midleft;
+    tuple<ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR0>,
+          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR2> > midleft(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
-    tuple<ProbabilityTables<true, true, true, BlockType::Y>,
-          ProbabilityTables<true, true, true, BlockType::Cb>,
-          ProbabilityTables<true, true, true, BlockType::Cr> > middle;
+    tuple<ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR0>,
+          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR2> > middle(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
-    tuple<ProbabilityTables<true, true, false, BlockType::Y>,
-          ProbabilityTables<true, true, false, BlockType::Cb>,
-          ProbabilityTables<true, true, false, BlockType::Cr> > midright;
+    tuple<ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR0>,
+          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR2> > midright(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
-    tuple<ProbabilityTables<false, true, false, BlockType::Y>,
-          ProbabilityTables<false, true, false, BlockType::Cb>,
-          ProbabilityTables<false, true, false, BlockType::Cr> > width_one;
+    tuple<ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR0>,
+          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2> > width_one(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
     while(colldata->get_next_component(context_, &component)) {
         int curr_y = context_.at((int)component).y;
