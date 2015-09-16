@@ -165,6 +165,18 @@ template <class T,
             f(IsReference::dereference(data)[i0]);
         }
     }
+    T* begin() {
+        return (T*)data;
+    }
+    const T* begin() const {
+        return (const T*)data;
+    }
+    T* end() {
+        return (T*)data + s0;
+    }
+    const T* end() const {
+        return (const T*)data + s0;
+    }
 };
 
 template <class T,
@@ -238,6 +250,18 @@ template <class T,
                 f(IsReference::dereference(data)[i0][i1]);
             }
         }
+    }
+    T* begin() {
+        return (T*)data;
+    }
+    const T* begin() const {
+        return (const T*)data;
+    }
+    T* end() {
+        return (T*)data + s0 * s1;
+    }
+    const T* end() const {
+        return (const T*)data + s0 * s1;
     }
 };
 
