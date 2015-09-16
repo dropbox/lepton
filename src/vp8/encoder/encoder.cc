@@ -111,6 +111,13 @@ void serialize_tokens(ConstBlockContext context,
                     break;
                 }
             }
+            if (length != 0) {
+                auto &sign_prob = probability_tables.sign_array(coord, prior);
+                encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+                --num_nonzeros_left_7x7;
+                eob_x = std::max(eob_x, (uint8_t)b_x);
+                eob_y = std::max(eob_y, (uint8_t)b_y);
+            }
             if (length > 1){
                 auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
                 assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
@@ -119,13 +126,6 @@ void serialize_tokens(ConstBlockContext context,
                 for (int i = length - 2; i >= 0; --i) {
                    encoder.put((abs_coef & (1 << i)), res_prob.at(i));
                 }
-            }
-            if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(coord, prior);
-                encoder.put(coef >= 0 ? 1 : 0, sign_prob);
-                --num_nonzeros_left_7x7;
-                eob_x = std::max(eob_x, (uint8_t)b_x);
-                eob_y = std::max(eob_y, (uint8_t)b_y);
             }
 
             if (num_nonzeros_left_7x7 == 0) {
@@ -168,7 +168,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
 
             assert(coord != 9);
-            probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge);
+            probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge_left);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
             int16_t coef = block.coefficients().raster( coord );
             uint16_t abs_coef = abs(coef);

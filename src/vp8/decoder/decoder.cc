@@ -63,36 +63,38 @@ void parse_tokens( BlockContext context,
         unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
-        (void)b_x;
-        (void)b_y;
-        assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
+        assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
             probability_tables.update_coefficient_context7x7(prior, coord, context.copy(), num_nonzeros_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
-            uint8_t length = MAX_EXPONENT;
-            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
-                bool cur_bit = data.get(exp_prob.at(i));
+            uint8_t length;
+            bool nonzero = false;
+            for (length = 0; length != MAX_EXPONENT; ++length) {
+                bool cur_bit = data.get(exp_prob.at(length));
                 if (!cur_bit) {
-                    length = i;
                     break;
                 }
+                nonzero = true;
             }
-
-            int16_t coef = (1 << (length - 1));
-            if (length > 1){
-                auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
-                for (int i = length - 2; i >= 0; --i) {
-                    coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
-                }
-            }
-            if (length != 0) {
+            int16_t coef = 0;
+            bool neg = false;
+            if (nonzero) {
+                --num_nonzeros_left_7x7;
                 auto &sign_prob = probability_tables.sign_array(coord, prior);
-                if (!data.get(sign_prob)) {
-                    coef = -coef;
-                }
+                neg = !data.get(sign_prob);
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
-                --num_nonzeros_left_7x7;
+
+                if (length > 1){
+                    auto res_prob = probability_tables.residual_noise_array_7x7(coord, prior);
+                    for (int i = length - 2; i >= 0; --i) {
+                        coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                    }
+                }
+                coef |= (1 << (length - 1));
+                if (neg) {
+                    coef = -coef;
+                }
             }
             context.here().mutable_coefficients().raster( coord ) = coef;
             if (num_nonzeros_left_7x7 == 0) {
@@ -122,13 +124,11 @@ void parse_tokens( BlockContext context,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
-    for (int delta = 1; delta <= 8; delta += 7) {
+    for (uint8_t delta = 1, zig15offset = 0, num_nonzeros_edge = num_nonzeros_x; ; delta = 8, zig15offset = 7, num_nonzeros_edge = num_nonzeros_y) {
         unsigned int coord = delta;
-        uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
-        uint8_t num_nonzeros_edge = (delta == 1 ? num_nonzeros_x : num_nonzeros_y);
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
         for (;num_nonzeros_edge_left; coord += delta, ++zig15offset) {
-            probability_tables.update_coefficient_context8(prior, coord, context.copy(), num_nonzeros_edge);
+            probability_tables.update_coefficient_context8(prior, coord, context.copy(), num_nonzeros_edge_left);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
 
             uint8_t length = MAX_EXPONENT;
@@ -174,6 +174,9 @@ void parse_tokens( BlockContext context,
                 --num_nonzeros_edge_left;
             }
             context.here().mutable_coefficients().raster( coord ) = coef;
+        }
+        if (delta == 8) {
+            break;
         }
     }
     context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
