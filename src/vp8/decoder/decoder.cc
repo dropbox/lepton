@@ -33,8 +33,9 @@ void parse_tokens( BlockContext context,
         uint8_t length;
         bool nonzero = false;
         auto exp_prob = probability_tables.exponent_array_dc(prior);
+        auto *exp_branch = &exp_prob.at(0);
         for (length = 0; length < MAX_EXPONENT; ++length) {
-            bool cur_bit = data.get(exp_prob.at(length));
+            bool cur_bit = data.get(*exp_branch++);
             if (!cur_bit) {
                 break;
             }
@@ -73,8 +74,9 @@ void parse_tokens( BlockContext context,
             auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length;
             bool nonzero = false;
+            auto exp_branch = &exp_prob.at(0);
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = data.get(exp_prob.at(length));
+                bool cur_bit = data.get(*exp_branch++);
                 if (!cur_bit) {
                     break;
                 }
@@ -136,8 +138,9 @@ void parse_tokens( BlockContext context,
 
             uint8_t length;
             bool nonzero = false;
+            auto * exp_branch = &exp_array.at(0);
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = data.get(exp_array.at(length));
+                bool cur_bit = data.get(*exp_branch++);
                 if (!cur_bit) {
                     break;
                 }
