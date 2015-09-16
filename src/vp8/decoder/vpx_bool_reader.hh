@@ -12,7 +12,7 @@ public:
                         slice.buffer(),
                         slice.size());
     }
-    ///__attribute__((always_inline))
+    __attribute__((always_inline))
     bool get(Branch &branch) {
         bool retval = vpx_read(&bit_reader, branch.prob());
         branch.record_obs_and_update(retval);

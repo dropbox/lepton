@@ -183,38 +183,62 @@ inline uint8_t count_leading_zeros_uint8(uint8_t v) {
     }
     return 7 - r;
 }
-   
-__attribute__((always_inline))
-inline bool vpx_read(vpx_reader *r, int prob) {
-  bool bit = false;
-  BD_VALUE value;
-  BD_VALUE bigsplit;
-  int count;
-  unsigned int range;
-  unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
 
-  if (r->count < 0)
+inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split) {
+    BD_VALUE bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
     vpx_reader_fill(r);
+    BD_VALUE value = r->value;
+    bool bit = (value >= bigsplit);
+    int count = r->count;
 
-  value = r->value;
-  count = r->count;
 
-  bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
+    unsigned int range;
 
-  range = split;
-
-  if (value >= bigsplit) {
-    range = r->range - split;
-    value = value - bigsplit;
-    bit = true;
-  }
-  {
+    if (bit) {
+        range = r->range - split;
+        value = value - bigsplit;
+    } else {
+        range = split;
+    }
     //unsigned int shift = vpx_norm[range];
     unsigned int shift = count_leading_zeros_uint8(range);
     range <<= shift;
     value <<= shift;
     count -= shift;
+
+    r->value = value;
+    r->count = count;
+    r->range = range;
+
+#ifdef DEBUG_ARICODER
+    //if (r_bitcount < 1000) {
+    fprintf(stderr, "R %d %d %d\n", r_bitcount++, prob, bit);
+    //}
+#endif
+    return bit;
+}
+__attribute__((always_inline))
+inline bool vpx_read(vpx_reader *r, int prob) {
+  unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
+  BD_VALUE value = r->value;
+  int count = r->count;
+  BD_VALUE bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
+  bool bit = (value >= bigsplit);
+  unsigned int range;
+  if (bit) {
+    range = r->range - split;
+    value = value - bigsplit;
+  } else {
+    range = split;
   }
+  if (__builtin_expect(r->count < 0, 0)) {
+      return vpx_reader_fill_and_read(r, split);
+  }
+  //unsigned int shift = vpx_norm[range];
+  unsigned int shift = count_leading_zeros_uint8(range);
+  range <<= shift;
+  value <<= shift;
+  count -= shift;
   r->value = value;
   r->count = count;
   r->range = range;
