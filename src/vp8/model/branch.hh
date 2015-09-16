@@ -20,7 +20,7 @@ public:
 
   uint32_t true_count() const { return counts_[1]; }
   uint32_t false_count() const { return counts_[0]; }
-  
+    __attribute__((always_inline))
   void record_obs_and_update(bool obs) {
       unsigned int fcount = counts_[0];
       unsigned int tcount = counts_[1];
@@ -39,6 +39,7 @@ public:
       counts_[1] = ((1 + (unsigned int)counts_[1]) >> 1);
       
   }
+  __attribute__((always_inline))
   Probability optimize(int sum) const
   {
     assert(false_count() && true_count());

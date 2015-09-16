@@ -55,7 +55,7 @@ static constexpr char LenTable256[256] =
 };
 
 #if 0
-inline constexpr uint8_t uint16log2(uint16_t v) {
+inline constexpr uint8_t k16log2(uint16_t v) {
     return (v & 0xfff0) ? (v & 0xff00) ? (v & 0xf000)
     ? 12 + LogTable16[v >> 12]
     : 8 + LogTable16[v>>8]
@@ -70,22 +70,28 @@ inline constexpr uint8_t uint16bit_length(uint16_t v) {
     : LenTable16[v];
 }
 #else
-inline constexpr uint8_t uint16log2(uint16_t v) {
+inline constexpr uint8_t k16log2(uint16_t v) {
     return (v & 0xff00)
     ? 8 + LogTable256[v >> 8]
     : LogTable256[v];
 }
-inline constexpr uint8_t uint16bit_length(uint16_t v) {
+inline constexpr uint8_t k16bit_length(uint16_t v) {
     return (v & 0xff00)
     ? 8 + LenTable256[v >> 8]
     : LenTable256[v];
+}
+inline uint8_t uint16log2(uint16_t v) {
+    return 31 - __builtin_clz((uint32_t)v);
+}
+inline uint8_t uint16bit_length(uint16_t v) {
+    return v ? 32 - __builtin_clz((uint32_t)v) : 0;
 }
 #endif
 
 constexpr uint8_t log_max_numerator = 18;
 
 inline constexpr uint32_t computeDivisor(uint16_t d) {
-    return (((( 1 << uint16bit_length(d)) - d) << log_max_numerator) / d) + 1;
+    return (((( 1 << k16bit_length(d)) - d) << log_max_numerator) / d) + 1;
 }
 #define COMPUTE_DIVISOR(off) \
    computeDivisor(off) \
@@ -111,22 +117,22 @@ inline constexpr uint32_t computeDivisor(uint16_t d) {
    ,COMPUTE_DIVISOR(off + 0x30)
 
 #define COMPUTE_LOG2(off) \
- uint16log2(off) \
-,uint16log2(off + 1) \
-,uint16log2(off + 2) \
-,uint16log2(off + 3) \
-,uint16log2(off + 4) \
-,uint16log2(off + 5) \
-,uint16log2(off + 6) \
-,uint16log2(off + 7) \
-,uint16log2(off + 8) \
-,uint16log2(off + 9) \
-,uint16log2(off + 10) \
-,uint16log2(off + 11) \
-,uint16log2(off + 12) \
-,uint16log2(off + 13) \
-,uint16log2(off + 14) \
-,uint16log2(off + 15)
+ k16log2(off) \
+,k16log2(off + 1) \
+,k16log2(off + 2) \
+,k16log2(off + 3) \
+,k16log2(off + 4) \
+,k16log2(off + 5) \
+,k16log2(off + 6) \
+,k16log2(off + 7) \
+,k16log2(off + 8) \
+,k16log2(off + 9) \
+,k16log2(off + 10) \
+,k16log2(off + 11) \
+,k16log2(off + 12) \
+,k16log2(off + 13) \
+,k16log2(off + 14) \
+,k16log2(off + 15)
 
 #define COMPUTE_LOG2_x100(off) \
 COMPUTE_LOG2(off + 0x00) \
@@ -136,22 +142,22 @@ COMPUTE_LOG2(off + 0x00) \
 
 
 #define COMPUTE_DIVISOR_AND_LOG2(off) \
-{computeDivisor(off), uint16log2(off)} \
-,{computeDivisor(off + 1), uint16log2(off + 1)} \
-,{computeDivisor(off + 2), uint16log2(off + 2)} \
-,{computeDivisor(off + 3), uint16log2(off + 3)} \
-,{computeDivisor(off + 4), uint16log2(off + 4)} \
-,{computeDivisor(off + 5), uint16log2(off + 5)} \
-,{computeDivisor(off + 6), uint16log2(off + 6)} \
-,{computeDivisor(off + 7), uint16log2(off + 7)} \
-,{computeDivisor(off + 8), uint16log2(off + 8)} \
-,{computeDivisor(off + 9), uint16log2(off + 9)} \
-,{computeDivisor(off + 10), uint16log2(off + 10)} \
-,{computeDivisor(off + 11), uint16log2(off + 11)} \
-,{computeDivisor(off + 12), uint16log2(off + 12)} \
-,{computeDivisor(off + 13), uint16log2(off + 13)} \
-,{computeDivisor(off + 14), uint16log2(off + 14)} \
-,{computeDivisor(off + 15), uint16log2(off + 15)}
+{computeDivisor(off), k16log2(off)} \
+,{computeDivisor(off + 1), k16log2(off + 1)} \
+,{computeDivisor(off + 2), k16log2(off + 2)} \
+,{computeDivisor(off + 3), k16log2(off + 3)} \
+,{computeDivisor(off + 4), k16log2(off + 4)} \
+,{computeDivisor(off + 5), k16log2(off + 5)} \
+,{computeDivisor(off + 6), k16log2(off + 6)} \
+,{computeDivisor(off + 7), k16log2(off + 7)} \
+,{computeDivisor(off + 8), k16log2(off + 8)} \
+,{computeDivisor(off + 9), k16log2(off + 9)} \
+,{computeDivisor(off + 10), k16log2(off + 10)} \
+,{computeDivisor(off + 11), k16log2(off + 11)} \
+,{computeDivisor(off + 12), k16log2(off + 12)} \
+,{computeDivisor(off + 13), k16log2(off + 13)} \
+,{computeDivisor(off + 14), k16log2(off + 14)} \
+,{computeDivisor(off + 15), k16log2(off + 15)}
 #define COMPUTE_DIVISOR_AND_LOG2_x100(off) \
 COMPUTE_DIVISOR_AND_LOG2(off + 0x00) \
 ,COMPUTE_DIVISOR_AND_LOG2(off + 0x10) \
@@ -165,21 +171,21 @@ struct DivisorLog2 {
 };
 static constexpr DivisorLog2 DivisorAndLog2Table[1026] = {
     {0,0}
-    ,{computeDivisor(1), uint16log2(1)}
-    ,{computeDivisor(2), uint16log2(2)}
-    ,{computeDivisor(3), uint16log2(3)}
-    ,{computeDivisor(4), uint16log2(4)}
-    ,{computeDivisor(5), uint16log2(5)}
-    ,{computeDivisor(6), uint16log2(6)}
-    ,{computeDivisor(7), uint16log2(7)}
-    ,{computeDivisor(8), uint16log2(8)}
-    ,{computeDivisor(9), uint16log2(9)}
-    ,{computeDivisor(10), uint16log2(10)}
-    ,{computeDivisor(11), uint16log2(11)}
-    ,{computeDivisor(12), uint16log2(12)}
-    ,{computeDivisor(13), uint16log2(13)}
-    ,{computeDivisor(14), uint16log2(14)}
-    ,{computeDivisor(15), uint16log2(15)}
+    ,{computeDivisor(1), k16log2(1)}
+    ,{computeDivisor(2), k16log2(2)}
+    ,{computeDivisor(3), k16log2(3)}
+    ,{computeDivisor(4), k16log2(4)}
+    ,{computeDivisor(5), k16log2(5)}
+    ,{computeDivisor(6), k16log2(6)}
+    ,{computeDivisor(7), k16log2(7)}
+    ,{computeDivisor(8), k16log2(8)}
+    ,{computeDivisor(9), k16log2(9)}
+    ,{computeDivisor(10), k16log2(10)}
+    ,{computeDivisor(11), k16log2(11)}
+    ,{computeDivisor(12), k16log2(12)}
+    ,{computeDivisor(13), k16log2(13)}
+    ,{computeDivisor(14), k16log2(14)}
+    ,{computeDivisor(15), k16log2(15)}
     ,COMPUTE_DIVISOR_AND_LOG2(0x10)
     ,COMPUTE_DIVISOR_AND_LOG2(0x20)
     ,COMPUTE_DIVISOR_AND_LOG2(0x30)
@@ -198,8 +204,8 @@ static constexpr DivisorLog2 DivisorAndLog2Table[1026] = {
     ,COMPUTE_DIVISOR_AND_LOG2_x100(0x340)
     ,COMPUTE_DIVISOR_AND_LOG2_x100(0x380)
     ,COMPUTE_DIVISOR_AND_LOG2_x100(0x3c0)
-    ,{computeDivisor(0x400), uint16log2(0x400)}
-    ,{computeDivisor(0x401), uint16log2(0x401)}
+    ,{computeDivisor(0x400), k16log2(0x400)}
+    ,{computeDivisor(0x401), k16log2(0x401)}
 };
 
 static constexpr uint32_t Log2Table[1026] = {
@@ -219,8 +225,8 @@ static constexpr uint32_t Log2Table[1026] = {
     ,COMPUTE_LOG2_x100(0x340)
     ,COMPUTE_LOG2_x100(0x380)
     ,COMPUTE_LOG2_x100(0x3c0)
-    ,uint16log2(0x400)
-    ,uint16log2(0x401)
+    ,k16log2(0x400)
+    ,k16log2(0x401)
 };
 
 static constexpr uint32_t DivisorMultipliers[1026] = {
@@ -271,7 +277,7 @@ constexpr uint32_t fast_divide10bit(uint32_t num, uint16_t denom) {
 inline uint32_t slow_divide10bit(uint32_t num, uint16_t denom) {
 #if 0
     uint64_t m = DivisorMultipliers[denom];
-    int log2d = uint16log2(denom);
+    int log2d = k16log2(denom);
     //assert(log2d==DivisorAndLog2Table[denom].len);
 #else
     auto dl = DivisorAndLog2Table[denom];

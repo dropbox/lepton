@@ -12,6 +12,7 @@
 #define VPX_DSP_BITREADER_H_
 
 #include <stddef.h>
+#include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 #include "vpx_config.hh"
@@ -135,9 +136,56 @@ constexpr static uint8_t vpx_norm[256] = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
-
-///__attribute__((always_inline))
-static INLINE bool vpx_read(vpx_reader *r, int prob) {
+/*
+inline unsigned int count_leading_zeros_uint8(uint8_t split) {
+    unsigned int shift = 0;
+    if (split < 128) {
+        shift = 1;
+    }
+    if (split < 64) {
+        shift = 2;
+    }
+    if (split < 32) {
+        shift = 3;
+    }
+    if (split < 16) {
+        shift = 4;
+    }
+    if (split < 8) {
+        shift = 5;
+    }
+    if (split < 4) {
+        shift = 6;
+    }
+    if (split == 1) {
+        shift = 7;
+    }
+    return shift;
+}
+    */
+__attribute__((always_inline))
+inline uint8_t count_leading_zeros_uint8(uint8_t v) {
+    return vpx_norm[v];
+    assert(v);
+    return __builtin_clz((uint32_t)v) - 24; // slower
+    uint8_t r = 0; // result of log2(v) will go here
+    if (v & 0xf0) {
+        r |= 4;
+        v >>= 4;
+    }
+    if (v & 0xc) {
+        v >>= 2;
+        r |= 2;
+    }
+    if (v & 0x2) {
+        v >>= 1;
+        r |= 1;
+    }
+    return 7 - r;
+}
+   
+__attribute__((always_inline))
+inline bool vpx_read(vpx_reader *r, int prob) {
   bool bit = false;
   BD_VALUE value;
   BD_VALUE bigsplit;
@@ -161,7 +209,8 @@ static INLINE bool vpx_read(vpx_reader *r, int prob) {
     bit = true;
   }
   {
-    unsigned int shift = vpx_norm[range];
+    //unsigned int shift = vpx_norm[range];
+    unsigned int shift = count_leading_zeros_uint8(range);
     range <<= shift;
     value <<= shift;
     count -= shift;
