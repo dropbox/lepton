@@ -71,7 +71,7 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array(coord, prior);
+            auto &sign_prob = probability_tables.sign_array_dc(prior);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
@@ -112,7 +112,7 @@ void serialize_tokens(ConstBlockContext context,
                 }
             }
             if (length != 0) {
-                auto &sign_prob = probability_tables.sign_array(coord, prior);
+                auto &sign_prob = probability_tables.sign_array_7x7(coord, prior);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob);
                 --num_nonzeros_left_7x7;
                 eob_x = std::max(eob_x, (uint8_t)b_x);
@@ -186,7 +186,7 @@ void serialize_tokens(ConstBlockContext context,
             }
             if (length != 0) {
                 --num_nonzeros_edge_left;
-                auto &sign_prob = probability_tables.sign_array(coord, prior);
+                auto &sign_prob = probability_tables.sign_array_8(coord, prior);
                 encoder.put(coef >= 0, sign_prob);
             }
             if (length > 1) {

@@ -42,7 +42,7 @@ void parse_tokens( BlockContext context,
         }
         int16_t coef = 0;
         if (nonzero) {
-            auto &sign_prob = probability_tables.sign_array(coord, prior);
+            auto &sign_prob = probability_tables.sign_array_dc(prior);
             bool neg = !data.get(sign_prob);
         
 
@@ -84,7 +84,7 @@ void parse_tokens( BlockContext context,
             bool neg = false;
             if (nonzero) {
                 --num_nonzeros_left_7x7;
-                auto &sign_prob = probability_tables.sign_array(coord, prior);
+                auto &sign_prob = probability_tables.sign_array_7x7(coord, prior);
                 neg = !data.get(sign_prob);
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
@@ -146,7 +146,7 @@ void parse_tokens( BlockContext context,
             int16_t coef = 0;
             if (nonzero) {
                 uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                auto &sign_prob = probability_tables.sign_array(coord, prior);
+                auto &sign_prob = probability_tables.sign_array_8(coord, prior);
                 --num_nonzeros_edge_left;
                 bool neg = !data.get(sign_prob);
                 coef = (1 << (length - 1));

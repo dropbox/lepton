@@ -592,24 +592,21 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array(const unsigned int band,
-                       CoefficientContext context) {
-        int ctx0 = 0;
-        int ctx1 = 0;
-        if (band == 0) {
-            ANNOTATE_CTX(0, SIGNDC, 0, 1);
-        } else if (band < 8 || band % 8 == 0) {
-            int16_t val = context.best_prior;
-            ctx0 = context.bsr_best_prior;
-            ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
-            ANNOTATE_CTX(band, SIGN8, 0, ctx0);
-            ANNOTATE_CTX(band, SIGN8, 1, ctx1);
-            ctx0 += 1; // so as not to interfere with SIGNDC
-        } else {
-            ANNOTATE_CTX(band, SIGN7x7, 0, ctx0);
-            ctx0 = 0;
-            ctx1 = 0;
-        }
+    Branch& sign_array_dc(CoefficientContext context) {
+        ANNOTATE_CTX(0, SIGNDC, 0, 1);
+        return model_.sign_counts_.at(color_index(), 0, 1);
+    }
+    Branch& sign_array_7x7(uint8_t band, CoefficientContext context) {
+        ANNOTATE_CTX(band, SIGN7x7, 0, 0);
+        return model_.sign_counts_.at(color_index(), 0, 0);
+    }
+    Branch& sign_array_8(uint8_t band, CoefficientContext context) {
+
+        int16_t val = context.best_prior;
+        uint8_t ctx0 = context.bsr_best_prior;
+        uint8_t ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
+        ANNOTATE_CTX(band, SIGN8, 0, ctx0);
+        ANNOTATE_CTX(band, SIGN8, 1, ctx1);
         return model_.sign_counts_.at(color_index(), ctx1, ctx0);
     }
     int get_max_value(int coord) {
