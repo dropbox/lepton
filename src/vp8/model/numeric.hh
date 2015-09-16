@@ -328,6 +328,11 @@ template<typename intt> intt log2(intt v) {
 
 
 template <typename intt> intt bit_length(intt v) {
+    if (sizeof(int) <= 4) {
+        return v ? 32 - __builtin_clz((uint32_t)v) : 0;
+    } else {
+        return v ? 64 - __builtin_clzl((uint64_t)v) : 0;
+    }
     return v == 0 ? 0 : log2(v) + 1;
 }
 template<class EncoderT> uint8_t put_ceil_log_coefficient( EncoderT &e,

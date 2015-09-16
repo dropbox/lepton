@@ -210,8 +210,8 @@ public:
     }
     struct CoefficientContext {
         int best_prior; //lakhani or aavrg depending on coefficient number
-        uint8_t bsr_best_prior;
         uint8_t num_nonzeros_bin; // num_nonzeros mapped into a bin
+        uint8_t bsr_best_prior;
     };
 
 };
@@ -274,14 +274,14 @@ public:
     void update_coefficient_context7x7(CoefficientContext & retval,
                                      uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_left) {
         retval.best_prior = compute_aavrg(block, coefficient);
-        retval.bsr_best_prior = bit_length(retval.best_prior);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
+        retval.bsr_best_prior = bit_length(retval.best_prior);
     }
     void update_coefficient_context8(CoefficientContext & retval,
                                    uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_x) {
         retval.best_prior = compute_lak(block, coefficient);
-        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         retval.num_nonzeros_bin = num_nonzeros_x;
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
     }
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
