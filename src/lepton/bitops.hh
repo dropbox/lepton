@@ -88,7 +88,7 @@ public:
         assert(nbits <= 64);
         // safety check for error
         if ( __builtin_expect(error, false) ) return;
-        if ( cbyte2 > ( dsize - 5 ) ) {
+        if ( __builtin_expect(cbyte2 > ( dsize - 5 ), false) ) {
             dsize += adds;
             data2 = (unsigned char*) realloc(data2, dsize );
             if ( data2 == NULL ) {
