@@ -1305,7 +1305,42 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         unsigned int rstp_progress_rpos = rstp.empty() ? INT_MAX : rstp[ progress.rpos ];
         const unsigned char mrk = 0xFF; // marker start
         const unsigned char stv = 0x00; // 0xFF stuff value
-
+        while(true) {
+            if (__builtin_expect(!(progress_ipos + 15 < max_byte_coded && (progress_scan == 0 || progress_ipos + 15 < progress_scan)), 0)) {
+                break;
+            }
+            if (memchr(local_huff_data + progress_ipos, 0xff, 16) || __builtin_expect(progress_ipos <= rstp_progress_rpos
+                                 && progress_ipos + 15 >= rstp_progress_rpos, 0)){
+                // insert restart markers if needed
+                for (int veci = 0 ; veci < 16; ++veci, ++progress_ipos ) {
+                    if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
+                        uint8_t byte_to_write = local_huff_data[progress_ipos];
+                        str_out->write_byte(byte_to_write);
+                        // check current byte, stuff if needed
+                        if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                            str_out->write_byte(stv);
+                        }
+                        if (!rstp.empty()) {
+                            const unsigned char rst = 0xD0 + ( progress.cpos & 7);
+                            str_out->write_byte(mrk);
+                            str_out->write_byte(rst);
+                            progress.rpos++; progress.cpos++;
+                            rstp_progress_rpos = rstp[ progress.rpos ];
+                        }
+                    } else {
+                        uint8_t byte_to_write = local_huff_data[progress_ipos];
+                        str_out->write_byte(byte_to_write);
+                        // check current byte, stuff if needed
+                        if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                            str_out->write_byte(stv);
+                        }
+                    }
+                }
+            } else {
+                str_out->write(local_huff_data + progress_ipos, 16);
+                progress_ipos+=16;
+            }
+        }
         for ( ; ; progress_ipos++ ) {
             if (__builtin_expect(!(progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan)), 0)) {
                 break;
