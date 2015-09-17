@@ -1254,9 +1254,6 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     MergeJpegProgress progress(stored_progress);
     unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
     //unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
-    unsigned char mrk = 0xFF; // marker start
-    unsigned char stv = 0x00; // 0xFF stuff value
-    unsigned char rst = 0xD0; // restart marker
 
     unsigned char  type = 0x00; // type of current marker segment
 
@@ -1306,6 +1303,9 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         unsigned int progress_ipos = progress.ipos;
         unsigned int progress_scan = scnp[ progress.scan ];
         unsigned int rstp_progress_rpos = rstp.empty() ? INT_MAX : rstp[ progress.rpos ];
+        const unsigned char mrk = 0xFF; // marker start
+        const unsigned char stv = 0x00; // 0xFF stuff value
+
         for ( ; progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan); progress_ipos++ ) {
             // insert restart markers if needed
             if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
@@ -1315,7 +1315,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                 if (__builtin_expect(byte_to_write == 0xFF, 0))
                     str_out->write( &stv, 1 );
                 if (!rstp.empty()) {
-                    rst = 0xD0 + ( progress.cpos % 8 );
+                    const unsigned char rst = 0xD0 + ( progress.cpos & 7);
                     str_out->write( &mrk, 1 );
                     str_out->write( &rst, 1 );
                     progress.rpos++; progress.cpos++;
@@ -1340,7 +1340,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         // insert false rst markers at end if needed
         if ( rst_err != NULL ) {
             while ( rst_err[ progress.scan - 1 ] > 0 ) {
-                rst = 0xD0 + ( progress.cpos % 8 );
+                const unsigned char rst = 0xD0 + ( progress.cpos & 7 );
                 str_out->write( &mrk, 1 );
                 str_out->write( &rst, 1 );
                 progress.cpos++;    rst_err[ progress.scan - 1 ]--;

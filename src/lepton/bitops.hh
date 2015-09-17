@@ -242,7 +242,10 @@ public:
 
 class bounded_iostream
 {
-    uint8_t buffer[65536];
+    enum {
+        buffer_size = 65536
+    };
+    uint8_t buffer[buffer_size];
     uint32_t buffer_position;
     Sirikata::DecoderWriter *parent;
     unsigned int byte_bound;
@@ -259,9 +262,18 @@ public:
     unsigned int getsize();
     void set_bound(size_t bound); // bound of zero = fine
     unsigned int write_no_buffer( const void* from, size_t bytes_to_write );
+    unsigned int write_byte(uint8_t byte) {
+        assert(buffer_position < buffer_size && "Full buffer wasn't flushed");
+        buffer[buffer_position++] = byte;
+        if (__builtin_expect(buffer_position == buffer_size, 0)) {
+            buffer_position = 0;
+            write_no_buffer(buffer, buffer_size);
+        }
+        return 1;
+    }
     unsigned int write(const void *from, unsigned int nbytes) {
         size_t bytes_to_write = nbytes;
-        if (bytes_to_write + buffer_position > sizeof(buffer)) {
+        if (__builtin_expect(nbytes + buffer_position > buffer_size, 0)) {
             if (buffer_position) {
                 write_no_buffer(buffer, buffer_position);
                 buffer_position = 0;
@@ -275,6 +287,10 @@ public:
         } else {
             memcpy(buffer + buffer_position, from, bytes_to_write);
             buffer_position += bytes_to_write;
+            if (__builtin_expect(buffer_position == buffer_size, 0)) {
+                 buffer_position = 0;
+                write_no_buffer(buffer, buffer_size);
+            }
         }
         return bytes_to_write;
     }
