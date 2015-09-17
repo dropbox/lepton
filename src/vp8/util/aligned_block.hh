@@ -27,7 +27,7 @@ enum class ColorChannel { Y, Cb, Cr, NumBlockTypes };
 class AlignedBlock
 {
 public:
-    Sirikata::Array2d<int16_t, 8, 8> coef = {{{}}};
+  Sirikata::Array2d<int16_t, 8, 8> coef = {{{}}};
 private:
 
   mutable uint8_t num_nonzeros_ = 0;
@@ -35,7 +35,8 @@ private:
   mutable uint8_t num_nonzeros_x_ = 0;
   mutable uint8_t num_nonzeros_y_ = 0;
 public:
-  AlignedBlock() {}
+  AlignedBlock() {
+  }
   void recalculate_coded_length(uint8_t num_nonzeros_7x7, uint8_t num_nonzeros_x, uint8_t num_nonzeros_y) const
   {
       num_nonzeros_7x7_ = num_nonzeros_7x7;
@@ -70,7 +71,7 @@ public:
     }
   }
 
-  Sirikata::Array2d<int16_t, 8, 8> & mutable_coefficients( void ) { return coef; }
+  Sirikata::Array2d<int16_t, 8, 8> & mutable_coefficients( void ) {return coef; }
   const Sirikata::Array2d<int16_t, 8, 8> & coefficients( void ) const { return coef; }
 
   //uint8_t coded_length() const { return coded_length_; }

@@ -1303,22 +1303,34 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
             timing_operation_first_byte( 'd' );
         }
         // write & expand huffman coded image data
-        for ( ; progress.ipos < max_byte_coded && (scnp[ progress.scan ] == 0 || progress.ipos < scnp[ progress.scan ]); progress.ipos++ ) {
-            // write current byte
-            str_out->write( local_huff_data + progress.ipos, 1 );
-            // check current byte, stuff if needed
-            if ( local_huff_data[ progress.ipos ] == 0xFF )
-                str_out->write( &stv, 1 );
+        unsigned int progress_ipos = progress.ipos;
+        unsigned int progress_scan = scnp[ progress.scan ];
+        unsigned int rstp_progress_rpos = rstp.empty() ? INT_MAX : rstp[ progress.rpos ];
+        for ( ; progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan); progress_ipos++ ) {
             // insert restart markers if needed
-            if ( !rstp.empty() ) {
-                if ( progress.ipos == rstp[ progress.rpos ] ) {
+            if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
+                uint8_t byte_to_write = local_huff_data[progress_ipos];
+                str_out->write(&byte_to_write, 1);
+                // check current byte, stuff if needed
+                if (__builtin_expect(byte_to_write == 0xFF, 0))
+                    str_out->write( &stv, 1 );
+                if (!rstp.empty()) {
                     rst = 0xD0 + ( progress.cpos % 8 );
                     str_out->write( &mrk, 1 );
                     str_out->write( &rst, 1 );
                     progress.rpos++; progress.cpos++;
+                    rstp_progress_rpos = rstp[ progress.rpos ];
+                }
+            } else {
+                uint8_t byte_to_write = local_huff_data[progress_ipos];
+                str_out->write(&byte_to_write, 1);
+                // check current byte, stuff if needed
+                if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                    str_out->write( &stv, 1 );
                 }
             }
         }
+        progress.ipos = progress_ipos;
         if (scnp[progress.scan] == 0 && !flush) {
             return STREAMING_NEED_DATA;
         }
@@ -1960,12 +1972,14 @@ bool recode_jpeg( void )
                     // ---> sequential interleaved encoding <---
                     while ( sta == 0 ) {
                         // copy from colldata
-                        for ( bpos = 0; bpos < 64; bpos++ )
-                            block[ bpos ] = colldata.at((BlockType)cmp , bpos , dpos );
+                        int16_t dc = block [ 0 ] = colldata.at((BlockType)cmp,
+                                                               0 , dpos );
+                        for ( bpos = 1; bpos < 64; bpos++ )
+                            block[ bpos ] = colldata.at_nosync((BlockType)cmp , bpos , dpos );
 
                         // diff coding for dc
                         block[ 0 ] -= lastdc[ cmp ];
-                        lastdc[ cmp ] = colldata.at((BlockType)cmp , 0 , dpos );
+                        lastdc[ cmp ] = dc;
 
                         // encode block
                         eob = encode_block_seq( huffw,
@@ -2029,12 +2043,13 @@ bool recode_jpeg( void )
                     // ---> sequential non interleaved encoding <---
                     while ( sta == 0 ) {
                         // copy from colldata
+                        int16_t dc = block[ 0 ] = colldata.at((BlockType)cmp, 0, dpos);
                         for ( bpos = 0; bpos < 64; bpos++ )
-                            block[ bpos ] = colldata.at((BlockType)cmp , bpos , dpos );
+                            block[ bpos ] = colldata.at_nosync((BlockType)cmp , bpos , dpos );
 
                         // diff coding for dc
                         block[ 0 ] -= lastdc[ cmp ];
-                        lastdc[ cmp ] = colldata.at((BlockType)cmp , 0 , dpos );
+                        lastdc[ cmp ] = dc;
 
                         // encode block
                         eob = encode_block_seq( huffw,
