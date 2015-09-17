@@ -2449,7 +2449,7 @@ bool read_ujpg( void )
         // read size of header, alloc memory
         ReadFull(str_in, ujpg_mrk, 4 );
         hdrs = LEtoUint32(ujpg_mrk);
-        hdrdata = (unsigned char*) calloc( hdrs, sizeof( unsigned char ) );
+        hdrdata = (unsigned char*) aligned_alloc(hdrs);
         if ( hdrdata == NULL ) {
             fprintf( stderr, MEM_ERRMSG );
             errorlevel.store(2);
