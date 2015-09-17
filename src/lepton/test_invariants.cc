@@ -301,13 +301,15 @@ int main() {
     testRoundtrip();
     for (int i = 0; i < 65536; ++i) {
         assert(bit_length((uint16_t)i) == uint16bit_length(i));
-        assert(log2((uint16_t)i) == uint16log2(i));
+        if (i > 0) {
+            assert(log2((uint16_t)i) == uint16log2(i));
+        }
         
     }
     for (int denom = 1; denom < 1026; ++denom) {
         for (int num = 256; num < 262144; num += 256) {
-            assert(slow_divide10bit(num, denom) == num/denom);
-            assert(fast_divide10bit(num, denom) == num / denom);
+            assert(slow_divide10bit(num, denom) == (unsigned int)num/denom);
+            assert(fast_divide10bit(num, denom) == (unsigned int)num / denom);
         }
     }
     printf("OK\n");
