@@ -16,7 +16,7 @@
 #else
     #include <io.h>
 #endif
-
+#include "emmintrin.h"
 #include "bitops.hh"
 #include "htables.hh"
 #include "component_info.hh"
@@ -1246,7 +1246,18 @@ enum MergeJpegStreamingStatus{
     STREAMING_NEED_DATA = 2,
     STREAMING_DISABLED = 3
 };
-
+bool aligned_memchr16ff(const unsigned char *local_huff_data) {
+#if 1
+    __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
+    __m128i ff = _mm_set1_epi8(0xff);
+    __m128i res = _mm_cmpeq_epi8(buf, ff);
+    uint32_t movmask = _mm_movemask_epi8(res);
+    bool retval = movmask != 0x0;
+    assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
+    return retval;
+#endif
+    return memchr(local_huff_data, 0xff, 16) != NULL;
+}
 MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress, const unsigned char * local_huff_data, unsigned int max_byte_coded,
                                               bool flush) {
     if (!do_streaming) return STREAMING_DISABLED;
@@ -1305,12 +1316,34 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         unsigned int rstp_progress_rpos = rstp.empty() ? INT_MAX : rstp[ progress.rpos ];
         const unsigned char mrk = 0xFF; // marker start
         const unsigned char stv = 0x00; // 0xFF stuff value
+        for ( ; progress_ipos & 0xf; progress_ipos++ ) {
+            if (__builtin_expect(!(progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan)), 0)) {
+                break;
+            }
+            uint8_t byte_to_write = local_huff_data[progress_ipos];
+            str_out->write_byte(byte_to_write);
+            // check current byte, stuff if needed
+            if (__builtin_expect(byte_to_write == 0xFF, 0))
+                str_out->write_byte(stv);
+            // insert restart markers if needed
+            if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
+                if (!rstp.empty()) {
+                    const unsigned char rst = 0xD0 + ( progress.cpos & 7);
+                    str_out->write_byte(mrk);
+                    str_out->write_byte(rst);
+                    progress.rpos++; progress.cpos++;
+                    rstp_progress_rpos = rstp[ progress.rpos ];
+                }
+            }
+        }
+
         while(true) {
             if (__builtin_expect(!(progress_ipos + 15 < max_byte_coded && (progress_scan == 0 || progress_ipos + 15 < progress_scan)), 0)) {
                 break;
             }
-            if (memchr(local_huff_data + progress_ipos, 0xff, 16) || __builtin_expect(progress_ipos <= rstp_progress_rpos
-                                 && progress_ipos + 15 >= rstp_progress_rpos, 0)){
+            if ( __builtin_expect(aligned_memchr16ff(local_huff_data + progress_ipos)
+                                  || (progress_ipos <= rstp_progress_rpos
+                                      && progress_ipos + 15 >= rstp_progress_rpos), 0)){
                 // insert restart markers if needed
                 for (int veci = 0 ; veci < 16; ++veci, ++progress_ipos ) {
                     if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
@@ -1345,26 +1378,19 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
             if (__builtin_expect(!(progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan)), 0)) {
                 break;
             }
+            uint8_t byte_to_write = local_huff_data[progress_ipos];
+            str_out->write_byte(byte_to_write);
+            // check current byte, stuff if needed
+            if (__builtin_expect(byte_to_write == 0xFF, 0))
+                str_out->write_byte(stv);
             // insert restart markers if needed
             if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
-                uint8_t byte_to_write = local_huff_data[progress_ipos];
-                str_out->write_byte(byte_to_write);
-                // check current byte, stuff if needed
-                if (__builtin_expect(byte_to_write == 0xFF, 0))
-                    str_out->write_byte(stv);
                 if (!rstp.empty()) {
                     const unsigned char rst = 0xD0 + ( progress.cpos & 7);
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
                     progress.rpos++; progress.cpos++;
                     rstp_progress_rpos = rstp[ progress.rpos ];
-                }
-            } else {
-                uint8_t byte_to_write = local_huff_data[progress_ipos];
-                str_out->write_byte(byte_to_write);
-                // check current byte, stuff if needed
-                if (__builtin_expect(byte_to_write == 0xFF, 0)) {
-                    str_out->write_byte(stv);
                 }
             }
         }
