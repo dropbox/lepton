@@ -173,6 +173,8 @@ public:
 /* -----------------------------------------------
 	class to write arrays bytewise
 	----------------------------------------------- */
+extern void aligned_dealloc(unsigned char*);
+extern unsigned char * aligned_alloc(size_t);
 
 class abytewriter
 {

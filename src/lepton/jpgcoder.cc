@@ -1220,7 +1220,7 @@ bool read_jpeg( void )
     delete ( grbgw );
     if (grbs == sizeof(EOI) && 0 == memcmp(grbgdata, EOI, sizeof(EOI))) {
         grbs = 0;
-        free(grbgdata);
+        aligned_dealloc(grbgdata);
         grbgdata = NULL;
     }
 
@@ -2503,7 +2503,7 @@ bool read_ujpg( void )
             // read garbage (data after end of JPG) from file
             ReadFull(str_in, ujpg_mrk, 4);
             grbs = LEtoUint32(ujpg_mrk);
-            grbgdata = (unsigned char*) calloc( grbs, sizeof( unsigned char ) );
+            grbgdata = aligned_alloc(grbs);
             if ( grbgdata == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
@@ -2550,7 +2550,6 @@ bool read_ujpg( void )
     return true;
 }
 
-extern void aligned_dealloc(unsigned char*);
 
 /* -----------------------------------------------
     set each variable to its initial value
@@ -2567,7 +2566,7 @@ bool reset_buffers( void )
     // free buffers & set pointers NULL
     if ( hdrdata  != NULL ) aligned_dealloc ( hdrdata );
     if ( huffdata != NULL ) aligned_dealloc ( huffdata );
-    if ( grbgdata != NULL && grbgdata != EOI ) free ( grbgdata );
+    if ( grbgdata != NULL && grbgdata != EOI ) aligned_dealloc ( grbgdata );
     if ( rst_err  != NULL ) free ( rst_err );
     rstp.resize(0);
     scnp.resize(0);
