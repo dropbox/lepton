@@ -266,10 +266,10 @@ int max_sah = 0; // the maximum bit in a truncated image
 
 void standard_eof(abytewriter* hdrw, abytewriter* huffw) {
     // get pointer for header data & size
-    hdrdata  = hdrw->getptr();
+    hdrdata  = hdrw->getptr_aligned();
     hdrs     = hdrw->getpos();
     // get pointer for huffman data & size
-    huffdata = huffw->getptr();
+    huffdata = huffw->getptr_aligned();
     hufs     = huffw->getpos();
 }
 
@@ -1215,7 +1215,7 @@ bool read_jpeg( void )
         if ( len == 0 ) break;
         grbgw->write_n( segment, len );
     }
-    grbgdata = grbgw->getptr();
+    grbgdata = grbgw->getptr_aligned();
     grbs     = grbgw->getpos();
     delete ( grbgw );
     if (grbs == sizeof(EOI) && 0 == memcmp(grbgdata, EOI, sizeof(EOI))) {
@@ -3026,7 +3026,7 @@ bool rebuild_header_jpg( void )
 
     // replace current header with the new one
     free( hdrdata );
-    hdrdata = hdrw->getptr();
+    hdrdata = hdrw->getptr_aligned();
     hdrs    = hdrw->getpos();
     delete( hdrw );
 
@@ -3565,7 +3565,7 @@ int encode_crbits( abitwriter* huffw, abytewriter* storw )
     // peek into data from abytewriter
     len = storw->getpos();
     if ( len == 0 ) return 0;
-    data = storw->peekptr();
+    data = storw->peekptr_aligned();
 
     // write bits to huffwriter
     for ( i = 0; i < len; i++ )

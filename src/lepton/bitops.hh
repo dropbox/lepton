@@ -181,8 +181,8 @@ public:
 	~abytewriter( void );	
 	void write( unsigned char byte );
 	void write_n( unsigned char* byte, int n );
-	unsigned char* getptr( void );
-	unsigned char* peekptr( void );
+	unsigned char* getptr_aligned( void );
+	unsigned char* peekptr_aligned( void );
 	int getpos( void );
 	void reset( void );
 	bool error;	
