@@ -2550,7 +2550,7 @@ bool read_ujpg( void )
     return true;
 }
 
-
+extern void aligned_dealloc(unsigned char*);
 
 /* -----------------------------------------------
     set each variable to its initial value
@@ -2565,8 +2565,8 @@ bool reset_buffers( void )
     // -- free buffers --
 
     // free buffers & set pointers NULL
-    if ( hdrdata  != NULL ) free ( hdrdata );
-    if ( huffdata != NULL ) free ( huffdata );
+    if ( hdrdata  != NULL ) aligned_dealloc ( hdrdata );
+    if ( huffdata != NULL ) aligned_dealloc ( huffdata );
     if ( grbgdata != NULL && grbgdata != EOI ) free ( grbgdata );
     if ( rst_err  != NULL ) free ( rst_err );
     rstp.resize(0);
