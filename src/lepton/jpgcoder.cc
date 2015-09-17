@@ -1086,7 +1086,7 @@ bool read_jpeg( void )
                         // no zeroes needed -> ignore 0x00. write 0xFF
                         huffw->write( 0xFF );
                     }
-                    else if ( tmp == 0xD0 + ( cpos % 8 ) ) { // restart marker
+                    else if ( tmp == 0xD0 + ( cpos & 7 ) ) { // restart marker
                         // increment rst counters
                         cpos++;
                         crst++;
@@ -1306,27 +1306,30 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         const unsigned char mrk = 0xFF; // marker start
         const unsigned char stv = 0x00; // 0xFF stuff value
 
-        for ( ; progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan); progress_ipos++ ) {
+        for ( ; ; progress_ipos++ ) {
+            if (__builtin_expect(!(progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan)), 0)) {
+                break;
+            }
             // insert restart markers if needed
             if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
                 uint8_t byte_to_write = local_huff_data[progress_ipos];
-                str_out->write(&byte_to_write, 1);
+                str_out->write_byte(byte_to_write);
                 // check current byte, stuff if needed
                 if (__builtin_expect(byte_to_write == 0xFF, 0))
-                    str_out->write( &stv, 1 );
+                    str_out->write_byte(stv);
                 if (!rstp.empty()) {
                     const unsigned char rst = 0xD0 + ( progress.cpos & 7);
-                    str_out->write( &mrk, 1 );
-                    str_out->write( &rst, 1 );
+                    str_out->write_byte(mrk);
+                    str_out->write_byte(rst);
                     progress.rpos++; progress.cpos++;
                     rstp_progress_rpos = rstp[ progress.rpos ];
                 }
             } else {
                 uint8_t byte_to_write = local_huff_data[progress_ipos];
-                str_out->write(&byte_to_write, 1);
+                str_out->write_byte(byte_to_write);
                 // check current byte, stuff if needed
                 if (__builtin_expect(byte_to_write == 0xFF, 0)) {
-                    str_out->write( &stv, 1 );
+                    str_out->write_byte(stv);
                 }
             }
         }
@@ -1341,8 +1344,8 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         if ( rst_err != NULL ) {
             while ( rst_err[ progress.scan - 1 ] > 0 ) {
                 const unsigned char rst = 0xD0 + ( progress.cpos & 7 );
-                str_out->write( &mrk, 1 );
-                str_out->write( &rst, 1 );
+                str_out->write_byte(mrk);
+                str_out->write_byte(rst);
                 progress.cpos++;    rst_err[ progress.scan - 1 ]--;
             }
         }
@@ -1451,16 +1454,16 @@ bool merge_jpeg( void )
         // write & expand huffman coded image data
         for ( ipos = scnp[ scan - 1 ]; ipos < scnp[ scan ]; ipos++ ) {
             // write current byte
-            str_out->write( huffdata + ipos, 1 );
+            str_out->write_byte( huffdata[ipos]);
             // check current byte, stuff if needed
             if ( huffdata[ ipos ] == 0xFF )
-                str_out->write( &stv, 1 );
+                str_out->write_byte(stv);
             // insert restart markers if needed
             if ( !rstp.empty() ) {
                 if ( ipos == rstp[ rpos ] ) {
-                    rst = 0xD0 + ( cpos % 8 );
-                    str_out->write( &mrk, 1 );
-                    str_out->write( &rst, 1 );
+                    rst = 0xD0 + ( cpos & 7 );
+                    str_out->write_byte(mrk);
+                    str_out->write_byte(rst);
                     rpos++; cpos++;
                 }
             }
@@ -1468,9 +1471,9 @@ bool merge_jpeg( void )
         // insert false rst markers at end if needed
         if ( rst_err != NULL ) {
             while ( rst_err[ scan - 1 ] > 0 ) {
-                rst = 0xD0 + ( cpos % 8 );
-                str_out->write( &mrk, 1 );
-                str_out->write( &rst, 1 );
+                rst = 0xD0 + ( cpos & 7 );
+                str_out->write_byte(mrk);
+                str_out->write_byte(rst);
                 cpos++;    rst_err[ scan - 1 ]--;
             }
         }
