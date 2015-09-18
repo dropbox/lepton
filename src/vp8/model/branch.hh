@@ -8,7 +8,7 @@ typedef uint8_t Probability;
 
 //#define JPEG_ENCODER
 // ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
-//#define USE_COUNT_FREE_UPDATE
+#define USE_COUNT_FREE_UPDATE
 class Branch
 {
 private:
@@ -43,17 +43,17 @@ public:
         }
     }
     static ProbUpdate update_from_log_prob(uint8_t log_prob) {
-        ProbUpdate retval;
+        ProbUpdate retval = {0, 0, 0, 0};
         int limit = 120;
         if (log_prob == 127) {
             retval.log_prob_false = 128;
         } else if (log_prob > 127){
             if (log_prob < 128 + 40) {
-                retval.log_prob_false = log_prob + 1;
+                retval.log_prob_false = std::min(log_prob + 1, 255);
             } else if (log_prob < 128 + 96) {
-                retval.log_prob_false = log_prob + 2;
+                retval.log_prob_false = std::min(log_prob + 2, 255);
             } else {
-                retval.log_prob_false = log_prob + 3;
+                retval.log_prob_false = std::min(log_prob + 3, 255);
             }
             if (retval.log_prob_false > 127 + limit) retval.log_prob_false = 127 + limit;
         }
@@ -61,16 +61,18 @@ public:
             retval.log_prob_true = 127;
         } else if (log_prob < 128){
             if (log_prob > 127 - 40) {
-                retval.log_prob_true = log_prob - 1;
+                retval.log_prob_true = std::max(log_prob - 1, 0);
             } else if (log_prob > 127 - 96) {
-                retval.log_prob_true = log_prob - 2;
+                retval.log_prob_true = std::max(log_prob - 2, 0);
             } else {
-                retval.log_prob_true = log_prob - 3;
+                retval.log_prob_true = std::max(log_prob - 3, 0);
             }
             if (retval.log_prob_true < 128 - limit) {
                 retval.log_prob_true = 128 - limit;
             }
         }
+        retval.next_prob_true = compute_prob_from_log_prob(retval.log_prob_true);
+        retval.next_prob_false = compute_prob_from_log_prob(retval.log_prob_false);
         if (log_prob != 127 && log_prob != 128) {
             bool obs = log_prob > 128; // we're assuming a counteraction
             uint8_t pval = obs ? log_prob - 128 : 127 - log_prob;
@@ -87,16 +89,36 @@ public:
             }
             if (obs) {
                 retval.log_prob_true = search_result + 128;
+                retval.next_prob_true = 255 - new_prob * 256;
             } else {
                 retval.log_prob_false = 127 - search_result;
+                retval.next_prob_false = 256 * new_prob;
             }
         }
-        retval.next_prob_true = compute_prob_from_log_prob(retval.log_prob_true);
-        retval.next_prob_false = compute_prob_from_log_prob(retval.log_prob_false);
+        if (retval.log_prob_true & 0x1) {
+            retval.log_prob_true -= 1;
+        }
+        if (!(retval.log_prob_false & 0x1)) {
+            retval.log_prob_false += 1;
+        }
         return retval;
+    }
+    static void print_prob_update() {
+        fprintf(stderr, "unsigned char prob_update_table[256][2][2] = {");
+        for (int i = 0; i < 256; ++i) {
+            auto table = update_from_log_prob(i);
+            fprintf(stderr,"    {{0x%x, 0x%x},{0x%x, 0x%x}}%s",
+                    table.next_prob_false, table.log_prob_false, table.next_prob_true, table.log_prob_true,
+                    (i == 255 ? "\n};\n" : ",\n"));
+        }
     }
   __attribute__((always_inline))
   void record_obs_and_update(bool obs) {
+      static bool po = false;
+      if (!po) {
+          po = true;
+          print_prob_update();
+      }
       unsigned int fcount = counts_[0];
       unsigned int tcount = counts_[1];
       bool overflow = (counts_[obs]++ == 0xff);
