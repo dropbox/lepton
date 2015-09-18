@@ -25,7 +25,77 @@ public:
   uint32_t true_count() const { return counts_[1]; }
   uint32_t false_count() const { return counts_[0]; }
 
-    __attribute__((always_inline))
+    struct ProbUpdate {
+        uint8_t next_prob_true;
+        uint8_t next_prob_false;
+        uint8_t log_prob_true;
+        uint8_t log_prob_false;
+    };
+    static constexpr double log_base = .9575;
+    
+    static uint8_t compute_prob_from_log_prob(uint8_t log_prob) {
+        uint8_t pval = log_prob >= 128 ? log_prob - 128 : 127 - log_prob;
+        uint8_t retval = (uint8_t)(128 * pow(log_base, pval));
+        if (log_prob >= 128) {
+            return 255 - retval;
+        } else {
+            return retval;
+        }
+    }
+    static ProbUpdate update_from_log_prob(uint8_t log_prob) {
+        ProbUpdate retval;
+        int limit = 120;
+        if (log_prob == 127) {
+            retval.log_prob_false = 128;
+        } else if (log_prob > 127){
+            if (log_prob < 128 + 40) {
+                retval.log_prob_false = log_prob + 1;
+            } else if (log_prob < 128 + 96) {
+                retval.log_prob_false = log_prob + 2;
+            } else {
+                retval.log_prob_false = log_prob + 3;
+            }
+            if (retval.log_prob_false > 127 + limit) retval.log_prob_false = 127 + limit;
+        }
+        if (log_prob == 128) {
+            retval.log_prob_true = 127;
+        } else if (log_prob < 128){
+            if (log_prob > 127 - 40) {
+                retval.log_prob_true = log_prob - 1;
+            } else if (log_prob > 127 - 96) {
+                retval.log_prob_true = log_prob - 2;
+            } else {
+                retval.log_prob_true = log_prob - 3;
+            }
+            if (retval.log_prob_true < 128 - limit) {
+                retval.log_prob_true = 128 - limit;
+            }
+        }
+        if (log_prob != 127 && log_prob != 128) {
+            bool obs = log_prob > 128; // we're assuming a counteraction
+            uint8_t pval = obs ? log_prob - 128 : 127 - log_prob;
+            double prob = 0.5 * pow(log_base, (double)pval);
+            double new_prob = log_base * prob + 1 - log_base;
+            int search_result = pval - 1;
+            double best_search_dist = fabs(0.5 * pow(log_base, (double)search_result) - new_prob);
+            for (int search = search_result - 1; search > 0; --search) {
+                double search_prob = 0.5 * pow(log_base, (double)search);
+                if (fabs(search_prob - new_prob) < best_search_dist) {
+                    search_result =  search;
+                    best_search_dist = fabs(search_prob - new_prob);
+                } else break;
+            }
+            if (obs) {
+                retval.log_prob_true = search_result + 128;
+            } else {
+                retval.log_prob_false = 127 - search_result;
+            }
+        }
+        retval.next_prob_true = compute_prob_from_log_prob(retval.log_prob_true);
+        retval.next_prob_false = compute_prob_from_log_prob(retval.log_prob_false);
+        return retval;
+    }
+  __attribute__((always_inline))
   void record_obs_and_update(bool obs) {
       unsigned int fcount = counts_[0];
       unsigned int tcount = counts_[1];
@@ -39,52 +109,13 @@ public:
           probability_ = optimize(fcount + tcount + 1);
       }
 #ifdef USE_COUNT_FREE_UPDATE
-      int limit = 120;
-      if (lprob == 128 && obs) {
-          lprob = 127;
-      } else if (lprob == 127 && !obs) {
-          lprob = 128;
+      auto ret = update_from_log_prob(lprob);
+      if (obs) {
+          lprob = ret.log_prob_true;
+          probability_ = ret.next_prob_true;
       } else {
-          if (lprob > 127 && !obs) {
-              if (lprob < 128 + 40) {
-                  lprob += 1;
-              } else if (lprob < 128 + 96) {
-                  lprob += 2;
-              } else {
-                  lprob += 3;
-              }
-              if (lprob > 127 + limit) lprob = 127 + limit;
-          } else if (lprob < 128 && obs) {
-              if (lprob > 127 - 40) {
-                  lprob -= 1;
-              } else if (lprob > 127 - 96) {
-                  lprob -= 2;
-              } else {
-                  lprob -=3;
-              }
-              if (lprob < 128 - limit) {
-                  lprob = 128 - limit;
-              }
-          } else {
-              uint8_t pval = obs ? lprob - 128 : 127 - lprob;
-              double base = .9575;
-              double prob = 0.5 * pow(base, (double)pval);
-              double new_prob = base * prob + 1 - base;
-              int search_result = pval - 1;
-              double best_search_dist = fabs(0.5 * pow(base, (double)search_result) - new_prob);
-              for (int search = search_result - 1; search > 0; --search) {
-                  double search_prob = 0.5 * pow(base, (double)search);
-                  if (fabs(search_prob - new_prob) < best_search_dist) {
-                      search_result =  search;
-                      best_search_dist = fabs(search_prob - new_prob);
-                  } else break;
-              }
-              lprob = obs ? search_result + 128 : 127 - search_result;
-              probability_ = new_prob * 256;
-              if (obs) {
-                  probability_ = 255 - probability_;
-              }
-          }
+          lprob = ret.log_prob_false;
+          probability_ = ret.next_prob_false;
       }
 #endif
   }
