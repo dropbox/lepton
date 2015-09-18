@@ -8,7 +8,7 @@ typedef uint8_t Probability;
 
 //#define JPEG_ENCODER
 // ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
-#define USE_COUNT_FREE_UPDATE
+//#define USE_COUNT_FREE_UPDATE
 class Branch
 {
 private:
@@ -104,6 +104,7 @@ public:
         return retval;
     }
     static void print_prob_update() {
+        return;
         fprintf(stderr, "unsigned char prob_update_table[256][2][2] = {");
         for (int i = 0; i < 256; ++i) {
             auto table = update_from_log_prob(i);
