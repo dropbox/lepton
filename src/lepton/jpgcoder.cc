@@ -3151,10 +3151,10 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
         hc = ( ( (z & 0xf) << 4 ) + s );
         if (__builtin_expect(z & 0xf0, 0)) {
             // write remaining zeroes
-            while ( z & 0xf0 ) {
+            do {
                 huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
                 z -= 16;
-            }
+            } while ( z & 0xf0 );
         }
         // write to huffman writer
         huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );

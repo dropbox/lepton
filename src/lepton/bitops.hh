@@ -86,13 +86,12 @@ public:
         int nbits2 = nbits;
         unsigned int val2 = val;
         assert(nbits <= 64);
-        // safety check for error
-        if ( __builtin_expect(error, false) ) return;
         if ( __builtin_expect(cbyte2 > ( dsize - 5 ), false) ) {
             dsize += adds;
             data2 = (unsigned char*) realloc(data2, dsize );
             if ( data2 == NULL ) {
                 error = true;
+                exit(1);
                 return;
             }
             memset((data2 + cbyte2 + 1 ), 0, ( dsize - ( cbyte2 + 1 ) ) * sizeof(char));
