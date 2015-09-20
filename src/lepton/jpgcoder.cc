@@ -3141,25 +3141,26 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     {
         // if nonzero is encountered
         tmp = block[bpos];
-        if ( tmp != 0 ) {
-            // vli encode
-            s = nonzero_bit_length(ABS(tmp));
-            n = ENVLI(s, tmp);
-            hc = ( ( (z & 0xf) << 4 ) + s );
+        if (tmp == 0) {
+            ++z;
+            continue;
+        }
+        // vli encode
+        s = nonzero_bit_length(ABS(tmp));
+        n = ENVLI(s, tmp);
+        hc = ( ( (z & 0xf) << 4 ) + s );
+        if (__builtin_expect(z & 0xf0, 0)) {
             // write remaining zeroes
             while ( z & 0xf0 ) {
                 huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
                 z -= 16;
             }
-            // write to huffman writer
-            huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );
-            huffw->write( n, s );
-            // reset zeroes
-            z = 0;
         }
-        else { // increment zero counter
-            ++z;
-        }
+        // write to huffman writer
+        huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );
+        huffw->write( n, s );
+        // reset zeroes
+        z = 0;
     }
     // write eob if needed
     if ( z > 0 )
