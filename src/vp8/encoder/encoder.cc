@@ -88,7 +88,14 @@ void serialize_tokens(ConstBlockContext context,
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = block.num_nonzeros_7x7();
+    uint8_t num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
     for (unsigned int zz = 0; zz < 49; ++zz) {
+        if ((zz & 3) == 0) {
+            num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
+            if (num_nonzeros_lag_left_7x7 ==0) {
+                break;
+            }
+        }
         unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord >> 3;
@@ -101,7 +108,7 @@ void serialize_tokens(ConstBlockContext context,
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
 #endif
-            probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_left_7x7);
+            probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_lag_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
@@ -127,10 +134,10 @@ void serialize_tokens(ConstBlockContext context,
                    encoder.put((abs_coef & (1 << i)), res_prob.at(i));
                 }
             }
-
-            if (num_nonzeros_left_7x7 == 0) {
-                break; // done with the 49x49
+            if (num_nonzeros_left_7x7 ==0) {
+                break;
             }
+
         }
     }
 
@@ -140,21 +147,7 @@ void serialize_tokens(ConstBlockContext context,
     auto prob_y = probability_tables.y_nonzero_counts_1x8(
                                                       eob_y,
                                                          block.num_nonzeros_7x7());
-    serialized_so_far = 0;
-    for (int i= 2; i >= 0; --i) {
-        int cur_bit = (block.num_nonzeros_x() & (1 << i)) ? 1 : 0;
-        //encoder.put(cur_bit, prob_x.at(i, serialized_so_far));
-        serialized_so_far <<= 1;
-        serialized_so_far |= cur_bit;
 
-    }
-    serialized_so_far = 0;
-    for (int i= 2; i >= 0; --i) {
-        int cur_bit = (block.num_nonzeros_y() & (1 << i)) ? 1 : 0;
-        //encoder.put(cur_bit, prob_y.at(i, serialized_so_far));
-        serialized_so_far <<= 1;
-        serialized_so_far |= cur_bit;
-    }
     bool run_ends_early_x = !(block.coefficients().raster(4) || block.coefficients().raster(5) || block.coefficients().raster(6) || block.coefficients().raster(7));
     encoder.put(run_ends_early_x, prob_x.at(0, 0));
     bool run_ends_early_y = !(block.coefficients().raster(4 * 8) || block.coefficients().raster(5 * 8) || block.coefficients().raster(6 * 8) || block.coefficients().raster(7*8));
