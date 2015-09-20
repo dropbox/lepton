@@ -143,7 +143,7 @@ void serialize_tokens(ConstBlockContext context,
     serialized_so_far = 0;
     for (int i= 2; i >= 0; --i) {
         int cur_bit = (block.num_nonzeros_x() & (1 << i)) ? 1 : 0;
-        encoder.put(cur_bit, prob_x.at(i, serialized_so_far));
+        //encoder.put(cur_bit, prob_x.at(i, serialized_so_far));
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
 
@@ -151,10 +151,14 @@ void serialize_tokens(ConstBlockContext context,
     serialized_so_far = 0;
     for (int i= 2; i >= 0; --i) {
         int cur_bit = (block.num_nonzeros_y() & (1 << i)) ? 1 : 0;
-        encoder.put(cur_bit, prob_y.at(i, serialized_so_far));
+        //encoder.put(cur_bit, prob_y.at(i, serialized_so_far));
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
+    bool run_ends_early_x = !(block.coefficients().raster(4) || block.coefficients().raster(5) || block.coefficients().raster(6) || block.coefficients().raster(7));
+    encoder.put(run_ends_early_x, prob_x.at(0, 0));
+    bool run_ends_early_y = !(block.coefficients().raster(4 * 8) || block.coefficients().raster(5 * 8) || block.coefficients().raster(6 * 8) || block.coefficients().raster(7*8));
+    encoder.put(run_ends_early_y, prob_y.at(0, 0));
     uint8_t num_nonzeros_left_x = block.num_nonzeros_x();
     uint8_t num_nonzeros_left_y = block.num_nonzeros_y();
     for (int delta = 1; delta <= 8; delta += 7) {
@@ -162,13 +166,14 @@ void serialize_tokens(ConstBlockContext context,
         uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
         uint8_t num_nonzeros_edge = (delta == 1 ? num_nonzeros_left_x : num_nonzeros_left_y);
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        for (;num_nonzeros_edge_left; coord += delta, ++zig15offset) {
+        bool run_ends_early = delta == 1 ? run_ends_early_x : run_ends_early_y;
+        for (int xx = 0;xx < 7&& (xx < 3 || !run_ends_early); ++xx,coord += delta, ++zig15offset) {
 #ifdef TRACK_HISTOGRAM
             ++histogram[2][coef];
 #endif
 
             assert(coord != 9);
-            probability_tables.update_coefficient_context8(prior, coord, context, num_nonzeros_edge_left);
+            probability_tables.update_coefficient_context8(prior, coord, context, delta == 1 ? eob_x : eob_y);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
             int16_t coef = block.coefficients().raster( coord );
             uint16_t abs_coef = abs(coef);
