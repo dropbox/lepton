@@ -101,7 +101,7 @@ private:
 public:
   AlignedBlock() {
   }
-  void recalculate_coded_length(uint8_t num_nonzeros_7x7, uint8_t num_nonzeros_x, uint8_t num_nonzeros_y) const
+  void recalculate_coded_length(uint8_t num_nonzeros_7x7) const
   {
       num_nonzeros_7x7_ = num_nonzeros_7x7;
   }
