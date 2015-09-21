@@ -494,7 +494,6 @@ public:
         return total / weights;
     }
     int compute_aavrg(unsigned int aligned_zz, ConstBlockContext context) {
-        assert(band != 0 && "Call compute_aavrg_dc for dc computation");
         constexpr uint16_t weights = (left_present && above_present ? 1 : 0)
             + (left_present ? 2 : 0)
             + (above_present ? 2 : 0)
