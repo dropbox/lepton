@@ -114,12 +114,6 @@ void parse_tokens( BlockContext context,
             }
         }
     }
-    auto prob_x = probability_tables.x_nonzero_counts_8x1(
-                                                      eob_x,
-                                                         num_nonzeros_7x7);
-    auto prob_y = probability_tables.y_nonzero_counts_1x8(
-                                                      eob_y,
-                                                         num_nonzeros_7x7);
 
     uint8_t num_nonzeros_x = 0;
     decoded_so_far = 0;
@@ -141,20 +135,22 @@ void parse_tokens( BlockContext context,
         decoded_so_far |= cur_bit;
     }
 */
-    bool run_ends_early_x = data.get(prob_x.at(0, 0))?1:0;
-    bool run_ends_early_y = data.get(prob_y.at(0, 0))?1:0;
     uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
+    auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(
+                                                      eob_x,
+                                                         num_nonzeros_7x7);
     for (uint8_t delta = 1, zig15offset = 0, num_nonzeros_edge = num_nonzeros_x; ; delta = 8,
              zig15offset = 7,
              num_nonzeros_edge = num_nonzeros_y,
-             aligned_block_offset = AlignedBlock::ROW_Y_INDEX) {
+             aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
+             prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
+                                                                       num_nonzeros_7x7)) {
         unsigned int coord = delta;
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        bool run_ends_early = delta == 1 ? run_ends_early_x : run_ends_early_y;
+        bool run_ends_early = data.get(prob_early_exit.at(0, 0))?1:0;
         for (int xx = 0; xx < 7 && (xx < 3 || !run_ends_early); ++xx, coord += delta, ++zig15offset) {
             probability_tables.update_coefficient_context8(prior, coord, context.copy(), delta == 1 ? eob_x : eob_y);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
-
             uint8_t length;
             bool nonzero = false;
             auto * exp_branch = exp_array.begin();

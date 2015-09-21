@@ -141,30 +141,26 @@ void serialize_tokens(ConstBlockContext context,
         }
     }
 
-    auto prob_x = probability_tables.x_nonzero_counts_8x1(
+    auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(
                                                       eob_x,
-                                                         block.num_nonzeros_7x7());
-    auto prob_y = probability_tables.y_nonzero_counts_1x8(
-                                                      eob_y,
                                                          block.num_nonzeros_7x7());
 
     bool run_ends_early_x = !(block.coefficients_raster(4) || block.coefficients_raster(5) || block.coefficients_raster(6) || block.coefficients_raster(7));
-    encoder.put(run_ends_early_x, prob_x.at(0, 0));
     bool run_ends_early_y = !(block.coefficients_raster(4 * 8) || block.coefficients_raster(5 * 8) || block.coefficients_raster(6 * 8) || block.coefficients_raster(7*8));
-    encoder.put(run_ends_early_y, prob_y.at(0, 0));
     uint8_t num_nonzeros_left_x = block.num_nonzeros_x();
     uint8_t num_nonzeros_left_y = block.num_nonzeros_y();
     uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
-    bool run_ends_early =run_ends_early_x;
     uint8_t num_nonzeros_edge = num_nonzeros_left_x;
     for (int delta = 1; delta <= 8; delta += 7,
              aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
-             run_ends_early = run_ends_early_y,
-             num_nonzeros_edge = num_nonzeros_left_y) {
+             num_nonzeros_edge = num_nonzeros_left_y,
+             prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
+                                                                       block.num_nonzeros_7x7())) {
         unsigned int coord = delta;
         uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        
+        bool run_ends_early =delta == 1 ?  run_ends_early_x : run_ends_early_y;
+        encoder.put(run_ends_early, prob_early_exit.at(0, 0));
         for (int xx = 0;xx < 7&& (xx < 3 || !run_ends_early); ++xx,coord += delta, ++zig15offset) {
 #ifdef TRACK_HISTOGRAM
             ++histogram[2][coef];
