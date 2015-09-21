@@ -139,62 +139,67 @@ void parse_tokens( BlockContext context,
     auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(
                                                       eob_x,
                                                          num_nonzeros_7x7);
+    uint8_t est_eob = eob_x;
     for (uint8_t delta = 1, zig15offset = 0, num_nonzeros_edge = num_nonzeros_x; ; delta = 8,
              zig15offset = 7,
+             est_eob = eob_y,
              num_nonzeros_edge = num_nonzeros_y,
              aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
              prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
                                                                        num_nonzeros_7x7)) {
         unsigned int coord = delta;
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        bool run_ends_early = data.get(prob_early_exit.at(0, 0))?1:0;
-        for (int xx = 0; xx < 7 && (xx < 3 || !run_ends_early); ++xx, coord += delta, ++zig15offset) {
-            probability_tables.update_coefficient_context8(prior, coord, context.copy(), delta == 1 ? eob_x : eob_y);
-            auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
-            uint8_t length;
-            bool nonzero = false;
-            auto * exp_branch = exp_array.begin();
-            for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = data.get(*exp_branch++);
-                if (!cur_bit) {
-                    break;
+        int run_ends_early = data.get(prob_early_exit.at(0, 0))? 1 : 0;
+        int lane = 0, lane_end = 3;
+        for (int vec = 0; vec <= !run_ends_early; ++vec, lane_end = 7) {
+            for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
+                probability_tables.update_coefficient_context8(prior, coord, context.copy(), est_eob);
+                auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
+                uint8_t length;
+                bool nonzero = false;
+                auto * exp_branch = exp_array.begin();
+                for (length = 0; length != MAX_EXPONENT; ++length) {
+                    bool cur_bit = data.get(*exp_branch++);
+                    if (!cur_bit) {
+                        break;
+                    }
+                    nonzero = true;
                 }
-                nonzero = true;
-            }
-            int16_t coef = 0;
-            if (nonzero) {
-                uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                auto &sign_prob = probability_tables.sign_array_8(coord, prior);
-                --num_nonzeros_edge_left;
-                bool neg = !data.get(sign_prob);
-                coef = (1 << (length - 1));
-                if (length > 1){
-                    int i = length - 2;
-                    if (length - 2 >= min_threshold) {
-                        auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
-                                                                                    prior, min_threshold,
-                                                                                    probability_tables.get_max_value(coord));
-                        uint16_t decoded_so_far = 1;
-                        for (; i >= min_threshold; --i) {
-                            int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
-                            coef |= (cur_bit << i);
-                            decoded_so_far <<= 1;
-                            if (cur_bit) {
-                                decoded_so_far |= 1;
+                int16_t coef = 0;
+                if (nonzero) {
+                    uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
+                    auto &sign_prob = probability_tables.sign_array_8(coord, prior);
+                    --num_nonzeros_edge_left;
+                    bool neg = !data.get(sign_prob);
+                    coef = (1 << (length - 1));
+                    if (length > 1){
+                        int i = length - 2;
+                        if (length - 2 >= min_threshold) {
+                            auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
+                                                                                        prior, min_threshold,
+                                                                                        probability_tables.get_max_value(coord));
+                            uint16_t decoded_so_far = 1;
+                            for (; i >= min_threshold; --i) {
+                                int cur_bit = (data.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                                coef |= (cur_bit << i);
+                                decoded_so_far <<= 1;
+                                if (cur_bit) {
+                                    decoded_so_far |= 1;
+                                }
                             }
+                            probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
                         }
-                        probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
+                        auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
+                        for (; i >= 0; --i) {
+                            coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                        }
                     }
-                    auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
-                    for (; i >= 0; --i) {
-                        coef |= ((data.get(res_prob.at(i)) ? 1 : 0) << i);
+                    if (neg) {
+                        coef = -coef;
                     }
                 }
-                if (neg) {
-                    coef = -coef;
-                }
+                context.here().coef.at(aligned_block_offset + lane) = coef;
             }
-            context.here().coef.at(aligned_block_offset + xx) = coef;
         }
         if (delta == 8) {
             break;
