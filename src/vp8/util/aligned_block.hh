@@ -97,26 +97,17 @@ public:
   };
 private:
 
-  mutable uint8_t num_nonzeros_ = 0;
   mutable uint8_t num_nonzeros_7x7_ = 0;
-  mutable uint8_t num_nonzeros_x_ = 0;
-  mutable uint8_t num_nonzeros_y_ = 0;
 public:
   AlignedBlock() {
   }
   void recalculate_coded_length(uint8_t num_nonzeros_7x7, uint8_t num_nonzeros_x, uint8_t num_nonzeros_y) const
   {
       num_nonzeros_7x7_ = num_nonzeros_7x7;
-      num_nonzeros_x_ = num_nonzeros_x;
-      num_nonzeros_y_ = num_nonzeros_y;
-      num_nonzeros_ = num_nonzeros_7x7 + num_nonzeros_x + num_nonzeros_y + (coef.at(DC_INDEX) ? 1 : 0);
   }
   void recalculate_coded_length() const
   {
-    num_nonzeros_ = 0;
     num_nonzeros_7x7_ = 0;
-    num_nonzeros_x_ = 0;
-    num_nonzeros_y_ = 0;
     /* how many tokens are we going to encode? */
     for ( unsigned int index = 0; index < 64; index++ ) {
         unsigned int xy = jpeg_zigzag_to_raster.at( index );
@@ -124,13 +115,6 @@ public:
         unsigned int y = xy >> 3;
         if (coef.at(raster_to_aligned.at(xy))) {
             //coded_length_ = index + 1;
-            ++num_nonzeros_;
-            if (x == 0 && y) {
-                ++num_nonzeros_y_;
-            }
-            if (y == 0 && x) {
-                ++num_nonzeros_x_;
-            }
             if (x > 0 && y > 0) {
                 ++num_nonzeros_7x7_;
             }
@@ -147,10 +131,7 @@ public:
   int16_t coefficients_zigzag(uint8_t index) const { return coef.at(zigzag_to_aligned.at(index)); }
 
   //uint8_t coded_length() const { return coded_length_; }
-  uint8_t num_nonzeros() const { return num_nonzeros_; }
   uint8_t num_nonzeros_7x7() const { return num_nonzeros_7x7_; }
-  uint8_t num_nonzeros_x() const { return num_nonzeros_x_; }
-  uint8_t num_nonzeros_y() const { return num_nonzeros_y_; }
 };
 
 

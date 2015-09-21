@@ -115,40 +115,18 @@ void parse_tokens( BlockContext context,
         }
     }
 
-    uint8_t num_nonzeros_x = 0;
-    decoded_so_far = 0;
-/*
-    for (int i= 2; i >=0; --i) {
-        int cur_bit = data.get(prob_x.at(i, decoded_so_far))?1:0;
-        num_nonzeros_x |= (cur_bit << i);
-        decoded_so_far <<= 1;
-        decoded_so_far |= cur_bit;
-    }
-*/
-    uint8_t num_nonzeros_y = 0;
-    decoded_so_far = 0;
-/*
-    for (int i= 2; i >=0; --i) {
-        int cur_bit = data.get(prob_y.at(i, decoded_so_far))?1:0;
-        num_nonzeros_y |= (cur_bit << i);
-        decoded_so_far <<= 1;
-        decoded_so_far |= cur_bit;
-    }
-*/
     uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
     auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(
                                                       eob_x,
                                                          num_nonzeros_7x7);
     uint8_t est_eob = eob_x;
-    for (uint8_t delta = 1, zig15offset = 0, num_nonzeros_edge = num_nonzeros_x; ; delta = 8,
+    for (uint8_t delta = 1, zig15offset = 0; ; delta = 8,
              zig15offset = 7,
              est_eob = eob_y,
-             num_nonzeros_edge = num_nonzeros_y,
              aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
              prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
                                                                        num_nonzeros_7x7)) {
         unsigned int coord = delta;
-        uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
         int run_ends_early = data.get(prob_early_exit.at(0, 0))? 1 : 0;
         int lane = 0, lane_end = 3;
         for (int vec = 0; vec <= !run_ends_early; ++vec, lane_end = 7) {
@@ -169,7 +147,6 @@ void parse_tokens( BlockContext context,
                 if (nonzero) {
                     uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
                     auto &sign_prob = probability_tables.sign_array_8(coord, prior);
-                    --num_nonzeros_edge_left;
                     bool neg = !data.get(sign_prob);
                     coef = (1 << (length - 1));
                     if (length > 1){
@@ -206,7 +183,7 @@ void parse_tokens( BlockContext context,
         }
     }
     context.here().mutable_coefficients_raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
-    context.here().recalculate_coded_length(num_nonzeros_7x7, num_nonzeros_x, num_nonzeros_y);
+    context.here().recalculate_coded_length(num_nonzeros_7x7, 0, 0);
 }
 
 template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Y>&);

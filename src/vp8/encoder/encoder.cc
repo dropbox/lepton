@@ -147,18 +147,13 @@ void serialize_tokens(ConstBlockContext context,
 
     bool run_ends_early_x = !(block.coefficients_raster(4) || block.coefficients_raster(5) || block.coefficients_raster(6) || block.coefficients_raster(7));
     bool run_ends_early_y = !(block.coefficients_raster(4 * 8) || block.coefficients_raster(5 * 8) || block.coefficients_raster(6 * 8) || block.coefficients_raster(7*8));
-    uint8_t num_nonzeros_left_x = block.num_nonzeros_x();
-    uint8_t num_nonzeros_left_y = block.num_nonzeros_y();
     uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
-    uint8_t num_nonzeros_edge = num_nonzeros_left_x;
     for (int delta = 1; delta <= 8; delta += 7,
              aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
-             num_nonzeros_edge = num_nonzeros_left_y,
              prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
                                                                        block.num_nonzeros_7x7())) {
         unsigned int coord = delta;
         uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
-        uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
         bool run_ends_early =delta == 1 ?  run_ends_early_x : run_ends_early_y;
         encoder.put(run_ends_early, prob_early_exit.at(0, 0));
         for (int xx = 0;xx < 7&& (xx < 3 || !run_ends_early); ++xx,coord += delta, ++zig15offset) {
@@ -184,7 +179,6 @@ void serialize_tokens(ConstBlockContext context,
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             }
             if (length != 0) {
-                --num_nonzeros_edge_left;
                 auto &sign_prob = probability_tables.sign_array_8(coord, prior);
                 encoder.put(coef >= 0, sign_prob);
             }
