@@ -66,6 +66,14 @@ void parse_tokens( BlockContext context,
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     uint8_t num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
     for (unsigned int zz = 0; zz < 49; ++zz) {
+        // VECTORIZE HERE (zz += 4 rather than ++zz)
+        // this is a perfectly ordinary vectorization task if num_nonzeros_lag_left >= 4
+        // however if num_nonzeros_lag_left == 3, 2, 1 or 0, we should probably start with a
+        // scalar vectorized bool decoder...and if that works then we can look into making
+        // a bool_decoder that speculatively tries 4 gets and cancels out if too many
+        // are nonzero. It would probably also need to cancel out if any need to enter the
+        // vpx_fill_buffer branch and load things from the streams--in those cases it could
+        // fall back to (slow) scalar code.
         if ((zz & 3) == 0) {
             num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
             if (num_nonzeros_lag_left_7x7 ==0) {
@@ -127,6 +135,11 @@ void parse_tokens( BlockContext context,
              prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
                                                                        num_nonzeros_7x7)) {
         unsigned int coord = delta;
+        //VECTORIZE HERE
+        //the first of the two vectorized items will be
+        // a vector of [run_ends_early, lane0, lane1, lane2]
+        // if run_ends_early is false then the second set of 4 items will be
+        // a vector of [lane3, lane4, lane5, lane6]
         int run_ends_early = data.get(prob_early_exit.at(0, 0))? 1 : 0;
         int lane = 0, lane_end = 3;
         for (int vec = 0; vec <= !run_ends_early; ++vec, lane_end = 7) {
