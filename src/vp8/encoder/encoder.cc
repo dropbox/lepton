@@ -108,7 +108,7 @@ void serialize_tokens(ConstBlockContext context,
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
 #endif
-            probability_tables.update_coefficient_context7x7(prior, coord, context, num_nonzeros_lag_left_7x7);
+            probability_tables.update_coefficient_context7x7(zz, prior, context, num_nonzeros_lag_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {

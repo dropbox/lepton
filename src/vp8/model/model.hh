@@ -271,9 +271,10 @@ public:
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
         return retval;
     }
-    void update_coefficient_context7x7(CoefficientContext & retval,
-                                     uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_left) {
-        retval.best_prior = compute_aavrg(block, coefficient);
+    void update_coefficient_context7x7(int aligned_zz,
+                                       CoefficientContext & retval,
+                                       const ConstBlockContext block, uint8_t num_nonzeros_left) {
+        retval.best_prior = compute_aavrg(aligned_zz, block);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
     }
@@ -492,7 +493,7 @@ public:
         //}
         return total / weights;
     }
-    int compute_aavrg(ConstBlockContext context, unsigned int band) {
+    int compute_aavrg(unsigned int aligned_zz, ConstBlockContext context) {
         assert(band != 0 && "Call compute_aavrg_dc for dc computation");
         constexpr uint16_t weights = (left_present && above_present ? 1 : 0)
             + (left_present ? 2 : 0)
@@ -501,13 +502,13 @@ public:
 
         uint32_t total = (weights >> 1);
         if (above_present) {
-            total += abs(context.above_unchecked().coefficients_raster(band)) << 1;
+            total += abs(context.above_unchecked().coef.at(aligned_zz)) << 1;
             if (left_present) {
-                total += abs(context.above_left_unchecked().coefficients_raster(band));
+                total += abs(context.above_left_unchecked().coef.at(aligned_zz));
             }
         }
         if (left_present) {
-            total += abs(context.left_unchecked().coefficients_raster(band)) << 1;
+            total += abs(context.left_unchecked().coef.at(aligned_zz)) << 1;
         }
         //if (block.context().above_right.initialized()) {
         //total += abs(block.context().above_right.get()->coefficients().at(0));

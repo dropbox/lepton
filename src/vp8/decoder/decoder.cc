@@ -77,7 +77,7 @@ void parse_tokens( BlockContext context,
         unsigned int b_y = (coord >> 3);
         assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
-            probability_tables.update_coefficient_context7x7(prior, coord, context.copy(), num_nonzeros_lag_left_7x7);
+            probability_tables.update_coefficient_context7x7(zz, prior, context.copy(), num_nonzeros_lag_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length;
             bool nonzero = false;
