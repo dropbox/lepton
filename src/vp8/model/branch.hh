@@ -17,6 +17,7 @@ private:
 #endif
   Probability probability_ = 128;
 #ifdef USE_COUNT_FREE_UPDATE
+  uint8_t full_count = 0;
   uint8_t lprob = 128;
 #endif
   friend class JpegBoolDecoder;
@@ -29,16 +30,10 @@ public:
 #endif
     struct ProbUpdate {
         struct ProbOutcome {
-            uint8_t next_prob;
             uint8_t log_prob;
         };
+        uint8_t prob;
         ProbOutcome next[2];
-        uint8_t& next_prob_false() {
-            return next[0].next_prob;
-        }
-        uint8_t& next_prob_true() {
-            return next[1].next_prob;
-        }
         uint8_t& log_prob_false() {
             return next[0].log_prob;
         }
@@ -46,9 +41,9 @@ public:
             return next[1].log_prob;
         }
     };
-    static ProbUpdate update_lookup[256];
+    static ProbUpdate update_lookup[4][256];
     static constexpr double log_base = .9575;
-    
+
     static uint8_t compute_prob_from_log_prob(uint8_t log_prob) {
         uint8_t pval = log_prob >= 128 ? log_prob - 128 : 127 - log_prob;
         uint8_t retval = (uint8_t)(128 * pow(log_base, pval));
@@ -59,7 +54,7 @@ public:
         }
     }
     static ProbUpdate update_from_log_prob(uint8_t log_prob) {
-        ProbUpdate retval = {{{0, 0}, {0,0}}};
+        ProbUpdate retval = {0, {{0},{0}}};
         int limit = 120;
         if (log_prob == 127) {
             retval.log_prob_false() = 128;
@@ -87,8 +82,7 @@ public:
                 retval.log_prob_true() = 128 - limit;
             }
         }
-        retval.next_prob_true() = compute_prob_from_log_prob(retval.log_prob_true());
-        retval.next_prob_false() = compute_prob_from_log_prob(retval.log_prob_false());
+        retval.prob = compute_prob_from_log_prob(log_prob);
         if (log_prob != 127 && log_prob != 128) {
             bool obs = log_prob > 128; // we're assuming a counteraction
             uint8_t pval = obs ? log_prob - 128 : 127 - log_prob;
@@ -105,17 +99,15 @@ public:
             }
             if (obs) {
                 retval.log_prob_true() = search_result + 128;
-                retval.next_prob_true() = 255 - new_prob * 256;
             } else {
                 retval.log_prob_false() = 127 - search_result;
-                retval.next_prob_false() = 256 * new_prob;
             }
         }
         if (retval.log_prob_true() & 0x1) {
-            retval.log_prob_true() -= 1;
+            //retval.log_prob_true() -= 1;
         }
         if (!(retval.log_prob_false() & 0x1)) {
-            retval.log_prob_false() += 1;
+            //retval.log_prob_false() += 1;
         }
         return retval;
     }
@@ -123,19 +115,26 @@ public:
         fprintf(stderr, "unsigned char prob_update_table[256][2][2] = {");
         for (int i = 0; i < 256; ++i) {
             auto table = update_from_log_prob(i);
-            fprintf(stderr,"    {{{0x%x, 0x%x},{0x%x, 0x%x}}}%s",
-                    table.next_prob_false(), table.log_prob_false(),
-                    table.next_prob_true(), table.log_prob_true(),
+            fprintf(stderr,"    {0x%x,{{0x%x}, {0x%x}}}%s",
+                    (int)table.prob,
+                    (int)table.log_prob_false(), (int)table.log_prob_true(),
                     (i == 255 ? "\n};\n" : ",\n"));
         }
     }
   __attribute__((always_inline))
   void record_obs_and_update(bool obs) {
+      /*
+      static bool pr = true;
+      if (pr) {
+          pr = false;
+          print_prob_update();
+          }*/
 #ifdef USE_COUNT_FREE_UPDATE
+      if (full_count != 0xff) ++full_count;
       {
-          auto ret = update_lookup[lprob].next[obs];
-          probability_ = ret.next_prob;
+          auto ret = update_lookup[full_count / (256 / (sizeof(update_lookup)/sizeof(update_lookup[0])))][lprob].next[obs];
           lprob = ret.log_prob;
+          probability_ = update_lookup[full_count / (256 / (sizeof(update_lookup)/sizeof(update_lookup[0])))][lprob].prob;
           return;
       }
 #else
@@ -155,11 +154,10 @@ public:
       auto ret = update_from_log_prob(lprob);
       if (obs) {
           lprob = ret.log_prob_true();
-          probability_ = ret.next_prob_true();
       } else {
           lprob = ret.log_prob_false();
-          probability_ = ret.next_prob_false();
       }
+      probability_ = compute_prob_from_log_prob(lprob);
 #endif
   }
   void normalize() {
