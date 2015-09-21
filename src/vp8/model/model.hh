@@ -14,7 +14,7 @@
 class BoolEncoder;
 class Slice;
 
-constexpr unsigned int MAX_EXPONENT = 10;
+constexpr unsigned int MAX_EXPONENT = 12;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
 constexpr unsigned int band_divisor = 1;
