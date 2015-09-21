@@ -377,30 +377,30 @@ public:
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
+            retval = block.coefficients_raster(0) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(1) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(2) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(3) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(4) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(5) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(6) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(7) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
+        retval += block.coefficients_raster(1) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
+        retval += block.coefficients_raster(2) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
+        retval += block.coefficients_raster(3) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
+        retval += block.coefficients_raster(4) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
+        retval += block.coefficients_raster(5) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
+        retval += block.coefficients_raster(6) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
+        retval += block.coefficients_raster(7) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
         return retval;
     }
 
     int idct_2d_1x8(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients().raster(0) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
+            retval = block.dc() * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients().raster(8) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
-        retval += block.coefficients().raster(16) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
-        retval += block.coefficients().raster(24) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
-        retval += block.coefficients().raster(32) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
-        retval += block.coefficients().raster(40) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
-        retval += block.coefficients().raster(48) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
-        retval += block.coefficients().raster(56) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
+        retval += block.coefficients_raster(8) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
+        retval += block.coefficients_raster(16) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
+        retval += block.coefficients_raster(24) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
+        retval += block.coefficients_raster(32) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
+        retval += block.coefficients_raster(40) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
+        retval += block.coefficients_raster(48) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
+        retval += block.coefficients_raster(56) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
         return retval;
     }
 
@@ -438,10 +438,10 @@ public:
     }
     int predict_locoi_dc_deprecated(const ConstBlockContext&context) {
         if (left_present) {
-            int a = context.left_unchecked().coefficients().raster(0);
+            int a = context.left_unchecked().dc();
             if (above_present) {
-                int b = context.above_unchecked().coefficients().raster(0);
-                int c = context.above_left_unchecked().coefficients().raster(0);
+                int b = context.above_unchecked().dc();
+                int c = context.above_left_unchecked().dc();
                 if (c >= std::max(a,b)) {
                     return std::min(a,b);
                 } else if (c <= std::min(a,b)) {
@@ -452,7 +452,7 @@ public:
                 return a;
             }
         } else if (above_present) {
-            return context.above_unchecked().coefficients().raster(0);
+            return context.above_unchecked().dc();
         } else {
             return 0;
         }
@@ -466,7 +466,7 @@ public:
         int adjustment_factor = 2 * max_value + 1;
         int retval = //predict_locoi_dc_deprecated(block);
             predict_dc_dct(context);
-        retval = context.here().coefficients().raster(0) + (recover_original ? retval : -retval);
+        retval = context.here().dc() + (recover_original ? retval : -retval);
         if (retval < min_value) retval += adjustment_factor;
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
@@ -479,13 +479,13 @@ public:
 
         uint32_t total = (weights >> 1);
         if (above_present) {
-            total += abs(context.above_unchecked().coefficients().raster(0)) << 1;
+            total += abs(context.above_unchecked().dc()) << 1;
             if (left_present) {
-                total += abs(context.above_left_unchecked().coefficients().raster(0));
+                total += abs(context.above_left_unchecked().dc());
             }
         }
         if (left_present) {
-            total += abs(context.left_unchecked().coefficients().raster(0)) << 1;
+            total += abs(context.left_unchecked().dc()) << 1;
         }
         //if (block.context().above_right.initialized()) {
         //total += abs(block.context().above_right.get()->coefficients().at(0));
@@ -501,13 +501,13 @@ public:
 
         uint32_t total = (weights >> 1);
         if (above_present) {
-            total += abs(context.above_unchecked().coefficients().raster(band)) << 1;
+            total += abs(context.above_unchecked().coefficients_raster(band)) << 1;
             if (left_present) {
-                total += abs(context.above_left_unchecked().coefficients().raster(band));
+                total += abs(context.above_left_unchecked().coefficients_raster(band));
             }
         }
         if (left_present) {
-            total += abs(context.left_unchecked().coefficients().raster(band)) << 1;
+            total += abs(context.left_unchecked().coefficients_raster(band)) << 1;
         }
         //if (block.context().above_right.initialized()) {
         //total += abs(block.context().above_right.get()->coefficients().at(0));
@@ -522,20 +522,20 @@ public:
         if ((band & 7) && above_present) {
             // y == 0: we're the x
             assert(band/8 == 0); //this function only works for the edge
-            const auto &above = context.above_unchecked().coefficients();
+            const auto &above = context.above_unchecked();
             for (int i = 0; i < 8; ++i) {
                 uint8_t cur_coef = band + i * 8;
-                coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
-                coeffs_a[i]  = above.raster(cur_coef);
+                coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : -32768;
+                coeffs_a[i]  = above.coefficients_raster(cur_coef);
             }
             coef_idct = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
         } else if ((band & 7) == 0 && left_present) {
             // x == 0: we're the y
-            const auto &left = context.left_unchecked().coefficients();
+            const auto &left = context.left_unchecked();
             for (int i = 0; i < 8; ++i) {
                 uint8_t cur_coef = band + i;
-                coeffs_x[i]  = i ? context.here().coefficients().raster(cur_coef) : -32768;
-                coeffs_a[i]  = left.raster(cur_coef);
+                coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : -32768;
+                coeffs_a[i]  = left.coefficients_raster(cur_coef);
             }
             coef_idct = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
         } else {

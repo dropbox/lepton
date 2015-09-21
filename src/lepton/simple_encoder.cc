@@ -38,7 +38,7 @@ CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedCompone
     while (cur_read_batch[cmp] < target[cmp]) {
         int cur_write_size = std::min((int)batch_size, target[cmp] - cur_read_batch[cmp]);
         for (int i = 0; i < cur_write_size; ++i) {
-            str_out->Write(reinterpret_cast<const unsigned char*>(&start.raster(cur_read_batch[cmp] + i).coef.raster(0)),
+            str_out->Write(reinterpret_cast<const unsigned char*>(&start.raster(cur_read_batch[cmp] + i).coef.at(0)),
                            sizeof( short ) * 64);
         }
         cur_read_batch[cmp] += cur_write_size;

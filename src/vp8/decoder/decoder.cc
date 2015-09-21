@@ -58,8 +58,8 @@ void parse_tokens( BlockContext context,
                 coef = -coef;
             }
         }
-        context.here().mutable_coefficients().memset(0);
-        context.here().mutable_coefficients().raster(0) = coef;
+        context.here().coef.memset(0);
+        context.here().dc() = coef;
     }
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
@@ -108,7 +108,7 @@ void parse_tokens( BlockContext context,
                     coef = -coef;
                 }
             }
-            context.here().mutable_coefficients().raster( coord ) = coef;
+            context.here().coef.at(zz + AlignedBlock::AC_7x7_INDEX) = coef;
             if (num_nonzeros_left_7x7 == 0) {
                 break; // done with the 49x49
             }
@@ -143,7 +143,11 @@ void parse_tokens( BlockContext context,
 */
     bool run_ends_early_x = data.get(prob_x.at(0, 0))?1:0;
     bool run_ends_early_y = data.get(prob_y.at(0, 0))?1:0;
-    for (uint8_t delta = 1, zig15offset = 0, num_nonzeros_edge = num_nonzeros_x; ; delta = 8, zig15offset = 7, num_nonzeros_edge = num_nonzeros_y) {
+    uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
+    for (uint8_t delta = 1, zig15offset = 0, num_nonzeros_edge = num_nonzeros_x; ; delta = 8,
+             zig15offset = 7,
+             num_nonzeros_edge = num_nonzeros_y,
+             aligned_block_offset = AlignedBlock::ROW_Y_INDEX) {
         unsigned int coord = delta;
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
         bool run_ends_early = delta == 1 ? run_ends_early_x : run_ends_early_y;
@@ -194,13 +198,13 @@ void parse_tokens( BlockContext context,
                     coef = -coef;
                 }
             }
-            context.here().mutable_coefficients().raster( coord ) = coef;
+            context.here().coef.at(aligned_block_offset + xx) = coef;
         }
         if (delta == 8) {
             break;
         }
     }
-    context.here().mutable_coefficients().raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
+    context.here().mutable_coefficients_raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
     context.here().recalculate_coded_length(num_nonzeros_7x7, num_nonzeros_x, num_nonzeros_y);
 }
 

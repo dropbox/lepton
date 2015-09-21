@@ -141,7 +141,6 @@ public:
       unsigned int fcount = counts_[0];
       unsigned int tcount = counts_[1];
       bool overflow = (counts_[obs]++ == 0xff);
-      uint8_t last_prob = probability_;
       if (__builtin_expect(overflow, 0)) { // check less than 512
           counts_[0] = ((1 + (unsigned int)fcount) >> 1);
           counts_[1] = ((1 + (unsigned int)tcount) >> 1);

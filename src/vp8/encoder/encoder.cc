@@ -103,7 +103,7 @@ void serialize_tokens(ConstBlockContext context,
         (void)b_y;
         assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
         {
-            int16_t coef = block.coefficients().raster( coord );
+            int16_t coef = block.coef.at(zz + AlignedBlock::AC_7x7_INDEX);
             uint16_t abs_coef = abs(coef);
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
@@ -148,18 +148,23 @@ void serialize_tokens(ConstBlockContext context,
                                                       eob_y,
                                                          block.num_nonzeros_7x7());
 
-    bool run_ends_early_x = !(block.coefficients().raster(4) || block.coefficients().raster(5) || block.coefficients().raster(6) || block.coefficients().raster(7));
+    bool run_ends_early_x = !(block.coefficients_raster(4) || block.coefficients_raster(5) || block.coefficients_raster(6) || block.coefficients_raster(7));
     encoder.put(run_ends_early_x, prob_x.at(0, 0));
-    bool run_ends_early_y = !(block.coefficients().raster(4 * 8) || block.coefficients().raster(5 * 8) || block.coefficients().raster(6 * 8) || block.coefficients().raster(7*8));
+    bool run_ends_early_y = !(block.coefficients_raster(4 * 8) || block.coefficients_raster(5 * 8) || block.coefficients_raster(6 * 8) || block.coefficients_raster(7*8));
     encoder.put(run_ends_early_y, prob_y.at(0, 0));
     uint8_t num_nonzeros_left_x = block.num_nonzeros_x();
     uint8_t num_nonzeros_left_y = block.num_nonzeros_y();
-    for (int delta = 1; delta <= 8; delta += 7) {
+    uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
+    bool run_ends_early =run_ends_early_x;
+    uint8_t num_nonzeros_edge = num_nonzeros_left_x;
+    for (int delta = 1; delta <= 8; delta += 7,
+             aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
+             run_ends_early = run_ends_early_y,
+             num_nonzeros_edge = num_nonzeros_left_y) {
         unsigned int coord = delta;
         uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
-        uint8_t num_nonzeros_edge = (delta == 1 ? num_nonzeros_left_x : num_nonzeros_left_y);
         uint8_t num_nonzeros_edge_left = num_nonzeros_edge;
-        bool run_ends_early = delta == 1 ? run_ends_early_x : run_ends_early_y;
+        
         for (int xx = 0;xx < 7&& (xx < 3 || !run_ends_early); ++xx,coord += delta, ++zig15offset) {
 #ifdef TRACK_HISTOGRAM
             ++histogram[2][coef];
@@ -168,7 +173,7 @@ void serialize_tokens(ConstBlockContext context,
             assert(coord != 9);
             probability_tables.update_coefficient_context8(prior, coord, context, delta == 1 ? eob_x : eob_y);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
-            int16_t coef = block.coefficients().raster( coord );
+            int16_t coef = block.coef.at(aligned_block_offset + xx);
             uint16_t abs_coef = abs(coef);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {

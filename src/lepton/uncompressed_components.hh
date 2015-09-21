@@ -267,16 +267,16 @@ public:
     }
     signed short&set(BlockType cmp, int bpos, int dpos) {
         return header_[(int)cmp].component_.
-            raster(dpos).mutable_coefficients().raster(unzigzag[bpos]);
+            raster(dpos).mutable_coefficients_zigzag(bpos);
     }
     signed short at(BlockType cmp, int bpos, int dpos) {
         wait_for_worker_on_dpos((int)cmp, dpos);
         return header_[(int)cmp].component_.
-            raster(dpos).coefficients().raster(unzigzag[bpos]);
+            raster(dpos).coefficients_zigzag(bpos);
     }
     signed short at_nosync(BlockType cmp, int bpos, int dpos) const {
         return header_[(int)cmp].component_.
-            raster(dpos).coefficients().raster(unzigzag[bpos]);
+            raster(dpos).coefficients_zigzag(bpos);
     }
 
     int block_height( const int cmp ) const
