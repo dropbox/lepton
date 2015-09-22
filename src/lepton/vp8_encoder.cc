@@ -91,7 +91,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
 #endif
         block.recalculate_coded_length();
         serialize_tokens(block_context,
-                         bool_encoder[0],
+                         bool_encoder,
                          left_model);
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, true);
     }
@@ -105,7 +105,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
 #endif
         block.recalculate_coded_length();
         serialize_tokens(block_context,
-                         bool_encoder[0],
+                         bool_encoder,
                          middle_model);
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, true);
     }
@@ -119,7 +119,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
 #endif
         block.recalculate_coded_length();
         serialize_tokens(block_context,
-                         bool_encoder[0],
+                         bool_encoder,
                          right_model);
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
     }
@@ -276,6 +276,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
        bool_encoders.at(1).finish(),
        bool_encoders.at(2).finish(),
        bool_encoders.at(3).finish()};
+    fprintf(stderr, "Sizes %ld %ld %ld %ld\n", stream[0].size(), stream[1].size(), stream[2].size(), stream[3].size());
     static_assert(MuxReader::MAX_STREAM_ID == 4, "Right now we assume 4 streams");
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );

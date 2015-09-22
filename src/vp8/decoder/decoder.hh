@@ -3,7 +3,7 @@
 #define DECODER_HH
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void parse_tokens(BlockContext context,
-                  BoolDecoder & data,
+                  Sirikata::Array1d<BoolDecoder,4> & data,
                   ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables);
 
 

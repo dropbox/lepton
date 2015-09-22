@@ -52,21 +52,21 @@ void VP8ComponentDecoder::process_row(Left & left_model,
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoder_.at(0),
+                     bool_decoder_,
                      left_model); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoder_.at(0),
+                     bool_decoder_,
                      middle_model); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     if (block_width > 1) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoder_.at(0),
+                     bool_decoder_,
                      right_model);
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
     }
