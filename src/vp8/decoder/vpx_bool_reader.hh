@@ -5,12 +5,16 @@ class VPXBoolReader
 {
 private:
     vpx_reader bit_reader;
-    Slice slice_;
 public:
-    VPXBoolReader(const Slice& slice) : slice_(slice) {
+    void init (const uint8_t *buffer, size_t size) {
         vpx_reader_init(&bit_reader,
-                        slice.buffer(),
-                        slice.size());
+                        buffer,
+                        size);
+    }
+    VPXBoolReader() {
+    }
+    VPXBoolReader(const uint8_t *buffer, size_t size) {
+        init(buffer, size);
     }
     __attribute__((always_inline))
     bool get(Branch &branch) {

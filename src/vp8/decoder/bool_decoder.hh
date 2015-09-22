@@ -88,7 +88,8 @@ class BoolDecoder : public VP8BoolDecoder { public:
 #else
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public VPXBoolReader { public:
-    BoolDecoder(const Slice&c) : VPXBoolReader(c){}
+    BoolDecoder(const Slice&c) : VPXBoolReader(c.buffer(), c.size()){}
+    BoolDecoder() {}
 };
 #endif
 #endif

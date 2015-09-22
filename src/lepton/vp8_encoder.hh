@@ -11,7 +11,7 @@ class VP8ComponentEncoder : public BaseEncoder {
                          const UncompressedComponents * const colldata,
                          Sirikata::Array1d<KVContext,
                                            (uint32_t)ColorChannel::NumBlockTypes> &context,
-                         BoolEncoder &bool_encoder);
+                         Sirikata::Array1d<BoolEncoder, 4> &bool_encoder);
 public:
     static CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                                Sirikata::

@@ -52,21 +52,21 @@ void VP8ComponentDecoder::process_row(Left & left_model,
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoder_.get(),
+                     bool_decoder_.at(0),
                      left_model); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoder_.get(),
+                     bool_decoder_.at(0),
                      middle_model); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     if (block_width > 1) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoder_.get(),
+                     bool_decoder_.at(0),
                      right_model);
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
     }
@@ -101,9 +101,11 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         /* read entire chunk into memory */
         mux_reader_.fillBufferEntirely(streams);
         /* initialize the bool decoder */
-            bool_decoder_.initialize( Slice( streams[0].first != streams[0].second
-                                        ? &*streams[0].first : nullptr,
-                                        streams[0].second - streams[0].first ) );
+        for (int i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
+            bool_decoder_[i].init(streams[i].first != streams[i].second
+                                  ? &*streams[i].first : nullptr,
+                                  streams[i].second - streams[i].first );
+        }
 
     }
     /* deserialize each block in planar order */

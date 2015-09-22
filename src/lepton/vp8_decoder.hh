@@ -13,7 +13,7 @@ class VP8ComponentDecoder : public BaseDecoder {
     Sirikata::SwitchableDecompressionReader<Sirikata::
                                             SwitchableXZBase> *str_in {};
 
-    Optional<BoolDecoder> bool_decoder_;
+    Sirikata::Array1d<BoolDecoder, 4> bool_decoder_;
     const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     template<class Left, class Middle, class Right>
     void process_row(Left & left_model,
