@@ -19,6 +19,7 @@
 #include "../io/SwitchableCompression.hh"
 #include "../vp8/model/model.hh"
 #include "../vp8/encoder/encoder.hh"
+#include "../io/MuxReader.hh"
 
 using namespace std;
 void printContext(FILE * fp) {
@@ -142,7 +143,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     ProbabilityTablesBase::load_probability_tables();
 
     /* get ready to serialize the blocks */
-    BoolEncoder bool_encoder;
+    BoolEncoder bool_encoder[MuxReader::MAX_STREAM_ID];
     BlockType component = BlockType::Y;
     ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
     ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
@@ -182,7 +183,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
                 case BlockType::Cb:
                     process_row(std::get<(int)BlockType::Cb>(corner),
@@ -191,7 +192,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
                 case BlockType::Cr:
                     process_row(std::get<(int)BlockType::Cr>(corner),
@@ -200,7 +201,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
             }
         } else if (block_width > 1) {
@@ -212,7 +213,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
                 case BlockType::Cb:
                     process_row(std::get<(int)BlockType::Cb>(midleft),
@@ -221,7 +222,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
                 case BlockType::Cr:
                     process_row(std::get<(int)BlockType::Cr>(midleft),
@@ -230,7 +231,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
             }
         } else {
@@ -243,7 +244,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
                 case BlockType::Cb:
                     process_row(std::get<(int)BlockType::Cb>(width_one),
@@ -252,7 +253,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
                 case BlockType::Cr:
                     process_row(std::get<(int)BlockType::Cr>(width_one),
@@ -261,7 +262,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 block_width,
                                 colldata,
                                 context,
-                                bool_encoder);
+                                bool_encoder[0]);
                     break;
             }
         }
@@ -270,19 +271,37 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     }
 
     /* get coded output */
-    const auto stream = bool_encoder.finish();
+    std::vector<uint8_t> stream[MuxReader::MAX_STREAM_ID] = {
+       bool_encoder[0].finish(),
+       bool_encoder[1].finish(),
+       bool_encoder[2].finish(),
+       bool_encoder[3].finish()};
+    printf("siz:%ld %ld %ld %ld\n",stream[0].size(), stream[1].size(), stream[2].size(), stream[3].size());
 
+    static_assert(MuxReader::MAX_STREAM_ID == 4, "Right now we assume 4 streams");
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );
+
     str_out->DisableCompression();
-
-    /* write length */
-    const uint32_t length_big_endian =
-        htobe32( stream.size() );
-    str_out->Write( reinterpret_cast<const unsigned char*>(&length_big_endian), sizeof( uint32_t ));
-
-    /* write coded octet stream */
-    str_out->Write( &stream.at( 0 ), stream.size() );
+    Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
+    size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
+    bool any_written = true;
+    while (any_written) {
+        any_written = false;
+        for (int i = 0; i < MuxReader::MAX_STREAM_ID; ++i) {
+            if (stream[i].size() > stream_data_offset[i]) {
+                any_written = true;
+                size_t max_written = 65536;
+                if (stream_data_offset == 0) {
+                    max_written = 256;
+                } else if (stream_data_offset[i] == 256) {
+                    max_written = 4096;
+                }
+                auto to_write = std::min(max_written, stream[i].size() - stream_data_offset[i]);
+                stream_data_offset[i] += mux_writer.Write(i, &stream[i][stream_data_offset[i]], to_write).first;
+            }
+        }
+    }
 
     /* possibly write out new probability model */
     const char * out_model_name = getenv( "LEPTON_COMPRESSION_MODEL_OUT" );

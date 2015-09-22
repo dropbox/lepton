@@ -1,7 +1,7 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #include <array>
 #include "base_coders.hh"
-
+#include "../../io/MuxReader.hh"
 #include "option.hh"
 #include "model.hh"
 #include "aligned_block.hh"
@@ -14,14 +14,14 @@ class VP8ComponentDecoder : public BaseDecoder {
                                             SwitchableXZBase> *str_in {};
 
     Optional<BoolDecoder> bool_decoder_;
-    std::vector<uint8_t> file_;
+    const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     template<class Left, class Middle, class Right>
     void process_row(Left & left_model,
                       Middle& middle_model,
                       Right& right_model,
                       int block_width,
                       UncompressedComponents * const colldata);
-
+    Sirikata::MuxReader mux_reader_;
 public:
     VP8ComponentDecoder();
     void initialize(Sirikata::

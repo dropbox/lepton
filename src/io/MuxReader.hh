@@ -48,51 +48,26 @@ class SIRIKATA_EXPORT MuxReader {
         }
         return JpegError::nil();
     }
- public:
-    enum {MAX_STREAM_ID = 4};
-    std::vector<uint8_t, JpegAllocator<uint8_t> > mBuffer[MAX_STREAM_ID];
-    uint32_t mOffset[MAX_STREAM_ID];
-    bool eof;
-    MuxReader(Reader* reader, const JpegAllocator<uint8_t> &alloc,
-                                          int num_stream_hint = 4)
-        : mReader(reader) {
-        eof = false;
-        for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
-            mBuffer[i] = std::vector<uint8_t, JpegAllocator<uint8_t> > (alloc);
-            if (i < num_stream_hint) {
-                mBuffer[i].reserve(65536); // prime some of the vectors
+    JpegError fillBufferOnce(std::vector<uint8_t, JpegAllocator<uint8_t> >&incomingBuffer) {
+        {
+            incomingBuffer.resize(16385);
+            std::pair<uint32, JpegError> ret = mReader->Read(&incomingBuffer[0], 16385);
+            if (!ret.first) {
+                return ret.second;
             }
-            mOffset[i] = 0;
+            incomingBuffer.resize(ret.first);
         }
-    }
-    JpegError fillBufferUntil(uint8_t desired_stream_id) {
-        if (eof) {
-            return JpegError::errEOF();
-        }
-        assert(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
-        mOffset[desired_stream_id] = 0;
-        std::vector<uint8_t, JpegAllocator<uint8_t> > incomingBuffer(mBuffer[desired_stream_id].get_allocator());
-        incomingBuffer.swap(mBuffer[desired_stream_id]);
+        uint8_t stream_id;
+        std::vector<uint8_t, JpegAllocator<uint8_t> >::iterator first = incomingBuffer.begin(), last = incomingBuffer.end();
         do {
-            {
-                incomingBuffer.resize(16385);
-                std::pair<uint32, JpegError> ret = mReader->Read(&incomingBuffer[0], 16385);
-                if (!ret.first) {
-                    return ret.second;
-                }
-                incomingBuffer.resize(ret.first);
+            stream_id = 0xf & *first;
+            if (stream_id >= MAX_STREAM_ID) {
+                return JpegError::errShortHuffmanData();
             }
-            uint8_t stream_id;
-            std::vector<uint8_t, JpegAllocator<uint8_t> >::iterator first = incomingBuffer.begin(), last = incomingBuffer.end();
-            do {
-                stream_id = 0xf & *first;
-                if (stream_id >= MAX_STREAM_ID) {
-                    return JpegError::errShortHuffmanData();
-                }
-                uint8_t flags = 0xf & (*first >> 4);
-                ++first;
-                uint32_t len = 0;
-                switch (flags & 0x3) {
+            uint8_t flags = 0xf & (*first >> 4);
+            ++first;
+            uint32_t len = 0;
+            switch (flags & 0x3) {
                 case 0:
                     if (first == last || first + 1 == last) {
                         uint8_t len_buf[2]={0};
@@ -124,50 +99,104 @@ class SIRIKATA_EXPORT MuxReader {
                 case 3:
                     len = 16384;
                     break;
-                }
-                size_t bodyBytesRead = last - first;
-                if (bodyBytesRead >= len) {
-                    if (mOffset[stream_id] == mBuffer[stream_id].size()) {
-                        mOffset[stream_id] = first - incomingBuffer.begin();
-                        mBuffer[stream_id].swap(incomingBuffer);
-                        incomingBuffer.clear();
-                        incomingBuffer.insert(incomingBuffer.end(),
-                                              mBuffer[stream_id].begin() + mOffset[stream_id] + len,
-                                              mBuffer[stream_id].end());
-                        mBuffer[stream_id].resize(mOffset[stream_id] + len);
-                        first = incomingBuffer.begin();
-                        last = incomingBuffer.end();
-                    } else {
-                        mBuffer[stream_id].insert(mBuffer[stream_id].end(), first, first + len);
-                        first += len;
-                    }
-                } else {
-                    size_t remainingBytes = len - bodyBytesRead;
-                    ptrdiff_t nonzero = mBuffer[stream_id].size();
-                    if (nonzero<0) {
-                        assert(false&&"EMPTY");
-                    }
-                    if (mOffset[stream_id] == mBuffer[stream_id].size()) {
-                        mOffset[stream_id] = first - incomingBuffer.begin();
-                        mBuffer[stream_id].swap(incomingBuffer);
-                    } else {
-                        mBuffer[stream_id].insert(mBuffer[stream_id].end(),
-                                                 first,
-                                                 last);
-                    }
-                    mBuffer[stream_id].resize(mBuffer[stream_id].size() + remainingBytes);
-                    JpegError err;
-                    err = ReadFull(mReader,
-                                  &mBuffer[stream_id][mBuffer[stream_id].size() - remainingBytes],
-                                  remainingBytes);
-                    if (err) {
-                        return err;
-                    }
-                    incomingBuffer.clear();
+            }
+            size_t bodyBytesRead = last - first;
+            if (bodyBytesRead >= len) {
+                if (mOffset[stream_id] == mBuffer[stream_id].size()) {
+                    mOffset[stream_id] = first - incomingBuffer.begin();
+                    mBuffer[stream_id].swap(incomingBuffer);
+                    incomingBuffer.resize(0);
+                    incomingBuffer.insert(incomingBuffer.end(),
+                                          mBuffer[stream_id].begin() + mOffset[stream_id] + len,
+                                          mBuffer[stream_id].end());
+                    mBuffer[stream_id].resize(mOffset[stream_id] + len);
                     first = incomingBuffer.begin();
                     last = incomingBuffer.end();
+                } else {
+                    mBuffer[stream_id].insert(mBuffer[stream_id].end(), first, first + len);
+                    first += len;
                 }
-            } while(first != last);
+            } else {
+                size_t remainingBytes = len - bodyBytesRead;
+                ptrdiff_t nonzero = mBuffer[stream_id].size();
+                if (nonzero<0) {
+                    assert(false&&"EMPTY");
+                }
+                if (mOffset[stream_id] == mBuffer[stream_id].size()) {
+                    mOffset[stream_id] = first - incomingBuffer.begin();
+                    mBuffer[stream_id].swap(incomingBuffer);
+                } else {
+                    mBuffer[stream_id].insert(mBuffer[stream_id].end(),
+                                              first,
+                                              last);
+                }
+                mBuffer[stream_id].resize(mBuffer[stream_id].size() + remainingBytes);
+                JpegError err;
+                err = ReadFull(mReader,
+                               &mBuffer[stream_id][mBuffer[stream_id].size() - remainingBytes],
+                               remainingBytes);
+                if (err) {
+                    return err;
+                }
+                incomingBuffer.clear();
+                first = incomingBuffer.begin();
+                last = incomingBuffer.end();
+            }
+        } while(first != last);
+        return JpegError::nil();
+    }
+ public:
+    enum {MAX_STREAM_ID = 4};
+    std::vector<uint8_t, JpegAllocator<uint8_t> > mBuffer[MAX_STREAM_ID];
+    uint32_t mOffset[MAX_STREAM_ID];
+    bool eof;
+    MuxReader(const JpegAllocator<uint8_t> &alloc,
+              int num_stream_hint = 4, Reader *reader = NULL)
+        : mReader(reader) {
+        eof = false;
+        for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
+            mBuffer[i] = std::vector<uint8_t, JpegAllocator<uint8_t> > (alloc);
+            if (i < num_stream_hint) {
+                mBuffer[i].reserve(65536); // prime some of the vectors
+            }
+            mOffset[i] = 0;
+        }
+    }
+    void init (Reader *reader){
+        mReader = reader;
+    }
+    void fillBufferEntirely(std::pair<std::vector<uint8_t,
+                                            JpegAllocator<uint8_t> >::const_iterator,
+                                       std::vector<uint8_t,
+                                            JpegAllocator<uint8_t> >::const_iterator>* ret) {
+        bool all_error = false;
+        std::vector<uint8_t, JpegAllocator<uint8_t> > ib;
+        while (!all_error) {
+            all_error = true;
+            for (int i = 0; i < MAX_STREAM_ID; ++i) {
+                if (fillBufferOnce(ib) == JpegError::nil()) {
+                    all_error = false;
+                }
+            }
+        }
+        for (int i = 0; i < MAX_STREAM_ID; ++i) {
+            ret[i].first=mBuffer[i].begin() + mOffset[i];
+            ret[i].second = mBuffer[i].end();
+        }
+    }
+    JpegError fillBufferUntil(uint8_t desired_stream_id) {
+        if (eof) {
+            return JpegError::errEOF();
+        }
+        assert(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
+        mOffset[desired_stream_id] = 0;
+        std::vector<uint8_t, JpegAllocator<uint8_t> > incomingBuffer(mBuffer[desired_stream_id].get_allocator());
+        incomingBuffer.swap(mBuffer[desired_stream_id]);
+        do {
+            JpegError err = JpegError::nil();
+            if ((err = fillBufferOnce(incomingBuffer)) != JpegError::nil()) {
+                return err;
+            }
         } while(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
         return JpegError::nil();
     }

@@ -77,7 +77,7 @@ void EofHelper(bool useLazyWrapper) {
     JpegAllocator<uint8_t> alloc;
     MemReadWriter rw(alloc);
     LazyReaderWrapper lrw(&rw);
-    MuxReader reader(useLazyWrapper ? (DecoderReader*)&lrw : (DecoderReader*)&rw, alloc);
+    MuxReader reader(alloc, 4, useLazyWrapper ? (DecoderReader*)&lrw : (DecoderReader*)&rw);
     MuxWriter writer(&rw, alloc);
     writer.Write(1, &testData[1][0], a1);
     writer.Write(0, &testData[0][0], a0);
@@ -159,7 +159,7 @@ void RoundtripHelper(bool useLazyWrapper) {
     JpegAllocator<uint8_t> alloc;
     MemReadWriter rw(alloc);
     LazyReaderWrapper lrw(&rw);
-    MuxReader reader(useLazyWrapper ? (DecoderReader*)&lrw : (DecoderReader*)&rw, alloc);
+    MuxReader reader(alloc, 4, useLazyWrapper ? (DecoderReader*)&lrw : (DecoderReader*)&rw);
     MuxWriter writer(&rw, alloc);
     srand(1023);
     

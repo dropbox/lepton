@@ -21,6 +21,7 @@ void VP8ComponentDecoder::initialize( Sirikata::
                                       SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *input)
 {
     str_in = input;
+    mux_reader_.init(input);
 }
 
 
@@ -37,7 +38,7 @@ void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const
     }
 }
 
-VP8ComponentDecoder::VP8ComponentDecoder() {
+VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator<uint8_t>()) {
     ProbabilityTablesBase::load_probability_tables();
 }
 
@@ -95,24 +96,14 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             context_.at(i).context = colldata->full_component_write((BlockType)i).begin();
             context_.at(i).y = 0;
         }
-
-        /* read length */
-        uint32_t length_big_endian;
-        if ( 4 != IOUtil::ReadFull( str_in, &length_big_endian, sizeof( uint32_t ) ) ) {
-            return CODING_ERROR;
-        }
-
-        /* allocate memory for compressed frame */
-        file_.resize( be32toh( length_big_endian ) );
-
+        std::pair <std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >::const_iterator,
+        std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >::const_iterator> streams[Sirikata::MuxReader::MAX_STREAM_ID];
         /* read entire chunk into memory */
-        if ( file_.size()
-             != IOUtil::ReadFull( str_in, file_.data(), file_.size() ) ) {
-            return CODING_ERROR;
-        }
-
+        mux_reader_.fillBufferEntirely(streams);
         /* initialize the bool decoder */
-        bool_decoder_.initialize( Slice( file_.data(), file_.size() ) );
+            bool_decoder_.initialize( Slice( streams[0].first != streams[0].second
+                                        ? &*streams[0].first : nullptr,
+                                        streams[0].second - streams[0].first ) );
 
     }
     /* deserialize each block in planar order */
