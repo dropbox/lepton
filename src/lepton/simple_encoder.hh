@@ -6,9 +6,7 @@ class SimpleComponentEncoder : public BaseEncoder {
 public:
     SimpleComponentEncoder();
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                   Sirikata::
-                                   SwitchableCompressionWriter<Sirikata::
-                                                               DecoderCompressionWriter> *);
+                                   Sirikata::DecoderWriter *);
 
     ~SimpleComponentEncoder();
 };

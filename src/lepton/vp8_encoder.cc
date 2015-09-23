@@ -66,9 +66,7 @@ void printContext(FILE * fp) {
 }
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,
-                                                    Sirikata::
-                                                    SwitchableCompressionWriter<Sirikata::
-                                                                                DecoderCompressionWriter> *output) {
+                                                    Sirikata::DecoderWriter *output) {
     return vp8_full_encoder(input, output);
 }
 
@@ -127,8 +125,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
 
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                             Sirikata::
-                                            SwitchableCompressionWriter<Sirikata::
-                                                                        DecoderCompressionWriter> *str_out)
+                                            DecoderWriter *str_out)
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
@@ -137,7 +134,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         context[i].context = colldata->full_component_nosync(i).begin();
         context[i].y = 0;
     }
-    str_out->EnableCompression();
 
     /* read in probability table coeff probs */
     ProbabilityTablesBase::load_probability_tables();
@@ -281,7 +277,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );
 
-    str_out->DisableCompression();
     Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
     size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
     bool any_written = true;

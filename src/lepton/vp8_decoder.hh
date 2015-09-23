@@ -10,8 +10,7 @@
 class VP8ComponentDecoder : public BaseDecoder {
 
     Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes > context_;
-    Sirikata::SwitchableDecompressionReader<Sirikata::
-                                            SwitchableXZBase> *str_in {};
+    Sirikata::DecoderReader *str_in {};
 
     Sirikata::Array1d<BoolDecoder, 4> bool_decoder_;
     const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
@@ -24,14 +23,11 @@ class VP8ComponentDecoder : public BaseDecoder {
     Sirikata::MuxReader mux_reader_;
 public:
     VP8ComponentDecoder();
-    void initialize(Sirikata::
-                    SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *input);
+    void initialize(Sirikata::DecoderReader *input);
 
     CodingReturnValue vp8_decoder( UncompressedComponents * const colldata);
     static void vp8_continuous_decoder( UncompressedComponents * const colldata,
-                                        Sirikata::
-                                        SwitchableDecompressionReader<Sirikata::
-                                                                      SwitchableXZBase> *input);
+                                        Sirikata::DecoderReader *input);
     //necessary to implement the BaseDecoder interface. Thin wrapper around vp8_decoder
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst);
 };

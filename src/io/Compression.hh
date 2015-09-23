@@ -82,7 +82,7 @@ class SIRIKATA_EXPORT LZHAMCompressionWriter : public DecoderWriter {
     void *mLzham;
     DecoderWriter *mBase;
     size_t mBytesWritten;
-    uint8_t mDictSizeLog2;    
+    uint8_t mDictSizeLog2;
     bool mClosed;
 public:
     // compresison level should be a value: 1 through 9
@@ -103,6 +103,11 @@ protected:
     bool mClosed;
     bool mStreamEndEncountered;
 public:
+    static std::pair<std::vector<uint8_t,
+                                 JpegAllocator<uint8_t> >,
+                     JpegError> Decompress(const uint8_t *buffer,
+                                             size_t size,
+                                             const JpegAllocator<uint8_t> &alloc);
     DecoderDecompressionReader(DecoderReader *r, bool concatenated, const JpegAllocator<uint8_t> &alloc);
     virtual std::pair<uint32, JpegError> Read(uint8*data, unsigned int size);
     virtual ~DecoderDecompressionReader();
@@ -117,6 +122,8 @@ class SIRIKATA_EXPORT DecoderCompressionWriter : public DecoderWriter {
     DecoderWriter *mBase;
     bool mClosed;
 public:
+    static std::vector<uint8_t, JpegAllocator<uint8_t> > Compress(const uint8_t *buffer,
+                                                                  size_t size, const JpegAllocator<uint8_t> &alloc);
     // compresison level should be a value: 1 through 9
     DecoderCompressionWriter(DecoderWriter *w, uint8_t compression_level, const JpegAllocator<uint8_t> &alloc);
     virtual std::pair<uint32, JpegError> Write(const uint8*data, unsigned int size) ;

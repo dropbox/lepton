@@ -8,16 +8,14 @@ class SimpleComponentDecoder : public BaseDecoder {
     bool started_scan[4];
     int cur_read_batch[4];
     int target[4];
-    Sirikata::SwitchableDecompressionReader<Sirikata::SwitchableXZBase> * str_in;
+    Sirikata::DecoderReader * str_in;
     unsigned int batch_size;
 public:
     SimpleComponentDecoder();
     ~SimpleComponentDecoder();
-    virtual void initialize(Sirikata::
-                            SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *input);
+    virtual void initialize(Sirikata::DecoderReader *input);
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
     static void simple_continuous_decoder(UncompressedComponents* colldata,
-                                          Sirikata::
-                                          SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *);
+                                          Sirikata::DecoderReader *);
 };

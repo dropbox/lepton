@@ -14,11 +14,7 @@ class VP8ComponentEncoder : public BaseEncoder {
                          Sirikata::Array1d<BoolEncoder, 4> &bool_encoder);
 public:
     static CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
-                                               Sirikata::
-                                               SwitchableCompressionWriter<Sirikata::
-                                                                           DecoderCompressionWriter> *);
+                                               Sirikata::DecoderWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                   Sirikata::
-                                   SwitchableCompressionWriter<Sirikata::
-                                                               DecoderCompressionWriter> *);
+                                   Sirikata::DecoderWriter *);
 };

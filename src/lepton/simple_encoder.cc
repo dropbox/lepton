@@ -5,7 +5,7 @@
 #include "uncompressed_components.hh"
 #include "jpgcoder.hh"
 #include "simple_encoder.hh"
-#include "../io/SwitchableCompression.hh"
+#include "../io/Compression.hh"
 #include <algorithm>
 
 unsigned int get_cmp(int cur_read_batch[4], int target[4]);
@@ -14,9 +14,7 @@ SimpleComponentEncoder::SimpleComponentEncoder() {
     memset(cur_read_batch, 0, sizeof(cur_read_batch));
 }
 CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedComponents *colldata,
-                                                       Sirikata::
-                                                       SwitchableCompressionWriter<Sirikata::
-                                                                                   DecoderCompressionWriter> *str_out) {
+                                                       Sirikata::DecoderWriter *str_out) {
     // read coefficient data from file
     unsigned int batch_size = 1600;
 

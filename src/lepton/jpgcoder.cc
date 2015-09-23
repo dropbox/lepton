@@ -26,7 +26,7 @@
 #include "simple_decoder.hh"
 #include "simple_encoder.hh"
 #include "fork_serve.hh"
-#include "../io/SwitchableCompression.hh"
+#include "../io/Compression.hh"
 #include "../io/Zlib0.hh"
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -304,10 +304,10 @@ F_TYPE ofiletype = LEPTON;            // desired type of output file
 std::unique_ptr<BaseEncoder> g_encoder;
 std::unique_ptr<BaseDecoder> g_decoder;
 
-Sirikata::SwitchableDecompressionReader<Sirikata::SwitchableXZBase>* str_in  = NULL;    // input stream
+Sirikata::DecoderReader* str_in  = NULL;    // input stream
 bounded_iostream* str_out = NULL;    // output stream
 // output stream
-Sirikata::SwitchableCompressionWriter<Sirikata::DecoderCompressionWriter>* ujg_out = NULL;
+Sirikata::DecoderWriter* ujg_out = NULL;
 IOUtil::FileWriter * ujg_base = NULL;
 
 char** filelist = NULL;        // list of files to process
@@ -919,9 +919,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
         return false;
     }
     // open input stream, check for errors
-    str_in = new Sirikata::
-        SwitchableDecompressionReader<Sirikata::SwitchableXZBase>(reader,
-                                                                  Sirikata::JpegAllocator<uint8_t>());
+    str_in = reader;
     if ( str_in == NULL ) {
         fprintf( stderr, FRD_ERRMSG, filelist[ file_no ] );
         errorlevel.store(2);
@@ -953,8 +951,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
         if (!writer) {
             writer = ujg_base = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
         }
-        ujg_out = new Sirikata::SwitchableCompressionWriter<Sirikata::DecoderCompressionWriter>
-            (writer, 9, Sirikata::JpegAllocator<uint8_t>());
+        ujg_out = writer;
         if ( !ujg_out ) {
             fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
             errorlevel.store(2);
@@ -2354,47 +2351,44 @@ bool write_ujpg( )
     // store version number
     ujpg_mrk[ 0 ] = ujgversion;
     ujg_out->Write( ujpg_mrk, 1 );
-    unsigned char siz_mrk[] = {'S', 'I', 'Z'};
-    err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
-    uint32toLE(jpgfilesize, ujpg_mrk);
-    err = ujg_out->Write( ujpg_mrk, 4).second;
-    ujg_out->EnableCompression();
 
     // discard meta information from header if needed
     if ( disc_meta )
         if ( !rebuild_header_jpg() )
             return false;
 
+    Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
+
     // write header to file
     // marker: "HDR" + [size of header]
     unsigned char hdr_mrk[] = {'H', 'D', 'R'};
-    err = ujg_out->Write( hdr_mrk, sizeof(hdr_mrk) ).second;
+    err = mrw.Write( hdr_mrk, sizeof(hdr_mrk) ).second;
     uint32toLE(hdrs, ujpg_mrk);
-    err = ujg_out->Write( ujpg_mrk, 4).second;
+    err = mrw.Write( ujpg_mrk, 4).second;
     // data: data from header
-    ujg_out->Write( hdrdata, hdrs );
+    mrw.Write( hdrdata, hdrs );
     // beginning here: recovery information (needed for exact JPEG recovery)
 
     // write huffman coded data padbit
     // marker: "PAD"
     unsigned char pad_mrk[] = {'P', 'A', 'D'};
-    err = ujg_out->Write( pad_mrk, sizeof(pad_mrk) ).second;
+    err = mrw.Write( pad_mrk, sizeof(pad_mrk) ).second;
     // data: padbit
-    err = ujg_out->Write( (unsigned char*) &padbit, 1 ).second;
+    err = mrw.Write( (unsigned char*) &padbit, 1 ).second;
 
     // write number of false set RST markers per scan (if available) to file
     if ( rst_err != NULL ) {
         // marker: "FRS" + [number of scans]
         unsigned char frs_mrk[] = {'F', 'R', 'S'};
-        err = ujg_out->Write( frs_mrk, 3 ).second;
+        err = mrw.Write( frs_mrk, 3 ).second;
         uint32toLE(scnc, ujpg_mrk);
-        err = ujg_out->Write( ujpg_mrk, 4).second;
+        err = mrw.Write( ujpg_mrk, 4).second;
         // data: numbers of false set markers
-        err = ujg_out->Write( rst_err, scnc ).second;
+        err = mrw.Write( rst_err, scnc ).second;
     }
     if (early_eof_encountered) {
         unsigned char early_eof[] = {'E', 'E', 'E'};
-        err = ujg_out->Write( early_eof, sizeof(early_eof) ).second;
+        err = mrw.Write( early_eof, sizeof(early_eof) ).second;
         uint32toLE(max_cmp, ujpg_mrk);
         uint32toLE(max_bpos, ujpg_mrk + 4);
         uint32toLE(max_sah, ujpg_mrk + 8);
@@ -2402,23 +2396,38 @@ bool write_ujpg( )
         uint32toLE(max_dpos[1], ujpg_mrk + 16);
         uint32toLE(max_dpos[2], ujpg_mrk + 20);
         uint32toLE(max_dpos[3], ujpg_mrk + 24);
-        err = ujg_out->Write(ujpg_mrk, 28).second;
+        err = mrw.Write(ujpg_mrk, 28).second;
     }
     // write garbage (data including and after EOI) (if any) to file
     if ( grbs > 0 ) {
         // marker: "GRB" + [size of garbage]
         unsigned char grb_mrk[] = {'G', 'R', 'B'};
-        err = ujg_out->Write( grb_mrk, sizeof(grb_mrk) ).second;
+        err = mrw.Write( grb_mrk, sizeof(grb_mrk) ).second;
         uint32toLE(grbs, ujpg_mrk);
-        err = ujg_out->Write( ujpg_mrk, 4 ).second;
+        err = mrw.Write( ujpg_mrk, 4 ).second;
         // data: garbage data
-        err = ujg_out->Write( grbgdata, grbs ).second;
+        err = mrw.Write( grbgdata, grbs ).second;
     }
-    {
-        unsigned char cmp_mrk[] = {'C', 'M', 'P'};
-        err = ujg_out->Write( cmp_mrk, sizeof(cmp_mrk) ).second;
-        while (g_encoder->encode_chunk(&colldata, ujg_out) == CODING_PARTIAL) {
-        }
+    std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header =
+        Sirikata::DecoderCompressionWriter::Compress(mrw.buffer().data(),
+                                                     mrw.buffer().size(),
+                                                     Sirikata::JpegAllocator<uint8_t>());
+    unsigned char siz_mrk[] = {'S', 'I', 'Z'};
+    err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
+    uint32toLE(jpgfilesize, ujpg_mrk);
+    err = ujg_out->Write( ujpg_mrk, 4).second;
+    uint32toLE((uint32_t)compressed_header.size(), ujpg_mrk);
+    err = ujg_out->Write( ujpg_mrk, 4).second;
+    auto err2 = ujg_out->Write(compressed_header.data(),
+                               compressed_header.size());
+    if (err != Sirikata::JpegError::nil() || err2.second != Sirikata::JpegError::nil()) {
+        fprintf( stderr, "write error, possibly drive is full" );
+        errorlevel.store(2);
+        return false;
+    }
+    unsigned char cmp_mrk[] = {'C', 'M', 'P'};
+    err = ujg_out->Write( cmp_mrk, sizeof(cmp_mrk) ).second;
+    while (g_encoder->encode_chunk(&colldata, ujg_out) == CODING_PARTIAL) {
     }
 
     // errormessage if write error
@@ -2444,6 +2453,7 @@ bool write_ujpg( )
 
 bool read_ujpg( void )
 {
+    using namespace Sirikata;
 //    colldata.start_decoder_worker_thread(std::bind(&simple_decoder, &colldata, str_in));
     unsigned char ujpg_mrk[ 64 ];
     // this is where we will enable seccomp, before reading user data
@@ -2457,23 +2467,41 @@ bool read_ujpg( void )
         return false;
     }
     ReadFull(str_in, ujpg_mrk, 3 );
-    if ( memcmp( ujpg_mrk, "SIZ", 3 ) == 0 ) {
-            // full size of the original file
-        ReadFull(str_in, ujpg_mrk, 4);
-        max_file_size = LEtoUint32(ujpg_mrk);
-        str_out->call_size_callback(max_file_size);
-    } else {
-        assert(false && "Legacy prerelease format encountered\n");
+    uint32_t compressed_file_size = 0;
+    bool has_read_size = (memcmp( ujpg_mrk, "SIZ", 3 ) == 0);
+    (void)has_read_size;
+    assert(has_read_size && "Legacy prerelease format encountered\n");
+// full size of the original file
+    ReadFull(str_in, ujpg_mrk, 8);
+    max_file_size = LEtoUint32(ujpg_mrk);
+    str_out->call_size_callback(max_file_size);
+    compressed_file_size = LEtoUint32(ujpg_mrk + 4);
+    if (compressed_file_size > 128 * 1024 * 1024 || max_file_size > 128 * 1024 * 1024) {
+        assert(false && "Only support images < 128 megs");
+        return false; // bool too big
     }
-    str_in->EnableCompression();
+    std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_header_buffer(compressed_file_size);
+    IOUtil::ReadFull(str_in, compressed_header_buffer.data(), compressed_header_buffer.size());
+    MemReadWriter header_reader((JpegAllocator<uint8_t>()));
+    {
+        auto uncompressed_header_buffer
+            = DecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
+                                                     compressed_header_buffer.size(),
+                                                     JpegAllocator<uint8_t>());
+        if (uncompressed_header_buffer.second) {
+            assert(false && "Data not properly lzma coded");
+            return false;
+        }
+        header_reader.SwapIn(uncompressed_header_buffer.first, 0);
+    }
     grbs = sizeof(EOI);
     grbgdata = EOI; // if we don't have any garbage, assume FFD9 EOI
     // read header from file
-    ReadFull(str_in, ujpg_mrk, 3 ) ;
+    ReadFull(&header_reader, ujpg_mrk, 3 ) ;
     // check marker
     if ( memcmp( ujpg_mrk, "HDR", 3 ) == 0 ) {
         // read size of header, alloc memory
-        ReadFull(str_in, ujpg_mrk, 4 );
+        ReadFull(&header_reader, ujpg_mrk, 4 );
         hdrs = LEtoUint32(ujpg_mrk);
         hdrdata = (unsigned char*) aligned_alloc(hdrs);
         if ( hdrdata == NULL ) {
@@ -2482,7 +2510,7 @@ bool read_ujpg( void )
             return false;
         }
         // read hdrdata
-        ReadFull(str_in, hdrdata, hdrs );
+        ReadFull(&header_reader, hdrdata, hdrs );
     }
     else {
         fprintf( stderr, "HDR marker not found" );
@@ -2497,11 +2525,11 @@ bool read_ujpg( void )
     // beginning here: recovery information (needed for exact JPEG recovery)
 
     // read padbit information from file
-    ReadFull(str_in, ujpg_mrk, 3 );
+    ReadFull(&header_reader, ujpg_mrk, 3 );
     // check marker
     if ( memcmp( ujpg_mrk, "PAD", 3 ) == 0 ) {
         // read size of header, alloc memory
-        str_in->Read( reinterpret_cast<unsigned char*>(&padbit), 1 );
+        header_reader.Read( reinterpret_cast<unsigned char*>(&padbit), 1 );
     }
     else {
         fprintf( stderr, "PAD marker not found" );
@@ -2510,11 +2538,11 @@ bool read_ujpg( void )
     }
 
     // read further recovery information if any
-    while ( ReadFull(str_in, ujpg_mrk, 3 ) == 3 ) {
+    while ( ReadFull(&header_reader, ujpg_mrk, 3 ) == 3 ) {
         // check marker
         if ( memcmp( ujpg_mrk, "FRS", 3 ) == 0 ) {
             // read number of false set RST markers per scan from file
-            ReadFull(str_in, ujpg_mrk, 4);
+            ReadFull(&header_reader, ujpg_mrk, 4);
             scnc = LEtoUint32(ujpg_mrk);
             rst_err = (unsigned char*) calloc( scnc, sizeof( unsigned char ) );
             if ( rst_err == NULL ) {
@@ -2523,11 +2551,11 @@ bool read_ujpg( void )
                 return false;
             }
             // read data
-            ReadFull(str_in, rst_err, scnc );
+            ReadFull(&header_reader, rst_err, scnc );
         }
         else if ( memcmp( ujpg_mrk, "GRB", 3 ) == 0 ) {
             // read garbage (data after end of JPG) from file
-            ReadFull(str_in, ujpg_mrk, 4);
+            ReadFull(&header_reader, ujpg_mrk, 4);
             grbs = LEtoUint32(ujpg_mrk);
             grbgdata = aligned_alloc(grbs);
             if ( grbgdata == NULL ) {
@@ -2536,15 +2564,15 @@ bool read_ujpg( void )
                 return false;
             }
             // read garbage data
-            ReadFull(str_in, grbgdata, grbs );
+            ReadFull(&header_reader, grbgdata, grbs );
         }
         else if ( memcmp( ujpg_mrk, "SIZ", 3 ) == 0 ) {
             // full size of the original file
-            ReadFull(str_in, ujpg_mrk, 4);
+            ReadFull(&header_reader, ujpg_mrk, 4);
             max_file_size = LEtoUint32(ujpg_mrk);
         }
         else if ( memcmp( ujpg_mrk, "EEE", 3) == 0) {
-            ReadFull(str_in, ujpg_mrk, 28);
+            ReadFull(&header_reader, ujpg_mrk, 28);
             max_cmp = LEtoUint32(ujpg_mrk);
             max_bpos = LEtoUint32(ujpg_mrk + 4);
             max_sah = LEtoUint32(ujpg_mrk + 8);
@@ -2564,6 +2592,11 @@ bool read_ujpg( void )
             }
             return false;
         }
+    }
+    ReadFull(str_in, ujpg_mrk, 3 ) ;
+    if (memcmp(ujpg_mrk, "CMP", 3) != 0) {
+        assert(false && "CMP must be present (uncompressed) in the file");
+        return false; // not a JPG
     }
     colldata.signal_worker_should_begin();
     g_decoder->initialize(str_in);

@@ -50,8 +50,8 @@ class SIRIKATA_EXPORT MuxReader {
     }
     JpegError fillBufferOnce(std::vector<uint8_t, JpegAllocator<uint8_t> >&incomingBuffer) {
         {
-            incomingBuffer.resize(16385);
-            std::pair<uint32, JpegError> ret = mReader->Read(&incomingBuffer[0], 16385);
+            incomingBuffer.resize(65537);
+            std::pair<uint32, JpegError> ret = mReader->Read(&incomingBuffer[0], 65537);
             if (!ret.first) {
                 return ret.second;
             }
@@ -91,13 +91,13 @@ class SIRIKATA_EXPORT MuxReader {
                     }
                     break;
                 case 1:
-                    len = 256;
-                    break;
-                case 2:
                     len = 4096;
                     break;
-                case 3:
+                case 2:
                     len = 16384;
+                    break;
+                case 3:
+                    len = 65536;
                     break;
             }
             size_t bodyBytesRead = last - first;
@@ -239,12 +239,12 @@ public:
     }
     uint32_t highWaterMark(uint32_t flushed) {
         if (flushed & 0xffffc000) {
+            return 65536;
+        }
+        if (flushed & 0xfffff000) {
             return 16384;
         }
-        if (flushed & 0xffffff00) {        
-            return 4096;
-        }
-        return 256;
+        return 4096;
     }
 
     JpegError flushFull(uint8_t stream_id, uint32_t toBeFlushed) {
@@ -282,28 +282,28 @@ public:
     JpegError flushPartial(uint8_t stream_id, uint32_t toBeFlushed) {
         uint8_t code = stream_id;
         uint32_t len = 0;
-        if (toBeFlushed < 256) {
+        if (toBeFlushed < 4096) {
             assert(false && "We shouldn't reach this");
             return flushFull(stream_id, toBeFlushed);
         }
         
-        if (toBeFlushed < 4096) {
-            if (toBeFlushed > 512) {
-                return flushFull(stream_id, toBeFlushed);
-            }
-            len = 256;
-            code |= (1 << 4);
-        } else if (toBeFlushed < 16384) {
+        if (toBeFlushed < 16384) {
             if (toBeFlushed > 8192) {
                 return flushFull(stream_id, toBeFlushed);
             }
             len = 4096;
-            code |= (2 << 4);
-        } else {
+            code |= (1 << 4);
+        } else if (toBeFlushed < 65536) {
             if (toBeFlushed > 32768) {
                 return flushFull(stream_id, toBeFlushed);
             }
             len = 16384;
+            code |= (2 << 4);
+        } else {
+            if (toBeFlushed > 131072) {
+                return flushFull(stream_id, toBeFlushed);
+            }
+            len = 65536;
             code |= (3 << 4);
         }
         std::pair<uint32_t, JpegError> retval(0, JpegError::nil());
@@ -348,14 +348,14 @@ public:
                 continue;
             }
             bool isUrgent = mTotalWritten - mLowWaterMark[i] > MAX_BUFFER_LAG;
-            if (toBeFlushed < 256) {
+            if (toBeFlushed < 4096) {
                 if (isUrgent) {
                     // we need to flush what we have
                     retval = flushFull(i, toBeFlushed);
                     assert(mTotalWritten == mLowWaterMark[i]);
                 }
             } else {
-                if (isUrgent && toBeFlushed < 4096) {
+                if (isUrgent && toBeFlushed < 16384) {
                     retval = flushFull(i, toBeFlushed);
                 } else {
                     retval = flushPartial(i, toBeFlushed);

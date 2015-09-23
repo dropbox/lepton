@@ -17,8 +17,7 @@
 #include "../vp8/decoder/decoder.hh"
 using namespace std;
 
-void VP8ComponentDecoder::initialize( Sirikata::
-                                      SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *input)
+void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
 {
     str_in = input;
     mux_reader_.init(input);
@@ -26,9 +25,7 @@ void VP8ComponentDecoder::initialize( Sirikata::
 
 
 void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const colldata,
-                                                  Sirikata::
-                                                  SwitchableDecompressionReader<Sirikata
-                                                                                ::SwitchableXZBase> *str_in )
+                                                 Sirikata::DecoderReader *str_in )
 {
     colldata->worker_wait_for_begin_signal();
 
@@ -81,8 +78,6 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
     if ( context_[0].context.isNil() ) {
         /* first call */
-        str_in->EnableCompression();
-
         /* read and verify "x" mark */
         unsigned char mark {};
         const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
@@ -90,7 +85,6 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             cerr << "CMPx marker not found " << ok << endl;
             return CODING_ERROR;
         }
-        str_in->DisableCompression();
 
         for (int i = 0; i < colldata->get_num_components(); ++i) {
             context_.at(i).context = colldata->full_component_write((BlockType)i).begin();

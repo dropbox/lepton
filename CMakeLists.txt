@@ -43,12 +43,14 @@ add_executable(lepton
    src/lepton/vp8_encoder.cc
    src/lepton/simple_encoder.cc
    src/lepton/vp8_encoder.hh
-   src/io/Compression.cc
-   src/io/Compression.hh
    src/io/Allocator.hh
    src/io/BufferedIO.hh
+   src/io/Compression.cc
+   src/io/Compression.hh
+   src/io/SwitchableCompression.hh
    src/io/Error.hh
    src/io/Reader.hh
+   src/io/MuxReader.hh
    src/io/ioutil.hh
    src/io/ioutil.cc
    src/io/Zlib0.hh

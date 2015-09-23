@@ -461,8 +461,84 @@ LZHAMCompressionWriter::~LZHAMCompressionWriter() {
     lzham_compress_deinit((lzham_compress_state_ptr)mLzham);
 }
 #endif
+std::vector<uint8_t,
+            JpegAllocator<uint8_t> > DecoderCompressionWriter::Compress(const uint8_t *buffer,
+                                                                        size_t size,
+                                                                        const JpegAllocator<uint8_t> &alloc) {
+    lzma_stream strm = LZMA_STREAM_INIT;
+    lzma_allocator lzmaAllocator;
+    lzmaAllocator.alloc = alloc.get_custom_allocate();
+    lzmaAllocator.free = alloc.get_custom_deallocate();
+    lzmaAllocator.opaque = alloc.get_custom_state();
+    strm.allocator = &lzmaAllocator;
+    strm.next_in = buffer;
+    strm.avail_in = size;
+    std::vector<uint8_t, JpegAllocator<uint8_t> > retval(alloc);
+    retval.resize(lzma_block_buffer_bound(size));
+    strm.next_out = retval.data();
+    strm.avail_out = retval.size();
+    lzma_ret ret = lzma_easy_encoder(&strm, 9, LZMA_CHECK_NONE);
+    ret = lzma_code(&strm, LZMA_RUN);
+    while(true) {
+        if (ret == LZMA_STREAM_END) {
+            retval.resize(retval.size() - strm.avail_out);
+            lzma_end(&strm);
+            break;
+        }
+        ret = lzma_code(&strm, LZMA_FINISH);
+    }
+    return retval;
+}
+std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
+          JpegError > DecoderDecompressionReader::Decompress(const uint8_t *buffer, size_t size, const JpegAllocator<uint8_t> &alloc) {
+    lzma_stream strm = LZMA_STREAM_INIT;
+    lzma_allocator lzmaAllocator;
+    lzmaAllocator.alloc = alloc.get_custom_allocate();
+    lzmaAllocator.free = alloc.get_custom_deallocate();
+    lzmaAllocator.opaque = alloc.get_custom_state();
+    strm.allocator = &lzmaAllocator;
+              std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >, JpegError> retval (std::vector<uint8_t, JpegAllocator<uint8_t> >(alloc),
+                                                      JpegError::nil());
+    retval.first.resize(8192);
+    size_t retval_size  = 0;
+    lzma_ret ret = lzma_stream_decoder(&strm, 1 << 28, LZMA_CONCATENATED);
+    if (ret != LZMA_OK) {
+        retval.second = JpegError::errShortHuffmanData();
+        retval.first.clear();
+    } else {
+        size_t avail_bytes = retval.first.size();
+        strm.next_in = buffer;
+        strm.avail_in = size;
+        strm.next_out = retval.first.data();
+        strm.avail_out = avail_bytes;
+        while(true) {
+            ret = lzma_code(&strm, strm.avail_in == 0 ? LZMA_FINISH : LZMA_RUN);
+            if (ret == LZMA_STREAM_END) {
+                retval_size += avail_bytes - strm.avail_out;
+                if (strm.avail_in != 0) {
+                    retval.second = JpegError::errShortHuffmanData();
+                    break;
+                }
+                retval.first.resize(retval_size);
+                lzma_end(&strm);
+                break;
+            }
+            if (ret != LZMA_OK) {
+                retval.second = JpegError::errShortHuffmanData();
+                break;
+            }
+            if (strm.avail_out == 0) {
+                retval_size += avail_bytes - strm.avail_out;
+                retval.first.resize(retval.first.size() * 2);
+                avail_bytes = retval.first.size() - retval_size;
 
-
+                strm.next_out = retval.first.data() + retval_size;
+                strm.avail_out = avail_bytes;
+            }
+        }
+    }
+    return retval;
+}
 DecoderDecompressionReader::DecoderDecompressionReader(DecoderReader *r,
                                                        bool concatenated,
                                                        const JpegAllocator<uint8_t> &alloc)

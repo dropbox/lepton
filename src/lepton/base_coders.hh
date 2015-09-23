@@ -21,8 +21,7 @@ template <class T> class SwitchableCompressionWriter;
 class BaseDecoder {
  public:
     virtual ~BaseDecoder(){}
-    virtual void initialize(Sirikata::
-                            SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *input) = 0;
+    virtual void initialize(Sirikata::DecoderReader *input) = 0;
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst) = 0;
     static CodingReturnValue generic_continuous_decoder(BaseDecoder *d,
                                                         UncompressedComponents* colldata){
@@ -39,9 +38,7 @@ class BaseEncoder {
  public:
     virtual ~BaseEncoder(){}
     virtual CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                           Sirikata::
-                                           SwitchableCompressionWriter<Sirikata::
-                                                                       DecoderCompressionWriter> *) = 0;
+                                           Sirikata::DecoderWriter *) = 0;
 };
 
 #endif

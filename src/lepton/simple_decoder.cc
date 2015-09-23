@@ -17,14 +17,12 @@ SimpleComponentDecoder::SimpleComponentDecoder() {
         started_scan[i] = false;
     }
 }
-void SimpleComponentDecoder::initialize(Sirikata::
-                                        SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *i) {
+void SimpleComponentDecoder::initialize(Sirikata::DecoderReader *i) {
     str_in = i;
 }
 
 void SimpleComponentDecoder::simple_continuous_decoder(UncompressedComponents* colldata,
-                                                       Sirikata::
-                                                       SwitchableDecompressionReader<Sirikata::SwitchableXZBase> *i) {
+                                                       Sirikata::DecoderReader *i) {
     colldata->worker_wait_for_begin_signal();
 
     SimpleComponentDecoder scd;
