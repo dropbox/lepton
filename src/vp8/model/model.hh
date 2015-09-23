@@ -10,7 +10,7 @@
 #include "block.hh"
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
-
+#include <smmintrin.h>
 class BoolEncoder;
 class Slice;
 
@@ -514,7 +514,79 @@ public:
         //}
         return total / weights;
     }
-    int compute_lak(const ConstBlockContext&context, unsigned int band) {
+    int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i coeffs_a_high, int32_t *icos_deq) {
+        __m128i sign_mask = _mm_set_epi32(1, -1, 1, -1);
+        coeffs_a_low = _mm_sign_epi32(coeffs_a_low, sign_mask);
+        coeffs_a_high = _mm_sign_epi32(coeffs_a_high, sign_mask);
+        coeffs_x_low = _mm_mul_epi32(coeffs_x_low, coeffs_a_low);
+        coeffs_x_high = _mm_mul_epi32(coeffs_x_high, coeffs_a_high);
+        __m128i icos_low = _mm_load_si128(icos_deq);
+        __m128i icos_high = _mm_load_si128(icos_deq + 4);
+        coeffs_x_low = _mm_mul_epi32(coeffs_x_low, icos_low);
+        coeffs_x_high = _mm_mul_epi32(coeffs_x_low, icos_high);
+        __m128i sum = _mm_add_epi32(coeffs_x_low, coeffs_x_high);
+        sum = _mm_add_epi32(sum, _mm_srli_si128, 8);
+        sum = _mm_add_epi32(sum, _mm_srli_si128, 4);
+        return _mm_cvtsi128_si32(temp_sum) / icos_deq[0];
+    }
+    int32_t compute_lak_horizontal(const ConstBlockContext&context, unsigned int band) {
+        if (!above_present) {
+            return 0;
+        }
+        __m128i coeffs_x_low;
+        __m128i coeffs_x_high;
+        __m128i coeffs_a_low;
+        __m128i coeffs_a_high;
+        assert(band/8 == 0 && "this function only works for the top edge");
+        const auto &above = context.above_unchecked();
+#define ITER(x_var, a_var, i) { \
+            uint8_t cur_coef = band + i * 8; \
+            x_var = _mm_insert_epi32(x_var, i == 0 ? 0 : context.here().coefficients_raster(cur_coef), i & 3); \
+            a_var = _mm_insert_epi32(a_var,  above.coefficients_raster(cur_coef), i & 3); \
+        }
+        ITER(coeffs_x_low, coeffs_a_low, 0)
+        ITER(coeffs_x_low, coeffs_a_low, 1)
+        ITER(coeffs_x_low, coeffs_a_low, 2)
+        ITER(coeffs_x_low, coeffs_a_low, 3)
+        ITER(coeffs_x_high, coeffs_a_high, 4)
+        ITER(coeffs_x_high, coeffs_a_high, 5)
+        ITER(coeffs_x_high, coeffs_a_high, 6)
+        ITER(coeffs_x_high, coeffs_a_high, 7)
+#undef ITER
+        return compute_lak_vec(context, band, prediction_retval,
+                        coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
+                        icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8);
+    }
+    int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band, int *prediction_retval) {
+        assert((band & 7) == 0 && "Must be used for veritcal");
+        if (!has_left) {
+            *prediction_retval = 0;
+            return;
+        }
+        __m128i coeffs_x_low;
+        __m128i coeffs_x_high;
+        __m128i coeffs_a_low;
+        __m128i coeffs_a_high;
+        const auto &left = context.left_unchecked();
+#define ITER(x_var, a_var, i) { \
+          uint8_t cur_coef = band + i; \
+          x_var = _mm_insert_epi32(x_var, i == 0 ? 0 : context.here().coefficients_raster(cur_coef), i & 3); \
+          a_var = _mm_insert_epi32(a_var,  above.coefficients_raster(cur_coef), i & 3); \
+        }
+        ITER(coeffs_x_low, coeffs_a_low, 0)
+        ITER(coeffs_x_low, coeffs_a_low, 1)
+        ITER(coeffs_x_low, coeffs_a_low, 2)
+        ITER(coeffs_x_low, coeffs_a_low, 3)
+        ITER(coeffs_x_high, coeffs_a_high, 4)
+        ITER(coeffs_x_high, coeffs_a_high, 5)
+        ITER(coeffs_x_high, coeffs_a_high, 6)
+        ITER(coeffs_x_high, coeffs_a_high, 7)
+#undef ITER
+        return compute_lak_vec(context, band, prediction_retval,
+                        coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
+                        icos_idct_edge_8192_dequantized_x(icos_idct_edge_8192_dequantized_y((int)COLOR) + band);
+    }
+    int32_t compute_lak(const ConstBlockContext&context, unsigned int band) {
         int16_t coeffs_x[8];
         int16_t coeffs_a[8];
         const int32_t *coef_idct = nullptr;
