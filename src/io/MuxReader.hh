@@ -48,7 +48,7 @@ class SIRIKATA_EXPORT MuxReader {
         }
         return JpegError::nil();
     }
-    JpegError fillBufferOnce(std::vector<uint8_t, JpegAllocator<uint8_t> >&incomingBuffer) {
+    JpegError fillBufferOnceOld(std::vector<uint8_t, JpegAllocator<uint8_t> >&incomingBuffer) {
         {
             incomingBuffer.resize(65537);
             std::pair<uint32, JpegError> ret = mReader->Read(&incomingBuffer[0], 65537);
@@ -144,6 +144,37 @@ class SIRIKATA_EXPORT MuxReader {
             }
         } while(first != last);
         return JpegError::nil();
+    }
+
+    JpegError fillBufferOnce(std::vector<uint8_t, JpegAllocator<uint8_t> >&incomingBuffer) {
+        uint8_t header[4] = {0, 0, 0};
+        JpegError err = ReadFull(mReader, header, 3);
+        if (err != JpegError::nil()) {
+            return err;
+        }
+        uint8_t stream_id = 0xf & header[0];
+        assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
+        if (stream_id >= MAX_STREAM_ID) {
+            return JpegError::errMissingFF00();
+        }
+        std::vector<uint8_t, JpegAllocator<uint8_t> > *buffer = &mBuffer[stream_id];
+        uint8_t flags = (header[0] >> 4) & 3;
+        size_t offset = buffer->size();
+        uint32_t len;
+        if (flags == 0) {
+            len = header[2];
+            len *= 0x100;
+            len += header[1] + 1;
+            buffer->resize(offset + len);
+        } else {
+            len = (1024 << (2 * flags));
+            buffer->resize(offset + len);
+            (*buffer)[offset] = header[1];
+            (*buffer)[offset + 1] = header[2];
+            len -= 2;
+            offset += 2;
+        }
+        return ReadFull(mReader, buffer->data() + offset, len);
     }
  public:
     enum {MAX_STREAM_ID = 4};
