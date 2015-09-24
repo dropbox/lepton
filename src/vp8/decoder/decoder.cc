@@ -12,8 +12,6 @@ uint8_t prefix_unremap(uint8_t v) {
     }
     return v - 3;
 }
-#define PRIOR_ARRAY
-
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void decode_edge(BlockContext mcontext,
                  Sirikata::Array1d<BoolDecoder, 4> & decoder,
@@ -25,29 +23,18 @@ void decode_edge(BlockContext mcontext,
     auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(eob_x,
                                                                    num_nonzeros_7x7);
     uint8_t est_eob = eob_x;
-#ifdef PRIOR_ARRAY
     ProbabilityTablesBase::CoefficientContext prior[4] = {};
     if (ProbabilityTablesBase::VECTORIZE) {
         prior[1] = probability_tables.update_coefficient_context8_templ1(context, eob_x);
         prior[2] = probability_tables.update_coefficient_context8_templ2(context, eob_x);
         prior[3] = probability_tables.update_coefficient_context8_templ3(context, eob_x);
     }
-#else
-    ProbabilityTablesBase::CoefficientContext prior = {};
-#endif
     for (uint8_t delta = 1, zig15offset = 0; ; delta = 8,
          zig15offset = 7,
          est_eob = eob_y,
          aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
          prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
-                                                                   num_nonzeros_7x7)
-#ifdef PRIOR_ARRAY
-         ,prior[0] = ProbabilityTablesBase::CoefficientContext(),
-         prior[1] = probability_tables.update_coefficient_context8_templ8(context, eob_y),
-         prior[2] = probability_tables.update_coefficient_context8_templ16(context, eob_y),
-         prior[3] = probability_tables.update_coefficient_context8_templ24(context, eob_y)
-#endif
-         ) {
+                                                                   num_nonzeros_7x7)) {
              unsigned int coord = delta;
              int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
              int lane = 0, lane_start = 0, lane_end = 3;
@@ -78,22 +65,16 @@ void decode_edge(BlockContext mcontext,
                      if (!ProbabilityTablesBase::VECTORIZE) {
                          if (ProbabilityTablesBase::MICROVECTORIZE) {
                              prior
-#ifdef PRIOR_ARRAY
                              [cur_vec]
-#endif
                              = probability_tables.update_coefficient_context8(coord, context, est_eob);
                          } else {
                              prior
-#ifdef PRIOR_ARRAY
                              [cur_vec]
-#endif
                              = probability_tables.update_coefficient_context8(coord, context, est_eob);
                          }
                      }
                      auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior
-#ifdef PRIOR_ARRAY
                                                                           [cur_vec]
-#endif
 
                                                                           );
                      uint8_t length;
@@ -110,9 +91,7 @@ void decode_edge(BlockContext mcontext,
                      if (nonzero) {
                          uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
                          auto &sign_prob = probability_tables.sign_array_8(coord, prior
-#ifdef PRIOR_ARRAY
                                                                            [cur_vec]
-#endif
 );
                          bool neg = !decoder.at(cur_vec).get(sign_prob);
                          coef = (1 << (length - 1));
@@ -121,9 +100,7 @@ void decode_edge(BlockContext mcontext,
                              if (length - 2 >= min_threshold) {
                                  auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
                                                                                              prior
-#ifdef PRIOR_ARRAY
                                                                                              [cur_vec]
-#endif
 , min_threshold,
                                                                                              probability_tables.get_max_value(coord));
                                  uint16_t decoded_so_far = 1;
@@ -138,9 +115,7 @@ void decode_edge(BlockContext mcontext,
                                  probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
                              }
                              auto res_prob = probability_tables.residual_noise_array_x(coord, prior
-#ifdef PRIOR_ARRAY
                                                                                        [cur_vec]
-#endif
 );
                              for (; i >= 0; --i) {
                                  coef |= ((decoder.at(cur_vec).get(res_prob.at(i)) ? 1 : 0) << i);
@@ -155,6 +130,12 @@ void decode_edge(BlockContext mcontext,
              }
              if (delta == 8) {
                  break;
+             }
+             if (ProbabilityTablesBase::VECTORIZE) {
+                 prior[0] = ProbabilityTablesBase::CoefficientContext();
+                 prior[1] = probability_tables.update_coefficient_context8_templ8(context, eob_y);
+                 prior[2] = probability_tables.update_coefficient_context8_templ16(context, eob_y);
+                 prior[3] = probability_tables.update_coefficient_context8_templ24(context, eob_y);
              }
          }
          mcontext.here().dc() = probability_tables.predict_or_unpredict_dc(context, true);
