@@ -293,7 +293,7 @@ public:
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         return retval;
     }
-#define INSTANTIATE_TEMPLATE_METHOD(N) \
+#define INSTANTIATE_TEMPLATE_METHOD(N)  \
     static CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
                                                    uint8_t num_nonzeros_x) { \
         CoefficientContext retval = {}; \
@@ -582,7 +582,9 @@ public:
                                   neighbor.coefficients_raster(band + step * ((i) + 2)), \
                                   neighbor.coefficients_raster(band + step * ((i) + 1)), \
                                   neighbor.coefficients_raster(band + step * (i))))
-    template<int band> static int32_t compute_lak_templ(const ConstBlockContext&context) {
+    
+    template<int band> static __attribute__((always_inline))
+    int32_t compute_lak_templ(const ConstBlockContext&context) {
         __m128i coeffs_x_low;
         __m128i coeffs_x_high;
         __m128i coeffs_a_low;

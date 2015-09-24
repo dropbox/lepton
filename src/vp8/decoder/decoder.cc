@@ -38,22 +38,7 @@ void decode_edge(BlockContext mcontext,
              unsigned int coord = delta;
              int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
              int lane = 0, lane_start = 0, lane_end = 3;
-             for (int vec = 0; vec <= !run_ends_early; ++vec, lane_end = 7, lane_start = 3) {
-#ifdef PRIOR_ARRAY
-                 if (vec != 0 && ProbabilityTablesBase::VECTORIZE) {
-                     if (delta == 1) {
-                         prior[0] = probability_tables.update_coefficient_context8_templ4(context, est_eob);
-                         prior[1] = probability_tables.update_coefficient_context8_templ5(context, est_eob);
-                         prior[2] = probability_tables.update_coefficient_context8_templ6(context, est_eob);
-                         prior[3] = probability_tables.update_coefficient_context8_templ7(context, est_eob);
-                     } else {
-                         prior[0] = probability_tables.update_coefficient_context8_templ32(context, est_eob);
-                         prior[1] = probability_tables.update_coefficient_context8_templ40(context, est_eob);
-                         prior[2] = probability_tables.update_coefficient_context8_templ48(context, est_eob);
-                         prior[3] = probability_tables.update_coefficient_context8_templ56(context, est_eob);
-                     }
-                 }
-#endif
+             for (int vec = 0; ; ++vec, lane_end = 7, lane_start = 3) {
                  int16_t result_coef[4] = {0};
                  for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
              //VECTORIZE HERE
@@ -126,6 +111,20 @@ void decode_edge(BlockContext mcontext,
                          }
                      }
                      mcontext.here().coef.at(aligned_block_offset + lane) = coef;
+                 }
+                 if (vec == !run_ends_early) {
+                     break;
+                 }
+                 if (ProbabilityTablesBase::VECTORIZE && delta == 1) {
+                     prior[0] = probability_tables.update_coefficient_context8_templ4(context, est_eob);
+                     prior[1] = probability_tables.update_coefficient_context8_templ5(context, est_eob);
+                     prior[2] = probability_tables.update_coefficient_context8_templ6(context, est_eob);
+                     prior[3] = probability_tables.update_coefficient_context8_templ7(context, est_eob);
+                 } else if (ProbabilityTablesBase::VECTORIZE) {
+                     prior[0] = probability_tables.update_coefficient_context8_templ32(context, est_eob);
+                     prior[1] = probability_tables.update_coefficient_context8_templ40(context, est_eob);
+                     prior[2] = probability_tables.update_coefficient_context8_templ48(context, est_eob);
+                     prior[3] = probability_tables.update_coefficient_context8_templ56(context, est_eob);
                  }
              }
              if (delta == 8) {
