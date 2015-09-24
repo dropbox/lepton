@@ -162,7 +162,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
 
             assert(coord != 9);
-            probability_tables.update_coefficient_context8(prior, coord, context, delta == 1 ? eob_x : eob_y);
+            prior = probability_tables.update_coefficient_context8(coord, context, delta == 1 ? eob_x : eob_y);
             auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
             int16_t coef = block.coef.at(aligned_block_offset + xx);
             uint16_t abs_coef = abs(coef);

@@ -478,6 +478,10 @@ std::vector<uint8_t,
     strm.next_out = retval.data();
     strm.avail_out = retval.size();
     lzma_ret ret = lzma_easy_encoder(&strm, 9, LZMA_CHECK_NONE);
+    if (ret != LZMA_OK) {
+        assert(false && "LZMA Incorrectly installed");
+        exit(1); // lzma not installed properly
+    }
     ret = lzma_code(&strm, LZMA_RUN);
     while(true) {
         if (ret == LZMA_STREAM_END) {

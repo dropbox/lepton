@@ -213,7 +213,10 @@ public:
         uint8_t num_nonzeros_bin; // num_nonzeros mapped into a bin
         uint8_t bsr_best_prior;
     };
-
+    enum {
+        VECTORIZE = 1,
+        MICROVECTORIZE = 1
+    };
 };
 
 #define USE_TEMPLATIZED_COLOR
@@ -237,7 +240,6 @@ template <bool left_present, bool above_present, bool above_right_present, Block
 class ProbabilityTables : public ProbabilityTablesBase
 {
 private:
-
 public:
 #ifdef USE_TEMPLATIZED_COLOR
     enum {
@@ -278,12 +280,42 @@ public:
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
     }
-    void update_coefficient_context8(CoefficientContext & retval,
-                                   uint8_t coefficient, const ConstBlockContext block, uint8_t num_nonzeros_x) {
-        retval.best_prior = compute_lak(block, coefficient);
+    CoefficientContext update_coefficient_context8(uint8_t coefficient,
+                                                   const ConstBlockContext block, uint8_t num_nonzeros_x) {
+        CoefficientContext retval = {};
+        if (ProbabilityTablesBase::MICROVECTORIZE) {
+            retval.best_prior = (coefficient & 7)
+            ? compute_lak_horizontal(block, coefficient) : compute_lak_vertical(block, coefficient);
+        } else {
+            retval.best_prior = compute_lak(block, coefficient);
+        }
         retval.num_nonzeros_bin = num_nonzeros_x;
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
+        return retval;
     }
+#define INSTANTIATE_TEMPLATE_METHOD(N) \
+    static CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
+                                                   uint8_t num_nonzeros_x) { \
+        CoefficientContext retval = {}; \
+        retval.best_prior = compute_lak_templ<N>(block); \
+        retval.num_nonzeros_bin = num_nonzeros_x; \
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023)); \
+        return retval; \
+    }
+    INSTANTIATE_TEMPLATE_METHOD(1)
+    INSTANTIATE_TEMPLATE_METHOD(2)
+    INSTANTIATE_TEMPLATE_METHOD(3)
+    INSTANTIATE_TEMPLATE_METHOD(4)
+    INSTANTIATE_TEMPLATE_METHOD(5)
+    INSTANTIATE_TEMPLATE_METHOD(6)
+    INSTANTIATE_TEMPLATE_METHOD(7)
+    INSTANTIATE_TEMPLATE_METHOD(8)
+    INSTANTIATE_TEMPLATE_METHOD(16)
+    INSTANTIATE_TEMPLATE_METHOD(24)
+    INSTANTIATE_TEMPLATE_METHOD(32)
+    INSTANTIATE_TEMPLATE_METHOD(40)
+    INSTANTIATE_TEMPLATE_METHOD(48)
+    INSTANTIATE_TEMPLATE_METHOD(56)
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
@@ -514,20 +546,67 @@ public:
         //}
         return total / weights;
     }
-    int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i coeffs_a_high, int32_t *icos_deq) {
-        __m128i sign_mask = _mm_set_epi32(1, -1, 1, -1);
+    static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i coeffs_a_high, const int32_t *icos_deq) {
+        __m128i sign_mask = _mm_set_epi32(-1, 1, -1, 1); // ((i & 1) ? -1 : 1)
+
+        //coeffs_x[i] = ((i & 1) ? -1 : 1) * coeffs_a[i] - coeffs_x[i];
         coeffs_a_low = _mm_sign_epi32(coeffs_a_low, sign_mask);
         coeffs_a_high = _mm_sign_epi32(coeffs_a_high, sign_mask);
-        coeffs_x_low = _mm_mul_epi32(coeffs_x_low, coeffs_a_low);
-        coeffs_x_high = _mm_mul_epi32(coeffs_x_high, coeffs_a_high);
-        __m128i icos_low = _mm_load_si128(icos_deq);
-        __m128i icos_high = _mm_load_si128(icos_deq + 4);
-        coeffs_x_low = _mm_mul_epi32(coeffs_x_low, icos_low);
-        coeffs_x_high = _mm_mul_epi32(coeffs_x_low, icos_high);
-        __m128i sum = _mm_add_epi32(coeffs_x_low, coeffs_x_high);
-        sum = _mm_add_epi32(sum, _mm_srli_si128, 8);
-        sum = _mm_add_epi32(sum, _mm_srli_si128, 4);
-        return _mm_cvtsi128_si32(temp_sum) / icos_deq[0];
+        coeffs_x_low = _mm_sub_epi32(coeffs_a_low, coeffs_x_low);
+        coeffs_x_high = _mm_sub_epi32(coeffs_a_high, coeffs_x_high);
+
+        __m128i icos_low = _mm_load_si128((const __m128i*)(const char*)icos_deq);
+        __m128i icos_high = _mm_load_si128((const __m128i*)(const char*)(icos_deq + 4));
+        // coeffs_x[i] *= icos[i]
+        __m128i deq_low = _mm_mullo_epi32(coeffs_x_low, icos_low);
+        __m128i deq_high = _mm_mullo_epi32(coeffs_x_high, icos_high);
+
+        __m128i sum = _mm_add_epi32(deq_low, deq_high);
+        sum = _mm_add_epi32(sum, _mm_srli_si128(sum, 8));
+        sum = _mm_add_epi32(sum, _mm_srli_si128(sum, 4));
+        // coeffs_x[0] = sum(coeffs_x)
+        int32_t prediction = _mm_cvtsi128_si32(sum);
+        //if (prediction > 0) { <-- rounding hurts prediction perf and costs compute  this rounding didn't round the same way as the unvectorized one anyhow
+        //    prediction += icos_deq[0]/2;
+        //} else {
+        //    prediction -= icos_deq[0]/2; // round away from zero
+        //}
+        return prediction / icos_deq[0];
+    }
+#define ITER(x_var, a_var, i, step) \
+        (x_var = _mm_set_epi32(   context.here().coefficients_raster(band + step * ((i) + 3)), \
+                                  context.here().coefficients_raster(band + step * ((i) + 2)), \
+                                  context.here().coefficients_raster(band + step * ((i) + 1)), \
+                                  i == 0 ? 0 : context.here().coefficients_raster(band + step * (i))), \
+         a_var = _mm_set_epi32(neighbor.coefficients_raster(band + step * ((i) + 3)), \
+                                  neighbor.coefficients_raster(band + step * ((i) + 2)), \
+                                  neighbor.coefficients_raster(band + step * ((i) + 1)), \
+                                  neighbor.coefficients_raster(band + step * (i))))
+    template<int band> static int32_t compute_lak_templ(const ConstBlockContext&context) {
+        __m128i coeffs_x_low;
+        __m128i coeffs_x_high;
+        __m128i coeffs_a_low;
+        __m128i coeffs_a_high;
+        const int32_t * icos = nullptr;
+        static_assert((band & 7) == 0 || (band >> 3) == 0, "This function only works on edges");
+        if ((band >> 3) == 0) {
+            if(!above_present) {
+                return 0;
+            }
+            const auto &neighbor = context.above_unchecked();
+            ITER(coeffs_x_low, coeffs_a_low, 0, 8);
+            ITER(coeffs_x_high, coeffs_a_high, 4, 8);
+            icos = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+        } else {
+            if (!left_present) {
+                return 0;
+            }
+            const auto &neighbor = context.left_unchecked();
+            ITER(coeffs_x_low, coeffs_a_low, 0, 1);
+            ITER(coeffs_x_high, coeffs_a_high, 4, 1);
+            icos = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+        }
+        return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
     }
     int32_t compute_lak_horizontal(const ConstBlockContext&context, unsigned int band) {
         if (!above_present) {
@@ -538,58 +617,34 @@ public:
         __m128i coeffs_a_low;
         __m128i coeffs_a_high;
         assert(band/8 == 0 && "this function only works for the top edge");
-        const auto &above = context.above_unchecked();
-#define ITER(x_var, a_var, i) { \
-            uint8_t cur_coef = band + i * 8; \
-            x_var = _mm_insert_epi32(x_var, i == 0 ? 0 : context.here().coefficients_raster(cur_coef), i & 3); \
-            a_var = _mm_insert_epi32(a_var,  above.coefficients_raster(cur_coef), i & 3); \
-        }
-        ITER(coeffs_x_low, coeffs_a_low, 0)
-        ITER(coeffs_x_low, coeffs_a_low, 1)
-        ITER(coeffs_x_low, coeffs_a_low, 2)
-        ITER(coeffs_x_low, coeffs_a_low, 3)
-        ITER(coeffs_x_high, coeffs_a_high, 4)
-        ITER(coeffs_x_high, coeffs_a_high, 5)
-        ITER(coeffs_x_high, coeffs_a_high, 6)
-        ITER(coeffs_x_high, coeffs_a_high, 7)
-#undef ITER
-        return compute_lak_vec(context, band, prediction_retval,
-                        coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
-                        icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8);
+        const auto &neighbor = context.above_unchecked();
+        ITER(coeffs_x_low, coeffs_a_low, 0, 8);
+        ITER(coeffs_x_high, coeffs_a_high, 4, 8);
+        const int32_t * icos = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+        return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
     }
-    int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band, int *prediction_retval) {
+    int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band) {
         assert((band & 7) == 0 && "Must be used for veritcal");
-        if (!has_left) {
-            *prediction_retval = 0;
-            return;
+        if (!left_present) {
+            return 0;
         }
         __m128i coeffs_x_low;
         __m128i coeffs_x_high;
         __m128i coeffs_a_low;
         __m128i coeffs_a_high;
-        const auto &left = context.left_unchecked();
-#define ITER(x_var, a_var, i) { \
-          uint8_t cur_coef = band + i; \
-          x_var = _mm_insert_epi32(x_var, i == 0 ? 0 : context.here().coefficients_raster(cur_coef), i & 3); \
-          a_var = _mm_insert_epi32(a_var,  above.coefficients_raster(cur_coef), i & 3); \
-        }
-        ITER(coeffs_x_low, coeffs_a_low, 0)
-        ITER(coeffs_x_low, coeffs_a_low, 1)
-        ITER(coeffs_x_low, coeffs_a_low, 2)
-        ITER(coeffs_x_low, coeffs_a_low, 3)
-        ITER(coeffs_x_high, coeffs_a_high, 4)
-        ITER(coeffs_x_high, coeffs_a_high, 5)
-        ITER(coeffs_x_high, coeffs_a_high, 6)
-        ITER(coeffs_x_high, coeffs_a_high, 7)
+        const auto &neighbor = context.left_unchecked();
+        ITER(coeffs_x_low, coeffs_a_low, 0, 1);
+        ITER(coeffs_x_high, coeffs_a_high, 4, 1);
 #undef ITER
-        return compute_lak_vec(context, band, prediction_retval,
-                        coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
-                        icos_idct_edge_8192_dequantized_x(icos_idct_edge_8192_dequantized_y((int)COLOR) + band);
+        const int32_t *icos = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+        return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
+                        icos);
     }
     int32_t compute_lak(const ConstBlockContext&context, unsigned int band) {
-        int16_t coeffs_x[8];
-        int16_t coeffs_a[8];
+        int coeffs_x[8];
+        int coeffs_a[8];
         const int32_t *coef_idct = nullptr;
+        int check_retval = 0;
         assert(quantization_table_);
         if ((band & 7) && above_present) {
             // y == 0: we're the x
@@ -597,7 +652,7 @@ public:
             const auto &above = context.above_unchecked();
             for (int i = 0; i < 8; ++i) {
                 uint8_t cur_coef = band + i * 8;
-                coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : -32768;
+                coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : 0;
                 coeffs_a[i]  = above.coefficients_raster(cur_coef);
             }
             coef_idct = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
@@ -606,25 +661,22 @@ public:
             const auto &left = context.left_unchecked();
             for (int i = 0; i < 8; ++i) {
                 uint8_t cur_coef = band + i;
-                coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : -32768;
+                coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : 0;
                 coeffs_a[i]  = left.coefficients_raster(cur_coef);
             }
             coef_idct = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+            check_retval = compute_lak_vertical(context, band);
         } else {
             return 0;
         }
-        int prediction = 0;
+        int prediction = coeffs_a[0] * coef_idct[0]; // rounding towards zero before adding coeffs_a[0] helps ratio slightly, but this is cheaper
         for (int i = 1; i < 8; ++i) {
             int sign = (i & 1) ? 1 : -1;
             prediction -= coef_idct[i] * (coeffs_x[i] + sign * coeffs_a[i]);
         }
-        if (prediction >0) {
-            prediction += coef_idct[0]/2;
-        } else {
-            prediction -= coef_idct[0]/2; // round away from zero
-        }
         prediction /= coef_idct[0];
-        prediction += coeffs_a[0];
+        assert(((band & 7) ? compute_lak_horizontal(context,band): compute_lak_vertical(context,band)) == prediction
+               && "Vectorized version must match sequential version");
         return prediction;
     }/*
     SignValue compute_sign(const Block&block, unsigned int band) {

@@ -12,35 +12,95 @@ uint8_t prefix_unremap(uint8_t v) {
     }
     return v - 3;
 }
+#define PRIOR_ARRAY
+
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
-void decode_edge(BlockContext context,
+void decode_edge(BlockContext mcontext,
                  Sirikata::Array1d<BoolDecoder, 4> & decoder,
                  ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
-                 ProbabilityTablesBase::CoefficientContext prior) {
-
+                 ProbabilityTablesBase::CoefficientContext input_prior) {
+    ConstBlockContext context = mcontext.copy();
     uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
     auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(eob_x,
                                                                    num_nonzeros_7x7);
     uint8_t est_eob = eob_x;
+#ifdef PRIOR_ARRAY
+    ProbabilityTablesBase::CoefficientContext prior[4] = {};
+    if (ProbabilityTablesBase::VECTORIZE) {
+        prior[1] = probability_tables.update_coefficient_context8_templ1(context, eob_x);
+        prior[2] = probability_tables.update_coefficient_context8_templ2(context, eob_x);
+        prior[3] = probability_tables.update_coefficient_context8_templ3(context, eob_x);
+    }
+#else
+    ProbabilityTablesBase::CoefficientContext prior = {};
+#endif
     for (uint8_t delta = 1, zig15offset = 0; ; delta = 8,
          zig15offset = 7,
          est_eob = eob_y,
          aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
          prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
-                                                                   num_nonzeros_7x7)) {
+                                                                   num_nonzeros_7x7)
+#ifdef PRIOR_ARRAY
+         ,prior[0] = ProbabilityTablesBase::CoefficientContext(),
+         prior[1] = probability_tables.update_coefficient_context8_templ8(context, eob_y),
+         prior[2] = probability_tables.update_coefficient_context8_templ16(context, eob_y),
+         prior[3] = probability_tables.update_coefficient_context8_templ24(context, eob_y)
+#endif
+         ) {
              unsigned int coord = delta;
              int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
-             int lane = 0, lane_end = 3;
-             for (int vec = 0; vec <= !run_ends_early; ++vec, lane_end = 7) {
+             int lane = 0, lane_start = 0, lane_end = 3;
+             for (int vec = 0; vec <= !run_ends_early; ++vec, lane_end = 7, lane_start = 3) {
+#ifdef PRIOR_ARRAY
+                 if (vec != 0 && ProbabilityTablesBase::VECTORIZE) {
+                     if (delta == 1) {
+                         prior[0] = probability_tables.update_coefficient_context8_templ4(context, est_eob);
+                         prior[1] = probability_tables.update_coefficient_context8_templ5(context, est_eob);
+                         prior[2] = probability_tables.update_coefficient_context8_templ6(context, est_eob);
+                         prior[3] = probability_tables.update_coefficient_context8_templ7(context, est_eob);
+                     } else {
+                         prior[0] = probability_tables.update_coefficient_context8_templ32(context, est_eob);
+                         prior[1] = probability_tables.update_coefficient_context8_templ40(context, est_eob);
+                         prior[2] = probability_tables.update_coefficient_context8_templ48(context, est_eob);
+                         prior[3] = probability_tables.update_coefficient_context8_templ56(context, est_eob);
+                     }
+                 }
+#endif
+                 int16_t result_coef[4] = {0};
                  for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
-                     probability_tables.update_coefficient_context8(prior, coord, context.copy(), est_eob);
-                     auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior);
+             //VECTORIZE HERE
+             //the first of the two VECTORIZE items will be
+             // a vector of [run_ends_early, lane0, lane1, lane2]
+             // if run_ends_early is false then the second set of 4 items will be
+             // a vector of [lane3, lane4, lane5, lane6]
+                     int cur_vec = (lane + 1) & 3;
+                     if (!ProbabilityTablesBase::VECTORIZE) {
+                         if (ProbabilityTablesBase::MICROVECTORIZE) {
+                             prior
+#ifdef PRIOR_ARRAY
+                             [cur_vec]
+#endif
+                             = probability_tables.update_coefficient_context8(coord, context, est_eob);
+                         } else {
+                             prior
+#ifdef PRIOR_ARRAY
+                             [cur_vec]
+#endif
+                             = probability_tables.update_coefficient_context8(coord, context, est_eob);
+                         }
+                     }
+                     auto exp_array = probability_tables.exponent_array_x(coord, zig15offset, prior
+#ifdef PRIOR_ARRAY
+                                                                          [cur_vec]
+#endif
+
+                                                                          );
                      uint8_t length;
                      bool nonzero = false;
                      auto * exp_branch = exp_array.begin();
                      for (length = 0; length != MAX_EXPONENT; ++length) {
-                         bool cur_bit = decoder.at((lane + 1) & 3).get(*exp_branch++);
+                         bool cur_bit = decoder.at(cur_vec).get(*exp_branch++);
                          if (!cur_bit) {
                              break;
                          }
@@ -49,18 +109,26 @@ void decode_edge(BlockContext context,
                      int16_t coef = 0;
                      if (nonzero) {
                          uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                         auto &sign_prob = probability_tables.sign_array_8(coord, prior);
-                         bool neg = !decoder.at((lane + 1) & 3).get(sign_prob);
+                         auto &sign_prob = probability_tables.sign_array_8(coord, prior
+#ifdef PRIOR_ARRAY
+                                                                           [cur_vec]
+#endif
+);
+                         bool neg = !decoder.at(cur_vec).get(sign_prob);
                          coef = (1 << (length - 1));
                          if (length > 1){
                              int i = length - 2;
                              if (length - 2 >= min_threshold) {
                                  auto thresh_prob = probability_tables.residual_thresh_array(coord, length,
-                                                                                             prior, min_threshold,
+                                                                                             prior
+#ifdef PRIOR_ARRAY
+                                                                                             [cur_vec]
+#endif
+, min_threshold,
                                                                                              probability_tables.get_max_value(coord));
                                  uint16_t decoded_so_far = 1;
                                  for (; i >= min_threshold; --i) {
-                                     int cur_bit = (decoder.at((lane + 1) & 3).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                                     int cur_bit = (decoder.at(cur_vec).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
                                      coef |= (cur_bit << i);
                                      decoded_so_far <<= 1;
                                      if (cur_bit) {
@@ -69,31 +137,30 @@ void decode_edge(BlockContext context,
                                  }
                                  probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
                              }
-                             auto res_prob = probability_tables.residual_noise_array_x(coord, prior);
+                             auto res_prob = probability_tables.residual_noise_array_x(coord, prior
+#ifdef PRIOR_ARRAY
+                                                                                       [cur_vec]
+#endif
+);
                              for (; i >= 0; --i) {
-                                 coef |= ((decoder.at((lane + 1) & 3).get(res_prob.at(i)) ? 1 : 0) << i);
+                                 coef |= ((decoder.at(cur_vec).get(res_prob.at(i)) ? 1 : 0) << i);
                              }
                          }
                          if (neg) {
                              coef = -coef;
                          }
                      }
-                     context.here().coef.at(aligned_block_offset + lane) = coef;
+                     mcontext.here().coef.at(aligned_block_offset + lane) = coef;
                  }
              }
              if (delta == 8) {
                  break;
              }
          }
-        context.here().mutable_coefficients_raster( 0 ) = probability_tables.predict_or_unpredict_dc(context.copy(), true);
+         mcontext.here().dc() = probability_tables.predict_or_unpredict_dc(context, true);
 }
 
 
-             //VECTORIZE HERE
-             //the first of the two vectorized items will be
-             // a vector of [run_ends_early, lane0, lane1, lane2]
-             // if run_ends_early is false then the second set of 4 items will be
-             // a vector of [lane3, lane4, lane5, lane6]
 
 
 
@@ -153,7 +220,7 @@ void parse_tokens( BlockContext context,
         // VECTORIZE HERE (zz += 4 rather than ++zz)
         // this is a perfectly ordinary vectorization task if num_nonzeros_lag_left >= 4
         // however if num_nonzeros_lag_left == 3, 2, 1 or 0, we should probably start with a
-        // scalar vectorized bool decoder...and if that works then we can look into making
+        // scalar VECTORIZE bool decoder...and if that works then we can look into making
         // a bool_decoder that speculatively tries 4 gets and cancels out if too many
         // are nonzero. It would probably also need to cancel out if any need to enter the
         // vpx_fill_buffer branch and load things from the streams--in those cases it could

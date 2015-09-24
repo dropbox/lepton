@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
-SET(CMAKE_CXX_FLAGS "-std=c++11")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2")
 
 IF(APPLE)
 # not widely supported on linux yet
