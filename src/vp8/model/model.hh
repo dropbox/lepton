@@ -574,21 +574,25 @@ public:
     void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, int* aligned_retval) {
         _mm_store_si128((__m128i*)(char*)aligned_retval, compute_aavrg_vec(aligned_zz, context));
     }
-
+#ifdef __clang__
+#define x_mm_loadu_si64(a) _mm_set1_epi64x(*(uint64_t*)(char*)(a))
+#else
+#define x_mm_loadu_si64 _mm_loadu_si64
+#endif
     __m128i compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context) {
         if (left_present == false && above_present == false) {
             return _mm_setzero_si128();
         }
         __m128i left;
         if (left_present) {
-            left = _mm_cvtepi16_epi32(_mm_abs_epi16(_mm_loadu_si64(&context.left_unchecked().coef.at(aligned_zz))));
+            left = _mm_cvtepi16_epi32(_mm_abs_epi16(x_mm_loadu_si64(&context.left_unchecked().coef.at(aligned_zz))));
             if (!above_present) {
                 return left;
             }
         }
         __m128i above;
         if (above_present) {
-            above = _mm_cvtepi16_epi32(_mm_abs_epi16(_mm_loadu_si64(&context.above_unchecked().coef.at(aligned_zz))));
+            above = _mm_cvtepi16_epi32(_mm_abs_epi16(x_mm_loadu_si64(&context.above_unchecked().coef.at(aligned_zz))));
             if (!left_present) {
                 return above;
             }
@@ -596,7 +600,7 @@ public:
         constexpr unsigned int log_weight = 10;
         __m128i total = _mm_add_epi32(left, above);
         total = _mm_mullo_epi32(total, _mm_set1_epi32(205 * 2));
-        __m128i aboveleft =_mm_cvtepi16_epi32(_mm_abs_epi16(_mm_loadu_si64(&context.above_left_unchecked().coef.at(aligned_zz))));
+        __m128i aboveleft =_mm_cvtepi16_epi32(_mm_abs_epi16(x_mm_loadu_si64(&context.above_left_unchecked().coef.at(aligned_zz))));
         total = _mm_add_epi32(total, _mm_mullo_epi32(aboveleft, _mm_set1_epi32(204)));
         total = _mm_add_epi32(total, _mm_set1_epi32(1 << (log_weight - 1)));
         __m128i retval = _mm_srli_epi32(total, log_weight);

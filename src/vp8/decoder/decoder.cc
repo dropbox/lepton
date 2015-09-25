@@ -136,7 +136,6 @@ void decode_edge(BlockContext mcontext,
                  prior[3] = probability_tables.update_coefficient_context8_templ24(context, eob_y);
              }
          }
-         mcontext.here().dc() = probability_tables.predict_or_unpredict_dc(context, true);
 }
 
 
@@ -259,6 +258,7 @@ void parse_tokens( BlockContext context,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
                 prior);
+    context.here().dc() = probability_tables.predict_or_unpredict_dc(context.copy(), true);
     *context.num_nonzeros_here = num_nonzeros_7x7;
 }
 
