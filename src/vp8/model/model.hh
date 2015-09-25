@@ -261,7 +261,7 @@ public:
         load_model(model_, slice);
     }
     int color_index() {
-        if ((int)COLOR == BLOCK_TYPES || ((int)BLOCK_TYPES == 1 && COLOR > BLOCK_TYPES)) {
+        if ((int)COLOR == BLOCK_TYPES || ((int)BLOCK_TYPES == 1 && (int)COLOR > (int)BLOCK_TYPES)) {
             return BLOCK_TYPES - 1;
         }
         return (int)COLOR;
@@ -294,7 +294,7 @@ public:
         return retval;
     }
 #define INSTANTIATE_TEMPLATE_METHOD(N)  \
-    static CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
+    CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
                                                    uint8_t num_nonzeros_x) { \
         CoefficientContext retval = {}; \
         retval.best_prior = compute_lak_templ<N>(block); \
@@ -320,10 +320,10 @@ public:
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
         if (above_present) {
-            num_nonzeros_above = block.above_unchecked().num_nonzeros_7x7();
+            num_nonzeros_above = block.nonzeros_above_7x7_unchecked();
         }
         if (left_present) {
-            num_nonzeros_left = block.left_unchecked().num_nonzeros_7x7();
+            num_nonzeros_left = block.nonzeros_left_7x7_unchecked();
         }
 
         uint8_t num_nonzeros_context = 0;
@@ -583,7 +583,7 @@ public:
                                   neighbor.coefficients_raster(band + step * ((i) + 1)), \
                                   neighbor.coefficients_raster(band + step * (i))))
     
-    template<int band> static __attribute__((always_inline))
+    template<int band> __attribute__((always_inline))
     int32_t compute_lak_templ(const ConstBlockContext&context) {
         __m128i coeffs_x_low;
         __m128i coeffs_x_high;

@@ -87,7 +87,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         gctx->cur_jpeg_x = 0;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        block.recalculate_coded_length();
+        *block_context.num_nonzeros_here = block.recalculate_coded_length();
         serialize_tokens(block_context,
                          bool_encoder,
                          left_model);
@@ -101,7 +101,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         gctx->cur_jpeg_x = jpeg_x;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        block.recalculate_coded_length();
+        *block_context.num_nonzeros_here = block.recalculate_coded_length();
         serialize_tokens(block_context,
                          bool_encoder,
                          middle_model);
@@ -115,7 +115,7 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         gctx->cur_jpeg_x = block_width - 1;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        block.recalculate_coded_length();
+        *block_context.num_nonzeros_here = block.recalculate_coded_length();
         serialize_tokens(block_context,
                          bool_encoder,
                          right_model);

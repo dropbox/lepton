@@ -39,7 +39,6 @@ void decode_edge(BlockContext mcontext,
              int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
              int lane = 0, lane_start = 0, lane_end = 3;
              for (int vec = 0; ; ++vec, lane_end = 7, lane_start = 3) {
-                 int16_t result_coef[4] = {0};
                  for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
              //VECTORIZE HERE
              //the first of the two VECTORIZE items will be
@@ -258,7 +257,7 @@ void parse_tokens( BlockContext context,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
                 prior);
-    context.here().recalculate_coded_length(num_nonzeros_7x7);
+    *context.num_nonzeros_here = num_nonzeros_7x7;
 }
 
 template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4> &, ProbabilityTables<false, false, false, BlockType::Y>&);

@@ -38,7 +38,7 @@ void serialize_tokens(ConstBlockContext context,
     const AlignedBlock &block = context.here();
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(context);
     int serialized_so_far = 0;
-    uint8_t num_nonzeros_7x7 = block.num_nonzeros_7x7();
+    uint8_t num_nonzeros_7x7 = *context.num_nonzeros_here;
 #if 0
     fprintf(stderr, "7\t%d\n", (int)block.num_nonzeros_7x7());
     fprintf(stderr, "x\t%d\n", (int)block.num_nonzeros_x());
@@ -87,7 +87,7 @@ void serialize_tokens(ConstBlockContext context,
 
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
-    uint8_t num_nonzeros_left_7x7 = block.num_nonzeros_7x7();
+    uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     uint8_t num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
     for (unsigned int zz = 0; zz < 49; ++zz) {
         if ((zz & 3) == 0) {
@@ -143,7 +143,7 @@ void serialize_tokens(ConstBlockContext context,
 
     auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(
                                                       eob_x,
-                                                         block.num_nonzeros_7x7());
+                                                         num_nonzeros_7x7);
 
     bool run_ends_early_x = !(block.coefficients_raster(4) || block.coefficients_raster(5) || block.coefficients_raster(6) || block.coefficients_raster(7));
     bool run_ends_early_y = !(block.coefficients_raster(4 * 8) || block.coefficients_raster(5 * 8) || block.coefficients_raster(6 * 8) || block.coefficients_raster(7*8));
@@ -151,7 +151,7 @@ void serialize_tokens(ConstBlockContext context,
     for (int delta = 1; delta <= 8; delta += 7,
              aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
              prob_early_exit = probability_tables.y_nonzero_counts_1x8(eob_y,
-                                                                       block.num_nonzeros_7x7())) {
+                                                                       num_nonzeros_7x7)) {
         unsigned int coord = delta;
         uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
         bool run_ends_early =delta == 1 ?  run_ends_early_x : run_ends_early_y;

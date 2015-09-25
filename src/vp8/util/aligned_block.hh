@@ -95,19 +95,12 @@ public:
       ROW_Y_INDEX = 57,
       ROW_Y_END = 64
   };
-private:
-
-  mutable uint8_t num_nonzeros_7x7_ = 0;
 public:
   AlignedBlock() {
   }
-  void recalculate_coded_length(uint8_t num_nonzeros_7x7) const
+  uint8_t recalculate_coded_length() const
   {
-      num_nonzeros_7x7_ = num_nonzeros_7x7;
-  }
-  void recalculate_coded_length() const
-  {
-    num_nonzeros_7x7_ = 0;
+    uint8_t num_nonzeros_7x7 = 0;
     /* how many tokens are we going to encode? */
     for ( unsigned int index = 0; index < 64; index++ ) {
         unsigned int xy = jpeg_zigzag_to_raster.at( index );
@@ -116,10 +109,11 @@ public:
         if (coef.at(raster_to_aligned.at(xy))) {
             //coded_length_ = index + 1;
             if (x > 0 && y > 0) {
-                ++num_nonzeros_7x7_;
+                ++num_nonzeros_7x7;
             }
         }
     }
+      return num_nonzeros_7x7;
   }
   int16_t & dc() {return coef.at(DC_INDEX); }
   int16_t dc()const {return coef.at(DC_INDEX); }
@@ -130,8 +124,6 @@ public:
   int16_t & mutable_coefficients_zigzag(uint8_t index) {return coef.at(zigzag_to_aligned.at(index)); }
   int16_t coefficients_zigzag(uint8_t index) const { return coef.at(zigzag_to_aligned.at(index)); }
 
-  //uint8_t coded_length() const { return coded_length_; }
-  uint8_t num_nonzeros_7x7() const { return num_nonzeros_7x7_; }
 };
 
 
