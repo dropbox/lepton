@@ -308,8 +308,31 @@ int main() {
     }
     for (int denom = 1; denom < 1026; ++denom) {
         for (int num = 256; num < 262144; num += 256) {
-            assert(slow_divide10bit(num, denom) == (unsigned int)num/denom);
-            assert(fast_divide10bit(num, denom) == (unsigned int)num / denom);
+            assert(slow_divide18bit_by_10bit(num, denom) == (unsigned int)num/denom);
+            assert(fast_divide18bit_by_10bit(num, denom) == (unsigned int)num / denom);
+            if (num < 16384) {
+                assert(fast_divide16bit(num, denom) == (unsigned int)num / denom);
+                if (denom == 5) {
+                    assert(templ_divide16bit<5>(num) == (unsigned int)num / denom);
+                    __m128i retval = divide16bit_vec_signed<5>(_mm_set_epi32(num,(int)-num, -num-1, -num + 1));
+                    int ret[4];
+                    _mm_storeu_si128((__m128i*)(char *)ret, retval);
+                    assert(ret[3] == num / denom);
+                    assert(ret[2] == -num / denom);
+                    assert(ret[1] == (-num-1)/denom);
+                    assert(ret[0] == (-num + 1) / denom);
+                }
+                if (denom == 767) {
+                    __m128i retval = divide16bit_vec<767>(_mm_set_epi32(num,num + 1, 0, num * 2));
+                    int ret[4];
+                    _mm_storeu_si128((__m128i*)(char *)ret, retval);
+                    assert(ret[3] == num / denom);
+                    assert(ret[2] == (1 + num) / denom);
+                    assert(ret[1] == 0);
+                    assert(ret[0] == (num * 2) / denom);
+
+                }
+            }
         }
     }
     printf("OK\n");

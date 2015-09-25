@@ -174,7 +174,7 @@ public:
 #if 0
       const int prob = (false_count() << 8) / sum;
 #else
-      const int prob = fast_divide10bit(false_count() << 8,
+      const int prob = fast_divide18bit_by_10bit(false_count() << 8,
                                         sum);
 #endif
       assert( prob >= 0 );

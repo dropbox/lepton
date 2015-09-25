@@ -8,6 +8,8 @@
 // for std::min
 #include <algorithm>
 #include <assert.h>
+#include <smmintrin.h>
+#include <emmintrin.h>
 class BoolEncoder;
 class BoolDecoder;
 
@@ -272,13 +274,44 @@ static constexpr uint32_t DivisorMultipliers[1026] = {
     ,computeDivisor(0x401)
 };
 
-constexpr uint32_t fast_divide10bit(uint32_t num, uint16_t denom) {
+constexpr uint32_t fast_divide18bit_by_10bit(uint32_t num, uint16_t denom) {
     return ((uint32_t)((DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> log_max_numerator)
          + ((uint32_t)(num - (((uint64_t)DivisorAndLog2Table[denom].divisor * (uint64_t)num) >> log_max_numerator)) >> 1))
           >> DivisorAndLog2Table[denom].len;
 }
+constexpr uint32_t fast_divide16bit(uint32_t num, uint16_t denom) {
+    return ((uint32_t)((DivisorAndLog2Table[denom].divisor * (uint32_t)num) >> log_max_numerator)
+            + ((uint32_t)(num - (((uint32_t)DivisorAndLog2Table[denom].divisor * (uint32_t)num) >> log_max_numerator)) >> 1))
+    >> DivisorAndLog2Table[denom].len;
+}
+template <uint16_t denom> constexpr uint32_t templ_divide16bit(uint32_t num) {
+    static_assert(denom < 1024, "Only works for denominators < 1024");
+    return ((uint32_t)((DivisorAndLog2Table[denom].divisor * (uint32_t)num) >> log_max_numerator)
+            + ((uint32_t)(num - (((uint32_t)DivisorAndLog2Table[denom].divisor * (uint32_t)num) >> log_max_numerator)) >> 1))
+    >> DivisorAndLog2Table[denom].len;
+}
 
-inline uint32_t slow_divide10bit(uint32_t num, uint16_t denom) {
+template <uint16_t denom> __m128i divide16bit_vec_signed(__m128i num) {
+    static_assert(denom < 1024, "Only works for denominators < 1024");
+    __m128i m = _mm_set1_epi32(DivisorAndLog2Table[denom].divisor);
+    __m128i abs_num = _mm_abs_epi32(num);
+    __m128i t = _mm_srli_epi32(_mm_mullo_epi32(m, abs_num), log_max_numerator);
+    __m128i n_minus_t = _mm_sub_epi32(abs_num, t);
+    __m128i t_plus_shr = _mm_add_epi32(t, _mm_srli_epi32(n_minus_t, 1));
+    __m128i retval = _mm_srli_epi32(t_plus_shr, DivisorAndLog2Table[denom].len);
+    return _mm_sign_epi32(retval, num);
+}
+template <uint16_t denom> __m128i divide16bit_vec(__m128i num) {
+    static_assert(denom < 1024, "Only works for denominators < 1024");
+    __m128i m = _mm_set1_epi32(DivisorAndLog2Table[denom].divisor);
+    __m128i t = _mm_srli_epi32(_mm_mullo_epi32(m, num), log_max_numerator);
+    __m128i n_minus_t = _mm_sub_epi32(num, t);
+    __m128i t_plus_shr = _mm_add_epi32(t, _mm_srli_epi32(n_minus_t, 1));
+    return _mm_srli_epi32(t_plus_shr, DivisorAndLog2Table[denom].len);
+}
+
+
+inline uint32_t slow_divide18bit_by_10bit(uint32_t num, uint16_t denom) {
 #if 0
     uint64_t m = DivisorMultipliers[denom];
     int log2d = k16log2(denom);
