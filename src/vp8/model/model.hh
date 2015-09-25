@@ -11,6 +11,7 @@
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 #include <smmintrin.h>
+#include <immintrin.h>
 class BoolEncoder;
 class Slice;
 
@@ -276,6 +277,9 @@ public:
     void update_coefficient_context7x7(int aligned_zz,
                                        CoefficientContext & retval,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
+        if (aligned_zz < 45) {
+            //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
+        }
         retval.best_prior = compute_aavrg(aligned_zz, block);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
@@ -535,12 +539,52 @@ public:
         if (left_present && above_present) {
             constexpr unsigned int log_weight = 10;
             total *= 205 * 2;
-            total += 204 * abs(context.left_unchecked().coef.at(aligned_zz));
+            total += 204 * abs(context.above_left_unchecked().coef.at(aligned_zz));
             total += (1 << (log_weight - 1));
             return total >> log_weight;
         } else {
             return total;
         }
+        //if (block.context().above_right.initialized()) {
+        //total += abs(block.context().above_right.get()->coefficients().at(0));
+        //}
+    }
+    bool aavrg_vec_matches(__m128i retval, unsigned int aligned_zz, ConstBlockContext context) {
+        int ret[4];
+        _mm_storeu_si128((__m128i*)(char*)ret, retval);
+        int correct[4] = {compute_aavrg(aligned_zz +0, context),
+            compute_aavrg(aligned_zz + 1, context),
+            compute_aavrg(aligned_zz + 2, context),
+            compute_aavrg(aligned_zz + 3, context)};
+        return memcmp(ret, correct, sizeof(correct)) == 0;
+    }
+    __m128i compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context) {
+        if (left_present == false && above_present == false) {
+            return _mm_setzero_si128();
+        }
+        __m128i left;
+        if (left_present) {
+            left = _mm_cvtepi16_epi32(_mm_abs_epi16(_mm_loadu_si64(&context.left_unchecked().coef.at(aligned_zz))));
+            if (!above_present) {
+                return left;
+            }
+        }
+        __m128i above;
+        if (above_present) {
+            above = _mm_cvtepi16_epi32(_mm_abs_epi16(_mm_loadu_si64(&context.above_unchecked().coef.at(aligned_zz))));
+            if (!left_present) {
+                return above;
+            }
+        }
+        constexpr unsigned int log_weight = 10;
+        __m128i total = _mm_add_epi32(left, above);
+        total = _mm_mullo_epi32(total, _mm_set1_epi32(205 * 2));
+        __m128i aboveleft =_mm_cvtepi16_epi32(_mm_abs_epi16(_mm_loadu_si64(&context.above_left_unchecked().coef.at(aligned_zz))));
+        total = _mm_add_epi32(total, _mm_mullo_epi32(aboveleft, _mm_set1_epi32(204)));
+        total = _mm_add_epi32(total, _mm_set1_epi32(1 << (log_weight - 1)));
+        __m128i retval = _mm_srli_epi32(total, log_weight);
+        assert(aavrg_vec_matches(retval, aligned_zz, context));
+        return retval;
         //if (block.context().above_right.initialized()) {
         //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
