@@ -505,46 +505,45 @@ public:
         return retval;
     }
     int compute_aavrg_dc(ConstBlockContext context) {
-        constexpr uint16_t weights = (left_present && above_present ? 1 : 0)
-            + (left_present ? 2 : 0)
-            + (above_present ? 2 : 0)
-            + (left_present == false && above_present == false ? 1 : 0);
-
-        uint32_t total = (weights >> 1);
-        if (above_present) {
-            total += abs(context.above_unchecked().dc()) << 1;
-            if (left_present) {
-                total += abs(context.above_left_unchecked().dc());
-            }
-        }
+        return compute_aavrg(AlignedBlock::DC_INDEX, context);
+        /*
+        uint32_t total = 0;
         if (left_present) {
-            total += abs(context.left_unchecked().dc()) << 1;
+            total += abs(context.left_unchecked().dc());
         }
-        //if (block.context().above_right.initialized()) {
-        //total += abs(block.context().above_right.get()->coefficients().at(0));
-        //}
-        return total / weights;
+        if (above_present) {
+            total += abs(context.above_unchecked().dc());
+        }
+        if (left_present && above_present) {
+            constexpr unsigned int log_weight = 10;
+            total *= 205 * 2;
+            total += 204 * abs(context.above_left_unchecked().dc());
+            total += (1 << (log_weight - 1)); //rounding
+            return total >> log_weight;
+        } else {
+            return total;
+        }*/
     }
     int compute_aavrg(unsigned int aligned_zz, ConstBlockContext context) {
-        constexpr uint16_t weights = (left_present && above_present ? 1 : 0)
-            + (left_present ? 2 : 0)
-            + (above_present ? 2 : 0)
-            + (left_present == false && above_present == false ? 1 : 0);
-
-        uint32_t total = (weights >> 1);
-        if (above_present) {
-            total += abs(context.above_unchecked().coef.at(aligned_zz)) << 1;
-            if (left_present) {
-                total += abs(context.above_left_unchecked().coef.at(aligned_zz));
-            }
-        }
+        uint32_t total = 0;
         if (left_present) {
-            total += abs(context.left_unchecked().coef.at(aligned_zz)) << 1;
+            total += abs(context.left_unchecked().coef.at(aligned_zz));
+        }
+        if (above_present) {
+            total += abs(context.above_unchecked().coef.at(aligned_zz));
+        }
+        if (left_present && above_present) {
+            constexpr unsigned int log_weight = 10;
+            total *= 205 * 2;
+            total += 204 * abs(context.left_unchecked().coef.at(aligned_zz));
+            total += (1 << (log_weight - 1));
+            return total >> log_weight;
+        } else {
+            return total;
         }
         //if (block.context().above_right.initialized()) {
         //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
-        return total / weights;
     }
     static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i coeffs_a_high, const int32_t *icos_deq) {
         __m128i sign_mask = _mm_set_epi32(-1, 1, -1, 1); // ((i & 1) ? -1 : 1)
