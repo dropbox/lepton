@@ -195,6 +195,7 @@ void parse_tokens( BlockContext context,
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     uint8_t num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
+    int avg[4] __attribute__((aligned(16)));
     for (unsigned int zz = 0; zz < 49; ++zz) {
         // VECTORIZE HERE (zz += 4 rather than ++zz)
         // this is a perfectly ordinary vectorization task if num_nonzeros_lag_left >= 4
@@ -209,13 +210,14 @@ void parse_tokens( BlockContext context,
             if (num_nonzeros_lag_left_7x7 ==0) {
                 break;
             }
+            probability_tables.compute_aavrg_vec(zz, context.copy(), avg);
         }
         unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
         assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
-            probability_tables.update_coefficient_context7x7(zz, prior, context.copy(), num_nonzeros_lag_left_7x7);
+            probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_lag_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(coord, zz, prior);
             uint8_t length;
             bool nonzero = false;

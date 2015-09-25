@@ -12,8 +12,11 @@
 #include "../util/block_based_image.hh"
 #include <smmintrin.h>
 #include <immintrin.h>
+#include <emmintrin.h>
+
 class BoolEncoder;
 class Slice;
+
 
 constexpr unsigned int MAX_EXPONENT = 12;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
@@ -284,6 +287,16 @@ public:
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
     }
+    void update_coefficient_context7x7(int aligned_zz,
+                                       CoefficientContext & retval,
+                                       int aavrg,
+                                       const ConstBlockContext block, uint8_t num_nonzeros_left) {
+        assert(aavrg == compute_aavrg(aligned_zz, block));
+        //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
+        retval.best_prior = aavrg;
+        retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
+        retval.bsr_best_prior = bit_length(retval.best_prior);
+    }
     CoefficientContext update_coefficient_context8(uint8_t coefficient,
                                                    const ConstBlockContext block, uint8_t num_nonzeros_x) {
         CoefficientContext retval = {};
@@ -510,7 +523,7 @@ public:
     }
     int compute_aavrg_dc(ConstBlockContext context) {
         return compute_aavrg(AlignedBlock::DC_INDEX, context);
-        /*
+        
         uint32_t total = 0;
         if (left_present) {
             total += abs(context.left_unchecked().dc());
@@ -526,7 +539,7 @@ public:
             return total >> log_weight;
         } else {
             return total;
-        }*/
+        }
     }
     int compute_aavrg(unsigned int aligned_zz, ConstBlockContext context) {
         uint32_t total = 0;
@@ -558,6 +571,10 @@ public:
             compute_aavrg(aligned_zz + 3, context)};
         return memcmp(ret, correct, sizeof(correct)) == 0;
     }
+    void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, int* aligned_retval) {
+        _mm_store_si128((__m128i*)(char*)aligned_retval, compute_aavrg_vec(aligned_zz, context));
+    }
+
     __m128i compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context) {
         if (left_present == false && above_present == false) {
             return _mm_setzero_si128();
