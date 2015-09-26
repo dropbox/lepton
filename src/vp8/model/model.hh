@@ -767,7 +767,6 @@ public:
                 coeffs_a[i]  = left.coefficients_raster(cur_coef);
             }
             coef_idct = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
-            check_retval = compute_lak_vertical(context, band);
         } else {
             return 0;
         }
