@@ -149,6 +149,11 @@ public:
         copy_data_to_main_thread();
         header_[(int)cmp].dpos_block_progress_ += add_bit_progress;
     }
+    void worker_mark_cmp_finished(BlockType cmp) {
+        copy_data_to_main_thread();
+        counter_type dpos_block_progress_ = header_[(int)cmp].trunc_bc_;
+        header_[(int)cmp].dpos_block_progress_ = dpos_block_progress_;
+    }
     CodingReturnValue do_more_work() {
         if (use_threading) {
             return CODING_DONE;

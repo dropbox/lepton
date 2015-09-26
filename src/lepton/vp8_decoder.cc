@@ -123,12 +123,13 @@ CodingReturnValue VP8ComponentDecoder::vp8_decode_thread(int thread_id,
             }
         }
         if (!is_valid_range_[thread_id]) {
+            ++context_[thread_id].at((int)component).y;
             continue;
         }
         context_[thread_id].at((int)component).context = colldata->full_component_write(component).off_y(curr_y);
         int block_width = colldata->block_width((int)component);
-        if (is_top_row_[thread_id]) {
-            is_top_row_[thread_id] = false;
+        if (is_top_row_.at(thread_id, (int)component)) {
+            is_top_row_.at(thread_id, (int)component) = false;
             switch(component) {
                 case BlockType::Y:
                     process_row(thread_id,
@@ -159,6 +160,7 @@ CodingReturnValue VP8ComponentDecoder::vp8_decode_thread(int thread_id,
                     break;
             }
         } else if (block_width > 1) {
+            assert(curr_y); // just a sanity check that the zeroth row took the first branch
             switch(component) {
                 case BlockType::Y:
                     process_row(thread_id,
@@ -189,6 +191,7 @@ CodingReturnValue VP8ComponentDecoder::vp8_decode_thread(int thread_id,
                     break;
             }
         } else {
+            assert(curr_y); // just a sanity check that the zeroth row took the first branch
             assert(block_width == 1);
             switch(component) {
                 case BlockType::Y:
@@ -263,7 +266,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
                                   streams[i].second - streams[i].first );
         }
         for (int i = 0; i < NUM_THREADS; ++i) {
-            is_top_row_[i] = true;
+            for (int j   = 0 ; j < (int)ColorChannel::NumBlockTypes; ++j) {
+                is_top_row_.at(i,j) = true;
+            }
             is_valid_range_[i] = false;
         }
         pick_luma_splits(colldata, luma_splits_); //FIXME <-- this needs to be deserialized
@@ -279,6 +284,11 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             
         }
     }
+    // join on all threads
+    for (int component = 0; component < colldata->get_num_components(); ++component) {
+        colldata->worker_mark_cmp_finished((BlockType)component);
+    }
+
     colldata->worker_update_coefficient_position_progress( 64 );
     colldata->worker_update_bit_progress( 16 );
     return CODING_DONE;

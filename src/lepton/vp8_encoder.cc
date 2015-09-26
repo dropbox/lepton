@@ -194,7 +194,6 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         if (!valid_range) {
             continue; // before range for this thread
         }
-        fprintf(stderr,"Thread %d processing %d(%d)\n", thread_id, curr_y, (int)component);
         int block_width = colldata->block_width( component );
         if (is_top_row[(int)component]) {
             is_top_row[(int)component] = false;
@@ -335,7 +334,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                           stream + i * SIMD_WIDTH);
     }
 
-    fprintf(stderr, "Sizes %ld %ld %ld %ld\n", stream[0].size(), stream[1].size(), stream[2].size(), stream[3].size());
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );
 

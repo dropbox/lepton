@@ -13,7 +13,7 @@ class VP8ComponentDecoder : public BaseDecoder {
     Sirikata::DecoderReader *str_in {};
 
     Sirikata::Array1d<BoolDecoder, SIMD_WIDTH * NUM_THREADS> bool_decoder_;
-    Sirikata::Array1d<bool, NUM_THREADS> is_top_row_;
+    Sirikata::Array2d<bool, NUM_THREADS, (size_t)ColorChannel::NumBlockTypes> is_top_row_;
     Sirikata::Array1d<bool, NUM_THREADS> is_valid_range_;
     
     const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;

@@ -611,7 +611,7 @@ public:
     void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, int* aligned_retval) {
         _mm_store_si128((__m128i*)(char*)aligned_retval, compute_aavrg_vec(aligned_zz, context));
     }
-#ifdef __clang__
+#if defined (__clang__) || defined(__GNUC__)
 #define x_mm_loadu_si64(a) _mm_set1_epi64x(*(uint64_t*)(char*)(a))
 #else
 #define x_mm_loadu_si64 _mm_loadu_si64
