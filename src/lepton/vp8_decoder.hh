@@ -27,7 +27,7 @@ class VP8ComponentDecoder : public BaseDecoder {
                      UncompressedComponents * const colldata);
     Sirikata::MuxReader mux_reader_;
     ProbabilityTablesBase model_[NUM_THREADS];
-    int luma_splits_[NUM_THREADS];
+    std::vector<int> luma_splits_;
 public:
     VP8ComponentDecoder();
     void initialize(Sirikata::DecoderReader *input);

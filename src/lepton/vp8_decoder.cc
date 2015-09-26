@@ -232,7 +232,6 @@ CodingReturnValue VP8ComponentDecoder::vp8_decode_thread(int thread_id,
     }
     return CODING_DONE;
 }
-extern void pick_luma_splits(const UncompressedComponents *colldata, int luma_splits[NUM_THREADS]);
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     /* cmpc is a global variable with the component count */
@@ -244,11 +243,19 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         /* read and verify "x" mark */
         unsigned char mark {};
         const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
-        if ( mark != 'x' ) {
-            cerr << "CMPx marker not found " << ok << endl;
+        if ( mark > NUM_THREADS || mark == 0) {
+            cerr << " unsupported NUM_THREADS " << (int)mark << endl;
             return CODING_ERROR;
         }
+        luma_splits_.insert(luma_splits_.end(), NUM_THREADS, colldata->block_height(0));
+
+        std::vector<uint16_t> luma_splits_tmp(mark - 1);
+        IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
+        for (int i = 0; i + 1 < mark; ++i) {
+            luma_splits_[i] = htole16(luma_splits_tmp[i]);
+        }
         for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+            fprintf(stderr,"Luma splits %d\n", (int)luma_splits_[thread_id]);
             for (int i = 0; i < colldata->get_num_components(); ++i) {
                 context_[thread_id].at(i).context
                     = colldata->full_component_write((BlockType)i).begin();
@@ -271,7 +278,6 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             }
             is_valid_range_[i] = false;
         }
-        pick_luma_splits(colldata, luma_splits_); //FIXME <-- this needs to be deserialized
 
     }
     CodingReturnValue ret = vp8_decode_thread(0, colldata);

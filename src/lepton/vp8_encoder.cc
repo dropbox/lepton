@@ -129,9 +129,11 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
 void pick_luma_splits(const UncompressedComponents *colldata,
                       int luma_splits[NUM_THREADS]) {
     int total = colldata->block_height(0);
+    int last = 0;
     for (int i = 0;i < NUM_THREADS; ++i) {
         luma_splits[i] = std::min((total * (i + 1) + NUM_THREADS / 2) / NUM_THREADS,
                                   total);
+        last = luma_splits[i];
     }
     luma_splits[NUM_THREADS - 1] = total; // make sure we're ending at exactly the end
 }
@@ -322,6 +324,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     }
     int luma_splits[NUM_THREADS] = {0};
     pick_luma_splits(colldata, luma_splits);
+    
     std::vector<uint8_t> stream[MuxReader::MAX_STREAM_ID];
     process_row_range(0, colldata, str_out, 0, luma_splits[0], stream);
 
@@ -335,7 +338,14 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     }
 
     /* write block header */
-    str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );
+    uint8_t thread_splits[1 + NUM_THREADS * 2 - 2];
+    thread_splits[0] = NUM_THREADS;
+    for (int i = 0; i + 1 < NUM_THREADS; ++i) {
+        thread_splits[i * 2 + 1] = (luma_splits[i] & 255);
+        thread_splits[i * 2 + 2] = (luma_splits[i] >> 8);
+        assert((luma_splits[i] >> 16) == 0 && "We only support jpegs 65536 tall or less--which complies with the spec");
+    } // the last thread is expected to cover the rest
+    str_out->Write(thread_splits, sizeof(thread_splits));
 
     Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
     size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
