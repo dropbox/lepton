@@ -18,6 +18,11 @@ class BoolEncoder;
 class Slice;
 
 
+enum {
+    VECTORIZE = 1,
+    MICROVECTORIZE = 1,
+    NUM_THREADS = 4
+};
 constexpr unsigned int MAX_EXPONENT = 12;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
@@ -159,7 +164,7 @@ void load_model(Model &model, const Slice&slice);
 
 class ProbabilityTablesBase {
 protected:
-    static Model model_;
+    Model model_;
     static int32_t icos_idct_edge_8192_dequantized_x_[3][64] __attribute__ ((aligned (16)));
     
     static int32_t icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16)));
@@ -170,7 +175,20 @@ protected:
     static uint8_t bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
     static uint8_t min_noise_threshold_[3][64] __attribute__((aligned(16)));
 public:
-    static void load_probability_tables();
+    Model &model() {return model_;}
+    void load_probability_tables();
+    static uint16_t quantization_table(uint8_t color, uint8_t coef) {
+        return quantization_table_[color][coef];
+    }
+    static uint16_t freqmax(uint8_t color, uint8_t coef) {
+        return freqmax_[color][coef];
+    }
+    static uint8_t bitlen_freqmax(uint8_t color, uint8_t coef) {
+        return bitlen_freqmax_[color][coef];
+    }
+    static uint8_t min_noise_threshold(uint8_t color, uint8_t coef) {
+        return min_noise_threshold_[color][coef];
+    }
     static void set_quantization_table(BlockType color, const unsigned short quantization_table[64]) {
         for (int i = 0; i < 64; ++i) {
             quantization_table_[(int)color][i] = quantization_table[zigzag[i]];
@@ -218,8 +236,8 @@ public:
         uint8_t bsr_best_prior;
     };
     enum {
-        VECTORIZE = 1,
-        MICROVECTORIZE = 1
+        VECTORIZE = ::VECTORIZE,
+        MICROVECTORIZE = ::MICROVECTORIZE
     };
 };
 
@@ -241,9 +259,10 @@ template <bool left_present, bool above_present, bool above_right_present, Block
               deprecated_color
 #endif
 >
-class ProbabilityTables : public ProbabilityTablesBase
+class ProbabilityTables
 {
 private:
+    typedef ProbabilityTablesBase::CoefficientContext CoefficientContext;
 public:
 #ifdef USE_TEMPLATIZED_COLOR
     enum {
@@ -258,11 +277,11 @@ public:
         static_assert((int)deprecated_color == 0, "Using dynamic color");
     }
 #endif
-    static void reset() {
-        reset_model(model_);
+    void reset(ProbabilityTablesBase&base) {
+        reset_model(base.model());
     }
-    static void load( const Slice & slice ) {
-        load_model(model_, slice);
+    void load(ProbabilityTablesBase&base, const Slice & slice ) {
+        load_model(base.model(), slice);
     }
     int color_index() {
         if ((int)COLOR == BLOCK_TYPES || ((int)BLOCK_TYPES == 1 && (int)COLOR > (int)BLOCK_TYPES)) {
@@ -270,7 +289,7 @@ public:
         }
         return (int)COLOR;
     }
-    CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
+    ProbabilityTablesBase::CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
         CoefficientContext retval;
         retval.best_prior = compute_aavrg_dc(block);
         retval.bsr_best_prior = bit_length(retval.best_prior);
@@ -278,7 +297,7 @@ public:
         return retval;
     }
     void update_coefficient_context7x7(int aligned_zz,
-                                       CoefficientContext & retval,
+                                       ProbabilityTablesBase::CoefficientContext & retval,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
         if (aligned_zz < 45) {
             //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
@@ -288,7 +307,7 @@ public:
         retval.bsr_best_prior = bit_length(retval.best_prior);
     }
     void update_coefficient_context7x7(int aligned_zz,
-                                       CoefficientContext & retval,
+                                       ProbabilityTablesBase::CoefficientContext & retval,
                                        int aavrg,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
         assert(aavrg == compute_aavrg(aligned_zz, block));
@@ -297,10 +316,10 @@ public:
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
     }
-    CoefficientContext update_coefficient_context8(uint8_t coefficient,
+    ProbabilityTablesBase::CoefficientContext update_coefficient_context8(uint8_t coefficient,
                                                    const ConstBlockContext block, uint8_t num_nonzeros_x) {
         CoefficientContext retval = {};
-        if (ProbabilityTablesBase::MICROVECTORIZE) {
+        if (MICROVECTORIZE) {
             retval.best_prior = (coefficient & 7)
             ? compute_lak_horizontal(block, coefficient) : compute_lak_vertical(block, coefficient);
         } else {
@@ -311,9 +330,9 @@ public:
         return retval;
     }
 #define INSTANTIATE_TEMPLATE_METHOD(N)  \
-    CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
+    ProbabilityTablesBase::CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
                                                    uint8_t num_nonzeros_x) { \
-        CoefficientContext retval = {}; \
+        ProbabilityTablesBase::CoefficientContext retval = {}; \
         retval.best_prior = compute_lak_templ<N>(block); \
         retval.num_nonzeros_bin = num_nonzeros_x; \
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023)); \
@@ -333,7 +352,8 @@ public:
     INSTANTIATE_TEMPLATE_METHOD(40)
     INSTANTIATE_TEMPLATE_METHOD(48)
     INSTANTIATE_TEMPLATE_METHOD(56)
-    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(const ConstBlockContext block) {
+    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(ProbabilityTablesBase &pt,
+                                                               const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
         if (above_present) {
@@ -352,66 +372,68 @@ public:
             num_nonzeros_context = (num_nonzeros_above + num_nonzeros_left + 2) / 4;
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
-        return model_.num_nonzeros_counts_7x7_.at(color_index(),
-                                                  num_nonzeros_to_bin(num_nonzeros_context));
+        return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
+                                                                     num_nonzeros_to_bin(num_nonzeros_context));
     }
-    Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(
+    Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(ProbabilityTablesBase &pt,
                                                           unsigned int eob_x,
                                                           unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
-        return model_.num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
+        return pt.model().num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
-    Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(
+    Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(ProbabilityTablesBase &pt,
                                                           unsigned int eob_x,
                                                           unsigned int num_nonzeros) {
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, is_x?ZEROS8x1:ZEROS1x8, 1, eob_x);
-        return model_.num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
+        return pt.model().num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(int band, int zig15, CoefficientContext context) {
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt, int band, int zig15, CoefficientContext context) {
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
-        return model_.exponent_counts_x_.at(color_index(),
+        return pt.model().exponent_counts_x_.at(color_index(),
                                              zig15,
                                              context.num_nonzeros_bin,
                                              context.bsr_best_prior);
     }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(const unsigned int band,
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(ProbabilityTablesBase &pt,
+                                                                      const unsigned int band,
                                                                       const unsigned int zig49,
                                                                       const CoefficientContext context) {
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
-        return model_.exponent_counts_.at(color_index(),
+        return pt.model().exponent_counts_.at(color_index(),
             zig49,
             context.bsr_best_prior,
             context.num_nonzeros_bin);
     }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(const CoefficientContext context) {
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
+                                                                     const CoefficientContext context) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
-        return model_.exponent_counts_dc_
+        return pt.model().exponent_counts_dc_
             .at(color_index(),
                 context.num_nonzeros_bin,
                 context.bsr_best_prior);
     }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
                                                           const unsigned int band,
                                                           const CoefficientContext context) {
         ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
-        return residual_noise_array_shared(band,
+        return residual_noise_array_shared(pt, band,
                                            context);
     }
 
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(ProbabilityTablesBase &pt,
                                                             const unsigned int band,
                                                             const CoefficientContext context) {
-        return model_.residual_noise_counts_.at(color_index(),
+        return pt.model().residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
     }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
                                                             const unsigned int band,
                                                             const CoefficientContext context) {
         if (band == 0) {
@@ -419,7 +441,7 @@ public:
         } else {
             ANNOTATE_CTX(band, RES7x7, 0, num_nonzeros_to_bin(num_nonzeros));
         }
-        return residual_noise_array_shared(band, context);
+        return residual_noise_array_shared(pt, band, context);
     }
     unsigned int num_nonzeros_to_bin(uint8_t num_nonzeros) {
         return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
@@ -427,30 +449,44 @@ public:
     int idct_2d_8x1(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.coefficients_raster(0) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
+            retval = block.coefficients_raster(0) * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients_raster(1) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
-        retval += block.coefficients_raster(2) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
-        retval += block.coefficients_raster(3) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
-        retval += block.coefficients_raster(4) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
-        retval += block.coefficients_raster(5) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
-        retval += block.coefficients_raster(6) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
-        retval += block.coefficients_raster(7) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
+        retval += block.coefficients_raster(1)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
+        retval += block.coefficients_raster(2)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
+        retval += block.coefficients_raster(3)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
+        retval += block.coefficients_raster(4)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
+        retval += block.coefficients_raster(5)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
+        retval += block.coefficients_raster(6)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
+        retval += block.coefficients_raster(7)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
         return retval;
     }
 
     int idct_2d_1x8(const AlignedBlock&block, bool ignore_first, int pixel_row) {
         int retval = 0;
         if (!ignore_first) {
-            retval = block.dc() * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
+            retval = block.dc() * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 0];
         }
-        retval += block.coefficients_raster(8) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
-        retval += block.coefficients_raster(16) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
-        retval += block.coefficients_raster(24) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
-        retval += block.coefficients_raster(32) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
-        retval += block.coefficients_raster(40) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
-        retval += block.coefficients_raster(48) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
-        retval += block.coefficients_raster(56) * icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
+        retval += block.coefficients_raster(8)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 1];
+        retval += block.coefficients_raster(16)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 2];
+        retval += block.coefficients_raster(24)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 3];
+        retval += block.coefficients_raster(32)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 4];
+        retval += block.coefficients_raster(40)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 5];
+        retval += block.coefficients_raster(48)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 6];
+        retval += block.coefficients_raster(56)
+            * ProbabilityTablesBase::icos_idct_linear_8192_dequantized((int)COLOR)[pixel_row * 8 + 7];
         return retval;
     }
 
@@ -479,7 +515,7 @@ public:
         }
         int DCT_RSC = 8192; 
         prediction = std::max(-1024 * DCT_RSC, std::min(1016 * DCT_RSC, prediction));
-        prediction /= quantization_table_[(int)COLOR][0];
+        prediction /= ProbabilityTablesBase::quantization_table((int)COLOR, 0);
         int round = DCT_RSC/2;
         if (prediction < 0) {
             round = -round;
@@ -509,8 +545,8 @@ public:
     }
     int predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original) {
         int max_value = 0;
-        if (quantization_table_[(int)COLOR][0]){
-            max_value = (1024 + quantization_table_[(int)COLOR][0] - 1) / quantization_table_[(int)COLOR][0];
+        if (ProbabilityTablesBase::quantization_table((int)COLOR, 0)){
+            max_value = (1024 + ProbabilityTablesBase::quantization_table((int)COLOR,0) - 1) / ProbabilityTablesBase::quantization_table((int)COLOR, 0);
         }
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
@@ -662,7 +698,7 @@ public:
             const auto &neighbor = context.above_unchecked();
             ITER(coeffs_x_low, coeffs_a_low, 0, 8);
             ITER(coeffs_x_high, coeffs_a_high, 4, 8);
-            icos = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+            icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
         } else {
             if (!left_present) {
                 return 0;
@@ -670,7 +706,7 @@ public:
             const auto &neighbor = context.left_unchecked();
             ITER(coeffs_x_low, coeffs_a_low, 0, 1);
             ITER(coeffs_x_high, coeffs_a_high, 4, 1);
-            icos = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+            icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
         }
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
     }
@@ -686,7 +722,7 @@ public:
         const auto &neighbor = context.above_unchecked();
         ITER(coeffs_x_low, coeffs_a_low, 0, 8);
         ITER(coeffs_x_high, coeffs_a_high, 4, 8);
-        const int32_t * icos = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+        const int32_t * icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
     }
     int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band) {
@@ -702,7 +738,7 @@ public:
         ITER(coeffs_x_low, coeffs_a_low, 0, 1);
         ITER(coeffs_x_high, coeffs_a_high, 4, 1);
 #undef ITER
-        const int32_t *icos = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+        const int32_t *icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
                         icos);
     }
@@ -711,7 +747,6 @@ public:
         int coeffs_a[8];
         const int32_t *coef_idct = nullptr;
         int check_retval = 0;
-        assert(quantization_table_);
         if ((band & 7) && above_present) {
             // y == 0: we're the x
             assert(band/8 == 0); //this function only works for the edge
@@ -721,7 +756,7 @@ public:
                 coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : 0;
                 coeffs_a[i]  = above.coefficients_raster(cur_coef);
             }
-            coef_idct = icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+            coef_idct = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
         } else if ((band & 7) == 0 && left_present) {
             // x == 0: we're the y
             const auto &left = context.left_unchecked();
@@ -730,7 +765,7 @@ public:
                 coeffs_x[i]  = i ? context.here().coefficients_raster(cur_coef) : 0;
                 coeffs_a[i]  = left.coefficients_raster(cur_coef);
             }
-            coef_idct = icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+            coef_idct = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
             check_retval = compute_lak_vertical(context, band);
         } else {
             return 0;
@@ -755,7 +790,8 @@ public:
         }*/
     Sirikata::Array1d<Branch,
             (1<<RESIDUAL_NOISE_FLOOR)>::Slice
-        residual_thresh_array(const unsigned int band,
+        residual_thresh_array(ProbabilityTablesBase &pt,
+                              const unsigned int band,
                               const uint8_t cur_exponent,
                               const CoefficientContext context,
                               int min_threshold,
@@ -767,7 +803,7 @@ public:
         ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
         ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
 
-        return model_.residual_threshold_counts_.at(color_index(),
+        return pt.model().residual_threshold_counts_.at(color_index(),
                                                      ctx_abs >> min_threshold,
                                                      cur_exponent - min_threshold);
     }
@@ -782,39 +818,39 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array_dc(CoefficientContext context) {
+    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
-        return model_.sign_counts_.at(color_index(), 0, 1);
+        return pt.model().sign_counts_.at(color_index(), 0, 1);
     }
-    Branch& sign_array_7x7(uint8_t band, CoefficientContext context) {
+    Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
         ANNOTATE_CTX(band, SIGN7x7, 0, 0);
-        return model_.sign_counts_.at(color_index(), 0, 0);
+        return pt.model().sign_counts_.at(color_index(), 0, 0);
     }
-    Branch& sign_array_8(uint8_t band, CoefficientContext context) {
+    Branch& sign_array_8(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
 
         int16_t val = context.best_prior;
         uint8_t ctx0 = context.bsr_best_prior;
         uint8_t ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
         ANNOTATE_CTX(band, SIGN8, 0, ctx0);
         ANNOTATE_CTX(band, SIGN8, 1, ctx1);
-        return model_.sign_counts_.at(color_index(), ctx1, ctx0);
+        return pt.model().sign_counts_.at(color_index(), ctx1, ctx0);
     }
     int get_max_value(int coord) {
-        return freqmax_[(int)COLOR][coord];
+        return ProbabilityTablesBase::freqmax((int)COLOR, coord);
     }
     uint8_t get_noise_threshold(int coord) {
-        return min_noise_threshold_[(int)COLOR][coord];
+        return ProbabilityTablesBase::min_noise_threshold((int)COLOR, coord);
     }
-    void optimize() {
-        optimize_model(model_);
+    void optimize(ProbabilityTablesBase &pt) {
+        optimize_model(pt.model());
     }
-    void serialize( std::ofstream & output ) const{
-        serialize_model(model_, output);
+    void serialize(ProbabilityTablesBase &pt, std::ofstream & output ) const{
+        serialize_model(pt.model(), output);
     }
 
     // this reduces the counts to something easier to override by new data
-    void normalize() {
-        normalize_model(model_);
+    void normalize(ProbabilityTablesBase &pt) {
+        normalize_model(pt.model());
     }
     
 };

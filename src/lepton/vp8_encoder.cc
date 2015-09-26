@@ -71,7 +71,8 @@ CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents
 }
 
 template<class Left, class Middle, class Right>
-void VP8ComponentEncoder::process_row(Left & left_model,
+void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
+                                      Left & left_model,
                                       Middle& middle_model,
                                       Right& right_model,
                                       int block_width,
@@ -90,7 +91,8 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         *block_context.num_nonzeros_here = block.recalculate_coded_length();
         serialize_tokens(block_context,
                          bool_encoder,
-                         left_model);
+                         left_model,
+                         pt);
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, true);
     }
     for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
@@ -104,7 +106,8 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         *block_context.num_nonzeros_here = block.recalculate_coded_length();
         serialize_tokens(block_context,
                          bool_encoder,
-                         middle_model);
+                         middle_model,
+                         pt);
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, true);
     }
     if (block_width > 1) {
@@ -118,7 +121,8 @@ void VP8ComponentEncoder::process_row(Left & left_model,
         *block_context.num_nonzeros_here = block.recalculate_coded_length();
         serialize_tokens(block_context,
                          bool_encoder,
-                         right_model);
+                         right_model,
+                         pt);
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
     }
 }
@@ -134,10 +138,10 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         context[i].context = colldata->full_component_nosync(i).begin();
         context[i].y = 0;
     }
-
-    /* read in probability table coeff probs */
-    ProbabilityTablesBase::load_probability_tables();
-
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        /* read in probability table coeff probs */
+        model_[i].load_probability_tables();
+    }
     /* get ready to serialize the blocks */
     Sirikata::Array1d<BoolEncoder, MuxReader::MAX_STREAM_ID> bool_encoders;
     BlockType component = BlockType::Y;
@@ -173,7 +177,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         if (curr_y == 0) {
             switch(component) {
                 case BlockType::Y:
-                    process_row(std::get<(int)BlockType::Y>(corner),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Y>(corner),
                                 std::get<(int)BlockType::Y>(top),
                                 std::get<(int)BlockType::Y>(top),
                                 block_width,
@@ -182,7 +187,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 bool_encoders);
                     break;
                 case BlockType::Cb:
-                    process_row(std::get<(int)BlockType::Cb>(corner),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cb>(corner),
                                 std::get<(int)BlockType::Cb>(top),
                                 std::get<(int)BlockType::Cb>(top),
                                 block_width,
@@ -191,7 +197,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 bool_encoders);
                     break;
                 case BlockType::Cr:
-                    process_row(std::get<(int)BlockType::Cr>(corner),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cr>(corner),
                                 std::get<(int)BlockType::Cr>(top),
                                 std::get<(int)BlockType::Cr>(top),
                                 block_width,
@@ -203,7 +210,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         } else if (block_width > 1) {
             switch(component) {
                 case BlockType::Y:
-                    process_row(std::get<(int)BlockType::Y>(midleft),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Y>(midleft),
                                 std::get<(int)BlockType::Y>(middle),
                                 std::get<(int)BlockType::Y>(midright),
                                 block_width,
@@ -212,7 +220,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 bool_encoders);
                     break;
                 case BlockType::Cb:
-                    process_row(std::get<(int)BlockType::Cb>(midleft),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cb>(midleft),
                                 std::get<(int)BlockType::Cb>(middle),
                                 std::get<(int)BlockType::Cb>(midright),
                                 block_width,
@@ -221,7 +230,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 bool_encoders);
                     break;
                 case BlockType::Cr:
-                    process_row(std::get<(int)BlockType::Cr>(midleft),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cr>(midleft),
                                 std::get<(int)BlockType::Cr>(middle),
                                 std::get<(int)BlockType::Cr>(midright),
                                 block_width,
@@ -234,7 +244,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             assert(block_width == 1);
             switch(component) {
                 case BlockType::Y:
-                    process_row(std::get<(int)BlockType::Y>(width_one),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Y>(width_one),
                                 std::get<(int)BlockType::Y>(width_one),
                                 std::get<(int)BlockType::Y>(width_one),
                                 block_width,
@@ -243,7 +254,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 bool_encoders);
                     break;
                 case BlockType::Cb:
-                    process_row(std::get<(int)BlockType::Cb>(width_one),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cb>(width_one),
                                 std::get<(int)BlockType::Cb>(width_one),
                                 std::get<(int)BlockType::Cb>(width_one),
                                 block_width,
@@ -252,7 +264,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 bool_encoders);
                     break;
                 case BlockType::Cr:
-                    process_row(std::get<(int)BlockType::Cr>(width_one),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cr>(width_one),
                                 std::get<(int)BlockType::Cr>(width_one),
                                 std::get<(int)BlockType::Cr>(width_one),
                                 block_width,
@@ -308,8 +321,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             return CODING_ERROR;
         }
 
-        std::get<(int)BlockType::Y>(middle).optimize();
-        std::get<(int)BlockType::Y>(middle).serialize( model_file );
+        std::get<(int)BlockType::Y>(middle).optimize(model_[0]);
+        std::get<(int)BlockType::Y>(middle).serialize(model_[0], model_file );
     }
 #ifdef ANNOTATION_ENABLED
     {

@@ -36,12 +36,15 @@ void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const
 }
 
 VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator<uint8_t>()) {
-    ProbabilityTablesBase::load_probability_tables();
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        model_[i].load_probability_tables();
+    }
 }
 
 
 template<class Left, class Middle, class Right>
-void VP8ComponentDecoder::process_row(Left & left_model,
+void VP8ComponentDecoder::process_row(ProbabilityTablesBase&pt,
+                                      Left & left_model,
                                        Middle& middle_model,
                                        Right& right_model,
                                        int block_width,
@@ -50,21 +53,24 @@ void VP8ComponentDecoder::process_row(Left & left_model,
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_,
-                     left_model); //FIXME
+                     left_model,
+                     pt); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_,
-                     middle_model); //FIXME
+                     middle_model,
+                     pt); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
     }
     if (block_width > 1) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_,
-                     right_model);
+                     right_model,
+                     pt);
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
     }
 }
@@ -138,21 +144,24 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         if (curr_y == 0) {
             switch(component) {
                 case BlockType::Y:
-                    process_row(std::get<(int)BlockType::Y>(corner),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Y>(corner),
                                 std::get<(int)BlockType::Y>(top),
                                 std::get<(int)BlockType::Y>(top),
                                 block_width,
                                 colldata);
                     break;
                 case BlockType::Cb:
-                    process_row(std::get<(int)BlockType::Cb>(corner),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cb>(corner),
                                 std::get<(int)BlockType::Cb>(top),
                                 std::get<(int)BlockType::Cb>(top),
                                 block_width,
                                 colldata);
                     break;
                 case BlockType::Cr:
-                    process_row(std::get<(int)BlockType::Cr>(corner),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cr>(corner),
                                 std::get<(int)BlockType::Cr>(top),
                                 std::get<(int)BlockType::Cr>(top),
                                 block_width,
@@ -162,21 +171,24 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         } else if (block_width > 1) {
             switch(component) {
                 case BlockType::Y:
-                    process_row(std::get<(int)BlockType::Y>(midleft),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Y>(midleft),
                                 std::get<(int)BlockType::Y>(middle),
                                 std::get<(int)BlockType::Y>(midright),
                                 block_width,
                                 colldata);
                     break;
                 case BlockType::Cb:
-                    process_row(std::get<(int)BlockType::Cb>(midleft),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cb>(midleft),
                                 std::get<(int)BlockType::Cb>(middle),
                                 std::get<(int)BlockType::Cb>(midright),
                                 block_width,
                                 colldata);
                     break;
                 case BlockType::Cr:
-                    process_row(std::get<(int)BlockType::Cr>(midleft),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cr>(midleft),
                                 std::get<(int)BlockType::Cr>(middle),
                                 std::get<(int)BlockType::Cr>(midright),
                                 block_width,
@@ -187,21 +199,24 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             assert(block_width == 1);
             switch(component) {
                 case BlockType::Y:
-                    process_row(std::get<(int)BlockType::Y>(width_one),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Y>(width_one),
                                 std::get<(int)BlockType::Y>(width_one),
                                 std::get<(int)BlockType::Y>(width_one),
                                 block_width,
                                 colldata);
                     break;
                 case BlockType::Cb:
-                    process_row(std::get<(int)BlockType::Cb>(width_one),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cb>(width_one),
                                 std::get<(int)BlockType::Cb>(width_one),
                                 std::get<(int)BlockType::Cb>(width_one),
                                 block_width,
                                 colldata);
                     break;
                 case BlockType::Cr:
-                    process_row(std::get<(int)BlockType::Cr>(width_one),
+                    process_row(model_[0],
+                                std::get<(int)BlockType::Cr>(width_one),
                                 std::get<(int)BlockType::Cr>(width_one),
                                 std::get<(int)BlockType::Cr>(width_one),
                                 block_width,

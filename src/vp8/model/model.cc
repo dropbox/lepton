@@ -7,7 +7,6 @@
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[3][64] __attribute__ ((aligned (16))) = {{0}};
 
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16))) = {{0}};
-Model ProbabilityTablesBase::model_;
 int32_t ProbabilityTablesBase::icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16))) = {{0}};
 #ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
@@ -192,8 +191,8 @@ void ProbabilityTablesBase::load_probability_tables()
     } else {
         MMapFile model_file { model_name };
         ProbabilityTables<false, false, false, BlockType::Y> model_tables(BlockType::Y);
-        model_tables.load(model_file.slice());
-        model_tables.normalize();
+        model_tables.load(*this, model_file.slice());
+        model_tables.normalize(*this);
     }
 }
 
