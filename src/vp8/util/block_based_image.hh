@@ -40,6 +40,16 @@ public:
     ConstBlockContext begin() const {
         return {image_, nullptr, num_nonzeros_.begin(), num_nonzeros_.begin() + width_};
     }
+    BlockContext off_y(int y) {
+        return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
+            (y & 1) ? num_nonzeros_.begin() + width_ : num_nonzeros_.begin(),
+            (y & 1) ? num_nonzeros_.begin() : num_nonzeros_.begin() + width_};
+    }
+    ConstBlockContext off_y(int y) const {
+        return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
+            (y & 1) ? num_nonzeros_.begin() + width_ : num_nonzeros_.begin(),
+            (y & 1) ? num_nonzeros_.begin() : num_nonzeros_.begin() + width_};
+    }
     template <class BlockContext> BlockContext next(BlockContext it, bool has_left) const {
         it.cur += 1;
         ptrdiff_t offset = it.cur - image_;

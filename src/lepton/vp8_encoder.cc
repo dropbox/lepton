@@ -79,7 +79,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       const UncompressedComponents * const colldata,
                                       Sirikata::Array1d<KVContext,
                                               (uint32_t)ColorChannel::NumBlockTypes> &context,
-                                      Sirikata::Array1d<BoolEncoder, Sirikata::MuxReader::MAX_STREAM_ID> &bool_encoder) {
+                                      Sirikata::Array1d<BoolEncoder, SIMD_WIDTH> &bool_encoder) {
     if (block_width > 0) {
         ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
         const AlignedBlock &block = block_context.here();
@@ -126,6 +126,186 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
     }
 }
+void pick_luma_splits(const UncompressedComponents *colldata,
+                      int luma_splits[NUM_THREADS]) {
+    int total = colldata->block_height(0);
+    for (int i = 0;i < NUM_THREADS; ++i) {
+        luma_splits[i] = std::min((total * (i + 1) + NUM_THREADS / 2) / NUM_THREADS,
+                                  total);
+    }
+    luma_splits[NUM_THREADS - 1] = total; // make sure we're ending at exactly the end
+}
+
+
+
+tuple<ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR0>,
+ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR1>,
+ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR2> > corner(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
+tuple<ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR0>,
+ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR1>,
+ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR2> > top(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
+tuple<ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR0>,
+ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR1>,
+ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR2> > midleft(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
+tuple<ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR0>,
+ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR1>,
+ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR2> > middle(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
+tuple<ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR0>,
+ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR1>,
+ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR2> > midright(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
+tuple<ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR0>,
+ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR1>,
+ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2> > width_one(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
+void VP8ComponentEncoder::process_row_range(int thread_id,
+                                            const UncompressedComponents * const colldata,
+                                            Sirikata::
+                                            DecoderWriter *str_out,
+                                            int min_y,
+                                            int max_y,
+                                            std::vector<uint8_t> *streams) {
+    using namespace Sirikata;
+    Array1d<BoolEncoder, SIMD_WIDTH> bool_encoders;
+    Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
+    for (size_t i = 0; i < context.size(); ++i) {
+        context[i].context = colldata->full_component_nosync(i).begin();
+        context[i].y = 0;
+    }
+    BlockType component = BlockType::Y;
+    uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
+    memset(is_top_row, true, sizeof(is_top_row));
+    bool valid_range = false;
+    for(;colldata->get_next_component(context, &component); ++context.at((int)component).y) {
+        int curr_y = context.at((int)component).y;
+        context[(int)component].context = colldata->full_component_nosync((int)component).off_y(curr_y);
+        if (component == BlockType::Y) {
+            if (curr_y >= min_y) {
+                valid_range = true;
+            }
+            if (curr_y >= max_y && thread_id + 1 != NUM_THREADS) {
+                break; // we are out of range
+            }
+        }
+        if (!valid_range) {
+            continue; // before range for this thread
+        }
+        fprintf(stderr,"Thread %d processing %d(%d)\n", thread_id, curr_y, (int)component);
+        int block_width = colldata->block_width( component );
+        if (is_top_row[(int)component]) {
+            is_top_row[(int)component] = false;
+            switch(component) {
+                case BlockType::Y:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Y>(corner),
+                            std::get<(int)BlockType::Y>(top),
+                            std::get<(int)BlockType::Y>(top),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+                case BlockType::Cb:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Cb>(corner),
+                            std::get<(int)BlockType::Cb>(top),
+                            std::get<(int)BlockType::Cb>(top),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+                case BlockType::Cr:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Cr>(corner),
+                            std::get<(int)BlockType::Cr>(top),
+                            std::get<(int)BlockType::Cr>(top),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+            }
+        } else if (block_width > 1) {
+            switch(component) {
+                case BlockType::Y:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Y>(midleft),
+                            std::get<(int)BlockType::Y>(middle),
+                            std::get<(int)BlockType::Y>(midright),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+                case BlockType::Cb:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Cb>(midleft),
+                            std::get<(int)BlockType::Cb>(middle),
+                            std::get<(int)BlockType::Cb>(midright),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+                case BlockType::Cr:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Cr>(midleft),
+                            std::get<(int)BlockType::Cr>(middle),
+                            std::get<(int)BlockType::Cr>(midright),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+            }
+        } else {
+            assert(block_width == 1);
+            switch(component) {
+                case BlockType::Y:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Y>(width_one),
+                            std::get<(int)BlockType::Y>(width_one),
+                            std::get<(int)BlockType::Y>(width_one),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+                case BlockType::Cb:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Cb>(width_one),
+                            std::get<(int)BlockType::Cb>(width_one),
+                            std::get<(int)BlockType::Cb>(width_one),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                break;
+                case BlockType::Cr:
+                    process_row(model_[thread_id],
+                            std::get<(int)BlockType::Cr>(width_one),
+                            std::get<(int)BlockType::Cr>(width_one),
+                            std::get<(int)BlockType::Cr>(width_one),
+                            block_width,
+                            colldata,
+                            context,
+                            bool_encoders);
+                    break;
+            }
+        }
+        
+    }
+    for (int i = 0; i < SIMD_WIDTH; ++i) {
+        /* get coded output */
+        streams[i] = bool_encoders.at(i).finish();
+    }
+}
+
 
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                             Sirikata::
@@ -133,160 +313,29 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
-    Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
-    for (size_t i = 0; i < context.size(); ++i) {
-        context[i].context = colldata->full_component_nosync(i).begin();
-        context[i].y = 0;
-    }
+    /* get ready to serialize the blocks */
+    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
+    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
     for (int i = 0; i < NUM_THREADS; ++i) {
         /* read in probability table coeff probs */
         model_[i].load_probability_tables();
     }
-    /* get ready to serialize the blocks */
-    Sirikata::Array1d<BoolEncoder, MuxReader::MAX_STREAM_ID> bool_encoders;
-    BlockType component = BlockType::Y;
-    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
-    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
-    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
-    tuple<ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR0>,
-          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR1>,
-          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR2> > corner(BlockType::Y,BlockType::Cb,BlockType::Cr);
+    int luma_splits[NUM_THREADS] = {0};
+    pick_luma_splits(colldata, luma_splits);
+    std::vector<uint8_t> stream[MuxReader::MAX_STREAM_ID];
+    process_row_range(0, colldata, str_out, 0, luma_splits[0], stream);
 
-    tuple<ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR0>,
-          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR1>,
-          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR2> > top(BlockType::Y,BlockType::Cb,BlockType::Cr);
 
-    tuple<ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR0>,
-          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR1>,
-          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR2> > midleft(BlockType::Y,BlockType::Cb,BlockType::Cr);
-
-    tuple<ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR0>,
-          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR1>,
-          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR2> > middle(BlockType::Y,BlockType::Cb,BlockType::Cr);
-
-    tuple<ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR0>,
-          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR1>,
-          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR2> > midright(BlockType::Y,BlockType::Cb,BlockType::Cr);
-
-    tuple<ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR0>,
-          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR1>,
-          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2> > width_one(BlockType::Y,BlockType::Cb,BlockType::Cr);
-    while(colldata->get_next_component(context, &component)) {
-        int curr_y = context.at((int)component).y;
-        int block_width = colldata->block_width( component );
-        if (curr_y == 0) {
-            switch(component) {
-                case BlockType::Y:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Y>(corner),
-                                std::get<(int)BlockType::Y>(top),
-                                std::get<(int)BlockType::Y>(top),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-                case BlockType::Cb:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Cb>(corner),
-                                std::get<(int)BlockType::Cb>(top),
-                                std::get<(int)BlockType::Cb>(top),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-                case BlockType::Cr:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Cr>(corner),
-                                std::get<(int)BlockType::Cr>(top),
-                                std::get<(int)BlockType::Cr>(top),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-            }
-        } else if (block_width > 1) {
-            switch(component) {
-                case BlockType::Y:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Y>(midleft),
-                                std::get<(int)BlockType::Y>(middle),
-                                std::get<(int)BlockType::Y>(midright),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-                case BlockType::Cb:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Cb>(midleft),
-                                std::get<(int)BlockType::Cb>(middle),
-                                std::get<(int)BlockType::Cb>(midright),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-                case BlockType::Cr:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Cr>(midleft),
-                                std::get<(int)BlockType::Cr>(middle),
-                                std::get<(int)BlockType::Cr>(midright),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-            }
-        } else {
-            assert(block_width == 1);
-            switch(component) {
-                case BlockType::Y:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Y>(width_one),
-                                std::get<(int)BlockType::Y>(width_one),
-                                std::get<(int)BlockType::Y>(width_one),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-                case BlockType::Cb:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Cb>(width_one),
-                                std::get<(int)BlockType::Cb>(width_one),
-                                std::get<(int)BlockType::Cb>(width_one),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-                case BlockType::Cr:
-                    process_row(model_[0],
-                                std::get<(int)BlockType::Cr>(width_one),
-                                std::get<(int)BlockType::Cr>(width_one),
-                                std::get<(int)BlockType::Cr>(width_one),
-                                block_width,
-                                colldata,
-                                context,
-                                bool_encoders);
-                    break;
-            }
-        }
-
-        ++context.at((int)component).y;
+    static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
+                  "Need to have enough mux streams for all threads and simd width");
+    for (int i = 1; i < NUM_THREADS;++i) {
+        process_row_range(i,
+                          colldata, str_out, luma_splits[i - 1], luma_splits[i],
+                          stream + i * SIMD_WIDTH);
     }
 
-    /* get coded output */
-    std::vector<uint8_t> stream[MuxReader::MAX_STREAM_ID] = {
-       bool_encoders.at(0).finish(),
-       bool_encoders.at(1).finish(),
-       bool_encoders.at(2).finish(),
-       bool_encoders.at(3).finish()};
     fprintf(stderr, "Sizes %ld %ld %ld %ld\n", stream[0].size(), stream[1].size(), stream[2].size(), stream[3].size());
-    static_assert(MuxReader::MAX_STREAM_ID == 4, "Right now we assume 4 streams");
     /* write block header */
     str_out->Write( reinterpret_cast<const unsigned char*>("x"), 1 );
 

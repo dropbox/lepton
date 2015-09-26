@@ -9,13 +9,17 @@
 
 class VP8ComponentDecoder : public BaseDecoder {
 
-    Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes > context_;
+    Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes > context_[NUM_THREADS];
     Sirikata::DecoderReader *str_in {};
 
-    Sirikata::Array1d<BoolDecoder, 4> bool_decoder_;
+    Sirikata::Array1d<BoolDecoder, SIMD_WIDTH * NUM_THREADS> bool_decoder_;
+    Sirikata::Array1d<bool, NUM_THREADS> is_top_row_;
+    Sirikata::Array1d<bool, NUM_THREADS> is_valid_range_;
+    
     const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     template<class Left, class Middle, class Right>
-    void process_row(ProbabilityTablesBase&,
+    void process_row(int thread_id,
+                     ProbabilityTablesBase&,
                      Left & left_model,
                      Middle& middle_model,
                      Right& right_model,
@@ -23,10 +27,12 @@ class VP8ComponentDecoder : public BaseDecoder {
                      UncompressedComponents * const colldata);
     Sirikata::MuxReader mux_reader_;
     ProbabilityTablesBase model_[NUM_THREADS];
+    int luma_splits_[NUM_THREADS];
 public:
     VP8ComponentDecoder();
     void initialize(Sirikata::DecoderReader *input);
-
+    CodingReturnValue vp8_decode_thread(int thread_id,
+                                        UncompressedComponents * const colldata);
     CodingReturnValue vp8_decoder( UncompressedComponents * const colldata);
     static void vp8_continuous_decoder( UncompressedComponents * const colldata,
                                         Sirikata::DecoderReader *input);

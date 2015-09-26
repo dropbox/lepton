@@ -182,6 +182,17 @@ template <class T,
         return retval;
     }
 
+    template <uint32_t new_size> typename Array1d<T, new_size,
+        ShouldRoundPow2>::Slice dynslice(uint32_t start) {
+        uint8_t assert_slice_size_legal[new_size > s0 ? -1 : 1];
+        (void)assert_slice_size_legal;
+        assert(start + new_size <= s0 && "slice must fit within original array");
+        const typename Array1d<T, new_size, ShouldRoundPow2>::Slice retval
+            = {(typename Array1d<T, new_size, ShouldRoundPow2>::Slice::IsReference::ArrayType)
+                &IsReference::dereference(data)[start]};
+        return retval;
+    }
+          
     void memset(uint8_t val) {
         std::memset(data, val, sizeof(Array));
     }
