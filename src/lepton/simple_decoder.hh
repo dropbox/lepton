@@ -14,6 +14,8 @@ public:
     SimpleComponentDecoder();
     ~SimpleComponentDecoder();
     virtual void initialize(Sirikata::DecoderReader *input);
+    void enable_threading() {}
+    void disable_threading() {}
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
     static void simple_continuous_decoder(UncompressedComponents* colldata,

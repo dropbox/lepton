@@ -8,5 +8,7 @@ public:
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    Sirikata::DecoderWriter *);
 
+    void enable_threading() {}
+    void disable_threading() {}
     ~SimpleComponentEncoder();
 };

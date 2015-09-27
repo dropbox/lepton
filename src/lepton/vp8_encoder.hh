@@ -19,9 +19,17 @@ class VP8ComponentEncoder : public BaseEncoder {
                            int min_y,
                            int max_y,
                            std::vector<uint8_t> *streams[SIMD_WIDTH]);
+    bool do_threading_ = false;
 public:
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                                Sirikata::DecoderWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    Sirikata::DecoderWriter *);
+    void enable_threading() {
+        do_threading_ = true;
+    }
+    void disable_threading() {
+        do_threading_ = false;
+    }
+
 };

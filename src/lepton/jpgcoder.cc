@@ -303,6 +303,7 @@ F_TYPE ofiletype = LEPTON;            // desired type of output file
 
 std::unique_ptr<BaseEncoder> g_encoder;
 std::unique_ptr<BaseDecoder> g_decoder;
+bool g_threaded = true;
 
 Sirikata::DecoderReader* str_in  = NULL;    // input stream
 bounded_iostream* str_out = NULL;    // output stream
@@ -534,13 +535,12 @@ void initialize_options( int argc, char** argv )
     int tmp_val;
     int i;
 
-
     // get memory for filelist & preset with NULL
     filelist = new char*[ argc ];
     for ( i = 0; i < argc; i++ )
         filelist[ i ] = NULL;
 
-    // preset temporary filelist pointer
+    // preset temporary fiolelist pointer
     tmp_flp = filelist;
 
 
@@ -565,6 +565,12 @@ void initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-nostreaming" ) == 0)  {
             do_streaming = false;
+        }
+        else if ( strcmp((*argv), "-singlethread" ) == 0)  {
+            g_threaded = false;
+        }
+        else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
+            g_threaded = true;
         }
          else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-timing="), "a");
@@ -673,6 +679,12 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
             if (!g_encoder) {
                 g_encoder.reset(new VP8ComponentEncoder);
             }
+            if (g_threaded) {//FIXME
+                g_encoder->enable_threading();
+            } else {
+                g_encoder->disable_threading();
+            }
+
         }else if (ofiletype == UJG) {
             g_encoder.reset(new SimpleComponentEncoder);
         }
@@ -700,9 +712,16 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
             if (!g_decoder) {
                 g_decoder.reset(new VP8ComponentDecoder);
             }
+            if (g_threaded) {//FIXME
+                g_decoder->enable_threading();
+            } else {
+                g_decoder->disable_threading();
+            }
+
         }else if (filetype == UJG) {
             g_decoder.reset(new SimpleComponentDecoder);
         }
+
         switch ( action )
         {
             case comp:

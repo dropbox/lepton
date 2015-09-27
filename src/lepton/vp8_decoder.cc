@@ -36,6 +36,7 @@ void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const
 }
 
 VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator<uint8_t>()) {
+    do_threading_ = false;
     for (int i = 0; i < NUM_THREADS; ++i) {
         thread_state_[i] = new ThreadState;
         thread_state_[i]->model_.load_probability_tables();
@@ -276,7 +277,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             thread_state_[thread_id]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
             thread_state_[thread_id]->luma_splits_[1] = file_luma_splits_[thread_id];
         }
-        if (DO_THREADING) {
+        if (do_threading_) {
             for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
                 workers[thread_id] = new std::thread(std::bind(worker_thread, thread_state_[thread_id], thread_id, colldata));
             }
@@ -286,7 +287,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     if (ret == CODING_PARTIAL) {
         return ret;
     }
-    if (DO_THREADING) {
+    if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             workers[thread_id]->join();// for now maybe we want to use atomics instead
             delete workers[thread_id];

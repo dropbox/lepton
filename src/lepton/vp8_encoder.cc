@@ -48,7 +48,7 @@ void printContext(FILE * fp) {
                                   case EXP8:nam = "EXP8";break;
                                   case THRESH8: nam = "THRESH8"; break;
                                   case RES8:nam = "RES8";break;
-                                  case SIGN8:nam = "SIGN8";break;
+                                  case SIGN8:nam = "SI#include "emmintrin.h"GN8";break;
                                   default:break;
                                 }
                                 if (val != -1 && ctx != ZDSTSCAN) {
@@ -126,16 +126,65 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
     }
 }
+uint32_t aligned_block_cost(const AlignedBlock &block) {
+    uint32_t cost = 16; // .25 cost for zeros
+    if (VECTORIZE) {
+        for (int i = 0; i < 64; i+= 8) {
+            __m128i val = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)(block.coef.begin() + i)));
+            __m128i v_cost = _mm_set1_epi16(0);
+            while (!_mm_test_all_zeros(val, val)) {
+                __m128i mask = _mm_cmpgt_epi16(val, _mm_setzero_si128());
+                v_cost = _mm_add_epi16(v_cost, _mm_and_si128(mask, _mm_set1_epi16(2)));
+                val = _mm_srli_epi16(val, 1);
+            }
+            __m128i sum = _mm_add_epi16(v_cost, _mm_srli_si128(v_cost, 8));
+            sum = _mm_add_epi16(sum ,_mm_srli_si128(sum, 4));
+            sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 2));
+            cost += _mm_extract_epi16(sum, 0);
+        }
+    } else {
+        uint32_t scost = 0;
+        for (int i = 0; i < 64; ++i) {
+            scost += 1 + 2 * uint16bit_length(abs(block.coef.at(i)));
+        }
+        cost = scost;
+    }
+    return cost;
+}
+
 void pick_luma_splits(const UncompressedComponents *colldata,
                       int luma_splits[NUM_THREADS]) {
-    int total = colldata->block_height(0);
+    int height = colldata->block_height(0);
+    int width = colldata->block_width(0);
+    std::vector<uint32_t> row_costs(height);
+    const BlockBasedImage &image = colldata->full_component_nosync(0);
+    for (int i = 0; i < height; ++i) {
+        uint32_t row_cost = 0;
+        for (int j = 0; j < width; ++j) {
+            row_cost += aligned_block_cost(image.raster(i * width + j));
+        }
+        row_costs[i] = row_cost;
+        if (i) {
+            row_costs[i] += row_costs[i-1];
+        }
+    }
+    for (int i = 0; i < NUM_THREADS;++i) {
+        auto split = std::lower_bound(row_costs.begin(), row_costs.end(),
+                                      row_costs.back() * (i + 1) / NUM_THREADS);
+        luma_splits[i] = split - row_costs.begin();
+        if (luma_splits[i] < height) {
+            ++luma_splits[i];
+        }
+    }
+    /*
     int last = 0;
     for (int i = 0;i < NUM_THREADS; ++i) {
-        luma_splits[i] = std::min((total * (i + 1) + NUM_THREADS / 2) / NUM_THREADS,
-                                  total);
+        luma_splits[i] = std::min((height * (i + 1) + NUM_THREADS / 2) / NUM_THREADS,
+                                  height);
         last = luma_splits[i];
     }
-    luma_splits[NUM_THREADS - 1] = total; // make sure we're ending at exactly the end
+    */
+    luma_splits[NUM_THREADS - 1] = height; // make sure we're ending at exactly the end
 }
 
 

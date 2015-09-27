@@ -10,12 +10,12 @@ export TEST_MODEL="`mktemp /tmp/temp.XXXXXX`"
 export COMPRESSED_LEPTON="`mktemp /tmp/temp.XXXXXX`"
 export ORIGINAL="`mktemp /tmp/temp.XXXXXX`"
 if [ $# -lt 2 ]; then
-    ./lepton - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
+    ./lepton -multithread - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
     cp "$LEPTON_COMPRESSION_MODEL_OUT" "$TEST_MODEL"
 else
     for test_item in "$@"; do
         if [ "$test_item" != "$INPUT_TO_TEST" ]; then
-            ./lepton - < "$test_item" > "$COMPRESSED_LEPTON"
+            ./lepton -multithread - < "$test_item" > "$COMPRESSED_LEPTON"
             cp "$LEPTON_COMPRESSION_MODEL_OUT" "$TEST_MODEL"
             export LEPTON_COMPRESSION_MODEL="$TEST_MODEL"
         else
@@ -23,8 +23,8 @@ else
         fi
     done
 fi
-LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
-LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton - < "$COMPRESSED_LEPTON" > "$ORIGINAL"
+LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton -multithread - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
+LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton -multithread - < "$COMPRESSED_LEPTON" > "$ORIGINAL"
 md5sum "$ORIGINAL" "$INPUT_TO_TEST" 2> /dev/null || md5 "$ORIGINAL" "$INPUT_TO_TEST"
     if diff -q "$ORIGINAL" "$INPUT_TO_TEST" ; then
     rm -- "$LEPTON_COMPRESSION_MODEL_OUT"
