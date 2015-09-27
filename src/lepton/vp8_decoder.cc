@@ -304,7 +304,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             if (dospin) {
-                spin_workers_.at(thread_id - 1).is_done();
+                spin_workers_.at(thread_id - 1).main_wait_for_done();
             } else {
                 workers[thread_id]->join();// for now maybe we want to use atomics instead
                 delete workers[thread_id];
