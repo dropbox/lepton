@@ -236,6 +236,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         /* read and verify "x" mark */
         unsigned char mark {};
         const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
+        if (!ok) {
+            return CODING_ERROR;
+        }
         if ( mark > NUM_THREADS || mark == 0) {
             cerr << " unsupported NUM_THREADS " << (int)mark << endl;
             return CODING_ERROR;

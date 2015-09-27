@@ -3,7 +3,7 @@
 #include "../vp8/util/nd_array.hh"
 #include "../vp8/util/generic_worker.hh"
 
-class GenericWorker;
+struct GenericWorker;
 enum CodingReturnValue {
     CODING_ERROR,
     CODING_DONE,
