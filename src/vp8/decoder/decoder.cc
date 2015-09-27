@@ -38,8 +38,8 @@ void decode_edge(BlockContext mcontext,
                                                                    num_nonzeros_7x7)) {
              unsigned int coord = delta;
              int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
-             int lane = 0, lane_start = 0, lane_end = 3;
-             for (int vec = 0; ; ++vec, lane_end = 7, lane_start = 3) {
+             int lane = 0, lane_end = 3;
+             for (int vec = 0; ; ++vec, lane_end = 7) {
                  for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
              //VECTORIZE HERE
              //the first of the two VECTORIZE items will be

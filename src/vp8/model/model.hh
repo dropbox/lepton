@@ -319,7 +319,7 @@ public:
     }
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8(uint8_t coefficient,
                                                    const ConstBlockContext block, uint8_t num_nonzeros_x) {
-        CoefficientContext retval = {};
+        CoefficientContext retval = {0, 0, 0};
         if (MICROVECTORIZE) {
             retval.best_prior = (coefficient & 7)
             ? compute_lak_horizontal(block, coefficient) : compute_lak_vertical(block, coefficient);
@@ -333,7 +333,7 @@ public:
 #define INSTANTIATE_TEMPLATE_METHOD(N)  \
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
                                                    uint8_t num_nonzeros_x) { \
-        ProbabilityTablesBase::CoefficientContext retval = {}; \
+        ProbabilityTablesBase::CoefficientContext retval = {0, 0, 0};     \
         retval.best_prior = compute_lak_templ<N>(block); \
         retval.num_nonzeros_bin = num_nonzeros_x; \
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023)); \
@@ -747,7 +747,6 @@ public:
         int coeffs_x[8];
         int coeffs_a[8];
         const int32_t *coef_idct = nullptr;
-        int check_retval = 0;
         if ((band & 7) && above_present) {
             // y == 0: we're the x
             assert(band/8 == 0); //this function only works for the edge
