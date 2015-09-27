@@ -166,11 +166,9 @@ ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2> > width_one(BlockType
 
 void VP8ComponentEncoder::process_row_range(int thread_id,
                                             const UncompressedComponents * const colldata,
-                                            Sirikata::
-                                            DecoderWriter *str_out,
                                             int min_y,
                                             int max_y,
-                                            std::vector<uint8_t> *streams) {
+                                            std::vector<uint8_t> **streams) {
     using namespace Sirikata;
     Array1d<BoolEncoder, SIMD_WIDTH> bool_encoders;
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
@@ -201,7 +199,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
             is_top_row[(int)component] = false;
             switch(component) {
                 case BlockType::Y:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Y>(corner),
                             std::get<(int)BlockType::Y>(top),
                             std::get<(int)BlockType::Y>(top),
@@ -211,7 +209,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             bool_encoders);
                     break;
                 case BlockType::Cb:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Cb>(corner),
                             std::get<(int)BlockType::Cb>(top),
                             std::get<(int)BlockType::Cb>(top),
@@ -221,7 +219,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             bool_encoders);
                     break;
                 case BlockType::Cr:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Cr>(corner),
                             std::get<(int)BlockType::Cr>(top),
                             std::get<(int)BlockType::Cr>(top),
@@ -234,7 +232,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         } else if (block_width > 1) {
             switch(component) {
                 case BlockType::Y:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Y>(midleft),
                             std::get<(int)BlockType::Y>(middle),
                             std::get<(int)BlockType::Y>(midright),
@@ -244,7 +242,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             bool_encoders);
                     break;
                 case BlockType::Cb:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Cb>(midleft),
                             std::get<(int)BlockType::Cb>(middle),
                             std::get<(int)BlockType::Cb>(midright),
@@ -254,7 +252,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             bool_encoders);
                     break;
                 case BlockType::Cr:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Cr>(midleft),
                             std::get<(int)BlockType::Cr>(middle),
                             std::get<(int)BlockType::Cr>(midright),
@@ -268,7 +266,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
             assert(block_width == 1);
             switch(component) {
                 case BlockType::Y:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
@@ -278,7 +276,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             bool_encoders);
                     break;
                 case BlockType::Cb:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
@@ -288,7 +286,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             bool_encoders);
                 break;
                 case BlockType::Cr:
-                    process_row(model_[thread_id],
+                    process_row(*model_[thread_id],
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
@@ -303,7 +301,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     }
     for (int i = 0; i < SIMD_WIDTH; ++i) {
         /* get coded output */
-        streams[i] = bool_encoders.at(i).finish();
+        *streams[i] = bool_encoders.at(i).finish();
     }
 }
 
@@ -320,20 +318,24 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
     for (int i = 0; i < NUM_THREADS; ++i) {
         /* read in probability table coeff probs */
-        model_[i].load_probability_tables();
+        model_[i] = new ProbabilityTablesBase;
+        model_[i]->load_probability_tables();
     }
     int luma_splits[NUM_THREADS] = {0};
     pick_luma_splits(colldata, luma_splits);
     
-    std::vector<uint8_t> stream[MuxReader::MAX_STREAM_ID];
-    process_row_range(0, colldata, str_out, 0, luma_splits[0], stream);
+    std::vector<uint8_t>* stream[MuxReader::MAX_STREAM_ID];
+    for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
+        stream[i] = new std::vector<uint8_t>(); // allocate streams as pointers so threads don't modify them inline
+    }
+    process_row_range(0, colldata, 0, luma_splits[0], stream);
 
 
     static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
                   "Need to have enough mux streams for all threads and simd width");
     for (int i = 1; i < NUM_THREADS;++i) {
         process_row_range(i,
-                          colldata, str_out, luma_splits[i - 1], luma_splits[i],
+                          colldata, luma_splits[i - 1], luma_splits[i],
                           stream + i * SIMD_WIDTH);
     }
 
@@ -353,7 +355,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     while (any_written) {
         any_written = false;
         for (int i = 0; i < MuxReader::MAX_STREAM_ID; ++i) {
-            if (stream[i].size() > stream_data_offset[i]) {
+            if (stream[i]->size() > stream_data_offset[i]) {
                 any_written = true;
                 size_t max_written = 65536;
                 if (stream_data_offset == 0) {
@@ -361,12 +363,16 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                 } else if (stream_data_offset[i] == 256) {
                     max_written = 4096;
                 }
-                auto to_write = std::min(max_written, stream[i].size() - stream_data_offset[i]);
-                stream_data_offset[i] += mux_writer.Write(i, &stream[i][stream_data_offset[i]], to_write).first;
+                auto to_write = std::min(max_written, stream[i]->size() - stream_data_offset[i]);
+                stream_data_offset[i] += mux_writer.Write(i, &(*stream[i])[stream_data_offset[i]], to_write).first;
             }
         }
     }
     mux_writer.Close();
+    // we can probably exit(0) here
+    for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
+        delete stream[i]; // allocate streams as pointers so threads don't modify them inline
+    }
     /* possibly write out new probability model */
     const char * out_model_name = getenv( "LEPTON_COMPRESSION_MODEL_OUT" );
     if ( out_model_name ) {
@@ -378,8 +384,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             return CODING_ERROR;
         }
 
-        std::get<(int)BlockType::Y>(middle).optimize(model_[0]);
-        std::get<(int)BlockType::Y>(middle).serialize(model_[0], model_file );
+        std::get<(int)BlockType::Y>(middle).optimize(*model_[0]);
+        std::get<(int)BlockType::Y>(middle).serialize(*model_[0], model_file );
     }
 #ifdef ANNOTATION_ENABLED
     {
