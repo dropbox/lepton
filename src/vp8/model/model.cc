@@ -220,8 +220,8 @@ static Branch::ProbUpdate* load_update_lookup_patch() {
         int ret = sscanf(line, "%d %d %d %d %d", &count, &index, &delta_prob, &delta_false_log_prob, &delta_true_log_prob);
         (void)ret;
         assert(ret == 5);
-        if (index < sizeof(Branch::update_lookup[0])/sizeof(Branch::update_lookup[0][0]) && index >= 0) {
-            if (count < sizeof(Branch::update_lookup)/sizeof(Branch::update_lookup[0])) {
+        if ((size_t)index < sizeof(Branch::update_lookup[0])/sizeof(Branch::update_lookup[0][0]) && index >= 0) {
+            if ((size_t)count < sizeof(Branch::update_lookup)/sizeof(Branch::update_lookup[0])) {
                 Branch::update_lookup[count][index].prob += delta_prob;
                 Branch::update_lookup[count][index].next[0].log_prob += delta_false_log_prob;
                 Branch::update_lookup[count][index].next[1].log_prob += delta_true_log_prob;

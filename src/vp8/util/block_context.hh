@@ -24,7 +24,11 @@ template <class ABlock> struct MBlockContext {
         return above[-1];
     }
     static MBlockContext nil() {
-        return {nullptr, nullptr};
+        MBlockContext retval;
+        memset(&retval, 0, sizeof(retval));
+        retval.cur = nullptr;
+        retval.above = nullptr;
+        return retval;
     }
     bool isNil() {
         return cur == nullptr && above == nullptr;
