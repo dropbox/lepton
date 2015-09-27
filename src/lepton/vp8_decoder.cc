@@ -87,9 +87,6 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
     /* deserialize each block in planar order */
     using namespace std;
     BlockType component = BlockType::Y;
-    ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
-    ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
-    ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
     tuple<ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR0>,
     ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR1>,
     ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR2> > corner(BlockType::Y,BlockType::Cb,BlockType::Cr);
@@ -113,6 +110,7 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
     tuple<ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR0>,
     ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR1>,
     ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2> > width_one(BlockType::Y,BlockType::Cb,BlockType::Cr);
+
     assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];
@@ -130,7 +128,7 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
             ++context_.at((int)component).y;
             continue;
         }
-        context_.at((int)component).context = colldata->full_component_write(component).off_y(curr_y);
+        context_.at((int)component).context = colldata->full_component_write(component).off_y(curr_y, num_nonzeros_.at((int)component).begin());
         int block_width = colldata->block_width((int)component);
         if (is_top_row_.at((int)component)) {
             is_top_row_.at((int)component) = false;
@@ -218,6 +216,10 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
     }
     return CODING_DONE;
 }
+void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata) {
+    while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
+    }
+}
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     /* cmpc is a global variable with the component count */
@@ -226,6 +228,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
     if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].context.isNil() ) {
         /* first call */
+        ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
+        ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
+        ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
         /* read and verify "x" mark */
         unsigned char mark {};
         const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
@@ -244,7 +249,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             fprintf(stderr,"Luma splits %d\n", (int)file_luma_splits_[thread_id]);
             for (int i = 0; i < colldata->get_num_components(); ++i) {
                 thread_state_[thread_id]->context_.at(i).context
-                    = colldata->full_component_write((BlockType)i).begin();
+                    = colldata->full_component_write((BlockType)i).begin(thread_state_[thread_id]->num_nonzeros_.at(i).begin());
                 thread_state_[thread_id]->context_.at(i).y = 0;
             }
         }
@@ -264,25 +269,37 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             for (int j   = 0 ; j < (int)ColorChannel::NumBlockTypes; ++j) {
                 thread_state_[thread_id]->is_top_row_.at(j) = true;
+                thread_state_[thread_id]->num_nonzeros_.at(j).resize(colldata->block_width(j) << 1);
             }
             thread_state_[thread_id]->is_valid_range_ = false;
             thread_state_[thread_id]->luma_splits_.resize(2);
             thread_state_[thread_id]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
             thread_state_[thread_id]->luma_splits_[1] = file_luma_splits_[thread_id];
         }
-
+        if (DO_THREADING) {
+            for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+                workers[thread_id] = new std::thread(std::bind(worker_thread, thread_state_[thread_id], thread_id, colldata));
+            }
+        }
     }
     CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
     if (ret == CODING_PARTIAL) {
         return ret;
     }
-    // wait for "threads"
-    for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-        while (thread_state_[thread_id]->vp8_decode_thread(thread_id,colldata) == CODING_PARTIAL) {
-            
+    if (DO_THREADING) {
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            workers[thread_id]->join();// for now maybe we want to use atomics instead
+            delete workers[thread_id];
+        }
+        // join on all threads
+    } else {
+        // wait for "threads"
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            while (thread_state_[thread_id]->vp8_decode_thread(thread_id,colldata) == CODING_PARTIAL) {
+                
+            }
         }
     }
-    // join on all threads
     for (int component = 0; component < colldata->get_num_components(); ++component) {
         colldata->worker_mark_cmp_finished((BlockType)component);
     }

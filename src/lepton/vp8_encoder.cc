@@ -172,8 +172,12 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     using namespace Sirikata;
     Array1d<BoolEncoder, SIMD_WIDTH> bool_encoders;
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
+    Array1d<std::vector<uint8_t>, (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros;
+    for (size_t i = 0; i < num_nonzeros.size(); ++i) {
+        num_nonzeros.at(i).resize(colldata->block_width(i) << 1);
+    }
     for (size_t i = 0; i < context.size(); ++i) {
-        context[i].context = colldata->full_component_nosync(i).begin();
+        context[i].context = colldata->full_component_nosync(i).begin(num_nonzeros.at(i).begin());
         context[i].y = 0;
     }
     BlockType component = BlockType::Y;
@@ -182,7 +186,9 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     bool valid_range = false;
     for(;colldata->get_next_component(context, &component); ++context.at((int)component).y) {
         int curr_y = context.at((int)component).y;
-        context[(int)component].context = colldata->full_component_nosync((int)component).off_y(curr_y);
+        context[(int)component].context
+            = colldata->full_component_nosync((int)component).off_y(curr_y,
+                                                                    num_nonzeros.at((int)component).begin());
         if (component == BlockType::Y) {
             if (curr_y >= min_y) {
                 valid_range = true;

@@ -8,8 +8,6 @@ class BlockBasedImage {
     Block *image_;
     uint32_t width_;
     uint32_t nblocks_;
-    //the last 2 rows of the image
-    mutable std::vector<uint8_t> num_nonzeros_;// 0 is cur 1 is prev
     uint8_t *storage_;
     BlockBasedImage(const BlockBasedImage&) = delete;
     BlockBasedImage& operator=(const BlockBasedImage&) = delete;
@@ -23,7 +21,6 @@ public:
 
     void init (uint32_t width, uint32_t height, uint32_t nblocks) {
         assert(nblocks <= width * height);
-        num_nonzeros_.resize(width << 1);
         width_ = width;
         nblocks_ = nblocks;
         storage_ = (uint8_t*)calloc(nblocks * sizeof(Block) + 15, 1);
@@ -34,21 +31,23 @@ public:
             image_ = (Block*)storage_;
         }
     }
-    BlockContext begin() {
-        return {image_, nullptr, num_nonzeros_.begin(), num_nonzeros_.begin() + width_};
+    BlockContext begin(std::vector<uint8_t>::iterator num_nonzeros_begin) {
+        return {image_, nullptr, num_nonzeros_begin, num_nonzeros_begin + width_};
     }
-    ConstBlockContext begin() const {
-        return {image_, nullptr, num_nonzeros_.begin(), num_nonzeros_.begin() + width_};
+    ConstBlockContext begin(std::vector<uint8_t>::iterator num_nonzeros_begin) const {
+        return {image_, nullptr, num_nonzeros_begin, num_nonzeros_begin + width_};
     }
-    BlockContext off_y(int y) {
+    BlockContext off_y(int y,
+                       std::vector<uint8_t>::iterator num_nonzeros_begin) {
         return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
-            (y & 1) ? num_nonzeros_.begin() + width_ : num_nonzeros_.begin(),
-            (y & 1) ? num_nonzeros_.begin() : num_nonzeros_.begin() + width_};
+            (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
+            (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
-    ConstBlockContext off_y(int y) const {
+    ConstBlockContext off_y(int y,
+                            std::vector<uint8_t>::iterator num_nonzeros_begin) const {
         return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
-            (y & 1) ? num_nonzeros_.begin() + width_ : num_nonzeros_.begin(),
-            (y & 1) ? num_nonzeros_.begin() : num_nonzeros_.begin() + width_};
+            (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
+            (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
     template <class BlockContext> BlockContext next(BlockContext it, bool has_left) const {
         it.cur += 1;
@@ -58,18 +57,17 @@ public:
         } else {
             it.above = nullptr;
         }
+        ++it.num_nonzeros_here;
+        ++it.num_nonzeros_above;
         if (!has_left) {
             bool cur_row_first = (it.num_nonzeros_here < it.num_nonzeros_above);
-            it.num_nonzeros_here = num_nonzeros_.begin();
-            it.num_nonzeros_above = num_nonzeros_.begin();
             if (cur_row_first) {
-                it.num_nonzeros_here += width_;
+                it.num_nonzeros_above -= width_;
+                it.num_nonzeros_above -= width_;
             } else {
-                it.num_nonzeros_above += width_;
+                it.num_nonzeros_here -= width_;
+                it.num_nonzeros_here -= width_;
             }
-        } else {
-            ++it.num_nonzeros_here;
-            ++it.num_nonzeros_above;
         }
         return it;
     }

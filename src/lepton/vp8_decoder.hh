@@ -14,6 +14,8 @@ class VP8ComponentDecoder : public BaseDecoder {
         std::vector<int> luma_splits_;
         Sirikata::Array1d<bool, (size_t)ColorChannel::NumBlockTypes> is_top_row_;
         Sirikata::Array1d<VContext, (size_t)ColorChannel::NumBlockTypes > context_;
+        //the last 2 rows of the image for each channel
+        Sirikata::Array1d<std::vector<uint8_t>, (size_t)ColorChannel::NumBlockTypes> num_nonzeros_;
         bool is_valid_range_;
         Sirikata::Array1d<BoolDecoder, SIMD_WIDTH> bool_decoder_;
         template<class Left, class Middle, class Right>
@@ -29,9 +31,11 @@ class VP8ComponentDecoder : public BaseDecoder {
     const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     Sirikata::MuxReader mux_reader_;
     std::vector<int> file_luma_splits_;
+    std::thread *workers[NUM_THREADS];
     ThreadState *thread_state_[NUM_THREADS];
     VP8ComponentDecoder(const VP8ComponentDecoder&) = delete;
     VP8ComponentDecoder& operator=(const VP8ComponentDecoder&) = delete;
+    static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata);
 public:
 
     VP8ComponentDecoder();
