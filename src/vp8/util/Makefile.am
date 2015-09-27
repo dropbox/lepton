@@ -3,6 +3,7 @@ AM_CXXFLAGS = $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 noinst_LIBRARIES = libleptonutil.a
 
-libleptonutil_a_SOURCES = plane.hh slice.hh exception.hh mmap.cc \
-	handle.hh mmap.hh \
+libleptonutil_a_SOURCES = generic_worker.cc mmap.cc \
+    plane.hh slice.hh exception.hh \
+	handle.hh generic_worker.hh mmap.hh \
 	option.hh fixed_array.hh

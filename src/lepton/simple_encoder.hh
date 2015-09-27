@@ -7,8 +7,9 @@ public:
     SimpleComponentEncoder();
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    Sirikata::DecoderWriter *);
-
-    void enable_threading() {}
+    virtual void enable_threading(Sirikata::Array1d<GenericWorker,
+                                                    (NUM_THREADS
+                                                     - 1)>::Slice){}
     void disable_threading() {}
     ~SimpleComponentEncoder();
 };

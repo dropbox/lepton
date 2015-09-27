@@ -28,6 +28,8 @@ class VP8ComponentDecoder : public BaseDecoder {
         CodingReturnValue vp8_decode_thread(int thread_id, UncompressedComponents * const colldata);
     };
     bool do_threading_;
+    Sirikata::Array1d<GenericWorker,
+                      (NUM_THREADS - 1)>::Slice spin_workers_;
     Sirikata::DecoderReader *str_in {};
     const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     Sirikata::MuxReader mux_reader_;
@@ -41,7 +43,9 @@ public:
 
     VP8ComponentDecoder();
     ~VP8ComponentDecoder();
-    void enable_threading() {
+    void enable_threading(Sirikata::Array1d<GenericWorker,
+                                            (NUM_THREADS - 1)>::Slice workers){
+        spin_workers_ = workers;
         do_threading_ = true;
     }
     void disable_threading() {

@@ -20,13 +20,17 @@ class VP8ComponentEncoder : public BaseEncoder {
                            int max_y,
                            std::vector<uint8_t> *streams[SIMD_WIDTH]);
     bool do_threading_ = false;
+    Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers_;
 public:
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                                Sirikata::DecoderWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    Sirikata::DecoderWriter *);
-    void enable_threading() {
+    virtual void enable_threading(Sirikata::Array1d<GenericWorker,
+                                                    (NUM_THREADS
+                                                     - 1)>::Slice workers) {
         do_threading_ = true;
+        workers_ = workers;
     }
     void disable_threading() {
         do_threading_ = false;

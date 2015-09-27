@@ -58,6 +58,9 @@ add_executable(lepton
    src/io/DecoderPlatform.hh
    src/vp8/util/slice.hh
    src/vp8/util/mmap.cc
+   src/vp8/util/generic_worker.hh
+   src/vp8/util/options.hh
+   src/vp8/util/generic_worker.cc
    src/vp8/util/mmap.hh
    src/vp8/util/handle.hh
    src/vp8/util/nd_array.hh

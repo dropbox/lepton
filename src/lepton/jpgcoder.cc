@@ -622,7 +622,6 @@ void initialize_options( int argc, char** argv )
     }
 }
 
-
 /* -----------------------------------------------
     processes one file
     ----------------------------------------------- */
@@ -634,8 +633,13 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     const char* errtypemsg = NULL;
     int speed, bpms;
     float cr;
-
-
+    
+    Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
+    if (g_threaded) {
+        generic_workers = new Sirikata::Array1d<GenericWorker,
+                                                NUM_THREADS - 1>;
+    }
+    
     errorlevel.store(0);
     jpgfilesize = 0;
     ujgfilesize = 0;
@@ -680,7 +684,7 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
                 g_encoder.reset(new VP8ComponentEncoder);
             }
             if (g_threaded) {//FIXME
-                g_encoder->enable_threading();
+                g_encoder->enable_threading(generic_workers->slice<0,NUM_THREADS - 1>());
             } else {
                 g_encoder->disable_threading();
             }
@@ -713,7 +717,7 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
                 g_decoder.reset(new VP8ComponentDecoder);
             }
             if (g_threaded) {//FIXME
-                g_decoder->enable_threading();
+                g_decoder->enable_threading(generic_workers->slice<0,NUM_THREADS - 1>());
             } else {
                 g_decoder->disable_threading();
             }
@@ -821,6 +825,9 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
     exit(errorlevel.load());
+    if (generic_workers) {
+        delete generic_workers;
+    }
     // reset buffers
     reset_buffers();
 }

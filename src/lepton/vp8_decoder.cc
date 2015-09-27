@@ -82,6 +82,7 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
             = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
     }
 }
+const bool dospin = true;
 
 CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread_id,
                                                                       UncompressedComponents *const colldata) {
@@ -279,7 +280,20 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         if (do_threading_) {
             for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-                workers[thread_id] = new std::thread(std::bind(worker_thread, thread_state_[thread_id], thread_id, colldata));
+                if (dospin) {
+                    spin_workers_.at(thread_id - 1).work
+                        = std::bind(worker_thread,
+                                    thread_state_[thread_id],
+                                    thread_id,
+                                    colldata);
+                    spin_workers_.at(thread_id - 1).activate_work();
+                } else {
+                    workers[thread_id]
+                        = new std::thread(std::bind(worker_thread,
+                                                    thread_state_[thread_id],
+                                                    thread_id,
+                                                    colldata));
+                }
             }
         }
     }
@@ -289,8 +303,12 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     }
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            workers[thread_id]->join();// for now maybe we want to use atomics instead
-            delete workers[thread_id];
+            if (dospin) {
+                spin_workers_.at(thread_id - 1).is_done();
+            } else {
+                workers[thread_id]->join();// for now maybe we want to use atomics instead
+                delete workers[thread_id];
+            }
         }
         // join on all threads
     } else {

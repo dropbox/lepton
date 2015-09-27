@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 
+#include "../util/options.hh"
 #include "../util/nd_array.hh"
 #include "numeric.hh"
 #include "branch.hh"
@@ -18,12 +19,6 @@ class BoolEncoder;
 class Slice;
 
 
-enum {
-    VECTORIZE = 1,
-    MICROVECTORIZE = 1,
-    NUM_THREADS = 4,
-    SIMD_WIDTH = 4
-};
 constexpr unsigned int MAX_EXPONENT = 12;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
