@@ -68,9 +68,8 @@ lepton_SOURCES = \
    src/vp8/encoder/vpx_bool_writer.hh \
    src/vp8/decoder/vpx_bool_reader.hh
 
-AM_CPPFLAGS = $(CXX11_FLAGS)
-AM_CXXFLAGS = $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
-
+AM_CXXFLAGS = $(CXX11_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
+AM_CFLAGS = $(C99_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 
 liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -Idependencies/xz/src/liblzma/common -Idependencies/xz/src/common -Idependencies -Idependencies/xz/src/liblzma/lzma -Idependencies/xz/src/liblzma/lz -Idependencies/xz/src/liblzma/check -Idependencies/xz/src/liblzma/rangecoder -Idependencies/xz/src/liblzma/api -Idependencies/xz/src/liblzma/simple -Idependencies/xz/src/liblzma/delta -Idependencies/xz/src/liblzma
