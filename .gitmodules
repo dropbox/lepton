@@ -1,3 +1,0 @@
-[submodule "dependencies/xz"]
-	path = dependencies/xz
-	url = https://github.com/dropbox/xz.git
