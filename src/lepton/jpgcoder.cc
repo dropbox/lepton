@@ -536,7 +536,7 @@ void initialize_options( int argc, char** argv )
     int i;
 
     // get memory for filelist & preset with NULL
-    filelist = new char*[ argc ];
+    filelist = (char**)malloc(argc * sizeof(char*));
     for ( i = 0; i < argc; i++ )
         filelist[ i ] = NULL;
 
