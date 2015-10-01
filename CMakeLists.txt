@@ -1,7 +1,26 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2")
+SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DUINT32_C=uint32_t -DHAVE_CONFIG_H -DHAVE_STDBOOL_H")
 
+SET(LIBLZMA_INCLUDE_DIRS)
+
+IF(EXISTS ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/api/lzma.h)
+SET(LIBLZMA_INCLUDE_DIRS
+    ${LIBLZMA_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/common
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/common
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/lzma
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/lz
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/check
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/rangecoder
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/api
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/simple
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/delta
+    ${PROJECT_SOURCE_DIR}/dependencies
+    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/)
+SET(LIBLZMA_LIBRARIES localxz)
+ELSE()
 IF(APPLE)
 # not widely supported on linux yet
 find_package(LibLZMA REQUIRED)
@@ -13,6 +32,82 @@ IF(NOT WIN32)
 ENDIF()
 
 ENDIF()
+ENDIF()
+
+add_library(localxz
+dependencies/xz/src/liblzma/delta/delta_common.c
+dependencies/xz/src/liblzma/delta/delta_encoder.c
+dependencies/xz/src/liblzma/delta/delta_decoder.c
+dependencies/xz/src/liblzma/rangecoder/price_table.c
+dependencies/xz/src/liblzma/lz/lz_encoder_mf.c
+dependencies/xz/src/liblzma/lz/lz_decoder.c
+dependencies/xz/src/liblzma/lz/lz_encoder.c
+dependencies/xz/src/liblzma/check/sha256.c
+dependencies/xz/src/liblzma/check/crc32_table.c
+dependencies/xz/src/liblzma/check/check.c
+dependencies/xz/src/liblzma/check/crc64_table.c
+dependencies/xz/src/liblzma/check/crc64_fast.c
+dependencies/xz/src/liblzma/check/crc32_fast.c
+dependencies/xz/src/liblzma/lzma/lzma_encoder_optimum_fast.c
+dependencies/xz/src/liblzma/lzma/fastpos_table.c
+dependencies/xz/src/liblzma/lzma/lzma_encoder_presets.c
+dependencies/xz/src/liblzma/lzma/lzma_encoder_optimum_normal.c
+dependencies/xz/src/liblzma/lzma/lzma2_encoder.c
+dependencies/xz/src/liblzma/lzma/lzma_encoder.c
+dependencies/xz/src/liblzma/lzma/lzma_decoder.c
+dependencies/xz/src/liblzma/lzma/lzma2_decoder.c
+dependencies/xz/src/liblzma/simple/sparc.c
+dependencies/xz/src/liblzma/simple/arm.c
+dependencies/xz/src/liblzma/simple/ia64.c
+dependencies/xz/src/liblzma/simple/armthumb.c
+dependencies/xz/src/liblzma/simple/simple_decoder.c
+dependencies/xz/src/liblzma/simple/powerpc.c
+dependencies/xz/src/liblzma/simple/x86.c
+dependencies/xz/src/liblzma/simple/simple_coder.c
+dependencies/xz/src/liblzma/simple/simple_encoder.c
+dependencies/xz/src/liblzma/common/block_encoder.c
+dependencies/xz/src/liblzma/common/alone_encoder.c
+dependencies/xz/src/liblzma/common/easy_encoder.c
+dependencies/xz/src/liblzma/common/stream_buffer_decoder.c
+dependencies/xz/src/liblzma/common/filter_decoder.c
+dependencies/xz/src/liblzma/common/block_header_encoder.c
+dependencies/xz/src/liblzma/common/auto_decoder.c
+dependencies/xz/src/liblzma/common/easy_decoder_memusage.c
+dependencies/xz/src/liblzma/common/index.c
+dependencies/xz/src/liblzma/common/easy_encoder_memusage.c
+dependencies/xz/src/liblzma/common/stream_decoder.c
+dependencies/xz/src/liblzma/common/stream_encoder.c
+dependencies/xz/src/liblzma/common/vli_encoder.c
+dependencies/xz/src/liblzma/common/easy_buffer_encoder.c
+dependencies/xz/src/liblzma/common/hardware_cputhreads.c
+dependencies/xz/src/liblzma/common/easy_preset.c
+dependencies/xz/src/liblzma/common/filter_common.c
+dependencies/xz/src/liblzma/common/vli_size.c
+dependencies/xz/src/liblzma/common/vli_decoder.c
+dependencies/xz/src/liblzma/common/block_buffer_decoder.c
+dependencies/xz/src/liblzma/common/block_header_decoder.c
+dependencies/xz/src/liblzma/common/stream_buffer_encoder.c
+dependencies/xz/src/liblzma/common/index_hash.c
+dependencies/xz/src/liblzma/common/filter_flags_encoder.c
+dependencies/xz/src/liblzma/common/stream_flags_encoder.c
+dependencies/xz/src/liblzma/common/filter_buffer_encoder.c
+dependencies/xz/src/liblzma/common/outqueue.c
+dependencies/xz/src/liblzma/common/alone_decoder.c
+dependencies/xz/src/liblzma/common/filter_flags_decoder.c
+dependencies/xz/src/liblzma/common/common.c
+dependencies/xz/src/liblzma/common/block_util.c
+dependencies/xz/src/liblzma/common/block_buffer_encoder.c
+dependencies/xz/src/liblzma/common/hardware_physmem.c
+dependencies/xz/src/liblzma/common/block_decoder.c
+dependencies/xz/src/liblzma/common/stream_flags_decoder.c
+dependencies/xz/src/liblzma/common/index_encoder.c
+dependencies/xz/src/liblzma/common/stream_flags_common.c
+dependencies/xz/src/liblzma/common/index_decoder.c
+dependencies/xz/src/liblzma/common/filter_buffer_decoder.c
+dependencies/xz/src/liblzma/common/filter_encoder.c
+dependencies/xz/src/common/tuklib_cpucores.c
+dependencies/xz/src/common/tuklib_physmem.c)
+
 
 include_directories(
     ${LIBLZMA_INCLUDE_DIRS}
@@ -92,6 +187,7 @@ IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread)
 ENDIF()
 target_link_libraries(lepton ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
+
 
 add_executable(print-model
    src/lepton/print-model.cc
