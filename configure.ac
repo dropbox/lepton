@@ -8,7 +8,7 @@ AC_CONFIG_SRCDIR([src/lepton/vp8_encoder.hh])
 AC_CONFIG_HEADERS([config.h])
 
 # Add picky CXXFLAGS
-CXX11_FLAGS="-std=c++11 -msse4.2 -pthread -fno-exceptions"
+CXX11_FLAGS="-std=c++11 -msse4.2 -pthread -fno-exceptions -fno-rtti"
 C99_FLAGS="-std=c99 -msse4.2 -DHAVE_CONFIG_H"
 
 PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter" # -Weffc++

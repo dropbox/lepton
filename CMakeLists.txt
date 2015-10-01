@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
-SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2 ")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2 -fno-exceptions -fno-rtti")
 SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DHAVE_CONFIG_H")
 
 SET(LIBLZMA_INCLUDE_DIRS)

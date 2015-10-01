@@ -1272,7 +1272,7 @@ enum MergeJpegStreamingStatus{
 bool aligned_memchr16ff(const unsigned char *local_huff_data) {
 #if 1
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
-    __m128i ff = _mm_set1_epi8(0xff);
+    __m128i ff = _mm_set1_epi8(-1);
     __m128i res = _mm_cmpeq_epi8(buf, ff);
     uint32_t movmask = _mm_movemask_epi8(res);
     bool retval = movmask != 0x0;
@@ -3766,7 +3766,7 @@ int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun )
     {
         // compare rst wait counter if needed
         if ( rsti > 0 ) {
-            if ( (*eobrun) > (*rstw) )
+            if ( (int)(*eobrun) > (*rstw) )
                 return -1;
             else
                 (*rstw) -= (*eobrun);
