@@ -1,7 +1,7 @@
 #ifndef __APPLE__
 #define sigprocmask(a,b,c) 0
-#endif
 #define sigset_t long
+#endif
 #define UINT32_C uint32_t
 
 #define HAVE_STDBOOL_H 1
