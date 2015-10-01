@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
-SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2")
-SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DUINT32_C=uint32_t -DHAVE_CONFIG_H -DHAVE_STDBOOL_H")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2 ")
+SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DHAVE_CONFIG_H")
 
 SET(LIBLZMA_INCLUDE_DIRS)
 
@@ -184,7 +184,7 @@ add_executable(lepton
                )
 SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
-    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread)
+    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static)
 ENDIF()
 target_link_libraries(lepton ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
 

@@ -1,7 +1,6 @@
 AM_CPPFLAGS = $(CXX11_FLAGS) -I$(srcdir)/../vp8/util -I$(srcdir)/../vp8/model -I$(srcdir)/../vp8/decoder -I$(srcdir)/../vp8/encoder $(shell pkg-config liblzma --cflags || echo -DNO_XZ)
 AM_CXXFLAGS = $(PICKY_CXXFLAGS)
-LDADD = -lpthread ../vp8/encoder/libleptonencoder.a ../vp8/decoder/libleptondecoder.a ../vp8/encoder/libleptonencoder.a ../vp8/model/libleptonmodel.a ../io/libio.a ../vp8/util/libleptonutil.a $(liblzma_LIBS)
-
+LDADD = -lpthread ../vp8/encoder/libleptonencoder.a ../vp8/decoder/libleptondecoder.a ../vp8/encoder/libleptonencoder.a ../vp8/model/libleptonmodel.a ../io/libio.a ../vp8/util/libleptonutil.a ../../liblocalxz.a
 lepton_CXXFLAGS=$(liblzma_CFLAGS)
 lepton_LDFLAGS=
 
@@ -21,70 +20,50 @@ libtestdriver_a_SOURCES = test_driver.cc
 check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
 
 test_invariants_SOURCES = test_invariants.cc
-test_invariants_LDADD = ../io/libio.a $(liblzma_LIBS) -lpthread
+test_invariants_LDADD = ../io/libio.a $(liblzma_LIBS) -lpthread ../../liblocalxz.a
 
 test_baseline_ujg_SOURCES = test_harness.cc
-test_baseline_ujg_LDADD = libtestdriver.a -lpthread
+test_baseline_ujg_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_baseline_SOURCES = test_harness.cc
 test_baseline_CXXFLAGS = -DUSE_LEPTON
-test_baseline_LDADD = libtestdriver.a -lpthread
-
-test_iphone_ujg_SOURCES = test_harness.cc
-test_iphone_ujg_CXXFLAGS = -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
-test_iphone_ujg_LDADD = libtestdriver.a -lpthread
+test_baseline_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_iphone_SOURCES = test_harness.cc
 test_iphone_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
-test_iphone_LDADD = libtestdriver.a -lpthread
-
-test_slr_ujg_SOURCES = test_harness.cc
-test_slr_ujg_CXXFLAGS = -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity
-test_slr_ujg_LDADD = libtestdriver.a -lpthread
-
-test_hq_ujg_SOURCES = test_harness.cc
-test_hq_ujg_CXXFLAGS = -DTEST_FILE=hq
-test_hq_ujg_LDADD = libtestdriver.a -lpthread
+test_iphone_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_slr_SOURCES = test_harness.cc
 test_slr_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity
-test_slr_LDADD = libtestdriver.a -lpthread
+test_slr_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_hq_SOURCES = test_harness.cc
 test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq
-test_hq_LDADD = libtestdriver.a -lpthread
-
-test_misc_ujg_SOURCES = test_harness.cc
-test_misc_ujg_CXXFLAGS = -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
-test_misc_ujg_LDADD = libtestdriver.a -lpthread
+test_hq_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_misc_SOURCES = test_harness.cc
 test_misc_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
-test_misc_LDADD = libtestdriver.a -lpthread
-
-test_arithmetic_failfast_ujg_SOURCES = test_harness.cc
-test_arithmetic_failfast_ujg_CXXFLAGS = -DTEST_FILE=arithmetic -DEXPECT_FAILURE
-test_arithmetic_failfast_ujg_LDADD = libtestdriver.a -lpthread
+test_misc_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_arithmetic_failfast_SOURCES = test_harness.cc
 test_arithmetic_failfast_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=arithmetic -DEXPECT_FAILURE
-test_arithmetic_failfast_LDADD = libtestdriver.a -lpthread
+test_arithmetic_failfast_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_progressive_ujg_SOURCES = test_harness.cc
 test_progressive_ujg_CXXFLAGS = -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
-test_progressive_ujg_LDADD = libtestdriver.a -lpthread
+test_progressive_ujg_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_progressive_SOURCES = test_harness.cc
 test_progressive_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
-test_progressive_LDADD = libtestdriver.a -lpthread
+test_progressive_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_truncate_ujg_SOURCES = test_harness.cc
 test_truncate_ujg_CXXFLAGS = -DTEST_FILE=trunc
-test_truncate_ujg_LDADD = libtestdriver.a -lpthread
+test_truncate_ujg_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 test_truncate_SOURCES = test_harness.cc
 test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
-test_truncate_LDADD = libtestdriver.a -lpthread
+test_truncate_LDADD = libtestdriver.a -lpthread ../../liblocalxz.a
 
 lepton_SOURCES = $(common_source)
 
