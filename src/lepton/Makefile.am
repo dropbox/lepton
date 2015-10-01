@@ -14,7 +14,7 @@ common_source = bitops.cc bitops.hh \
 	vp8_encoder.hh vp8_encoder.cc
 
 bin_PROGRAMS = lepton print-model
-noinst_LIBRARIES = libtestdriver.a
+#noinst_LIBRARIES = libtestdriver.a
 libtestdriver_a_SOURCES = test_driver.cc
 
 check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
@@ -69,7 +69,6 @@ lepton_SOURCES = $(common_source)
 
 print_model_SOURCES = print-model.cc
 
-TESTS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
 
 
 dist_check_SCRIPTS = test_invariants test_baseline_ujg ./test_custom_table.sh test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq

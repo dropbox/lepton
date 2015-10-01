@@ -20,25 +20,25 @@ int main (int argc, char **argv) {
     std::vector<const char *> filenames;
 #ifdef TEST_FILE
     // we can only test one failure at a time
-    filenames.push_back("../../images/" STRINGIFY(TEST_FILE) ".jpg");
+    filenames.push_back("images/" STRINGIFY(TEST_FILE) ".jpg");
 #endif
 #ifdef TEST_FILE0
     if (expect_failure != false) {
         return 1;
     }
-    filenames.push_back("../../images/" STRINGIFY(TEST_FILE0) ".jpg");
+    filenames.push_back("images/" STRINGIFY(TEST_FILE0) ".jpg");
 #endif
 #ifdef TEST_FILE1
     if (expect_failure != false) {
         return 1;
     }
-    filenames.push_back("../../images/" STRINGIFY(TEST_FILE1) ".jpg");
+    filenames.push_back("images/" STRINGIFY(TEST_FILE1) ".jpg");
 #endif
 #ifdef TEST_FILE2
     if (expect_failure != false) {
         return 1;
     }
-    filenames.push_back("../../images/" STRINGIFY(TEST_FILE2) ".jpg");
+    filenames.push_back("images/" STRINGIFY(TEST_FILE2) ".jpg");
 #endif
 #ifdef TEST_FILE3
     #error "We only support 4 test files in the same test atm"

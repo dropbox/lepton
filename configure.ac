@@ -29,13 +29,5 @@ AC_PROG_RANLIB
 
 # Checks for library functions.
 
-AC_CONFIG_FILES([Makefile
-		 src/Makefile
-		 src/vp8/Makefile
-		 src/vp8/util/Makefile
-		 src/vp8/model/Makefile
-		 src/vp8/decoder/Makefile
-		 src/vp8/encoder/Makefile
-		 src/io/Makefile
-		 src/lepton/Makefile])
+AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
