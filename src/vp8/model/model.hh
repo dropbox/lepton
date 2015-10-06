@@ -292,13 +292,14 @@ public:
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
         return retval;
     }
-    void update_coefficient_context7x7(int aligned_zz,
+    void update_coefficient_context7x7(int coord,
+                                       int aligned_zz,
                                        ProbabilityTablesBase::CoefficientContext & retval,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
         if (aligned_zz < 45) {
             //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
         }
-        retval.best_prior = compute_aavrg(aligned_zz, block);
+        retval.best_prior = compute_aavrg(coord, aligned_zz, block);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
     }
@@ -306,7 +307,7 @@ public:
                                        ProbabilityTablesBase::CoefficientContext & retval,
                                        int aavrg,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
-        assert(aavrg == compute_aavrg(aligned_zz, block));
+        assert(aavrg == compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz, block));
         //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
         retval.best_prior = aavrg;
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
@@ -554,7 +555,7 @@ public:
         return retval;
     }
     int compute_aavrg_dc(ConstBlockContext context) {
-        return compute_aavrg(AlignedBlock::DC_INDEX, context);
+        return compute_aavrg(0, raster_to_aligned.at(0), context);
         
         uint32_t total = 0;
         if (left_present) {
@@ -573,18 +574,18 @@ public:
             return total;
         }
     }
-    int compute_aavrg(unsigned int aligned_zz, ConstBlockContext context) {
+    int compute_aavrg(unsigned int coord, unsigned int aligned_zz, ConstBlockContext context) {
         uint32_t total = 0;
         if (left_present) {
-            total += abs(context.left_unchecked().coef.at(aligned_zz));
+            total += abs(context.left_unchecked().coefficients_raster(coord));
         }
         if (above_present) {
-            total += abs(context.above_unchecked().coef.at(aligned_zz));
+            total += abs(context.above_unchecked().coefficients_raster(coord));
         }
         if (left_present && above_present) {
             constexpr unsigned int log_weight = 10;
             total *= 205 * 2;
-            total += 204 * abs(context.above_left_unchecked().coef.at(aligned_zz));
+            total += 204 * abs(context.above_left_unchecked().coefficients_raster(coord));
             total += (1 << (log_weight - 1));
             return total >> log_weight;
         } else {
@@ -594,13 +595,14 @@ public:
         //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
     }
+#ifdef OPTIMIZED_7x7
     bool aavrg_vec_matches(__m128i retval, unsigned int aligned_zz, ConstBlockContext context) {
         int ret[4];
         _mm_storeu_si128((__m128i*)(char*)ret, retval);
-        int correct[4] = {compute_aavrg(aligned_zz +0, context),
-            compute_aavrg(aligned_zz + 1, context),
-            compute_aavrg(aligned_zz + 2, context),
-            compute_aavrg(aligned_zz + 3, context)};
+        int correct[4] = {compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz +0, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+1), aligned_zz + 1, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+2), aligned_zz + 2, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+3), aligned_zz + 3, context)};
         return memcmp(ret, correct, sizeof(correct)) == 0;
     }
     void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, int* aligned_retval) {
@@ -642,6 +644,7 @@ public:
         //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
     }
+#endif
     static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i coeffs_a_high, const int32_t *icos_deq) {
         __m128i sign_mask = _mm_set_epi32(-1, 1, -1, 1); // ((i & 1) ? -1 : 1)
 

@@ -130,7 +130,7 @@ uint32_t aligned_block_cost(const AlignedBlock &block) {
     uint32_t cost = 16; // .25 cost for zeros
     if (VECTORIZE) {
         for (int i = 0; i < 64; i+= 8) {
-            __m128i val = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)(block.coef.begin() + i)));
+            __m128i val = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)(block.raw_data() + i)));
             __m128i v_cost = _mm_set1_epi16(0);
             while (!_mm_test_all_zeros(val, val)) {
                 __m128i mask = _mm_cmpgt_epi16(val, _mm_setzero_si128());
@@ -145,7 +145,7 @@ uint32_t aligned_block_cost(const AlignedBlock &block) {
     } else {
         uint32_t scost = 0;
         for (int i = 0; i < 64; ++i) {
-            scost += 1 + 2 * uint16bit_length(abs(block.coef.at(i)));
+            scost += 1 + 2 * uint16bit_length(abs(block.raw_data()[i]));
         }
         cost = scost;
     }

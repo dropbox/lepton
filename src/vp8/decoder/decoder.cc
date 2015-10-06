@@ -20,7 +20,7 @@ void decode_edge(BlockContext mcontext,
                  ProbabilityTablesBase::CoefficientContext input_prior,
                  ProbabilityTablesBase& pt) {
     ConstBlockContext context = mcontext.copy();
-    uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
+    uint8_t aligned_block_offset = raster_to_aligned.at(1);
     auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(pt, eob_x,
                                                                    num_nonzeros_7x7);
     uint8_t est_eob = eob_x;
@@ -30,10 +30,12 @@ void decode_edge(BlockContext mcontext,
         prior[2] = probability_tables.update_coefficient_context8_templ2(context, eob_x);
         prior[3] = probability_tables.update_coefficient_context8_templ3(context, eob_x);
     }
+    unsigned int log_edge_step = 0;
     for (uint8_t delta = 1, zig15offset = 0; ; delta = 8,
          zig15offset = 7,
          est_eob = eob_y,
-         aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
+         aligned_block_offset = raster_to_aligned.at(8),
+         log_edge_step = uint16log2(raster_to_aligned.at(16) - raster_to_aligned.at(8)),
          prob_early_exit = probability_tables.y_nonzero_counts_1x8(pt, eob_y,
                                                                    num_nonzeros_7x7)) {
              unsigned int coord = delta;
@@ -110,7 +112,7 @@ void decode_edge(BlockContext mcontext,
                              coef = -coef;
                          }
                      }
-                     mcontext.here().coef.at(aligned_block_offset + lane) = coef;
+                     mcontext.here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
                  }
                  if (vec == !run_ends_early) {
                      break;
@@ -189,7 +191,7 @@ void parse_tokens(BlockContext context,
                 coef = -coef;
             }
         }
-        context.here().coef.memset(0);
+        context.here().bzero();
         context.here().dc() = coef;
     }
     uint8_t eob_x = 0;
@@ -206,19 +208,25 @@ void parse_tokens(BlockContext context,
         // are nonzero. It would probably also need to cancel out if any need to enter the
         // vpx_fill_buffer branch and load things from the streams--in those cases it could
         // fall back to (slow) scalar code.
+        unsigned int coord = unzigzag49[zz];
         if ((zz & 3) == 0) {
             num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
             if (num_nonzeros_lag_left_7x7 ==0) {
                 break;
             }
+#ifdef OPTIMIZED_7x7
             probability_tables.compute_aavrg_vec(zz, context.copy(), avg);
+#endif
         }
-        unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
         assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
+#ifdef OPTIMIZED_7x7
             probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_lag_left_7x7);
+#else
+            probability_tables.update_coefficient_context7x7(coord, zz, prior, context.copy(), num_nonzeros_lag_left_7x7);
+#endif
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length;
             bool nonzero = false;
@@ -249,7 +257,12 @@ void parse_tokens(BlockContext context,
                     coef = -coef;
                 }
             }
+#ifdef OPTIMIZED_7x7
             context.here().coef.at(zz + AlignedBlock::AC_7x7_INDEX) = coef;
+#else
+            // this should work in all cases but doesn't utilize that the zz is related
+            context.here().mutable_coefficients_raster(raster_to_aligned.at(coord)) = coef;
+#endif
             if (num_nonzeros_left_7x7 == 0) {
                 break; // done with the 49x49
             }

@@ -104,12 +104,13 @@ void serialize_tokens(ConstBlockContext context,
         (void)b_y;
         assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
         {
-            int16_t coef = block.coef.at(zz + AlignedBlock::AC_7x7_INDEX);
+            // this should work in all cases but doesn't utilize that the zz is related
+            int16_t coef = context.here().coefficients_raster(coord);
             uint16_t abs_coef = abs(coef);
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
 #endif
-            probability_tables.update_coefficient_context7x7(zz, prior, context, num_nonzeros_lag_left_7x7);
+            probability_tables.update_coefficient_context7x7(coord, zz, prior, context, num_nonzeros_lag_left_7x7);
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
@@ -148,9 +149,11 @@ void serialize_tokens(ConstBlockContext context,
 
     bool run_ends_early_x = !(block.coefficients_raster(4) || block.coefficients_raster(5) || block.coefficients_raster(6) || block.coefficients_raster(7));
     bool run_ends_early_y = !(block.coefficients_raster(4 * 8) || block.coefficients_raster(5 * 8) || block.coefficients_raster(6 * 8) || block.coefficients_raster(7*8));
-    uint8_t aligned_block_offset = AlignedBlock::ROW_X_INDEX;
+    uint8_t aligned_block_offset = raster_to_aligned.at(1);
+    uint8_t log_edge_step = 0;
     for (int delta = 1; delta <= 8; delta += 7,
-             aligned_block_offset = AlignedBlock::ROW_Y_INDEX,
+             aligned_block_offset = raster_to_aligned.at(8),
+             log_edge_step = uint16log2(raster_to_aligned.at(16)-raster_to_aligned.at(8)),
              prob_early_exit = probability_tables.y_nonzero_counts_1x8(pt, eob_y,
                                                                        num_nonzeros_7x7)) {
         unsigned int coord = delta;
@@ -165,7 +168,7 @@ void serialize_tokens(ConstBlockContext context,
             assert(coord != 9);
             prior = probability_tables.update_coefficient_context8(coord, context, delta == 1 ? eob_x : eob_y);
             auto exp_array = probability_tables.exponent_array_x(pt, coord, zig15offset, prior);
-            int16_t coef = block.coef.at(aligned_block_offset + xx);
+            int16_t coef = block.raw_data()[aligned_block_offset + (xx<<log_edge_step)];
             uint16_t abs_coef = abs(coef);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
