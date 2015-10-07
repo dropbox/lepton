@@ -14,9 +14,134 @@ uint8_t prefix_unremap(uint8_t v) {
 }
 
 enum {
+    log_delta_x_edge = LogTable256[raster_to_aligned.kat<2>() - raster_to_aligned.kat<1>()],
     log_delta_y_edge = LogTable256[raster_to_aligned.kat<16>() - raster_to_aligned.kat<8>()]
 };
 
+template<bool has_left, bool has_above, bool has_above_right, BlockType color,
+         bool horizontal>
+void decode_one_edge(BlockContext mcontext,
+                 Sirikata::Array1d<BoolDecoder, 4>::Slice decoder,
+                 ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
+                 uint8_t num_nonzeros_7x7, uint8_t est_eob,
+                 ProbabilityTablesBase& pt) {
+
+    ConstBlockContext context = mcontext.copy();
+    auto prob_early_exit = horizontal
+        ? probability_tables.x_nonzero_counts_8x1(pt, est_eob,
+                                                  num_nonzeros_7x7)
+        : probability_tables.y_nonzero_counts_1x8(pt, est_eob,
+                                                  num_nonzeros_7x7);
+
+    ProbabilityTablesBase::CoefficientContext prior[4] = {};
+    if (ProbabilityTablesBase::VECTORIZE) {
+        if (horizontal) {
+            prior[1] = probability_tables.update_coefficient_context8_templ1(context, est_eob);
+            prior[2] = probability_tables.update_coefficient_context8_templ2(context, est_eob);
+            prior[3] = probability_tables.update_coefficient_context8_templ3(context, est_eob);
+        } else {
+            prior[1] = probability_tables.update_coefficient_context8_templ8(context, est_eob);
+            prior[2] = probability_tables.update_coefficient_context8_templ16(context, est_eob);
+            prior[3] = probability_tables.update_coefficient_context8_templ24(context, est_eob);
+        }
+    }
+    uint8_t aligned_block_offset = raster_to_aligned.at(1);
+    unsigned int log_edge_step = log_delta_x_edge;
+    uint8_t delta = 1;
+    uint8_t zig15offset = 0;
+    if (!horizontal) {
+        delta = 8;
+        log_edge_step = log_delta_y_edge;
+        zig15offset = 7;
+        aligned_block_offset = raster_to_aligned.at(8);
+    }
+    unsigned int coord = delta;
+    int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
+    int lane = 0, lane_end = 3;
+    for (int vec = 0; ; ++vec, lane_end = 7) {
+        for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
+            //VECTORIZE HERE
+            //the first of the two VECTORIZE items will be
+            // a vector of [run_ends_early, lane0, lane1, lane2]
+            // if run_ends_early is false then the second set of 4 items will be
+            // a vector of [lane3, lane4, lane5, lane6]
+            int cur_vec = (lane + 1) & 3;
+            if (!ProbabilityTablesBase::VECTORIZE) {
+                if (ProbabilityTablesBase::MICROVECTORIZE) {
+                    prior[cur_vec]
+                         = probability_tables.update_coefficient_context8(coord, context, est_eob);
+                 } else {
+                    prior[cur_vec]
+                          = probability_tables.update_coefficient_context8(coord, context, est_eob);                  }
+            }
+            auto exp_array = probability_tables.exponent_array_x(pt,
+                                                                 coord,
+                                                                 zig15offset,
+                                                                 prior[cur_vec]);
+            uint8_t length;
+            bool nonzero = false;
+            auto * exp_branch = exp_array.begin();
+            for (length = 0; length != MAX_EXPONENT; ++length) {
+                bool cur_bit = decoder.at(cur_vec).get(*exp_branch++);
+                if (!cur_bit) {
+                    break;
+                }
+                nonzero = true;
+            }
+            int16_t coef = 0;
+            if (nonzero) {
+                uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
+                auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior[cur_vec]);
+                bool neg = !decoder.at(cur_vec).get(sign_prob);
+                coef = (1 << (length - 1));
+                if (length > 1){
+                    int i = length - 2;
+                    if (length - 2 >= min_threshold) {
+                        auto thresh_prob = probability_tables.residual_thresh_array(pt,
+                                                                                    coord,
+                                                                                    length,
+                                                                                    prior[cur_vec],
+                                                                                    min_threshold,
+                                                                                    probability_tables.get_max_value(coord));
+                        uint16_t decoded_so_far = 1;
+                        for (; i >= min_threshold; --i) {
+                            int cur_bit = (decoder.at(cur_vec).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                            coef |= (cur_bit << i);
+                            decoded_so_far <<= 1;
+                            if (cur_bit) {
+                                decoded_so_far |= 1;
+                            }
+                        }
+                        probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
+                    }
+                    auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior
+                                                                               [cur_vec]);
+                    for (; i >= 0; --i) {
+                        coef |= ((decoder.at(cur_vec).get(res_prob.at(i)) ? 1 : 0) << i);
+                    }
+                }
+                if (neg) {
+                    coef = -coef;
+                }
+            }
+            mcontext.here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
+        }
+        if (vec == !run_ends_early) {
+            break;
+        }
+        if (ProbabilityTablesBase::VECTORIZE && horizontal) {
+             prior[0] = probability_tables.update_coefficient_context8_templ4(context, est_eob);
+             prior[1] = probability_tables.update_coefficient_context8_templ5(context, est_eob);
+             prior[2] = probability_tables.update_coefficient_context8_templ6(context, est_eob);
+             prior[3] = probability_tables.update_coefficient_context8_templ7(context, est_eob);
+         } else if (ProbabilityTablesBase::VECTORIZE) {
+             prior[0] = probability_tables.update_coefficient_context8_templ32(context, est_eob);
+             prior[1] = probability_tables.update_coefficient_context8_templ40(context, est_eob);
+             prior[2] = probability_tables.update_coefficient_context8_templ48(context, est_eob);
+             prior[3] = probability_tables.update_coefficient_context8_templ56(context, est_eob);
+         }
+    }
+}
 
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void decode_edge(BlockContext mcontext,
@@ -25,130 +150,18 @@ void decode_edge(BlockContext mcontext,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
                  ProbabilityTablesBase::CoefficientContext input_prior,
                  ProbabilityTablesBase& pt) {
-    ConstBlockContext context = mcontext.copy();
-    uint8_t aligned_block_offset = raster_to_aligned.at(1);
-    auto prob_early_exit = probability_tables.x_nonzero_counts_8x1(pt, eob_x,
-                                                                   num_nonzeros_7x7);
-    uint8_t est_eob = eob_x;
-    ProbabilityTablesBase::CoefficientContext prior[4] = {};
-    if (ProbabilityTablesBase::VECTORIZE) {
-        prior[1] = probability_tables.update_coefficient_context8_templ1(context, eob_x);
-        prior[2] = probability_tables.update_coefficient_context8_templ2(context, eob_x);
-        prior[3] = probability_tables.update_coefficient_context8_templ3(context, eob_x);
-    }
-    unsigned int log_edge_step = 0;
-    for (uint8_t delta = 1, zig15offset = 0; ; delta = 8,
-         zig15offset = 7,
-         est_eob = eob_y,
-         aligned_block_offset = raster_to_aligned.at(8),
-         log_edge_step = log_delta_y_edge,
-         prob_early_exit = probability_tables.y_nonzero_counts_1x8(pt, eob_y,
-                                                                   num_nonzeros_7x7)) {
-#ifdef OPTIMIZED7x7
-             assert(log_edge_step==0);
-             log_edge_step = 0;
-#endif
-             unsigned int coord = delta;
-             int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
-             int lane = 0, lane_end = 3;
-             for (int vec = 0; ; ++vec, lane_end = 7) {
-                 for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
-             //VECTORIZE HERE
-             //the first of the two VECTORIZE items will be
-             // a vector of [run_ends_early, lane0, lane1, lane2]
-             // if run_ends_early is false then the second set of 4 items will be
-             // a vector of [lane3, lane4, lane5, lane6]
-                     int cur_vec = (lane + 1) & 3;
-                     if (!ProbabilityTablesBase::VECTORIZE) {
-                         if (ProbabilityTablesBase::MICROVECTORIZE) {
-                             prior
-                             [cur_vec]
-                             = probability_tables.update_coefficient_context8(coord, context, est_eob);
-                         } else {
-                             prior
-                             [cur_vec]
-                             = probability_tables.update_coefficient_context8(coord, context, est_eob);
-                         }
-                     }
-                     auto exp_array = probability_tables.exponent_array_x(pt, coord, zig15offset, prior
-                                                                          [cur_vec]
-
-                                                                          );
-                     uint8_t length;
-                     bool nonzero = false;
-                     auto * exp_branch = exp_array.begin();
-                     for (length = 0; length != MAX_EXPONENT; ++length) {
-                         bool cur_bit = decoder.at(cur_vec).get(*exp_branch++);
-                         if (!cur_bit) {
-                             break;
-                         }
-                         nonzero = true;
-                     }
-                     int16_t coef = 0;
-                     if (nonzero) {
-                         uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                         auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior
-                                                                           [cur_vec]
-);
-                         bool neg = !decoder.at(cur_vec).get(sign_prob);
-                         coef = (1 << (length - 1));
-                         if (length > 1){
-                             int i = length - 2;
-                             if (length - 2 >= min_threshold) {
-                                 auto thresh_prob = probability_tables.residual_thresh_array(pt, coord, length,
-                                                                                             prior
-                                                                                             [cur_vec]
-, min_threshold,
-                                                                                             probability_tables.get_max_value(coord));
-                                 uint16_t decoded_so_far = 1;
-                                 for (; i >= min_threshold; --i) {
-                                     int cur_bit = (decoder.at(cur_vec).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
-                                     coef |= (cur_bit << i);
-                                     decoded_so_far <<= 1;
-                                     if (cur_bit) {
-                                         decoded_so_far |= 1;
-                                     }
-                                 }
-                                 probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
-                             }
-                             auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior
-                                                                                       [cur_vec]
-);
-                             for (; i >= 0; --i) {
-                                 coef |= ((decoder.at(cur_vec).get(res_prob.at(i)) ? 1 : 0) << i);
-                             }
-                         }
-                         if (neg) {
-                             coef = -coef;
-                         }
-                     }
-                     mcontext.here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
-                 }
-                 if (vec == !run_ends_early) {
-                     break;
-                 }
-                 if (ProbabilityTablesBase::VECTORIZE && delta == 1) {
-                     prior[0] = probability_tables.update_coefficient_context8_templ4(context, est_eob);
-                     prior[1] = probability_tables.update_coefficient_context8_templ5(context, est_eob);
-                     prior[2] = probability_tables.update_coefficient_context8_templ6(context, est_eob);
-                     prior[3] = probability_tables.update_coefficient_context8_templ7(context, est_eob);
-                 } else if (ProbabilityTablesBase::VECTORIZE) {
-                     prior[0] = probability_tables.update_coefficient_context8_templ32(context, est_eob);
-                     prior[1] = probability_tables.update_coefficient_context8_templ40(context, est_eob);
-                     prior[2] = probability_tables.update_coefficient_context8_templ48(context, est_eob);
-                     prior[3] = probability_tables.update_coefficient_context8_templ56(context, est_eob);
-                 }
-             }
-             if (delta == 8) {
-                 break;
-             }
-             if (ProbabilityTablesBase::VECTORIZE) {
-                 prior[0] = ProbabilityTablesBase::CoefficientContext();
-                 prior[1] = probability_tables.update_coefficient_context8_templ8(context, eob_y);
-                 prior[2] = probability_tables.update_coefficient_context8_templ16(context, eob_y);
-                 prior[3] = probability_tables.update_coefficient_context8_templ24(context, eob_y);
-             }
-         }
+    decode_one_edge<has_left, has_above, has_above_right, color, true>(mcontext,
+                                                                        decoder,
+                                                                        probability_tables,
+                                                                        num_nonzeros_7x7,
+                                                                        eob_x,
+                                                                        pt);
+    decode_one_edge<has_left, has_above, has_above_right, color, false>(mcontext,
+                                                                        decoder,
+                                                                        probability_tables,
+                                                                        num_nonzeros_7x7,
+                                                                        eob_y,
+                                                                        pt);
 }
 
 
