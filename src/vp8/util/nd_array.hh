@@ -140,6 +140,10 @@ template <class T,
         assert(i0 < s0);
         return IsReference::dereference(data)[i0];
     }
+    template<int index> constexpr T kat() const {
+        static_assert(index < s0, "template argument must be within bound");
+        return data[index];
+    }
     const T& at(uint32_t i0) const {
         assert(i0 < s0);
         return IsReference::dereference(data)[i0];

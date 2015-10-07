@@ -12,6 +12,12 @@ uint8_t prefix_unremap(uint8_t v) {
     }
     return v - 3;
 }
+
+enum {
+    log_delta_y_edge = LogTable256[raster_to_aligned.kat<16>() - raster_to_aligned.kat<8>()]
+};
+
+
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void decode_edge(BlockContext mcontext,
                  Sirikata::Array1d<BoolDecoder, 4>::Slice decoder,
@@ -35,9 +41,13 @@ void decode_edge(BlockContext mcontext,
          zig15offset = 7,
          est_eob = eob_y,
          aligned_block_offset = raster_to_aligned.at(8),
-         log_edge_step = uint16log2(raster_to_aligned.at(16) - raster_to_aligned.at(8)),
+         log_edge_step = log_delta_y_edge,
          prob_early_exit = probability_tables.y_nonzero_counts_1x8(pt, eob_y,
                                                                    num_nonzeros_7x7)) {
+#ifdef OPTIMIZED7x7
+             assert(log_edge_step==0);
+             log_edge_step = 0;
+#endif
              unsigned int coord = delta;
              int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
              int lane = 0, lane_end = 3;
