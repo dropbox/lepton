@@ -1,7 +1,7 @@
 noinst_LIBRARIES = liblocalxz.a libtestdriver.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
 bin_PROGRAMS = lepton test_invariants
-lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
+lepton_CXXFLAGS = $(CXX11_FLAGS)  -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
 lepton_LDADD = -lpthread liblocalxz.a
 lepton_SOURCES = \
    src/lepton/base_coders.hh \
@@ -72,7 +72,7 @@ AM_CXXFLAGS = $(CXX11_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 AM_CFLAGS = $(C99_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 
-liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -Idependencies/xz/src/liblzma/common -Idependencies/xz/src/common -Idependencies -Idependencies/xz/src/liblzma/lzma -Idependencies/xz/src/liblzma/lz -Idependencies/xz/src/liblzma/check -Idependencies/xz/src/liblzma/rangecoder -Idependencies/xz/src/liblzma/api -Idependencies/xz/src/liblzma/simple -Idependencies/xz/src/liblzma/delta -Idependencies/xz/src/liblzma
+liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -I$(srcdir)/dependencies/xz/src/liblzma/common -I$(srcdir)/dependencies/xz/src/common -I$(srcdir)/dependencies -I$(srcdir)/dependencies/xz/src/liblzma/lzma -I$(srcdir)/dependencies/xz/src/liblzma/lz -I$(srcdir)/dependencies/xz/src/liblzma/check -I$(srcdir)/dependencies/xz/src/liblzma/rangecoder -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/dependencies/xz/src/liblzma/simple -I$(srcdir)/dependencies/xz/src/liblzma/delta -I$(srcdir)/dependencies/xz/src/liblzma
 liblocalxz_a_SOURCES = dependencies/xz/src/liblzma/delta/delta_common.c \
 dependencies/xz/src/liblzma/delta/delta_encoder.c \
 dependencies/xz/src/liblzma/delta/delta_decoder.c \
@@ -146,7 +146,7 @@ dependencies/xz/src/liblzma/common/filter_encoder.c \
 dependencies/xz/src/common/tuklib_cpucores.c \
 dependencies/xz/src/common/tuklib_physmem.c
 
-DEFAULT_INCLUDES=-Isrc
+DEFAULT_INCLUDES=-I$(srcdir)/src
 
 
 
@@ -166,7 +166,7 @@ test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/io/Zlib0.hh \
    src/io/Zlib0.cc \
    src/io/DecoderPlatform.hh
-test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
+test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
 test_invariants_LDADD = liblocalxz.a
 
 
