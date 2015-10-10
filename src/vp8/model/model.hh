@@ -326,6 +326,22 @@ public:
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         return retval;
     }
+    ProbabilityTablesBase::CoefficientContext update_coefficient_context8_horiz(uint8_t coefficient,
+                                                   const ConstBlockContext block, uint8_t num_nonzeros_x) {
+        CoefficientContext retval = {0, 0, 0};
+        retval.best_prior = compute_lak_horizontal(block, coefficient);
+        retval.num_nonzeros_bin = num_nonzeros_x;
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
+        return retval;
+    }
+    ProbabilityTablesBase::CoefficientContext update_coefficient_context8_vert(uint8_t coefficient,
+                                                   const ConstBlockContext block, uint8_t num_nonzeros_x) {
+        CoefficientContext retval = {0, 0, 0};
+        retval.best_prior = compute_lak_vertical(block, coefficient);
+        retval.num_nonzeros_bin = num_nonzeros_x;
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
+        return retval;
+    }
 #define INSTANTIATE_TEMPLATE_METHOD(N)  \
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
                                                    uint8_t num_nonzeros_x) { \

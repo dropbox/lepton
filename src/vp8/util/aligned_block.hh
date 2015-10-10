@@ -79,6 +79,7 @@ static constexpr Sirikata::Array1d< uint8_t, 64 > aligned_to_zigzag = {{
 #define zigzag_to_aligned jpeg_zigzag_to_raster
 struct IdentityArray1d {
     static uint8_t at(uint8_t a) {return a;}
+    template <int a> static constexpr uint8_t kat() {return a;}
 };
 static IdentityArray1d raster_to_aligned;
 static IdentityArray1d aligned_to_raster;

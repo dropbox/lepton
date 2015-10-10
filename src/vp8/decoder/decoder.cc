@@ -68,8 +68,15 @@ void decode_one_edge(BlockContext mcontext,
             int cur_vec = (lane + 1) & 3;
             if (!ProbabilityTablesBase::VECTORIZE) {
                 if (ProbabilityTablesBase::MICROVECTORIZE) {
-                    prior[cur_vec]
-                         = probability_tables.update_coefficient_context8(coord, context, est_eob);
+                    if (horizontal) {
+                        prior[cur_vec] = probability_tables.update_coefficient_context8_horiz(coord,
+                                                                                              context,
+                                                                                              est_eob);
+                    } else {
+                        prior[cur_vec] = probability_tables.update_coefficient_context8_vert(coord,
+                                                                                             context,
+                                                                                             est_eob);
+                    }
                  } else {
                     prior[cur_vec]
                           = probability_tables.update_coefficient_context8(coord, context, est_eob);                  }
