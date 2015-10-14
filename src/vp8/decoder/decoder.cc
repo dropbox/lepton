@@ -27,24 +27,12 @@ void decode_one_edge(BlockContext mcontext,
                  ProbabilityTablesBase& pt) {
 
     ConstBlockContext context = mcontext.copy();
-    auto prob_early_exit = horizontal
+    auto prob_edge_eob = horizontal
         ? probability_tables.x_nonzero_counts_8x1(pt, est_eob,
                                                   num_nonzeros_7x7)
         : probability_tables.y_nonzero_counts_1x8(pt, est_eob,
                                                   num_nonzeros_7x7);
 
-    ProbabilityTablesBase::CoefficientContext prior[4] = {};
-    if (ProbabilityTablesBase::VECTORIZE) {
-        if (horizontal) {
-            prior[1] = probability_tables.update_coefficient_context8_templ1(context, est_eob);
-            prior[2] = probability_tables.update_coefficient_context8_templ2(context, est_eob);
-            prior[3] = probability_tables.update_coefficient_context8_templ3(context, est_eob);
-        } else {
-            prior[1] = probability_tables.update_coefficient_context8_templ8(context, est_eob);
-            prior[2] = probability_tables.update_coefficient_context8_templ16(context, est_eob);
-            prior[3] = probability_tables.update_coefficient_context8_templ24(context, est_eob);
-        }
-    }
     uint8_t aligned_block_offset = raster_to_aligned.at(1);
     unsigned int log_edge_step = log_delta_x_edge;
     uint8_t delta = 1;
@@ -55,41 +43,47 @@ void decode_one_edge(BlockContext mcontext,
         zig15offset = 7;
         aligned_block_offset = raster_to_aligned.at(8);
     }
+    uint8_t num_nonzeros_edge = 0;
+    int16_t decoded_so_far = 0;
+    for (int i= 2; i >=0; --i) {
+        int cur_bit = decoder.at(0).get(prob_edge_eob.at(i, decoded_so_far)) ? 1 : 0;
+        num_nonzeros_edge |= (cur_bit << i);
+        decoded_so_far <<= 1;
+        decoded_so_far |= cur_bit;
+    }
+
     unsigned int coord = delta;
-    int run_ends_early = decoder.at(0).get(prob_early_exit.at(0, 0))? 1 : 0;
     int lane = 0, lane_end = 3;
-    for (int vec = 0; ; ++vec, lane_end = 7) {
-        for (; lane < lane_end; ++lane, coord += delta, ++zig15offset) {
+    for (int vec = 0; num_nonzeros_edge ; ++vec, lane_end = 7) {
+        for (; lane < lane_end && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
             //VECTORIZE HERE
             //the first of the two VECTORIZE items will be
             // a vector of [run_ends_early, lane0, lane1, lane2]
             // if run_ends_early is false then the second set of 4 items will be
             // a vector of [lane3, lane4, lane5, lane6]
-            int cur_vec = (lane + 1) & 3;
-            if (!ProbabilityTablesBase::VECTORIZE) {
-                if (ProbabilityTablesBase::MICROVECTORIZE) {
-                    if (horizontal) {
-                        prior[cur_vec] = probability_tables.update_coefficient_context8_horiz(coord,
-                                                                                              context,
-                                                                                              est_eob);
-                    } else {
-                        prior[cur_vec] = probability_tables.update_coefficient_context8_vert(coord,
-                                                                                             context,
-                                                                                             est_eob);
-                    }
-                 } else {
-                    prior[cur_vec]
-                          = probability_tables.update_coefficient_context8(coord, context, est_eob);                  }
+            ProbabilityTablesBase::CoefficientContext prior;
+            if (ProbabilityTablesBase::MICROVECTORIZE) {
+                if (horizontal) {
+                    prior = probability_tables.update_coefficient_context8_horiz(coord,
+                                                                                          context,
+                                                                                          num_nonzeros_edge);
+                } else {
+                    prior = probability_tables.update_coefficient_context8_vert(coord,
+                                                                                         context,
+                                                                                         num_nonzeros_edge);
+                }
+            } else {
+                prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
             }
             auto exp_array = probability_tables.exponent_array_x(pt,
                                                                  coord,
                                                                  zig15offset,
-                                                                 prior[cur_vec]);
+                                                                 prior);
             uint8_t length;
             bool nonzero = false;
             auto * exp_branch = exp_array.begin();
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = decoder.at(cur_vec).get(*exp_branch++);
+                bool cur_bit = decoder.at(0).get(*exp_branch++);
                 if (!cur_bit) {
                     break;
                 }
@@ -97,9 +91,10 @@ void decode_one_edge(BlockContext mcontext,
             }
             int16_t coef = 0;
             if (nonzero) {
+                --num_nonzeros_edge;
                 uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior[cur_vec]);
-                bool neg = !decoder.at(cur_vec).get(sign_prob);
+                auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
+                bool neg = !decoder.at(0).get(sign_prob);
                 coef = (1 << (length - 1));
                 if (length > 1){
                     int i = length - 2;
@@ -107,12 +102,12 @@ void decode_one_edge(BlockContext mcontext,
                         auto thresh_prob = probability_tables.residual_thresh_array(pt,
                                                                                     coord,
                                                                                     length,
-                                                                                    prior[cur_vec],
+                                                                                    prior,
                                                                                     min_threshold,
                                                                                     probability_tables.get_max_value(coord));
                         uint16_t decoded_so_far = 1;
                         for (; i >= min_threshold; --i) {
-                            int cur_bit = (decoder.at(cur_vec).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                            int cur_bit = (decoder.at(0).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
                             coef |= (cur_bit << i);
                             decoded_so_far <<= 1;
                             if (cur_bit) {
@@ -121,10 +116,9 @@ void decode_one_edge(BlockContext mcontext,
                         }
                         probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
                     }
-                    auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior
-                                                                               [cur_vec]);
+                    auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
                     for (; i >= 0; --i) {
-                        coef |= ((decoder.at(cur_vec).get(res_prob.at(i)) ? 1 : 0) << i);
+                        coef |= ((decoder.at(0).get(res_prob.at(i)) ? 1 : 0) << i);
                     }
                 }
                 if (neg) {
@@ -133,20 +127,6 @@ void decode_one_edge(BlockContext mcontext,
             }
             mcontext.here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
         }
-        if (vec == !run_ends_early) {
-            break;
-        }
-        if (ProbabilityTablesBase::VECTORIZE && horizontal) {
-             prior[0] = probability_tables.update_coefficient_context8_templ4(context, est_eob);
-             prior[1] = probability_tables.update_coefficient_context8_templ5(context, est_eob);
-             prior[2] = probability_tables.update_coefficient_context8_templ6(context, est_eob);
-             prior[3] = probability_tables.update_coefficient_context8_templ7(context, est_eob);
-         } else if (ProbabilityTablesBase::VECTORIZE) {
-             prior[0] = probability_tables.update_coefficient_context8_templ32(context, est_eob);
-             prior[1] = probability_tables.update_coefficient_context8_templ40(context, est_eob);
-             prior[2] = probability_tables.update_coefficient_context8_templ48(context, est_eob);
-             prior[3] = probability_tables.update_coefficient_context8_templ56(context, est_eob);
-         }
     }
 }
 
@@ -227,23 +207,10 @@ void parse_tokens(BlockContext context,
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
-    uint8_t num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
     int avg[4] __attribute__((aligned(16)));
     for (unsigned int zz = 0; zz < 49; ++zz) {
-        // VECTORIZE HERE (zz += 4 rather than ++zz)
-        // this is a perfectly ordinary vectorization task if num_nonzeros_lag_left >= 4
-        // however if num_nonzeros_lag_left == 3, 2, 1 or 0, we should probably start with a
-        // scalar VECTORIZE bool decoder...and if that works then we can look into making
-        // a bool_decoder that speculatively tries 4 gets and cancels out if too many
-        // are nonzero. It would probably also need to cancel out if any need to enter the
-        // vpx_fill_buffer branch and load things from the streams--in those cases it could
-        // fall back to (slow) scalar code.
         unsigned int coord = unzigzag49[zz];
         if ((zz & 3) == 0) {
-            num_nonzeros_lag_left_7x7 = num_nonzeros_left_7x7;
-            if (num_nonzeros_lag_left_7x7 ==0) {
-                break;
-            }
 #ifdef OPTIMIZED_7x7
             probability_tables.compute_aavrg_vec(zz, context.copy(), avg);
 #endif
@@ -253,9 +220,9 @@ void parse_tokens(BlockContext context,
         assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
 #ifdef OPTIMIZED_7x7
-            probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_lag_left_7x7);
+            probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
 #else
-            probability_tables.update_coefficient_context7x7(coord, zz, prior, context.copy(), num_nonzeros_lag_left_7x7);
+            probability_tables.update_coefficient_context7x7(coord, zz, prior, context.copy(), num_nonzeros_left_7x7);
 #endif
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length;
