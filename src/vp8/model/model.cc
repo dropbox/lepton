@@ -189,9 +189,8 @@ void ProbabilityTablesBase::load_probability_tables()
     if ( not model_name ) {
         std::cerr << "Using default (bad!) probability tables!" << std::endl;
     } else {
-        MMapFile model_file { model_name };
         ProbabilityTables<false, false, false, BlockType::Y> model_tables(BlockType::Y);
-        model_tables.load(*this, model_file.slice());
+        model_tables.load(*this, model_name);
         model_tables.normalize(*this);
     }
 }
@@ -202,13 +201,13 @@ void reset_model(Model&model)
 }
 
 
-void load_model(Model&model, const Slice & slice )
-{
-    const size_t expected_size = sizeof( model );
+
+
+void load_model(Model&model, const char * filename) {
+    FILE * fp = fopen(filename, "rb");
+    const size_t expected_size = fread(&model, 1, sizeof(model), fp);
     (void)expected_size;
-    assert(slice.size() == expected_size && "unexpected model file size.");
-    
-    memcpy( &model, slice.buffer(), slice.size() );
+    assert(sizeof(model) == expected_size && "unexpected model file size.");
 }
 static Branch::ProbUpdate* load_update_lookup_patch() {
     FILE * fp = fopen("lookup_patch.txt", "r");

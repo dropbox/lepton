@@ -156,7 +156,7 @@ void optimize_model(Model&model);
 void serialize_model(const Model & model, std::ofstream & output);
 void reset_model(Model &model);
 void normalize_model(Model &model);
-void load_model(Model &model, const Slice&slice);
+void load_model(Model &model, const char* filename);
 
 class ProbabilityTablesBase {
 protected:
@@ -276,8 +276,8 @@ public:
     void reset(ProbabilityTablesBase&base) {
         reset_model(base.model());
     }
-    void load(ProbabilityTablesBase&base, const Slice & slice ) {
-        load_model(base.model(), slice);
+    void load(ProbabilityTablesBase&base, const char * filename) {
+        load_model(base.model(), filename);
     }
     int color_index() {
         if ((int)COLOR == BLOCK_TYPES || ((int)BLOCK_TYPES == 1 && (int)COLOR > (int)BLOCK_TYPES)) {
