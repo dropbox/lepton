@@ -1,6 +1,5 @@
 #ifndef _COLOR_CONTEXT_HH_
 #define _COLOR_CONTEXT_HH_
-#include "../util/option.hh"
 
 enum class BlockType { Y, Cb, Cr };
 

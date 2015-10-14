@@ -2,7 +2,6 @@
 #include <array>
 #include "base_coders.hh"
 #include "../../io/MuxReader.hh"
-#include "option.hh"
 #include "model.hh"
 #include "aligned_block.hh"
 #include "bool_decoder.hh"

@@ -9,7 +9,6 @@
 #include "base_coders.hh"
 #include "component_info.hh"
 #include "../vp8/model/color_context.hh"
-#include "../vp8/util/option.hh"
 #include "../vp8/util/block_based_image.hh"
 struct componentInfo;
 #define EXIT_CODE_CODING_ERROR 2
