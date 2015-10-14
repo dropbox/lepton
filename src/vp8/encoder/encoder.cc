@@ -32,7 +32,7 @@ struct Blah {
 #endif
 template <bool has_left, bool has_above, bool has_above_right, BlockType color>
 void serialize_tokens(ConstBlockContext context,
-                      Sirikata::Array1d<BoolEncoder, 4> & encoder,
+                      BoolEncoder& encoder,
                       ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                       ProbabilityTablesBase &pt)
 {
@@ -47,7 +47,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
     for (int index = 5; index >= 0; --index) {
         int cur_bit = (num_nonzeros_7x7 & (1 << index)) ? 1 : 0;
-        encoder.at(3).put(cur_bit, num_nonzeros_prob.at(index, serialized_so_far));
+        encoder.put(cur_bit, num_nonzeros_prob.at(index, serialized_so_far));
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
@@ -66,21 +66,21 @@ void serialize_tokens(ConstBlockContext context,
         auto exp_prob = probability_tables.exponent_array_dc(pt, prior);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
-            encoder.at(0).put(cur_bit, exp_prob.at(i));
+            encoder.put(cur_bit, exp_prob.at(i));
             if (!cur_bit) {
                 break;
             }
         }
         if (length != 0) {
             auto &sign_prob = probability_tables.sign_array_dc(pt, prior);
-            encoder.at(0).put(coef >= 0 ? 1 : 0, sign_prob);
+            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
             auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {
-                encoder.at(0).put((abs_coef & (1 << i)), res_prob.at(i));
+                encoder.put((abs_coef & (1 << i)), res_prob.at(i));
             }
         }
     }
@@ -108,14 +108,14 @@ void serialize_tokens(ConstBlockContext context,
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
                 bool cur_bit = (i != length);
-                encoder.at(zz&3).put(cur_bit, exp_prob.at(i));
+                encoder.put(cur_bit, exp_prob.at(i));
                 if (!cur_bit) {
                     break;
                 }
             }
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
-                encoder.at(zz&3).put(coef >= 0 ? 1 : 0, sign_prob);
+                encoder.put(coef >= 0 ? 1 : 0, sign_prob);
                 --num_nonzeros_left_7x7;
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
@@ -126,7 +126,7 @@ void serialize_tokens(ConstBlockContext context,
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
 
                 for (int i = length - 2; i >= 0; --i) {
-                   encoder.at(zz&3).put((abs_coef & (1 << i)), res_prob.at(i));
+                   encoder.put((abs_coef & (1 << i)), res_prob.at(i));
                 }
             }
         }
@@ -157,7 +157,7 @@ void serialize_tokens(ConstBlockContext context,
             uint8_t serialized_so_far = 0;
             for (int i= 2; i >= 0; --i) {
                 int cur_bit = (num_nonzeros_edge & (1 << i)) ? 1 : 0;
-                encoder.at(0).put(cur_bit, prob_edge_eob.at(i, serialized_so_far));
+                encoder.put(cur_bit, prob_edge_eob.at(i, serialized_so_far));
                 serialized_so_far <<= 1;
                 serialized_so_far |= cur_bit;
             }
@@ -175,7 +175,7 @@ void serialize_tokens(ConstBlockContext context,
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
                 bool cur_bit = (i != length);
-                encoder.at(0).put(cur_bit, exp_array.at(i));
+                encoder.put(cur_bit, exp_array.at(i));
                 if (!cur_bit) {
                     break;
                 }
@@ -187,7 +187,7 @@ void serialize_tokens(ConstBlockContext context,
             if (length != 0) {
                 -- num_nonzeros_edge;
                 auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
-                encoder.at(0).put(coef >= 0, sign_prob);
+                encoder.put(coef >= 0, sign_prob);
             }
             if (length > 1) {
                 
@@ -201,7 +201,7 @@ void serialize_tokens(ConstBlockContext context,
                                                                                 probability_tables.get_max_value(coord));
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
-                        encoder.at(0).put(cur_bit, thresh_prob.at(encoded_so_far));
+                        encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
                         encoded_so_far <<=1;
                         if (cur_bit) {
                             encoded_so_far |=1;
@@ -211,36 +211,36 @@ void serialize_tokens(ConstBlockContext context,
                 }
                 auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
                 for (; i >= 0; --i) {
-                    encoder.at(0).put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
+                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
                 }
             }
         }
     }
 }
 
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, true, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, true, true, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<false, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, true, true, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, true, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, false, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, Sirikata::Array1d<BoolEncoder, 4>&, ProbabilityTables<true, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
 
 

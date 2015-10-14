@@ -21,7 +21,7 @@ enum {
 template<bool has_left, bool has_above, bool has_above_right, BlockType color,
          bool horizontal>
 void decode_one_edge(BlockContext mcontext,
-                 Sirikata::Array1d<BoolDecoder, 4>::Slice decoder,
+                 BoolDecoder& decoder,
                  ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t est_eob,
                  ProbabilityTablesBase& pt) {
@@ -46,7 +46,7 @@ void decode_one_edge(BlockContext mcontext,
     uint8_t num_nonzeros_edge = 0;
     int16_t decoded_so_far = 0;
     for (int i= 2; i >=0; --i) {
-        int cur_bit = decoder.at(0).get(prob_edge_eob.at(i, decoded_so_far)) ? 1 : 0;
+        int cur_bit = decoder.get(prob_edge_eob.at(i, decoded_so_far)) ? 1 : 0;
         num_nonzeros_edge |= (cur_bit << i);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -83,7 +83,7 @@ void decode_one_edge(BlockContext mcontext,
             bool nonzero = false;
             auto * exp_branch = exp_array.begin();
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = decoder.at(0).get(*exp_branch++);
+                bool cur_bit = decoder.get(*exp_branch++);
                 if (!cur_bit) {
                     break;
                 }
@@ -94,7 +94,7 @@ void decode_one_edge(BlockContext mcontext,
                 --num_nonzeros_edge;
                 uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
                 auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
-                bool neg = !decoder.at(0).get(sign_prob);
+                bool neg = !decoder.get(sign_prob);
                 coef = (1 << (length - 1));
                 if (length > 1){
                     int i = length - 2;
@@ -107,7 +107,7 @@ void decode_one_edge(BlockContext mcontext,
                                                                                     probability_tables.get_max_value(coord));
                         uint16_t decoded_so_far = 1;
                         for (; i >= min_threshold; --i) {
-                            int cur_bit = (decoder.at(0).get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                            int cur_bit = (decoder.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
                             coef |= (cur_bit << i);
                             decoded_so_far <<= 1;
                             if (cur_bit) {
@@ -118,7 +118,7 @@ void decode_one_edge(BlockContext mcontext,
                     }
                     auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
                     for (; i >= 0; --i) {
-                        coef |= ((decoder.at(0).get(res_prob.at(i)) ? 1 : 0) << i);
+                        coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
                     }
                 }
                 if (neg) {
@@ -132,7 +132,7 @@ void decode_one_edge(BlockContext mcontext,
 
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void decode_edge(BlockContext mcontext,
-                 Sirikata::Array1d<BoolDecoder, 4>::Slice decoder,
+                 BoolDecoder& decoder,
                  ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
                  ProbabilityTablesBase::CoefficientContext input_prior,
@@ -157,14 +157,14 @@ void decode_edge(BlockContext mcontext,
 
 template<bool has_left, bool has_above, bool has_above_right, BlockType color>
 void parse_tokens(BlockContext context,
-                  Sirikata::Array1d<BoolDecoder, SIMD_WIDTH>::Slice decoder,
+                  BoolDecoder& decoder,
                   ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                   ProbabilityTablesBase &pt) {
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context.copy());
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
-        int cur_bit = (decoder.at(3).get(num_nonzeros_prob.at(index, decoded_so_far))?1:0);
+        int cur_bit = (decoder.get(num_nonzeros_prob.at(index, decoded_so_far))?1:0);
         num_nonzeros_7x7 |= (cur_bit << index);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -178,7 +178,7 @@ void parse_tokens(BlockContext context,
         auto exp_prob = probability_tables.exponent_array_dc(pt, prior);
         auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
-            bool cur_bit = decoder.at(0).get(*exp_branch++);
+            bool cur_bit = decoder.get(*exp_branch++);
             if (!cur_bit) {
                 break;
             }
@@ -187,14 +187,14 @@ void parse_tokens(BlockContext context,
         int16_t coef = 0;
         if (nonzero) {
             auto &sign_prob = probability_tables.sign_array_dc(pt, prior);
-            bool neg = !decoder.at(0).get(sign_prob);
+            bool neg = !decoder.get(sign_prob);
         
 
             coef = (1 << (length - 1));
             if (length > 1){
                 auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
                 for (int i = length - 2; i >= 0; --i) {
-                    coef |= ((decoder.at(0).get(res_prob.at(i)) ? 1 : 0) << i);
+                    coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
             }
             if (neg) {
@@ -229,7 +229,7 @@ void parse_tokens(BlockContext context,
             bool nonzero = false;
             auto exp_branch = exp_prob.begin();
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = decoder.at(zz & 3).get(*exp_branch++);
+                bool cur_bit = decoder.get(*exp_branch++);
                 if (!cur_bit) {
                     break;
                 }
@@ -240,14 +240,14 @@ void parse_tokens(BlockContext context,
             if (nonzero) {
                 --num_nonzeros_left_7x7;
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
-                neg = !decoder.at(zz & 3).get(sign_prob);
+                neg = !decoder.get(sign_prob);
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
                 coef = (1 << (length - 1));
                 if (length > 1){
                     auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
                     for (int i = length - 2; i >= 0; --i) {
-                        coef |= ((decoder.at(zz & 3).get(res_prob.at(i)) ? 1 : 0) << i);
+                        coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
                     }
                 }
                 if (neg) {
@@ -275,27 +275,28 @@ void parse_tokens(BlockContext context,
     *context.num_nonzeros_here = num_nonzeros_7x7;
 }
 
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice , ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, true, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, true, true, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<false, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, true, true, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, true, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
 
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, false, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, Sirikata::Array1d<BoolDecoder, 4>::Slice, ProbabilityTables<true, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
 

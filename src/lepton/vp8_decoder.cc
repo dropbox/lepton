@@ -54,11 +54,10 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
                                                    Right& right_model,
                                                    int block_width,
                                                    UncompressedComponents * const colldata) {
-    auto bool_decoders = bool_decoder_.slice<0, SIMD_WIDTH>(); // right now keep the whole thing
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoders,
+                     bool_decoder_,
                      left_model,
                      model_); //FIXME
         context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
@@ -66,7 +65,7 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoders,
+                     bool_decoder_,
                      middle_model,
                      model_); //FIXME
         context_.at((int)middle_model.COLOR).context
@@ -75,7 +74,7 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
     if (block_width > 1) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
-                     bool_decoders,
+                     bool_decoder_,
                      right_model,
                      model_);
         context_.at((int)middle_model.COLOR).context
@@ -264,12 +263,10 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         mux_reader_.fillBufferEntirely(streams);
         /* initialize the bool decoder */
         for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-            for (int i = 0; i < SIMD_WIDTH; ++i) {
-                int index = i + SIMD_WIDTH * thread_id;
-                thread_state_[thread_id]->bool_decoder_[i].init(streams[index].first != streams[index].second
-                                                                ? &*streams[index].first : nullptr,
-                                                                streams[index].second - streams[index].first );
-            }
+            int index = thread_id;
+            thread_state_[thread_id]->bool_decoder_.init(streams[index].first != streams[index].second
+                                                         ? &*streams[index].first : nullptr,
+                                                         streams[index].second - streams[index].first );
         }
         for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             for (int j   = 0 ; j < (int)ColorChannel::NumBlockTypes; ++j) {

@@ -79,7 +79,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       const UncompressedComponents * const colldata,
                                       Sirikata::Array1d<KVContext,
                                               (uint32_t)ColorChannel::NumBlockTypes> &context,
-                                      Sirikata::Array1d<BoolEncoder, SIMD_WIDTH> &bool_encoder) {
+                                      BoolEncoder &bool_encoder) {
     if (block_width > 0) {
         ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
         const AlignedBlock &block = block_context.here();
@@ -217,9 +217,9 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                                             const UncompressedComponents * const colldata,
                                             int min_y,
                                             int max_y,
-                                            std::vector<uint8_t> **streams) {
+                                            std::vector<uint8_t> *stream) {
     using namespace Sirikata;
-    Array1d<BoolEncoder, SIMD_WIDTH> bool_encoders;
+    BoolEncoder bool_encoder;
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
     Array1d<std::vector<uint8_t>, (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros;
     for (size_t i = 0; i < num_nonzeros.size(); ++i) {
@@ -261,7 +261,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
                 case BlockType::Cb:
                     process_row(*model_[thread_id],
@@ -271,7 +271,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
                 case BlockType::Cr:
                     process_row(*model_[thread_id],
@@ -281,7 +281,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
             }
         } else if (block_width > 1) {
@@ -294,7 +294,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
                 case BlockType::Cb:
                     process_row(*model_[thread_id],
@@ -304,7 +304,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
                 case BlockType::Cr:
                     process_row(*model_[thread_id],
@@ -314,7 +314,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
             }
         } else {
@@ -328,7 +328,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
                 case BlockType::Cb:
                     process_row(*model_[thread_id],
@@ -338,7 +338,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                 break;
                 case BlockType::Cr:
                     process_row(*model_[thread_id],
@@ -348,16 +348,13 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             block_width,
                             colldata,
                             context,
-                            bool_encoders);
+                            bool_encoder);
                     break;
             }
         }
         
     }
-    for (int i = 0; i < SIMD_WIDTH; ++i) {
-        /* get coded output */
-        *streams[i] = bool_encoders.at(i).finish();
-    }
+    *stream = bool_encoder.finish();
 }
 
 
@@ -383,7 +380,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
         stream[i] = new std::vector<uint8_t>(); // allocate streams as pointers so threads don't modify them inline
     }
-    process_row_range(0, colldata, 0, luma_splits[0], stream);
+    process_row_range(0, colldata, 0, luma_splits[0], stream[0]);
 
 
     static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
@@ -391,7 +388,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     for (int i = 1; i < NUM_THREADS;++i) {
         process_row_range(i,
                           colldata, luma_splits[i - 1], luma_splits[i],
-                          stream + i * SIMD_WIDTH);
+                          stream[i]);
     }
 
     /* write block header */

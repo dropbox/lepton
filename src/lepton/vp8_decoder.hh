@@ -17,7 +17,7 @@ class VP8ComponentDecoder : public BaseDecoder {
         //the last 2 rows of the image for each channel
         Sirikata::Array1d<std::vector<uint8_t>, (size_t)ColorChannel::NumBlockTypes> num_nonzeros_;
         bool is_valid_range_;
-        Sirikata::Array1d<BoolDecoder, SIMD_WIDTH> bool_decoder_;
+        BoolDecoder bool_decoder_;
         template<class Left, class Middle, class Right>
         void process_row(Left & left_model,
                          Middle& middle_model,

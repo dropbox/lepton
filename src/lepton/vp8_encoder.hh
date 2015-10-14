@@ -13,12 +13,12 @@ class VP8ComponentEncoder : public BaseEncoder {
                          const UncompressedComponents * const colldata,
                          Sirikata::Array1d<KVContext,
                                            (uint32_t)ColorChannel::NumBlockTypes> &context,
-                         Sirikata::Array1d<BoolEncoder, SIMD_WIDTH> &bool_encoder);
+                         BoolEncoder &bool_encoder);
     void process_row_range(int thread_id,
                            const UncompressedComponents * const colldata,
                            int min_y,
                            int max_y,
-                           std::vector<uint8_t> *streams[SIMD_WIDTH]);
+                           std::vector<uint8_t> *stream);
     bool do_threading_ = false;
     Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers_;
 public:
