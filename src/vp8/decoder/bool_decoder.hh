@@ -4,7 +4,6 @@
 
 #include "../util/arithmetic_code.hh"
 typedef uint8_t Probability;
-#include "slice.hh"
 #include "model.hh"
 #include "../../io/Reader.hh"
 #include "JpegArithmeticCoder.hh"
@@ -13,18 +12,20 @@ typedef int8_t TreeNode;
 
 class Branch;
 class SliceReader : public Sirikata::DecoderReader {
-    Slice slice_;
+    const uint8_t *buffer_;
+    size_t size_;
 public:
-    SliceReader(const Slice &s_slice) : slice_(s_slice) {}
+    SliceReader(const uint8_t* sbuffer, size_t ssize) : buffer_(sbuffer), size_(ssize) {}
     std::pair<unsigned int, Sirikata::JpegError> Read(unsigned char *data,
                                                       unsigned int value) {
         std::pair<unsigned int, Sirikata::JpegError> retval(value, Sirikata::JpegError::nil());
-        if (slice_.size() < retval.first) {
-            retval.first = slice_.size();
+        if (size_ < retval.first) {
+            retval.first = size_;
         }
         if (retval.first) {
-            memcpy(data, slice_.buffer(), retval.first);
-            slice_ = slice_(retval.first);
+            memcpy(data, buffer_, retval.first);
+            buffer_ += retval.first;
+            size_ -= retval.first;
         } else {
             retval.second = Sirikata::JpegError::errEOF();
         }
@@ -34,7 +35,9 @@ public:
 class JpegBoolDecoder : public SliceReader {
     Sirikata::ArithmeticCoder jpeg_coder_;
 public:
-    JpegBoolDecoder(const Slice& c) : SliceReader(c), jpeg_coder_(false) {
+    JpegBoolDecoder(const uint8_t *buffer, size_t size)
+      : SliceReader(buffer, size),
+        jpeg_coder_(false) {
 
     }
     bool get( Branch & branch ) {
@@ -77,18 +80,18 @@ public:
 #ifdef JPEG_ENCODER
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public JpegBoolDecoder {public:
-    BoolDecoder(const Slice&c) : JpegBoolDecoder(c){}
+    BoolDecoder(const uint8_t *data, size_t size) : JpegBoolDecoder(data, size){}
 };
 #else
 #if VP8_ENCODER
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public VP8BoolDecoder { public:
-    BoolDecoder(const Slice&c) : VP8BoolDecoder(c){}
+    BoolDecoder(const uint8_t *data, size_t size) : VP8BoolDecoder(data, size){}
 };
 #else
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public VPXBoolReader { public:
-    BoolDecoder(const Slice&c) : VPXBoolReader(c.buffer(), c.size()){}
+    BoolDecoder(const uint8_t *data, size_t size) : VPXBoolReader(data, size){}
     BoolDecoder() {}
 };
 #endif

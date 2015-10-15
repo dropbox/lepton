@@ -38,7 +38,6 @@ lepton_SOURCES = \
    src/io/Zlib0.hh \
    src/io/Zlib0.cc \
    src/io/DecoderPlatform.hh \
-   src/vp8/util/slice.hh \
    src/vp8/util/generic_worker.hh \
    src/vp8/util/options.hh \
    src/vp8/util/generic_worker.cc \
