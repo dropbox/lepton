@@ -26,6 +26,8 @@ lepton_SOURCES = \
    src/lepton/simple_encoder.cc \
    src/lepton/vp8_encoder.hh \
    src/io/Allocator.hh \
+   src/io/MemMgrAllocator.hh \
+   src/io/MemMgrAllocator.cc \
    src/io/BufferedIO.hh \
    src/io/Compression.cc \
    src/io/Compression.hh \
@@ -165,6 +167,8 @@ test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/io/ioutil.cc \
    src/io/Zlib0.hh \
    src/io/Zlib0.cc \
+   src/io/MemMgrAllocator.cc \
+   src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
 test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
 test_invariants_LDADD = liblocalxz.a

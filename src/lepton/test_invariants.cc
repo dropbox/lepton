@@ -259,6 +259,11 @@ void testRoundtrip() {
 constexpr Sirikata::Array1d<uint8_t, 16 > karray
     = {{0,1,2,3,4,5,6,7,8,9,0xa, 0xb, 0xc, 0xd, 0xe, 0xf}};
 int main() {
+    Sirikata::memmgr_init(768 * 1024 * 1024,
+                          64 * 1024 * 1024,
+                          3,
+                          256);
+
     for (size_t i = 0; i < karray.size(); ++i) {
         assert(karray[i] == i);
     }

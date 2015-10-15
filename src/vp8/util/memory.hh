@@ -6,14 +6,22 @@
 #include <assert.h>
 #include <cstdio>
 #include <cstring>
+
+#include "../../io/DecoderPlatform.hh"
+#include "../../io/MemMgrAllocator.hh"
 inline void* custom_malloc (size_t size) {
+#if 0
     return malloc(size);
-}
-inline void* custom_realloc (void * data, size_t size) {
-    return realloc(data, size);
+#else
+    return Sirikata::memmgr_alloc(size);
+#endif
 }
 inline void custom_free(void* ptr) {
+#if 0
     free(ptr);
+#else
+    Sirikata::memmgr_free(ptr);
+#endif
 }
 
 inline void * custom_calloc(size_t size) {

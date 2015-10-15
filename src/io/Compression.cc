@@ -478,7 +478,7 @@ std::vector<uint8_t,
     retval.resize(lzma_block_buffer_bound(size));
     strm.next_out = retval.data();
     strm.avail_out = retval.size();
-    lzma_ret ret = lzma_easy_encoder(&strm, 9, LZMA_CHECK_NONE);
+    lzma_ret ret = lzma_easy_encoder(&strm, 7, LZMA_CHECK_NONE);
     if (ret != LZMA_OK) {
         assert(false && "LZMA Incorrectly installed");
         exit(1); // lzma not installed properly

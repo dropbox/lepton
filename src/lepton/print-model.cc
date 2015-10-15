@@ -8,6 +8,11 @@ using namespace std;
 
 int main( int argc, char *argv[] )
 {
+    Sirikata::memmgr_init(768 * 1024 * 1024,
+                          64 * 1024 * 1024,
+                          3,
+                          256);
+
   if ( argc <= 0 ) {
     abort();
   }

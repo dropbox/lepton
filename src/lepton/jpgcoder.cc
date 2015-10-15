@@ -319,7 +319,7 @@ int    file_no  = 0;        // number of current file
     global variables: messages
     ----------------------------------------------- */
 
-std::string errormessage = "No error specified";
+std::string errormessage;
 std::atomic<int> errorlevel(0);
 // meaning of errorlevel:
 // -1 -> wrong input
@@ -445,6 +445,10 @@ void timing_operation_complete( char operation ) {
 
 int main( int argc, char** argv )
 {
+    Sirikata::memmgr_init(768 * 1024 * 1024,
+                64 * 1024 * 1024,
+                3,
+                256);
     clock_t begin, end;
 
     int error_cnt = 0;

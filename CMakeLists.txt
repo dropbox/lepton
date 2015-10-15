@@ -179,6 +179,8 @@ add_executable(lepton
    src/vp8/decoder/boolreader.cc
    src/vp8/encoder/vpx_bool_writer.hh
    src/vp8/decoder/vpx_bool_reader.hh
+   src/io/MemMgrAllocator.cc
+   src/io/MemMgrAllocator.hh
 
                )
 SET(ADDITIONAL_FLAGS)
@@ -190,6 +192,8 @@ target_link_libraries(lepton ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
 
 add_executable(print-model
    src/lepton/print-model.cc
+   src/io/MemMgrAllocator.cc
+   src/io/MemMgrAllocator.hh
    src/vp8/util/memory.cc
    src/vp8/util/memory.hh
    src/vp8/model/model.cc
@@ -198,6 +202,8 @@ add_executable(print-model
    src/vp8/model/numeric.cc
   )
 add_executable(test_invariants
+   src/io/MemMgrAllocator.cc
+   src/io/MemMgrAllocator.hh
    src/lepton/test_invariants.cc
    src/io/Compression.cc
  )
