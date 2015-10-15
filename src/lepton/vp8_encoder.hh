@@ -20,7 +20,7 @@ class VP8ComponentEncoder : public BaseEncoder {
                            int max_y,
                            std::vector<uint8_t> *stream);
     bool do_threading_ = false;
-    Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers_;
+    Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice spin_workers_;
 public:
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                                Sirikata::DecoderWriter *);
@@ -30,7 +30,7 @@ public:
                                                     (NUM_THREADS
                                                      - 1)>::Slice workers) {
         do_threading_ = true;
-        workers_ = workers;
+        spin_workers_ = workers;
     }
     void disable_threading() {
         do_threading_ = false;

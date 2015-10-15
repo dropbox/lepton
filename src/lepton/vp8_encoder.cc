@@ -356,7 +356,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     *stream = bool_encoder.finish();
 }
 
-
+const bool dospin = true;
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                             Sirikata::
                                             DecoderWriter *str_out)
@@ -379,21 +379,31 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
         stream[i] = new std::vector<uint8_t>(); // allocate streams as pointers so threads don't modify them inline
     }
-    bool do_threading = true;
     std::thread*workers[4] = {};
-    if(!do_threading) { // single threading
-        for (int i = 1; i < NUM_THREADS;++i) {
-            process_row_range(i,
-                              colldata, luma_splits[i - 1], luma_splits[i],
-                              stream[i]);
+    if(!do_threading_) { // single threading
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            process_row_range(thread_id,
+                              colldata, luma_splits[thread_id - 1], luma_splits[thread_id],
+                              stream[thread_id]);
         }
     } else {
-        for (int i = 1; i < NUM_THREADS;++i) {
-            workers[i]
-                = new std::thread(std::bind(&VP8ComponentEncoder::process_row_range, this, i,
-                                            colldata,
-                                            luma_splits[i - 1], luma_splits[i],
-                                            stream[i]));
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            if (dospin) {
+                spin_workers_.at(thread_id - 1).work
+                    = std::bind(&VP8ComponentEncoder::process_row_range, this,
+                                thread_id,
+                                colldata,
+                                luma_splits[thread_id - 1], luma_splits[thread_id],
+                                stream[thread_id]);
+                spin_workers_.at(thread_id - 1).activate_work();
+            } else {
+                workers[thread_id]
+                    = new std::thread(std::bind(&VP8ComponentEncoder::process_row_range, this,
+                                                thread_id,
+                                                colldata,
+                                                luma_splits[thread_id - 1], luma_splits[thread_id],
+                                                stream[thread_id]));
+            }
         }
     }
     process_row_range(0, colldata, 0, luma_splits[0], stream[0]);
@@ -411,11 +421,15 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         assert((luma_splits[i] >> 16) == 0 && "We only support jpegs 65536 tall or less--which complies with the spec");
     } // the last thread is expected to cover the rest
     str_out->Write(thread_splits, sizeof(thread_splits));
-    if (do_threading) {
-        for (int i = 1; i < NUM_THREADS;++i) {
-            workers[i]->join();
-            delete workers[i];
-            workers[i] = NULL;
+    if (do_threading_) {
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            if (dospin) {
+                spin_workers_.at(thread_id - 1).main_wait_for_done();
+            } else {
+                workers[thread_id]->join();
+                delete workers[thread_id];
+                workers[thread_id] = NULL;
+            }
         }
     }
     Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
