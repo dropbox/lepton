@@ -29,13 +29,154 @@ struct Blah {
     }
 } blah;
 #endif
+
+
+enum {
+    log_delta_x_edge = LogTable256[raster_to_aligned.kat<2>() - raster_to_aligned.kat<1>()],
+    log_delta_y_edge = LogTable256[raster_to_aligned.kat<16>() - raster_to_aligned.kat<8>()]
+};
+
+template<bool has_left, bool has_above, bool has_above_right, BlockType color,
+         bool horizontal>
+void encode_one_edge(ConstBlockContext context,
+                 BoolEncoder& encoder,
+                 ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
+                 uint8_t num_nonzeros_7x7, uint8_t est_eob,
+                 ProbabilityTablesBase& pt) {
+    uint8_t num_nonzeros_edge;
+    const AlignedBlock &block = context.here();
+
+    if (horizontal) {
+        num_nonzeros_edge= (!!block.coefficients_raster(1))
+            + (!!block.coefficients_raster(2)) + (!!block.coefficients_raster(3))
+            + (!!block.coefficients_raster(4)) + (!!block.coefficients_raster(5))
+            + (!!block.coefficients_raster(6)) + (!!block.coefficients_raster(7));
+    } else {
+        num_nonzeros_edge = (!!block.coefficients_raster(1 * 8))
+            + (!!block.coefficients_raster(2 * 8)) + (!!block.coefficients_raster(3 * 8))
+            + (!!block.coefficients_raster(4*8)) + (!!block.coefficients_raster(5*8))
+            + (!!block.coefficients_raster(6*8)) + (!!block.coefficients_raster(7*8));
+    }
+
+    auto prob_edge_eob = horizontal
+        ? probability_tables.x_nonzero_counts_8x1(pt, est_eob,
+                                                  num_nonzeros_7x7)
+        : probability_tables.y_nonzero_counts_1x8(pt, est_eob,
+                                                  num_nonzeros_7x7);
+
+    uint8_t aligned_block_offset = raster_to_aligned.at(1);
+    unsigned int log_edge_step = log_delta_x_edge;
+    uint8_t delta = 1;
+    uint8_t zig15offset = 0;
+    if (!horizontal) {
+        delta = 8;
+        log_edge_step = log_delta_y_edge;
+        zig15offset = 7;
+        aligned_block_offset = raster_to_aligned.at(8);
+    }
+    int16_t serialized_so_far = 0;
+    for (int i= 2; i >=0; --i) {
+        int cur_bit = (num_nonzeros_edge & (1 << i)) ? 1 : 0;
+        encoder.put(cur_bit, prob_edge_eob.at(i, serialized_so_far));
+        serialized_so_far <<= 1;
+        serialized_so_far |= cur_bit;
+    }
+
+    unsigned int coord = delta;
+    for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
+
+        ProbabilityTablesBase::CoefficientContext prior;
+        if (ProbabilityTablesBase::MICROVECTORIZE) {
+            if (horizontal) {
+                prior = probability_tables.update_coefficient_context8_horiz(coord,
+                                                                             context,
+                                                                             num_nonzeros_edge);
+            } else {
+                prior = probability_tables.update_coefficient_context8_vert(coord,
+                                                                            context,
+                                                                            num_nonzeros_edge);
+            }
+        } else {
+            prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
+        }
+        auto exp_array = probability_tables.exponent_array_x(pt,
+                                                             coord,
+                                                             zig15offset,
+                                                             prior);
+        int16_t coef = block.raw_data()[aligned_block_offset + (lane << log_edge_step)];
+#ifdef TRACK_HISTOGRAM
+            ++histogram[2][coef];
+#endif
+        uint16_t abs_coef = abs(coef);
+        uint8_t length = bit_length(abs_coef);
+        auto * exp_branch = exp_array.begin();
+        for (unsigned int i = 0; i < length; ++i) {
+            encoder.put(1, *exp_branch++);
+        }
+        encoder.put(0, exp_array.at(length));
+        if (coef) {
+            uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
+            auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
+            encoder.put(coef >= 0, sign_prob);
+            --num_nonzeros_edge;
+            if (length > 1){
+                int i = length - 2;
+                if (i >= min_threshold) {
+                    auto thresh_prob = probability_tables.residual_thresh_array(pt,
+                                                                                coord,
+                                                                                length,
+                                                                                prior,
+                                                                                min_threshold,
+                                                                                probability_tables.get_max_value(coord));
+                    uint16_t encoded_so_far = 1;
+                    for (; i >= min_threshold; --i) {
+                        int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
+                        encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
+                        encoded_so_far <<=1;
+                        if (cur_bit) {
+                            encoded_so_far |=1;
+                        }
+                    }
+#ifdef ANNOTATION_ENABLED
+                    probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
+#endif
+                }
+                auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
+                for (; i >= 0; --i) {
+                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
+                }
+            }
+        }
+    }
+}
+
+template<bool has_left, bool has_above, bool has_above_right, BlockType color>
+void encode_edge(ConstBlockContext context,
+                 BoolEncoder& encoder,
+                 ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
+                 uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
+                 ProbabilityTablesBase::CoefficientContext input_prior,
+                 ProbabilityTablesBase& pt) {
+    encode_one_edge<has_left, has_above, has_above_right, color, true>(context,
+                                                                        encoder,
+                                                                        probability_tables,
+                                                                        num_nonzeros_7x7,
+                                                                        eob_x,
+                                                                        pt);
+    encode_one_edge<has_left, has_above, has_above_right, color, false>(context,
+                                                                        encoder,
+                                                                        probability_tables,
+                                                                        num_nonzeros_7x7,
+                                                                        eob_y,
+                                                                        pt);
+}
+
 template <bool has_left, bool has_above, bool has_above_right, BlockType color>
 void serialize_tokens(ConstBlockContext context,
                       BoolEncoder& encoder,
                       ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                       ProbabilityTablesBase &pt)
 {
-    const AlignedBlock &block = context.here();
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context);
     int serialized_so_far = 0;
     uint8_t num_nonzeros_7x7 = *context.num_nonzeros_here;
@@ -88,7 +229,7 @@ void serialize_tokens(ConstBlockContext context,
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
-    for (unsigned int zz = 0; zz < 49; ++zz) {
+    for (unsigned int zz = 0; zz < 49 && num_nonzeros_left_7x7; ++zz) {
         unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord >> 3;
@@ -129,11 +270,14 @@ void serialize_tokens(ConstBlockContext context,
                 }
             }
         }
-        if (num_nonzeros_left_7x7 ==0) {
-            break;
-        }
     }
-
+    encode_edge(context,
+                encoder,
+                probability_tables,
+                num_nonzeros_7x7, eob_x, eob_y,
+                prior,
+                pt);
+/*
     auto prob_edge_eob = probability_tables.x_nonzero_counts_8x1(pt,
                                                       eob_x,
                                                          num_nonzeros_7x7);
@@ -215,6 +359,7 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
     }
+*/
 }
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);

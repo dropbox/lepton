@@ -202,7 +202,7 @@ void parse_tokens(BlockContext context,
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
     int avg[4] __attribute__((aligned(16)));
-    for (unsigned int zz = 0; zz < 49; ++zz) {
+    for (unsigned int zz = 0; zz < 49 && num_nonzeros_left_7x7; ++zz) {
         unsigned int coord = unzigzag49[zz];
         if ((zz & 3) == 0) {
 #ifdef OPTIMIZED_7x7
@@ -254,9 +254,6 @@ void parse_tokens(BlockContext context,
             // this should work in all cases but doesn't utilize that the zz is related
             context.here().mutable_coefficients_raster(raster_to_aligned.at(coord)) = coef;
 #endif
-            if (num_nonzeros_left_7x7 == 0) {
-                break; // done with the 49x49
-            }
         }
     }
     decode_edge(context,
