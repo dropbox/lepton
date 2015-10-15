@@ -4,7 +4,7 @@
 This file contains special classes for bitwise
 reading and writing of arrays
 */
-
+#include "../../vp8/util/memory.hh"
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>

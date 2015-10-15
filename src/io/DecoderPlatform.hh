@@ -26,7 +26,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include "../vp8/util/memory.hh"
 #if defined (__linux) || defined (__APPLE__)
 #define SIRIKATA_FUNCTION_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_EXPORT __attribute__ ((visibility("default")))

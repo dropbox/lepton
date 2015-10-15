@@ -1,3 +1,4 @@
+#include "../util/memory.hh"
 #include <assert.h>
 #include <fstream>
 #include <iostream>

@@ -1,3 +1,4 @@
+#include "memory.hh"
 #include <emmintrin.h>
 #include <assert.h>
 #include <unistd.h>

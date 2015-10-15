@@ -45,10 +45,10 @@ template<class T> class JpegAllocator {
     CustomMsize *custom_msize;
     void * opaque;
     static void *malloc_wrapper(void *, size_t nmemb, size_t size) {
-        return malloc(nmemb * size);
+        return custom_malloc(nmemb * size);
     }
     static void free_wrapper(void *, void *ptr) {
-        free(ptr);
+        custom_free(ptr);
     }
 public:
     template <class U> bool operator == (const JpegAllocator<U> &other) {

@@ -1,3 +1,4 @@
+#include "../../vp8/util/memory.hh"
 #include <string.h>
 #include "Reader.hh"
 #include "ioutil.hh"

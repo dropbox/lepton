@@ -1,5 +1,5 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-
+#include "../vp8/util/memory.hh"
 #include <vector>
 
 #define STRINGIFY_HELPER(x) #x

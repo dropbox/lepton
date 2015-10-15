@@ -1,3 +1,4 @@
+#include "../../vp8/util/memory.hh"
 #include <cstdlib>
 #include <iostream>
 

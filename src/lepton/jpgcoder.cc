@@ -533,12 +533,9 @@ void initialize_options( int argc, char** argv )
 {
     char** tmp_flp;
     int tmp_val;
-    int i;
 
     // get memory for filelist & preset with NULL
-    filelist = (char**)malloc(argc * sizeof(char*));
-    for ( i = 0; i < argc; i++ )
-        filelist[ i ] = NULL;
+    filelist = (char**)calloc(argc, sizeof(char*));
 
     // preset temporary fiolelist pointer
     tmp_flp = filelist;
@@ -1040,8 +1037,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
 unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
 bool read_jpeg( void )
 {
-    unsigned char* segment = NULL; // storage for current segment
-    unsigned int   ssize = 1024; // current size of segment array
+    std::vector<unsigned char> segment(1024); // storage for current segment
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
     unsigned int   crst = 0; // current rst marker counter
@@ -1064,14 +1060,6 @@ bool read_jpeg( void )
     // start huffman writer
     huffw = new abytewriter( 0 );
     hufs  = 0; // size of image data, start with 0
-
-    // alloc memory for segment data first
-    segment = ( unsigned char* ) calloc( ssize, sizeof( unsigned char ) );
-    if ( segment == NULL ) {
-        fprintf( stderr, MEM_ERRMSG );
-        errorlevel.store(2);
-        return false;
-    }
 
     // JPEG reader loop
     while ( true ) {
@@ -1128,7 +1116,7 @@ bool read_jpeg( void )
                         }
                         if ( rst_err != NULL ) {
                             // realloc and set only if needed
-                            rst_err = ( unsigned char* ) realloc( rst_err, ( scnc + 1 ) * sizeof( unsigned char ) );
+                            rst_err = ( unsigned char* ) custom_realloc( rst_err, ( scnc + 1 ) * sizeof( unsigned char ) );
                             if ( rst_err == NULL ) {
                                 fprintf( stderr, MEM_ERRMSG );
                                 errorlevel.store(2);
@@ -1157,19 +1145,18 @@ bool read_jpeg( void )
         }
         else {
             // read in next marker
-            if ( jpg_in->read( segment, 2 ) != 2 ) break;
+            if ( jpg_in->read( segment.data(), 2 ) != 2 ) break;
             if ( segment[ 0 ] != 0xFF ) {
                 // ugly fix for incorrect marker segment sizes
                 fprintf( stderr, "size mismatch in marker segment FF %2X", type );
                 errorlevel.store(2);
                 if ( type == 0xFE ) { //  if last marker was COM try again
-                    if ( jpg_in->read( segment, 1) != 2 ) break;
+                    if ( jpg_in->read( segment.data(), 1) != 2 ) break;
                     if ( segment[ 0 ] == 0xFF ) errorlevel.store(1);
                 }
                 if ( errorlevel.load() == 2 ) {
                     delete ( hdrw );
                     delete ( huffw );
-                    free ( segment );
                     return false;
                 }
             }
@@ -1186,27 +1173,17 @@ bool read_jpeg( void )
         }
 
         // read in next segments' length and check it
-        if ( jpg_in->read( segment + 2, 2 ) != 2 ) break;
+        if ( jpg_in->read( segment.data() + 2, 2 ) != 2 ) break;
         len = 2 + B_SHORT( segment[ 2 ], segment[ 3 ] );
         if ( len < 4 ) break;
 
         // realloc segment data if needed
-        if ( ssize < len ) {
-            segment = ( unsigned char* ) realloc( segment, len );
-            if ( segment == NULL ) {
-                fprintf( stderr, MEM_ERRMSG );
-                errorlevel.store(2);
-                delete ( hdrw );
-                delete ( huffw );
-                return false;
-            }
-            ssize = len;
-        }
+        segment.resize(len);
 
         // read rest of segment, store back in header writer
-        if ( jpg_in->read( ( segment + 4 ), ( len - 4 ) ) !=
+        if ( jpg_in->read( ( segment.data() + 4 ), ( len - 4 ) ) !=
             ( unsigned short ) ( len - 4 ) ) break;
-        hdrw->write_n( segment, len );
+        hdrw->write_n( segment.data(), len );
     }
     // JPEG reader loop end
 
@@ -1234,9 +1211,9 @@ bool read_jpeg( void )
     grbgw->write( grb0 ); // should be 0xff (except if truncated)
     grbgw->write( grb1 ); // should be d9 (except if truncated)
     while( true ) {
-        len = jpg_in->read( segment, ssize );
+        len = jpg_in->read( segment.data(), segment.size() );
         if ( len == 0 ) break;
-        grbgw->write_n( segment, len );
+        grbgw->write_n( segment.data(), len );
     }
     grbgdata = grbgw->getptr_aligned();
     grbs     = grbgw->getpos();
@@ -1246,9 +1223,6 @@ bool read_jpeg( void )
         aligned_dealloc(grbgdata);
         grbgdata = NULL;
     }
-
-    // free segment
-    free( segment );
 
     // get filesize
     jpgfilesize = jpg_in->getsize();

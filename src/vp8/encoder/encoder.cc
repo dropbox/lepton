@@ -1,3 +1,4 @@
+#include "../util/memory.hh"
 #include "bool_encoder.hh"
 #include "boolwriter.hh"
 #include "jpeg_meta.hh"

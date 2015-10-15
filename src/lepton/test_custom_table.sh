@@ -1,5 +1,5 @@
 #!/bin/sh
-export INPUT_TO_TEST=../../images/iphone.jpg
+export INPUT_TO_TEST=`dirname $0`/../../images/iphone.jpg
 if [ $# -eq 0 ]; then
     echo "Using default file $INPUT_TO_TEST"
 else

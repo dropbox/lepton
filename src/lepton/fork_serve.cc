@@ -1,3 +1,4 @@
+#include "../../vp8/util/memory.hh"
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/socket.h>
