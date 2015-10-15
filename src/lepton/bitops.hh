@@ -86,15 +86,22 @@ public:
         int nbits2 = nbits;
         unsigned int val2 = val;
         assert(nbits <= 64);
-        if ( __builtin_expect(cbyte2 > ( dsize - 5 ), false) ) {
-            dsize += adds;
-            data2 = (unsigned char*) realloc(data2, dsize );
-            if ( data2 == NULL ) {
+        if ( __builtin_expect(cbyte2 > ( dsize - 16 ), false) ) {
+            if (adds < 4096 * 1024) {
+                adds <<= 1;
+            }
+            int new_size = dsize + adds;
+            unsigned char * tmp = (unsigned char*)malloc(new_size);
+            if ( tmp == NULL ) {
                 error = true;
                 exit(1);
                 return;
             }
-            memset((data2 + cbyte2 + 1 ), 0, ( dsize - ( cbyte2 + 1 ) ) * sizeof(char));
+            memset(tmp + dsize, 0, adds);
+            memcpy(tmp, data2, dsize);
+            free(data2);
+            data2 = tmp;
+            dsize = new_size;
         }
 
         // write data

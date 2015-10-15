@@ -1,5 +1,5 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-
+#include "../vp8/util/memory.hh"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -232,7 +232,7 @@ int            rstc             =    0  ;   // count of restart markers
 int            scnc             =    0  ;   // count of scans
 int            rsti             =    0  ;   // restart interval
 char           padbit           =    -1 ;   // padbit (for huffman coding)
-unsigned char* rst_err            =   NULL;   // number of wrong-set RST markers per scan
+std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
 
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
 
@@ -1104,33 +1104,13 @@ bool read_jpeg( void )
                     }
                     else { // in all other cases leave it to the header parser routines
                         // store number of falsely set rst markers
-                        if ( crst > 0 ) {
-                            if ( rst_err == NULL ) {
-                                rst_err = (unsigned char*) calloc( scnc + 1, sizeof( unsigned char ) );
-                                if ( rst_err == NULL ) {
-                                    fprintf( stderr, MEM_ERRMSG );
-                                    errorlevel.store(2);
-                                    return false;
-                                }
-                            }
+                        if((int)rst_err.size() < scnc) {
+                            rst_err.insert(rst_err.end(), scnc - rst_err.size(), 0);
                         }
-                        if ( rst_err != NULL ) {
-                            // realloc and set only if needed
-                            rst_err = ( unsigned char* ) custom_realloc( rst_err, ( scnc + 1 ) * sizeof( unsigned char ) );
-                            if ( rst_err == NULL ) {
-                                fprintf( stderr, MEM_ERRMSG );
-                                errorlevel.store(2);
-                                return false;
-                            }
-                            if ( crst > 255 ) {
-                                fprintf( stderr, "Severe false use of RST markers (%i)", crst );
-                                errorlevel.store(1);
-                                crst = 255;
-                            }
-                            rst_err[ scnc ] = crst;
-                        }
+                        rst_err.push_back(crst);
                         // end of current scan
                         scnc++;
+                        assert(rst_err.size() == (size_t)scnc && "All reset errors must be accounted for");
                         // on with the header parser routines
                         segment[ 0 ] = 0xFF;
                         segment[ 1 ] = tmp;
@@ -1399,7 +1379,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
             return STREAMING_NEED_DATA;
         }
         // insert false rst markers at end if needed
-        if ( rst_err != NULL ) {
+        if (progress.scan - 1 < rst_err.size()) {
             while ( rst_err[ progress.scan - 1 ] > 0 ) {
                 const unsigned char rst = 0xD0 + ( progress.cpos & 7 );
                 str_out->write_byte(mrk);
@@ -1527,7 +1507,7 @@ bool merge_jpeg( void )
             }
         }
         // insert false rst markers at end if needed
-        if ( rst_err != NULL ) {
+        if ( !rst_err.empty() ) {
             while ( rst_err[ scan - 1 ] > 0 ) {
                 rst = 0xD0 + ( cpos & 7 );
                 str_out->write_byte(mrk);
@@ -2377,14 +2357,14 @@ bool write_ujpg( )
     err = mrw.Write( (unsigned char*) &padbit, 1 ).second;
 
     // write number of false set RST markers per scan (if available) to file
-    if ( rst_err != NULL ) {
+    if (!rst_err.empty()) {
         // marker: "FRS" + [number of scans]
         unsigned char frs_mrk[] = {'F', 'R', 'S'};
         err = mrw.Write( frs_mrk, 3 ).second;
         uint32toLE(scnc, ujpg_mrk);
         err = mrw.Write( ujpg_mrk, 4).second;
         // data: numbers of false set markers
-        err = mrw.Write( rst_err, scnc ).second;
+        err = mrw.Write( rst_err.data(), rst_err.size() ).second;
     }
     if (early_eof_encountered) {
         unsigned char early_eof[] = {'E', 'E', 'E'};
@@ -2544,14 +2524,10 @@ bool read_ujpg( void )
             // read number of false set RST markers per scan from file
             ReadFull(&header_reader, ujpg_mrk, 4);
             scnc = LEtoUint32(ujpg_mrk);
-            rst_err = (unsigned char*) calloc( scnc, sizeof( unsigned char ) );
-            if ( rst_err == NULL ) {
-                fprintf( stderr, MEM_ERRMSG );
-                errorlevel.store(2);
-                return false;
-            }
+            
+            rst_err.insert(rst_err.end(), scnc - rst_err.size(), 0);
             // read data
-            ReadFull(&header_reader, rst_err, scnc );
+            ReadFull(&header_reader, rst_err.data(), scnc );
         }
         else if ( memcmp( ujpg_mrk, "GRB", 3 ) == 0 ) {
             // read garbage (data after end of JPG) from file
@@ -2626,13 +2602,12 @@ bool reset_buffers( void )
     if ( hdrdata  != NULL ) aligned_dealloc ( hdrdata );
     if ( huffdata != NULL ) aligned_dealloc ( huffdata );
     if ( grbgdata != NULL && grbgdata != EOI ) aligned_dealloc ( grbgdata );
-    if ( rst_err  != NULL ) free ( rst_err );
+    rst_err.clear();
     rstp.resize(0);
     scnp.resize(0);
     hdrdata   = NULL;
     huffdata  = NULL;
     grbgdata  = NULL;
-    rst_err   = NULL;
 
     // free image arrays
     colldata.reset();

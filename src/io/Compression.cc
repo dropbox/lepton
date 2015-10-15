@@ -467,6 +467,7 @@ std::vector<uint8_t,
                                                                         const JpegAllocator<uint8_t> &alloc) {
     lzma_stream strm = LZMA_STREAM_INIT;
     lzma_allocator lzmaAllocator;
+    memset(&lzmaAllocator, 0, sizeof(lzma_allocator));
     lzmaAllocator.alloc = alloc.get_custom_allocate();
     lzmaAllocator.free = alloc.get_custom_deallocate();
     lzmaAllocator.opaque = alloc.get_custom_state();
