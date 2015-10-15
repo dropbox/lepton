@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include "model.hh"
-#include "mmap.hh"
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[3][64] __attribute__ ((aligned (16))) = {{0}};
 
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16))) = {{0}};

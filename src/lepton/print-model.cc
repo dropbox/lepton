@@ -1,7 +1,6 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "mmap.hh"
 #include "model.hh"
 
 using namespace std;
@@ -36,13 +35,11 @@ int main( int argc, char *argv[] )
     cerr << "Usage: " << argv[ 0 ] << " FILENAME" << endl;
   }
 
-  MMapFile model_file { argv[ 1 ] };
   Model model_tables;
-  load_model(model_tables, model_file.slice());
+  load_model(model_tables, argv[1]);
   if (argc > 2) {
-    MMapFile orig_file { argv[ 2 ] };
     Model orig_tables;
-    load_model(orig_tables, orig_file.slice());
+    load_model(orig_tables, argv[2]);
     model_tables.debug_print(&orig_tables, spec);
   } else {
     model_tables.debug_print(nullptr, spec);

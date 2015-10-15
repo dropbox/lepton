@@ -11,8 +11,6 @@
 #include "jpgcoder.hh"
 #include "vp8_decoder.hh"
 
-#include "mmap.hh"
-
 #include "../io/SwitchableCompression.hh"
 #include "../vp8/decoder/decoder.hh"
 using namespace std;

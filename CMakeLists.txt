@@ -151,14 +151,12 @@ add_executable(lepton
    src/io/Zlib0.hh
    src/io/Zlib0.cc
    src/io/DecoderPlatform.hh
-   src/vp8/util/slice.hh
-   src/vp8/util/mmap.cc
    src/vp8/util/generic_worker.hh
    src/vp8/util/options.hh
    src/vp8/util/generic_worker.cc
-   src/vp8/util/mmap.hh
-   src/vp8/util/handle.hh
    src/vp8/util/nd_array.hh
+   src/vp8/util/aligned_block.hh
+   src/vp8/util/block_based_image.hh
    src/vp8/model/block.hh
    src/vp8/model/JpegArithmeticCoder.cc
    src/vp8/model/JpegArithmeticCoder.hh
@@ -190,8 +188,6 @@ target_link_libraries(lepton ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
 
 add_executable(print-model
    src/lepton/print-model.cc
-   src/vp8/util/mmap.cc
-   src/vp8/util/mmap.hh
    src/vp8/model/model.cc
    src/vp8/encoder/encoder.cc
    src/vp8/decoder/decoder.cc

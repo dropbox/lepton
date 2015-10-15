@@ -4,7 +4,6 @@
 #include "block.hh"
 #include "numeric.hh"
 #include "model.hh"
-#include "mmap.hh"
 #include "encoder.hh"
 #include <map>
 #include "weight.hh"
