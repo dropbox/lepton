@@ -229,7 +229,15 @@ void serialize_tokens(ConstBlockContext context,
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
+
+    int avg[4] __attribute__((aligned(16)));
     for (unsigned int zz = 0; zz < 49 && num_nonzeros_left_7x7; ++zz) {
+        if ((zz & 3) == 0) {
+#ifdef OPTIMIZED_7x7
+            probability_tables.compute_aavrg_vec(zz, context.copy(), avg);
+#endif
+        }
+
         unsigned int coord = unzigzag49[zz];
         unsigned int b_x = (coord & 7);
         unsigned int b_y = coord >> 3;
@@ -238,21 +246,28 @@ void serialize_tokens(ConstBlockContext context,
         assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
         {
             // this should work in all cases but doesn't utilize that the zz is related
-            int16_t coef = context.here().coefficients_raster(coord);
+            int16_t coef;
+#ifdef OPTIMIZED_7x7
+            coef = context.here().coef.at(zz + AlignedBlock::AC_7x7_INDEX);
+#else
+            // this should work in all cases but doesn't utilize that the zz is related
+            coef = context.here().coefficients_raster(raster_to_aligned.at(coord));
+#endif
             uint16_t abs_coef = abs(coef);
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
 #endif
-            probability_tables.update_coefficient_context7x7(coord, zz, prior, context, num_nonzeros_left_7x7);
+#ifdef OPTIMIZED_7x7
+            probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
+#else
+            probability_tables.update_coefficient_context7x7(coord, zz, prior, context.copy(), num_nonzeros_left_7x7);
+#endif
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
-            for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
-                bool cur_bit = (i != length);
-                encoder.put(cur_bit, exp_prob.at(i));
-                if (!cur_bit) {
-                    break;
-                }
+            for (unsigned int i = 0;i < length; ++i) {
+                encoder.put(1, exp_prob.at(i));
             }
+            encoder.put(0, exp_prob.at(length));
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob);
@@ -277,89 +292,6 @@ void serialize_tokens(ConstBlockContext context,
                 num_nonzeros_7x7, eob_x, eob_y,
                 prior,
                 pt);
-/*
-    auto prob_edge_eob = probability_tables.x_nonzero_counts_8x1(pt,
-                                                      eob_x,
-                                                         num_nonzeros_7x7);
-
-    uint8_t num_nonzeros_x = (!!block.coefficients_raster(1)) + (!!block.coefficients_raster(2)) + (!!block.coefficients_raster(3))
-        + (!!block.coefficients_raster(4)) + (!!block.coefficients_raster(5)) + (!!block.coefficients_raster(6)) + (!!block.coefficients_raster(7));
-    uint8_t num_nonzeros_y = (!!block.coefficients_raster(1 * 8)) + (!!block.coefficients_raster(2 * 8)) + (!!block.coefficients_raster(3 * 8))
-        + (!!block.coefficients_raster(4 * 8)) + (!!block.coefficients_raster(5 * 8)) + (!!block.coefficients_raster(6 * 8)) + (!!block.coefficients_raster(7*8));
-    uint8_t aligned_block_offset = raster_to_aligned.at(1);
-    uint8_t log_edge_step = 0;
-    for (int delta = 1; delta <= 8; delta += 7,
-             aligned_block_offset = raster_to_aligned.at(8),
-             log_edge_step = uint16log2(raster_to_aligned.at(16)-raster_to_aligned.at(8)),
-             prob_edge_eob = probability_tables.y_nonzero_counts_1x8(pt, eob_y,
-                                                                       num_nonzeros_7x7)) {
-        unsigned int coord = delta;
-        uint8_t zig15offset = delta - 1; // the loop breaks early, so we need to reset here
-        uint8_t num_nonzeros_edge = delta == 1 ? num_nonzeros_x : num_nonzeros_y;
-        {
-            uint8_t serialized_so_far = 0;
-            for (int i= 2; i >= 0; --i) {
-                int cur_bit = (num_nonzeros_edge & (1 << i)) ? 1 : 0;
-                encoder.put(cur_bit, prob_edge_eob.at(i, serialized_so_far));
-                serialized_so_far <<= 1;
-                serialized_so_far |= cur_bit;
-            }
-        }
-        for (int xx = 0;xx < 7 && num_nonzeros_edge; ++xx,coord += delta, ++zig15offset) {
-#ifdef TRACK_HISTOGRAM
-            ++histogram[2][coef];
-#endif
-
-            assert(coord != 9);
-            prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
-            auto exp_array = probability_tables.exponent_array_x(pt, coord, zig15offset, prior);
-            int16_t coef = block.raw_data()[aligned_block_offset + (xx<<log_edge_step)];
-            uint16_t abs_coef = abs(coef);
-            uint8_t length = bit_length(abs_coef);
-            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
-                bool cur_bit = (i != length);
-                encoder.put(cur_bit, exp_array.at(i));
-                if (!cur_bit) {
-                    break;
-                }
-            }
-            if (length > 0) {
-                assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
-                assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
-            }
-            if (length != 0) {
-                -- num_nonzeros_edge;
-                auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
-                encoder.put(coef >= 0, sign_prob);
-            }
-            if (length > 1) {
-                
-                uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-                int i = length - 2;
-                if (length - 2 >= min_threshold) {
-                    uint16_t encoded_so_far = 1;
-                    auto thresh_prob = probability_tables.residual_thresh_array(pt,
-                                                                                coord, length,
-                                                                                prior, min_threshold,
-                                                                                probability_tables.get_max_value(coord));
-                    for (; i >= min_threshold; --i) {
-                        int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
-                        encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
-                        encoded_so_far <<=1;
-                        if (cur_bit) {
-                            encoded_so_far |=1;
-                        }
-                    }
-                    probability_tables.residual_thresh_array_annot_update(coord, encoded_so_far >> 1);
-                }
-                auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
-                for (; i >= 0; --i) {
-                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
-                }
-            }
-        }
-    }
-*/
 }
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
