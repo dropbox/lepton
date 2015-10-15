@@ -97,15 +97,15 @@ public:
     template<class Context> bool get_next_component(const Sirikata::Array1d<Context, (size_t)ColorChannel::NumBlockTypes> &curr_y,
                             BlockType *out_component) const {
         int min_height = header_[0].info_.bcv;
-        for (int i = 1; i < cmpc_; ++i) {
+        for (int i = 1; i < cmpc_&& i < (int)ColorChannel::NumBlockTypes; ++i) {
             min_height = std::min(header_[i].info_.bcv, min_height);
         }
         int adj_y[sizeof(header_)/sizeof(header_[0])];
-        for (int i = 0; i < cmpc_; ++i) {
+        for (int i = 0; i < cmpc_ && i < (int)ColorChannel::NumBlockTypes; ++i) {
             adj_y[i] = (uint32_t)(((uint64_t)curr_y[i].y * (uint64_t)min_height)/(uint64_t)header_[i].info_.bcv);
         }
         int best_selection = 0;
-        for (int i = 0; i < cmpc_; ++i) {
+        for (int i = 0; i < cmpc_&& i < (int)ColorChannel::NumBlockTypes; ++i) {
             if (adj_y[best_selection] > adj_y[i] && curr_y[i].y < header_[i].trunc_bcv_) {
                 best_selection = i;
             }
@@ -161,6 +161,12 @@ public:
         }
     }
     void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc) {
+        if (cmpc > (int)ColorChannel::NumBlockTypes) {
+            cmpc = (int)ColorChannel::NumBlockTypes;
+            //abort here: we probably can't support this kind of image
+            assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
+            exit(2);
+        }
         cmpc_ = cmpc;
         allocated_ = 0;
         for (int cmp = 0; cmp < cmpc; cmp++) {
