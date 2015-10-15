@@ -32,6 +32,7 @@
 
 #ifndef _SIRIKATA_ARRAY_ND_HPP_
 #define _SIRIKATA_ARRAY_ND_HPP_
+#include <assert.h>
 #include <cstddef>
 #include <cstring>
 #if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
