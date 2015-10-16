@@ -91,7 +91,7 @@ public:
                 adds <<= 1;
             }
             int new_size = dsize + adds;
-            unsigned char * tmp = (unsigned char*)malloc(new_size);
+            unsigned char * tmp = (unsigned char*)custom_malloc(new_size);
             if ( tmp == NULL ) {
                 error = true;
                 exit(1);
@@ -99,7 +99,7 @@ public:
             }
             memset(tmp + dsize, 0, adds);
             memcpy(tmp, data2, dsize);
-            free(data2);
+            custom_free(data2);
             data2 = tmp;
             dsize = new_size;
         }

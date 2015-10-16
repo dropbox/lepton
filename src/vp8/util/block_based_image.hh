@@ -1,5 +1,6 @@
 #ifndef _BLOCK_BASED_IMAGE_HH_
 #define _BLOCK_BASED_IMAGE_HH_
+#include "memory.hh"
 #include "aligned_block.hh"
 #include "block_context.hh"
 
@@ -23,7 +24,7 @@ public:
         assert(nblocks <= width * height);
         width_ = width;
         nblocks_ = nblocks;
-        storage_ = (uint8_t*)calloc(nblocks * sizeof(Block) + 15, 1);
+        storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 15);
         size_t offset = storage_ - (uint8_t*)nullptr;
         if (offset & 15) { //needs alignment adjustment
             image_ = (Block*)(storage_ + 16 - offset);

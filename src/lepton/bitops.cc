@@ -109,7 +109,7 @@ abitwriter::abitwriter( int size )
 	fmem  = true;
 	
 	dsize = ( size > 0 ) ? size : adds;
-    data2 = ( unsigned char* ) calloc ( dsize , 1);
+    data2 = ( unsigned char* ) custom_calloc (dsize);
 	if ( data2 == NULL ) {
 		error = true;
         exit(1);
@@ -133,10 +133,10 @@ abitwriter::~abitwriter( void )
 void aligned_dealloc(unsigned char *data) {
     if (!data) return;
     data -= data[-1];
-    free(data);
+    custom_free(data);
 }
 unsigned char *aligned_alloc(size_t dsize) {
-    unsigned char*data = (unsigned char*) malloc( dsize + 16);
+    unsigned char*data = (unsigned char*) custom_malloc( dsize + 16);
     if (data) {
         size_t rem = (size_t)(data - 0) & 0xf;
         if (rem) {

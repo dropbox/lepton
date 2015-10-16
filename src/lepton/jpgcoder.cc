@@ -539,7 +539,7 @@ void initialize_options( int argc, char** argv )
     int tmp_val;
 
     // get memory for filelist & preset with NULL
-    filelist = (char**)calloc(argc, sizeof(char*));
+    filelist = (char**)custom_calloc(argc * sizeof(char*));
 
     // preset temporary fiolelist pointer
     tmp_flp = filelist;
@@ -3062,7 +3062,7 @@ bool rebuild_header_jpg( void )
     }
 
     // replace current header with the new one
-    free( hdrdata );
+    custom_free( hdrdata );
     hdrdata = hdrw->getptr_aligned();
     hdrs    = hdrw->getpos();
     delete( hdrw );
