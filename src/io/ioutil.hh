@@ -1,3 +1,6 @@
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 namespace Sirikata {
 class DecoderReader;
 class DecoderWriter;
@@ -21,49 +24,59 @@ inline Sirikata::uint32 ReadFull(Sirikata::DecoderReader * reader, void * vdata,
 
 
 class FileReader : public Sirikata::DecoderReader {
-    FILE * fp;
+    int fp;
 public:
-    FileReader(FILE * ff) {
+    FileReader(int ff) {
         fp = ff;
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Read(Sirikata::uint8*data, unsigned int size) {
         using namespace Sirikata;
-        signed long nread = fread(data, 1, size, fp);
-        //fprintf(stderr, "%d READ %02x%02x%02x%02x - %02x%02x%02x%02x\n", (int)nread, data[0], data[1],data[2], data[3],
-        //        data[nread-4],data[nread-3],data[nread-2],data[nread-1]);
-        if (nread <= 0) {
-            return std::pair<Sirikata::uint32, JpegError>(0, MakeJpegError("Short read"));
-        }
-        return std::pair<Sirikata::uint32, JpegError>(nread, JpegError::nil());
+        do {
+            signed long nread = read(fp, data, size);
+            if (nread <= 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                return std::pair<Sirikata::uint32, JpegError>(0, MakeJpegError("Short read"));
+            }
+            return std::pair<Sirikata::uint32, JpegError>(nread, JpegError::nil());
+        } while(true); // while not EINTR
     }
     size_t length() {
-        size_t where = ftell(fp);
-        fseek(fp, 0, SEEK_END);
-        size_t retval = ftell(fp);
-        fseek(fp, where, SEEK_SET);
+        size_t where = lseek(fp, 0, SEEK_CUR);
+        lseek(fp, 0, SEEK_END);
+        size_t retval = lseek(fp, 0, SEEK_CUR);
+        lseek(fp, where, SEEK_SET);
         return retval;
     }
 };
 class FileWriter : public Sirikata::DecoderWriter {
-    FILE * fp;
+    int fp;
 public:
-    FileWriter(FILE * ff) {
+    FileWriter(int ff) {
         fp = ff;
     }
     void Close() {
-        fclose(fp);
-        fp = NULL;
+        close(fp);
+        fp = -1;
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Write(const Sirikata::uint8*data, unsigned int size) {
         using namespace Sirikata;
-        signed long nwritten = fwrite(data, size, 1, fp);
-        if (nwritten == 0) {
-            return std::pair<Sirikata::uint32, JpegError>(0, JpegError::errShortHuffmanData());
+        size_t data_written = 0;
+        while (data_written < size) {
+            signed long nwritten = write(fp, data + data_written, size - data_written);
+            if (nwritten <= 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                return std::pair<Sirikata::uint32, JpegError>(data_written, JpegError::errShortHuffmanData());
+            }
+            data_written += nwritten;
         }
         return std::pair<Sirikata::uint32, JpegError>(size, JpegError::nil());
     }
     size_t getsize() {
-        return ftell(fp);
+        return lseek(fp, 0, SEEK_CUR);
     }
 };
 

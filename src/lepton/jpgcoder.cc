@@ -1191,7 +1191,6 @@ bool read_jpeg( void )
     grbgw = new abytewriter( 1024 );
     unsigned char grb0 = jpg_in->get_penultimate_read();
     unsigned char grb1 = jpg_in->get_last_read();
-    fprintf(stderr, "Extracting trailer %02x %02x\n", grb0, grb1);
     grbgw->write( grb0 ); // should be 0xff (except if truncated)
     grbgw->write( grb1 ); // should be d9 (except if truncated)
     while( true ) {

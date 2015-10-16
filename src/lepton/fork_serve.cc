@@ -91,8 +91,14 @@ void fork_serve() {
         if (fflush(stdout) != 0) {
             perror("sync");
         }
-        FILE * reader_pipe = fopen(cur_pipes[0], "rb");
-        FILE * writer_pipe = fopen(cur_pipes[1], "wb");
+        int reader_pipe = -1;
+        do {
+            reader_pipe = open(cur_pipes[0], O_RDONLY);
+        } while(reader_pipe < 0 && errno == EINTR);
+        int writer_pipe = -1;
+        do {
+            writer_pipe = open(cur_pipes[1], O_WRONLY);
+        } while(writer_pipe < 0 && errno == EINTR);
         unlink(cur_pipes[0]);
         unlink(cur_pipes[1]);
         pid_t serve_file = fork();
@@ -105,8 +111,13 @@ void fork_serve() {
             process_file(&reader, &writer);
             exit(0);
         } else {
-            fclose(reader_pipe);
-            fclose(writer_pipe);
+            int err = -1;
+            do {
+                err = close(reader_pipe);
+            } while (err < 0 && errno == EINTR);
+            do {
+                err = close(writer_pipe);
+            } while (err < 0 && errno == EINTR);
         }
         {
             int status;
