@@ -3,7 +3,15 @@
 #include <assert.h>
 #include <unistd.h>
 #include <errno.h>
+#ifdef __linux
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+
+#endif
 #include "generic_worker.hh"
+
+
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
     work_done_++;
@@ -14,11 +22,25 @@ void GenericWorker::_generic_respond_to_main(uint8_t arg) {
 }
 
 void GenericWorker::wait_for_work() {
-    //SETUP SECCOMP
+#ifdef __linux
+    if (g_use_seccomp) {
+        if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
+            syscall(SYS_exit, 1); // SECCOMP not allowed
+        }
+    }
+#endif
     _generic_respond_to_main(0); // startup
     char data = 0;
     if (use_pipes) {
-        while (read(new_work_pipe[0], &data, 1) < 0 && errno == EINTR) {
+        int err = 0;
+        while ((err = read(new_work_pipe[0], &data, 1)) < 0 && errno == EINTR) {
+        }
+        if (err <= 0) {
+#ifdef __linux            
+            custom_exit(0); // no more data on this pipe
+#else
+            return;
+#endif
         }
     }
     while(!new_work_exists_.load(std::memory_order_relaxed)) {
@@ -30,6 +52,9 @@ void GenericWorker::wait_for_work() {
         assert(false);// invariant violated
     }
     _generic_respond_to_main(1);
+#ifdef __linux
+    custom_exit(0); // cleanly exit the thread with an allowed syscall
+#endif
 }
 
 bool GenericWorker::is_done() {
@@ -68,7 +93,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
             while (write(2, err, strlen(err)) <0 && errno == EINTR) {
 
             }
-            exit(5); //protocol error;
+            custom_exit(5); //protocol error;
         }
     }
     

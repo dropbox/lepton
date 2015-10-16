@@ -204,6 +204,7 @@ add_executable(print-model
 add_executable(test_invariants
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
+   src/vp8/util/memory.cc
    src/lepton/test_invariants.cc
    src/io/Compression.cc
  )

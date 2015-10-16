@@ -3,7 +3,6 @@
 #include <thread>
 #include "nd_array.hh"
 #include "options.hh"
-
 struct GenericWorker {
     bool child_begun;
     std::atomic<int> new_work_exists_;
@@ -26,6 +25,9 @@ struct GenericWorker {
     bool is_done();
     void main_wait_for_done();
     void wait_for_work();
+    bool has_ever_queued_work() {
+        return new_work_exists_.load() != 0;
+    }
 private:
     std::thread child_; // this must come after other members, so items are initialized first
     void _wait_for_child_to_begin();

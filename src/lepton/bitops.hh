@@ -94,7 +94,7 @@ public:
             unsigned char * tmp = (unsigned char*)custom_malloc(new_size);
             if ( tmp == NULL ) {
                 error = true;
-                exit(1);
+                custom_exit(1);
                 return;
             }
             memset(tmp + dsize, 0, adds);

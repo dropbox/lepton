@@ -25,9 +25,11 @@ inline Sirikata::uint32 ReadFull(Sirikata::DecoderReader * reader, void * vdata,
 
 class FileReader : public Sirikata::DecoderReader {
     int fp;
+    unsigned int total_read;
 public:
     FileReader(int ff) {
         fp = ff;
+        total_read = 0;
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Read(Sirikata::uint8*data, unsigned int size) {
         using namespace Sirikata;
@@ -39,25 +41,31 @@ public:
                 }
                 return std::pair<Sirikata::uint32, JpegError>(0, MakeJpegError("Short read"));
             }
+            total_read += nread;
             return std::pair<Sirikata::uint32, JpegError>(nread, JpegError::nil());
         } while(true); // while not EINTR
     }
     size_t length() {
-        size_t where = lseek(fp, 0, SEEK_CUR);
-        lseek(fp, 0, SEEK_END);
-        size_t retval = lseek(fp, 0, SEEK_CUR);
-        lseek(fp, where, SEEK_SET);
-        return retval;
+        return total_read;
+    }
+    size_t getsize() {
+        return total_read;
     }
 };
 class FileWriter : public Sirikata::DecoderWriter {
     int fp;
+    int total_written;
+    bool close_stream;
 public:
-    FileWriter(int ff) {
+    FileWriter(int ff, bool do_close_stream) {
         fp = ff;
+        total_written = 0;
+        close_stream = do_close_stream;
     }
     void Close() {
-        close(fp);
+        if (close_stream) {
+            close(fp); // not always useful (eg during SECCOMP)
+        }
         fp = -1;
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Write(const Sirikata::uint8*data, unsigned int size) {
@@ -73,10 +81,11 @@ public:
             }
             data_written += nwritten;
         }
+        total_written += size;
         return std::pair<Sirikata::uint32, JpegError>(size, JpegError::nil());
     }
     size_t getsize() {
-        return lseek(fp, 0, SEEK_CUR);
+        return total_written;
     }
 };
 

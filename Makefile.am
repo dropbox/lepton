@@ -156,6 +156,7 @@ DEFAULT_INCLUDES=-I$(srcdir)/src
 libtestdriver_a_SOURCES = src/lepton/test_driver.cc
 
 test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
+   src/vp8/util/memory.cc \
    src/io/BufferedIO.hh \
    src/io/Compression.cc \
    src/io/Compression.hh \

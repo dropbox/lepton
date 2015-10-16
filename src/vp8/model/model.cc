@@ -1,5 +1,6 @@
 #include "../util/memory.hh"
 #include <assert.h>
+#include <unistd.h>
 #include <fstream>
 #include <iostream>
 
@@ -186,9 +187,10 @@ void normalize_model(Model& model) {
 void ProbabilityTablesBase::load_probability_tables()
 {
     const char * model_name = getenv( "LEPTON_COMPRESSION_MODEL" );
-    if ( not model_name ) {
-        std::cerr << "Using default (bad!) probability tables!" << std::endl;
-    } else {
+    if (model_name) {
+        const char * msg = "Using good probability tables!\n";
+        while(write(2, msg, strlen(msg))< 0 && errno == EINTR) {
+        }
         ProbabilityTables<false, false, false, BlockType::Y> model_tables(BlockType::Y);
         model_tables.load(*this, model_name);
         model_tables.normalize(*this);

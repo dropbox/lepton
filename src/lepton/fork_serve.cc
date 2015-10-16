@@ -22,7 +22,7 @@ char hex_nibble(uint8_t val) {
 }
 
 void always_assert(bool expr) {
-    if (!expr) exit(1);
+    if (!expr) custom_exit(1);
 }
 
 const char last_prefix[] = "/tmp/";
@@ -62,7 +62,7 @@ void exit_on_stdin(pid_t child) {
     sleep(1); // 1 second to clean up its temp pipes
     kill(child, SIGKILL);
     fclose(stderr);
-    exit(0);
+    custom_exit(0);
 }
 
 void cleanup_pipes(int) {
@@ -107,9 +107,9 @@ void fork_serve() {
             }
             // leave stderr open for complaints
             IOUtil::FileReader reader(reader_pipe);
-            IOUtil::FileWriter writer(writer_pipe);
+            IOUtil::FileWriter writer(writer_pipe, false);
             process_file(&reader, &writer);
-            exit(0);
+            custom_exit(0);
         } else {
             int err = -1;
             do {

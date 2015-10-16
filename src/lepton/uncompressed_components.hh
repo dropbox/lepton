@@ -165,7 +165,7 @@ public:
             cmpc = (int)ColorChannel::NumBlockTypes;
             //abort here: we probably can't support this kind of image
             assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
-            exit(2);
+            custom_exit(2);
         }
         cmpc_ = cmpc;
         allocated_ = 0;
@@ -209,7 +209,7 @@ public:
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
-                exit(EXIT_CODE_CODING_ERROR);
+                custom_exit(EXIT_CODE_CODING_ERROR);
             }
             fprintf(stderr, "Waiting for bit %d > %d\n", bit, bit_progress_ += 0);
         }
@@ -224,7 +224,7 @@ public:
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
-                exit(EXIT_CODE_CODING_ERROR);
+                custom_exit(EXIT_CODE_CODING_ERROR);
             }
             fprintf(stderr, "Waiting for coefficient_position %d > %d\n", bpos, coefficient_position_progress_ += 0);
         }
@@ -240,7 +240,7 @@ public:
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
-                exit(EXIT_CODE_CODING_ERROR);
+                custom_exit(EXIT_CODE_CODING_ERROR);
             }
         }
         if (!have_data) {

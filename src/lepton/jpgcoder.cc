@@ -16,6 +16,12 @@
 #else
     #include <io.h>
 #endif
+#ifdef __linux
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+
+#endif
 #include "emmintrin.h"
 #include "bitops.hh"
 #include "htables.hh"
@@ -311,6 +317,7 @@ bounded_iostream* str_out = NULL;    // output stream
 // output stream
 Sirikata::DecoderWriter* ujg_out = NULL;
 IOUtil::FileWriter * ujg_base = NULL;
+IOUtil::FileReader * ujg_base_in = NULL;
 
 char** filelist = NULL;        // list of files to process
 int    file_cnt = 0;        // count of files in list (1 for input only)
@@ -370,6 +377,9 @@ struct timeval current_operation_end = {0, 0};
 #endif
 
 void timing_operation_start( char operation ) {
+    if (g_use_seccomp) {
+        return;
+    }
     current_operation = operation;
 #ifdef _WIN32
     current_operation_begin = clock();
@@ -385,6 +395,9 @@ void timing_operation_start( char operation ) {
 }
 
 void timing_operation_first_byte( char operation ) {
+    if (g_use_seccomp) {
+        return;
+    }
     assert(current_operation == operation);
 #ifdef _WIN32
     if (current_operation_first_byte == 0) {
@@ -403,6 +416,9 @@ void timing_operation_first_byte( char operation ) {
 }
 
 void timing_operation_complete( char operation ) {
+    if (g_use_seccomp) {
+        return;
+    }
     assert(current_operation == operation);
 #ifdef _WIN32
     current_operation_end = clock();
@@ -450,7 +466,7 @@ int main( int argc, char** argv )
                 64 * 1024 * 1024,
                 3,
                 256);
-    clock_t begin, end;
+    clock_t begin = 0, end = 1;
 
     int error_cnt = 0;
     int warn_cnt  = 0;
@@ -495,6 +511,7 @@ int main( int argc, char** argv )
     begin = clock();
     assert(file_cnt <= 2);
     if (action == forkserve) {
+        g_use_seccomp = true; // do not allow forked mode without security in place
         fork_serve();
     } else {
         process_file(nullptr, nullptr);
@@ -505,7 +522,9 @@ int main( int argc, char** argv )
         acc_jpgsize += jpgfilesize;
         acc_ujgsize += ujgfilesize;
     }
-    end = clock();
+    if (!g_use_seccomp) {
+        end = clock();
+    }
 
     // show statistics
     fprintf( msgout,  "\n\n-> %i file(s) processed, %i error(s), %i warning(s)\n",
@@ -571,6 +590,9 @@ void initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
         }
+        else if ( strcmp((*argv), "-unjailed" ) == 0)  {
+            g_use_seccomp = false;
+        }
         else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
             g_threaded = true;
         }
@@ -627,10 +649,27 @@ void initialize_options( int argc, char** argv )
 /* -----------------------------------------------
     processes one file
     ----------------------------------------------- */
-
+static void gen_nop(){}
+void kill_workers(void * workers) {
+    Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = 
+        (Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *) workers;
+    bool delete_workers = !g_use_seccomp;
+    if (generic_workers) {
+        for (size_t i = 0; i < generic_workers->size(); ++i){
+            if (!generic_workers->at(i).has_ever_queued_work()){
+                generic_workers->at(i).work = &gen_nop;
+                generic_workers->at(i).activate_work();
+                generic_workers->at(i).main_wait_for_done();
+            }
+        }
+        if (delete_workers) { // may not want to delete workers if under SECCOMP
+            delete [] generic_workers;
+        }
+    }
+}
 void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writer)
 {
-    clock_t begin, end;
+    clock_t begin = 0, end = 1;
     const char* actionmsg  = NULL;
     const char* errtypemsg = NULL;
     int speed, bpms;
@@ -640,8 +679,9 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     if (g_threaded) {
         generic_workers = new Sirikata::Array1d<GenericWorker,
                                                 NUM_THREADS - 1>;
+        custom_atexit(kill_workers, generic_workers);
     }
-    
+    // main function routine
     errorlevel.store(0);
     jpgfilesize = 0;
     ujgfilesize = 0;
@@ -649,18 +689,23 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     if (!reader) {
         // compare file name, set pipe if needed
         if ( ( strcmp( filelist[ file_no ], "-" ) == 0 ) && ( action == comp ) ) {
-            reader = IOUtil::OpenFileOrPipe("STDIN", 2, 0, 1 ),
+            reader = ujg_base_in = IOUtil::OpenFileOrPipe("STDIN", 2, 0, 1 ),
             pipe_on = true;
         }
         else {
             pipe_on = false;
         }
-
-        fprintf( msgout,  "\nProcessing file %i of %i \"%s\" -> ",
-                 file_no + 1, file_cnt, filelist[ file_no ] );
     }
     // check input file and determine filetype
     check_file(reader, writer);
+    begin = clock();
+#ifdef __linux
+    if (g_use_seccomp) {
+        if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
+            custom_exit(36); // SECCOMP not allowed
+        }        
+    }
+#endif    
 
     // get specific action message
     if ( filetype == UNK ) {
@@ -668,16 +713,16 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     } else if (action == info) {
         actionmsg = "Parsing";
     } else if ( filetype == JPEG ) {
-        actionmsg = "Expanding";
+        actionmsg = "Writing to LEPTON\n";
     } else {
-        actionmsg = "Compressing";
+        actionmsg = "Decompressing to JPEG\n";
     }
 
-    if ( verbosity < 2 ) fprintf( msgout, "%s -> ", actionmsg );
+    if ( verbosity < 2 ) {
+        while (write(2, actionmsg , strlen(actionmsg)) < 0 && errno == EINTR) {}
+    }
 
 
-    // main function routine
-    begin = clock();
 
     if ( filetype == JPEG )
     {
@@ -732,10 +777,14 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
         {
             case comp:
             case forkserve:
-                overall_start = clock();
+                if (!g_use_seccomp) {
+                    overall_start = clock();
+                }
                 timing_operation_start( 'd' );
                 execute( read_ujpg ); // replace with decompression function!
-                read_done = clock();
+                if (!g_use_seccomp) {
+                    read_done = clock();
+                }
                 execute( recode_jpeg );
                 if (!do_streaming) {
                     execute( merge_jpeg );
@@ -758,22 +807,38 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp && action != forkserve) ) ) {
         // FIXME: can't delete broken output--it's gone already
     }
-    end = clock();
-
+    if (!g_use_seccomp) {
+        end = clock();
+    }
 
     // speed and compression ratio calculation
     speed = (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC );
     bpms  = ( speed > 0 ) ? ( jpgfilesize / speed ) : jpgfilesize;
     cr    = ( jpgfilesize > 0 ) ? ( 100.0 * ujgfilesize / jpgfilesize ) : 0;
 
-
     switch ( verbosity )
     {
         case 0:
           if ( errorlevel.load() < err_tresh ) {
-                if ( action == comp )
-                    fprintf( msgout,  "%.2f%%", cr );
-                else fprintf( msgout,  "DONE" );
+                if (action == comp ) {
+                    fprintf(stderr, "%d %d\n",(int)ujgfilesize, (int)jpgfilesize);
+                    char percentage_report[]=" XX.XX%\n";
+                    double pct = cr + .005;
+                    percentage_report[0] = '0' + (int)(pct / 100) % 10;
+                    percentage_report[1] = '0' + (int)(pct / 10) % 10;
+                    percentage_report[2] = '0' + (int)(pct) % 10;
+                    percentage_report[4] = '0' + (int)(pct * 10) % 10;
+                    percentage_report[5] = '0' + (int)(pct * 100) % 10;
+                    char * output = percentage_report;
+                    if (cr < 100) {
+                        ++output;
+                    }
+                    while (write(2, output, strlen(output)) < 0 && errno == EINTR) {
+                    }
+                }
+                else {
+                    fprintf( msgout,  "DONE" );
+                }
             }
             else fprintf( msgout,  "ERROR" );
           if ( errorlevel.load() > 0 )
@@ -826,10 +891,10 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
 
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
-    exit(errorlevel.load());
-    if (generic_workers) {
-        delete generic_workers;
-    }
+    custom_exit(errorlevel.load()); // custom exit will delete generic_workers
+    //if (generic_workers) {
+    //    delete generic_workers;
+    //}
     // reset buffers
     reset_buffers();
 }
@@ -841,7 +906,7 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
 
 void execute( bool (*function)() )
 {
-    clock_t begin, end;
+    clock_t begin = 0, end = 0;
     bool success;
 
 
@@ -852,19 +917,29 @@ void execute( bool (*function)() )
         //function();
         // write statusmessage
         // set starttime
-        begin = clock();
+        if (!g_use_seccomp) {
+            begin = clock();
+        }
         // call function
         success = ( *function )();
         // set endtime
-        end = clock();
+        if (!g_use_seccomp) {
+            end = clock();
+        }
 
         // write statusmessage
         if ( success ) {
-            if ( verbosity == 2 ) fprintf( msgout,  "%6ims",
-                (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC ) );
+            if (verbosity == 2 && !g_use_seccomp) {
+                fprintf( msgout,  "%6ims",
+                         (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC ) );
+            }
         }
         else {
-            if ( verbosity == 2 ) fprintf( msgout,  "%8s", "ERROR" );
+            if ( verbosity == 2 ) {
+                while(write(2, "ERROR\n", strlen("ERROR\n")) < 0 && errno == EINTR) {
+
+                }
+            }
         }
     }
 }
@@ -937,7 +1012,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
     if (!reader) {
         assert(!pipe_on); // we should have filled the pipe here
         ifilename = filelist[ file_no++ ];
-        reader = IOUtil::OpenFileOrPipe(ifilename.c_str(), 0, 0, 0);
+        reader = ujg_base_in = IOUtil::OpenFileOrPipe(ifilename.c_str(), 0, 0, 0);
     } else {
         pipe_on = true;
     }
@@ -947,7 +1022,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
         while (write(2, errormessage, strlen(errormessage)) < 0 && errno == EINTR) {
 
         }
-        exit(1);
+        custom_exit(1);
     }
     // open input stream, check for errors
     str_in = reader;
@@ -987,7 +1062,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
                 while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {
 
                 }
-                exit(1);
+                custom_exit(1);
             }
         }
         ujg_out = writer;
@@ -1285,7 +1360,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
             }
             // write header data to file
             str_out->write( hdrdata + tmp, ( progress.hpos - tmp ) );
-            if (post_byte == 0) {
+            if ((!g_use_seccomp) && post_byte == 0) {
                 post_byte = clock();
             }
 
@@ -1422,10 +1497,18 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         return STREAMING_ERROR;
     }
     // get filesize
+
     jpgfilesize = str_out->getsize();
-    clock_t final = clock();
-    struct timeval fin = {0,0};
-    gettimeofday(&fin,NULL);
+    // get filesize
+    if (ujg_base_in) {
+        ujgfilesize = ujg_base_in->getsize();
+    } else {
+        ujgfilesize = 4096 * 1024;
+    }
+    if (!g_use_seccomp) {
+        clock_t final = clock();
+        struct timeval fin = {0,0};
+        gettimeofday(&fin,NULL);
         double begin = current_operation_begin.tv_sec + (double)current_operation_begin.tv_usec / 1000000.;
         double end = fin.tv_sec + (double)fin.tv_usec / 1000000.;
         double first_byte = current_operation_first_byte.tv_sec + (double)current_operation_first_byte.tv_usec / 1000000.;
@@ -1435,20 +1518,21 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
             begin_to_first_byte = first_byte - begin;
         }
 
-    fprintf(stderr, "TIMING (new method): %f to first byte %f total\n",
-            begin_to_first_byte,
-            begin_to_end);
-    (void)final;
+        fprintf(stderr, "TIMING (new method): %f to first byte %f total\n",
+                begin_to_first_byte,
+                begin_to_end);
+        (void)final;
 /*
-    fprintf(stderr, "TIMING (recode): %f to first byte %f total\n",
-            (double)(post_byte - pre_byte)/(double)CLOCKS_PER_SEC,
-            (final - pre_byte)/(double)CLOCKS_PER_SEC);
-    fprintf(stderr, "TIMING(overall): %f to first byte %f total\n",
-            (post_byte - overall_start)/(double)CLOCKS_PER_SEC,
-            (final - overall_start)/(double)CLOCKS_PER_SEC);
+        fprintf(stderr, "TIMING (recode): %f to first byte %f total\n",
+                (double)(post_byte - pre_byte)/(double)CLOCKS_PER_SEC,
+                (final - pre_byte)/(double)CLOCKS_PER_SEC);
+        fprintf(stderr, "TIMING(overall): %f to first byte %f total\n",
+                (post_byte - overall_start)/(double)CLOCKS_PER_SEC,
+                (final - overall_start)/(double)CLOCKS_PER_SEC);
 */
-    fprintf(stderr, "Read took: %f\n",
-            (read_done - overall_start)/(double)CLOCKS_PER_SEC);
+        fprintf(stderr, "Read took: %f\n",
+                (read_done - overall_start)/(double)CLOCKS_PER_SEC);
+    }
 
     return STREAMING_SUCCESS;
 
@@ -1924,7 +2008,9 @@ bool decode_jpeg( void )
 
 bool recode_jpeg( void )
 {
-    pre_byte = clock();
+    if (!g_use_seccomp) {
+        pre_byte = clock();
+    }
     abitwriter*  huffw; // bitwise writer for image data
     abytewriter* storw; // bytewise writer for storage of correction bits
 
@@ -2593,9 +2679,6 @@ bool read_ujpg( void )
     g_decoder->initialize(str_in);
     colldata.start_decoder_worker_thread(g_decoder.get());
 
-    // get filesize
-    ujgfilesize = 4096 * 1024;// FIXME str_in->getsize();
-    fprintf(stderr, "Do not have access to ujg size in file reader\n");
 
     return true;
 }

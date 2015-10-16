@@ -6,9 +6,12 @@
 #include <assert.h>
 #include <cstdio>
 #include <cstring>
-
 #include "../../io/DecoderPlatform.hh"
 #include "../../io/MemMgrAllocator.hh"
+extern bool g_use_seccomp;
+void custom_exit(uint8_t exit_code);
+void custom_atexit(void (*atexit)(void*) , void *arg);
+
 inline void* custom_malloc (size_t size) {
 #if 0
     return malloc(size);
