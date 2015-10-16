@@ -36,11 +36,8 @@ void GenericWorker::wait_for_work() {
         while ((err = read(new_work_pipe[0], &data, 1)) < 0 && errno == EINTR) {
         }
         if (err <= 0) {
-#ifdef __linux            
-            custom_exit(0); // no more data on this pipe
-#else
+            custom_terminate_this_thread(0);
             return;
-#endif
         }
     }
     while(!new_work_exists_.load(std::memory_order_relaxed)) {
@@ -52,9 +49,7 @@ void GenericWorker::wait_for_work() {
         assert(false);// invariant violated
     }
     _generic_respond_to_main(1);
-#ifdef __linux
-    custom_exit(0); // cleanly exit the thread with an allowed syscall
-#endif
+    custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }
 
 bool GenericWorker::is_done() {

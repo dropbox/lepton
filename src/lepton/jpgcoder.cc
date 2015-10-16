@@ -892,9 +892,6 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
     custom_exit(errorlevel.load()); // custom exit will delete generic_workers
-    //if (generic_workers) {
-    //    delete generic_workers;
-    //}
     // reset buffers
     reset_buffers();
 }

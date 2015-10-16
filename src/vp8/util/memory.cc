@@ -39,7 +39,15 @@ void custom_atexit(void (*atexit)(void*) , void *arg) {
     atexit_f = atexit;
     atexit_arg = arg;
 }
+void custom_terminate_this_thread(uint8_t exit_code) {
+#ifdef __linux
+    syscall(SYS_exit, exit_code);
+#endif
+}
 void custom_exit(uint8_t exit_code) {
+    if (!g_use_seccomp) {
+        exit(exit_code); // does an exit_group syscall, no need to run atexit_f
+    }
     if (atexit_f) {
         (*atexit_f)(atexit_arg);
         atexit_f = nullptr;
@@ -47,6 +55,6 @@ void custom_exit(uint8_t exit_code) {
 #ifdef __linux
     syscall(SYS_exit, exit_code);
 #else
-    _exit(exit_code);
+    exit(exit_code);
 #endif
 }
