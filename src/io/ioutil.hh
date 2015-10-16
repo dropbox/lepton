@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 namespace Sirikata {

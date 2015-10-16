@@ -3,11 +3,17 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #endif
-#if __cplusplus <= 199711L
+#if defined(__APPLE__) || __cplusplus <= 199711L
 #define thread_local __thread
 #endif
 
-bool g_use_seccomp = true;
+bool g_use_seccomp =
+#ifndef __linux
+    false
+#else
+    true
+#endif
+    ;
 void* operator new (size_t size) throw(std::bad_alloc){
  void* ptr = custom_malloc(size); 
  if (ptr == 0) {// did malloc succeed?

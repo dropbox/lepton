@@ -462,9 +462,13 @@ void timing_operation_complete( char operation ) {
 
 int main( int argc, char** argv )
 {
+    int n_threads = NUM_THREADS - 1;
+#ifndef __linux
+    n_threads += 4;
+#endif
     Sirikata::memmgr_init(768 * 1024 * 1024,
                 64 * 1024 * 1024,
-                3,
+                n_threads,
                 256);
     clock_t begin = 0, end = 1;
 

@@ -36,8 +36,7 @@
 #include <sys/mman.h>
 #include "DecoderPlatform.hh"
 #include "MemMgrAllocator.hh"
-#if __cplusplus <= 199711L
-#include <sirikata/core/util/AtomicTypes.hpp>
+#if defined(__APPLE__) || __cplusplus <= 199711L
 #define thread_local __thread
 #else
 #include <atomic>
