@@ -193,6 +193,7 @@ void RoundtripHelper(bool useLazyWrapper) {
                     JpegError err = writer.Write(j,
                                                  &testData[j][progress[j]],
                                                  amountToWrite).second;
+                    (void)err;
                     progress[j] += amountToWrite;
                     assert(err == JpegError::nil());
                 }
