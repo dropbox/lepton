@@ -27,6 +27,7 @@
 #include "simple_encoder.hh"
 #include "fork_serve.hh"
 #include "../io/Compression.hh"
+#include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -55,7 +56,7 @@
 /* -----------------------------------------------
     struct & enum declarations
     ----------------------------------------------- */
-
+enum {JPG_READ_BUFFER_SIZE = 1024 * 256};
 enum ACTION {     comp  =  1, forkserve = 2, info = 3 };
 
 enum F_TYPE {   JPEG = 0, UJG = 1, LEPTON=2, UNK = 3        };
@@ -966,6 +967,7 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
 
     // check file id, determine filetype
     if ( ( fileid[0] == 0xFF ) && ( fileid[1] == 0xD8 ) ) {
+        str_in = reader = new Sirikata::BufferedReader<JPG_READ_BUFFER_SIZE>(reader);
         // file is JPEG
         filetype = JPEG;
         // create filenames

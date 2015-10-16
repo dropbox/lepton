@@ -1,8 +1,8 @@
-#include "Reader.hpp"
+#include "Reader.hh"
 
 namespace Sirikata {
 
-template<uint32_t bufferSize> class BufferedReader : DecoderReader {
+template<uint32_t bufferSize> class BufferedReader : public DecoderReader {
     uint8_t *mOffset;
     DecoderReader *mBase;
     uint8_t mBuffer[bufferSize];
