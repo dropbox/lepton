@@ -941,9 +941,12 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
         pipe_on = true;
     }
     if (!reader) {
-        errormessage = "File not found";
+        const char *errormessage = "Read file not found\n";
         errorlevel.store(2);
-        return false;
+        while (write(2, errormessage, strlen(errormessage)) < 0 && errno == EINTR) {
+
+        }
+        exit(1);
     }
     // open input stream, check for errors
     str_in = reader;
@@ -977,6 +980,13 @@ bool check_file(Sirikata::DecoderReader *reader ,Sirikata::DecoderWriter *writer
         ujg_base = nullptr;
         if (!writer) {
             writer = ujg_base = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
+            if(!writer) {
+                const char * errormessage = "Output file unable to be opened for writing\n";
+                while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {
+
+                }
+                exit(1);
+            }
         }
         ujg_out = writer;
         if ( !ujg_out ) {
