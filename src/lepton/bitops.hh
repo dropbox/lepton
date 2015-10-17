@@ -37,8 +37,8 @@ public:
 	unsigned int read( int nbits );
 	unsigned char unpad( unsigned char fillbit );
 	int getpos( void );	
-	bool eof;
-	
+	bool legacy_eof;
+    bool eof;
 private:
 	unsigned char* data;
     unsigned char* data2;

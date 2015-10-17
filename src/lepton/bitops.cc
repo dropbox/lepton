@@ -42,7 +42,7 @@ abitreader::abitreader( unsigned char* array, int size )
     data2 = array;
 	cbit = 8;
 	eof = false;
-	
+	legacy_eof = false;
 	data = array;
 	lbyte = size;	
 }
@@ -58,31 +58,34 @@ abitreader::~abitreader( void )
 /* -----------------------------------------------
 	reads n bits from abitreader
 	----------------------------------------------- */	
-int bitreadercounter = 0;
+//int bitreadercounter = 0;
 unsigned int abitreader::read( int nbits )
 {
-    ++bitreadercounter;
+
+//    ++bitreadercounter;
+	// safety check for eof
+	if (eof || !nbits) {
+        return 0;
+    }
 	unsigned int bits_read = 0;
 	unsigned int retval = 0;
     unsigned int nbits_bak = nbits;
+    bool earlyreturn = false;
 	while ( nbits_bak >= cbit ) {
 		nbits_bak -= cbit;
 		retval |= ( RBITS( data[cbyte], cbit ) << nbits_bak );		
 		cbit = 8;
 		if ( ++cbyte >= lbyte ) {
-			eof = true;
-			return retval;
+			legacy_eof = true;
+            earlyreturn = true;
+			break;
 		}
 	}
 	
-	if ( nbits_bak > 0 ) {		
+	if ( nbits_bak > 0 && !earlyreturn) {		
 		retval |= ( MBITS( data[cbyte], cbit, (cbit-nbits_bak) ) );
 		cbit -= nbits_bak;		
 	}
-	// safety check for eof
-	if (eof || !nbits) {
-        return 0;
-    }
     unsigned int retval2 = 0;
     if (__builtin_expect(nbits > cbit2, 0)) {
         bits_read = cbit2;
@@ -92,8 +95,11 @@ unsigned int abitreader::read( int nbits )
         cbit2 -= bits_read;
         if (cbyte2 == lbyte && cbit2 == 0) {
             eof = true;
+            assert(eof == legacy_eof);
+            assert(retval == retval2);
             return retval2;
         }
+        assert(!earlyreturn);
         if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
             int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
             memcpy(&buf, &data[cbyte2], new_bytes);
@@ -107,8 +113,8 @@ unsigned int abitreader::read( int nbits )
             cbyte2 += sizeof(buf);
             cbit2 += sizeof(buf) * 8;
         }
-        if (cbyte2 == lbyte) {
-            eof = true;
+        if (cbyte2 == lbyte && cbit2 == 0) {
+            legacy_eof = true;
         }
         if (cur_nbits <= cbit2) {
             retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
@@ -122,7 +128,10 @@ unsigned int abitreader::read( int nbits )
         retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
         cbit2 -= nbits;
     }
-
+    if (legacy_eof || eof) {
+        fprintf(stderr," THE END IS NEAR %d %d\n", eof, legacy_eof);
+    }
+    assert(legacy_eof == eof);
 
 	assert(retval == retval2);
 
@@ -135,17 +144,20 @@ unsigned int abitreader::read( int nbits )
 
 unsigned char abitreader::unpad( unsigned char fillbit )
 {
+/*
     if (cbit == 8 || eof) {
-        assert((cbit2 & 7) == 0 || eof);
+        //assert((cbit2 & 7) == 0 || eof);
         return fillbit;
     } else {
 		fillbit = read( 1 );
 		while (cbit != 8) {
-            assert(cbit2 & 7);
+            //assert(cbit2 & 7);
             read( 1 );
         }
 
     }
+    return fillbit;
+*/
 	if ((cbit2 & 7) == 0 || eof) return fillbit;
 	else {
 		fillbit = read( 1 );
@@ -161,7 +173,7 @@ unsigned char abitreader::unpad( unsigned char fillbit )
 
 int abitreader::getpos( void )
 {
-    return cbyte;
+    //return cbyte;
     assert(cbyte2 - (cbit2 >> 3) == cbyte);
 	return cbyte2 - (cbit2 >> 3);
 }
