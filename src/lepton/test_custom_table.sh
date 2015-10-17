@@ -23,8 +23,8 @@ else
         fi
     done
 fi
-LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton -multithread - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
-LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton -multithread - < "$COMPRESSED_LEPTON" > "$ORIGINAL"
+LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton -decode -multithread - < "$INPUT_TO_TEST" > "$COMPRESSED_LEPTON"
+LEPTON_COMPRESSION_MODEL="$TEST_MODEL" ./lepton -recode -multithread - < "$COMPRESSED_LEPTON" > "$ORIGINAL"
 md5sum "$ORIGINAL" "$INPUT_TO_TEST" 2> /dev/null || md5 "$ORIGINAL" "$INPUT_TO_TEST"
     if diff -q "$ORIGINAL" "$INPUT_TO_TEST" ; then
     rm -- "$LEPTON_COMPRESSION_MODEL_OUT"

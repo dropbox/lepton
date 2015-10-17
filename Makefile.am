@@ -1,8 +1,8 @@
-noinst_LIBRARIES = liblocalxz.a libtestdriver.a
+noinst_LIBRARIES = liblocalxz.a libtestdriver.a liblocalmd5.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
 bin_PROGRAMS = lepton test_invariants
 lepton_CXXFLAGS = $(CXX11_FLAGS)  -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
-lepton_LDADD = -lpthread liblocalxz.a
+lepton_LDADD = -lpthread liblocalxz.a liblocalmd5.a
 lepton_SOURCES = \
    src/lepton/base_coders.hh \
    src/lepton/simple_encoder.hh \
@@ -75,6 +75,10 @@ AM_CFLAGS = $(C99_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
 
 
 liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -I$(srcdir)/dependencies/xz/src/liblzma/common -I$(srcdir)/dependencies/xz/src/common -I$(srcdir)/dependencies -I$(srcdir)/dependencies/xz/src/liblzma/lzma -I$(srcdir)/dependencies/xz/src/liblzma/lz -I$(srcdir)/dependencies/xz/src/liblzma/check -I$(srcdir)/dependencies/xz/src/liblzma/rangecoder -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/dependencies/xz/src/liblzma/simple -I$(srcdir)/dependencies/xz/src/liblzma/delta -I$(srcdir)/dependencies/xz/src/liblzma
+
+liblocalmd5_a_CFLAGS = -std=c99 -msse4.2
+liblocalmd5_a_SOURCES = dependencies/md5/md5.c
+
 liblocalxz_a_SOURCES = dependencies/xz/src/liblzma/delta/delta_common.c \
 dependencies/xz/src/liblzma/delta/delta_encoder.c \
 dependencies/xz/src/liblzma/delta/delta_decoder.c \

@@ -33,7 +33,7 @@ ENDIF()
 
 ENDIF()
 ENDIF()
-
+add_library(localmd5 dependencies/md5/md5.c)
 add_library(localxz
 dependencies/xz/src/liblzma/delta/delta_common.c
 dependencies/xz/src/liblzma/delta/delta_encoder.c
@@ -187,7 +187,7 @@ SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static)
 ENDIF()
-target_link_libraries(lepton ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
+target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localmd5 ${ADDITIONAL_FLAGS})
 
 
 add_executable(print-model

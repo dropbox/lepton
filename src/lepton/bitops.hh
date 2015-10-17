@@ -28,7 +28,7 @@
 /* -----------------------------------------------
 	class to read arrays bitwise
 	----------------------------------------------- */
-
+void compute_md5(const char * filename, unsigned char *result);
 class abitreader
 {
 public:

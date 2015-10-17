@@ -22,6 +22,7 @@ class VP8ComponentEncoder : public BaseEncoder {
     bool do_threading_ = false;
     Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice spin_workers_;
 public:
+    VP8ComponentEncoder();
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                                Sirikata::DecoderWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,

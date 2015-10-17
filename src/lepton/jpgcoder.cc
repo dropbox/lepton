@@ -454,7 +454,7 @@ void timing_operation_complete( char operation ) {
 #endif
 }
 
-
+unsigned char g_executable_md5[16];
 
 /* -----------------------------------------------
     main-function
@@ -470,6 +470,7 @@ int main( int argc, char** argv )
                 64 * 1024 * 1024,
                 n_threads,
                 256);
+    compute_md5(argv[0], g_executable_md5);
     clock_t begin = 0, end = 1;
 
     int error_cnt = 0;
@@ -2494,8 +2495,10 @@ bool write_ujpg( )
         Sirikata::DecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                      mrw.buffer().size(),
                                                      Sirikata::JpegAllocator<uint8_t>());
-    unsigned char siz_mrk[] = {'S', 'I', 'Z'};
+
+    unsigned char siz_mrk[] = {'Z'};
     err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
+    err = ujg_out->Write( g_executable_md5, sizeof(g_executable_md5) ).second;
     uint32toLE(jpgfilesize, ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
     uint32toLE((uint32_t)compressed_header.size(), ujpg_mrk);
@@ -2548,11 +2551,13 @@ bool read_ujpg( void )
         errorlevel.store(2);
         return false;
     }
-    ReadFull(str_in, ujpg_mrk, 3 );
+    ReadFull(str_in, ujpg_mrk, 1 );
     uint32_t compressed_file_size = 0;
-    bool has_read_size = (memcmp( ujpg_mrk, "SIZ", 3 ) == 0);
+    bool has_read_size = (memcmp( ujpg_mrk, "Z", 1 ) == 0);
     (void)has_read_size;
     assert(has_read_size && "Legacy prerelease format encountered\n");
+    unsigned char md5[16];
+    ReadFull(str_in, md5, sizeof(md5));
 // full size of the original file
     ReadFull(str_in, ujpg_mrk, 8);
     max_file_size = LEtoUint32(ujpg_mrk);

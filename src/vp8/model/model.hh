@@ -153,7 +153,7 @@ extern Context *gctx;
 
 class Slice;
 void optimize_model(Model&model);
-void serialize_model(const Model & model, std::ofstream & output);
+void serialize_model(const Model & model, int output_fd);
 void reset_model(Model &model);
 void normalize_model(Model &model);
 void load_model(Model &model, const char* filename);
@@ -857,8 +857,8 @@ public:
     void optimize(ProbabilityTablesBase &pt) {
         optimize_model(pt.model());
     }
-    void serialize(ProbabilityTablesBase &pt, std::ofstream & output ) const{
-        serialize_model(pt.model(), output);
+    void serialize(ProbabilityTablesBase &pt, int output_fd ) const{
+        serialize_model(pt.model(), output_fd);
     }
 
     // this reduces the counts to something easier to override by new data

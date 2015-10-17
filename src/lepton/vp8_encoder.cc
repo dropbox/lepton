@@ -355,6 +355,22 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     }
     *stream = bool_encoder.finish();
 }
+VP8ComponentEncoder::VP8ComponentEncoder() {
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        /* read in probability table coeff probs */
+        model_[i] = new ProbabilityTablesBase;
+        model_[i]->load_probability_tables();
+    }
+}
+
+int load_model_file_fd_output() {
+    const char * out_model_name = getenv( "LEPTON_COMPRESSION_MODEL_OUT" );
+    if (!out_model_name) {
+        return -1;
+    }
+    return open(out_model_name, O_CREAT|O_TRUNC|O_WRONLY, S_IWUSR | S_IRUSR);
+}
+int model_file_fd = load_model_file_fd_output();
 
 const bool dospin = true;
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
@@ -367,11 +383,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
     ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
     ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
-    for (int i = 0; i < NUM_THREADS; ++i) {
-        /* read in probability table coeff probs */
-        model_[i] = new ProbabilityTablesBase;
-        model_[i]->load_probability_tables();
-    }
     int luma_splits[NUM_THREADS] = {0};
     pick_luma_splits(colldata, luma_splits);
     
@@ -457,18 +468,14 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         delete stream[i]; // allocate streams as pointers so threads don't modify them inline
     }
     /* possibly write out new probability model */
-    const char * out_model_name = getenv( "LEPTON_COMPRESSION_MODEL_OUT" );
-    if ( out_model_name ) {
-        cerr << "Writing new compression model..." << endl;
 
-        std::ofstream model_file { out_model_name };
-        if ( not model_file.good() ) {
-            std::cerr << "error writing to " + string( out_model_name ) << std::endl;
-            return CODING_ERROR;
-        }
+
+    if ( model_file_fd >= 0 ) {
+        char * msg = "Writing new compression model...\n";
+        while (write(2, msg, strlen(msg)) < 0 && errno == EINTR){}
 
         std::get<(int)BlockType::Y>(middle).optimize(*model_[0]);
-        std::get<(int)BlockType::Y>(middle).serialize(*model_[0], model_file );
+        std::get<(int)BlockType::Y>(middle).serialize(*model_[0], model_file_fd );
     }
 #ifdef ANNOTATION_ENABLED
     {
