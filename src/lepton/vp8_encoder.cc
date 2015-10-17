@@ -471,7 +471,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
 
 
     if ( model_file_fd >= 0 ) {
-        char * msg = "Writing new compression model...\n";
+        const char * msg = "Writing new compression model...\n";
         while (write(2, msg, strlen(msg)) < 0 && errno == EINTR){}
 
         std::get<(int)BlockType::Y>(middle).optimize(*model_[0]);

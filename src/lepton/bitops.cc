@@ -35,7 +35,11 @@ void compute_md5(const char * filename, unsigned char *result) {
 
 abitreader::abitreader( unsigned char* array, int size )
 {
-	cbyte = 0;	
+	cbyte = 0;
+    cbyte2 = 0;
+    cbit = 0;
+    cbit2 = 0;
+    data2 = array;
 	cbit = 8;
 	eof = false;
 	
@@ -54,19 +58,16 @@ abitreader::~abitreader( void )
 /* -----------------------------------------------
 	reads n bits from abitreader
 	----------------------------------------------- */	
-
+int bitreadercounter = 0;
 unsigned int abitreader::read( int nbits )
 {
+    ++bitreadercounter;
+	unsigned int bits_read = 0;
 	unsigned int retval = 0;
-	
-	// safety check for eof
-	if (eof) {
-        return 0;
-    }
-	
-	while ( nbits >= cbit ) {
-		nbits -= cbit;
-		retval |= ( RBITS( data[cbyte], cbit ) << nbits );		
+    unsigned int nbits_bak = nbits;
+	while ( nbits_bak >= cbit ) {
+		nbits_bak -= cbit;
+		retval |= ( RBITS( data[cbyte], cbit ) << nbits_bak );		
 		cbit = 8;
 		if ( ++cbyte >= lbyte ) {
 			eof = true;
@@ -74,12 +75,58 @@ unsigned int abitreader::read( int nbits )
 		}
 	}
 	
-	if ( nbits > 0 ) {		
-		retval |= ( MBITS( data[cbyte], cbit, (cbit-nbits) ) );
-		cbit -= nbits;		
+	if ( nbits_bak > 0 ) {		
+		retval |= ( MBITS( data[cbyte], cbit, (cbit-nbits_bak) ) );
+		cbit -= nbits_bak;		
 	}
-	
-	return retval;
+	// safety check for eof
+	if (eof || !nbits) {
+        return 0;
+    }
+    unsigned int retval2 = 0;
+    if (__builtin_expect(nbits > cbit2, 0)) {
+        bits_read = cbit2;
+        retval2 = (RBITS64(buf, cbit2) << (nbits - bits_read)) & ((1 << nbits) - 1);
+        int cur_nbits = nbits - bits_read;
+        buf >>= bits_read;
+        cbit2 -= bits_read;
+        if (cbyte2 == lbyte && cbit2 == 0) {
+            eof = true;
+            return retval2;
+        }
+        if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
+            int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
+            memcpy(&buf, &data[cbyte2], new_bytes);
+            buf = htobe64(buf);
+            buf >>= (sizeof(buf) - new_bytes) * 8;
+            cbyte2 += new_bytes;
+            cbit2 += new_bytes * 8;
+        } else {
+            memcpy(&buf, &data[cbyte2], sizeof(buf));
+            buf = htobe64(buf);
+            cbyte2 += sizeof(buf);
+            cbit2 += sizeof(buf) * 8;
+        }
+        if (cbyte2 == lbyte) {
+            eof = true;
+        }
+        if (cur_nbits <= cbit2) {
+            retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
+            cbit2 -= cur_nbits;
+        } else {
+            retval2 = buf;
+            buf = 0;
+            cbit2 = 0;
+        }
+    } else {
+        retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
+        cbit2 -= nbits;
+    }
+
+
+	assert(retval == retval2);
+
+	return retval2;
 }
 
 /* -----------------------------------------------
@@ -88,12 +135,23 @@ unsigned int abitreader::read( int nbits )
 
 unsigned char abitreader::unpad( unsigned char fillbit )
 {
-	if ( ( cbit == 8 ) || eof ) return fillbit;
+    if (cbit == 8 || eof) {
+        assert((cbit2 & 7) == 0 || eof);
+        return fillbit;
+    } else {
+		fillbit = read( 1 );
+		while (cbit != 8) {
+            assert(cbit2 & 7);
+            read( 1 );
+        }
+
+    }
+	if ((cbit2 & 7) == 0 || eof) return fillbit;
 	else {
 		fillbit = read( 1 );
-		while ( cbit != 8 ) read( 1 );
+		while (cbit2 & 7) read( 1 );
 	}
-	
+
 	return fillbit;
 }
 
@@ -103,7 +161,9 @@ unsigned char abitreader::unpad( unsigned char fillbit )
 
 int abitreader::getpos( void )
 {
-	return cbyte;
+    return cbyte;
+    assert(cbyte2 - (cbit2 >> 3) == cbyte);
+	return cbyte2 - (cbit2 >> 3);
 }
 
 

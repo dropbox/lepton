@@ -41,6 +41,10 @@ public:
 	
 private:
 	unsigned char* data;
+    unsigned char* data2;
+    int cbyte2;
+    int cbit2;
+    uint64_t buf;
 	int lbyte;
 	int cbyte;
 	int cbit;
