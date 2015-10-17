@@ -34,20 +34,72 @@ class abitreader
 public:
 	abitreader( unsigned char* array, int size );
 	~abitreader( void );	
-	unsigned int read( int nbits );
-	unsigned char unpad( unsigned char fillbit );
-	int getpos( void );	
-	bool legacy_eof;
+	unsigned int read( int nbits ) {
+        if (__builtin_expect(eof || !nbits, 0)) {
+            return 0;
+        }
+        unsigned int bits_read = 0;
+        unsigned int retval2 = 0;
+        if (__builtin_expect(nbits >= cbit2, 0)) {
+            bits_read = cbit2;
+            retval2 = (RBITS64(buf, cbit2) << (nbits - bits_read)) & ((1 << nbits) - 1);
+            int cur_nbits = nbits - bits_read;
+            buf >>= bits_read;
+            cbit2 -= bits_read;
+            if (cbyte2 == lbyte && cbit2 == 0) {
+                eof = true;
+                return retval2;
+            }
+            if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
+                int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
+                memcpy(&buf, &data2[cbyte2], new_bytes);
+                buf = htobe64(buf);
+                buf >>= (sizeof(buf) - new_bytes) * 8;
+                cbyte2 += new_bytes;
+                cbit2 += new_bytes * 8;
+            } else {
+                memcpy(&buf, &data2[cbyte2], sizeof(buf));
+                buf = htobe64(buf);
+                cbyte2 += sizeof(buf);
+                cbit2 += sizeof(buf) * 8;
+            }
+            if (cbyte2 == lbyte && cbit2 == 0) {
+                eof = true;
+            }
+            if (cur_nbits) {
+                if (cur_nbits <= cbit2) {
+                    retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
+                    cbit2 -= cur_nbits;
+                } else {
+                    retval2 |= buf;
+                    buf = 0;
+                    cbit2 = 0;
+                }
+            }
+        } else {
+            retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
+            cbit2 -= nbits;
+        }
+        return retval2;
+    }
+	unsigned char unpad( unsigned char fillbit ) {
+        if ((cbit2 & 7) == 0 || eof) return fillbit;
+        else {
+            fillbit = read( 1 );
+            while (cbit2 & 7) read( 1 );
+        }
+        return fillbit;
+    }
+	int getpos( void ) {
+        return cbyte2 - (cbit2 >> 3);
+    }
     bool eof;
 private:
-	unsigned char* data;
     unsigned char* data2;
     int cbyte2;
     int cbit2;
     uint64_t buf;
 	int lbyte;
-	int cbyte;
-	int cbit;
 };
 
 

@@ -35,15 +35,10 @@ void compute_md5(const char * filename, unsigned char *result) {
 
 abitreader::abitreader( unsigned char* array, int size )
 {
-	cbyte = 0;
     cbyte2 = 0;
-    cbit = 0;
     cbit2 = 0;
     data2 = array;
-	cbit = 8;
 	eof = false;
-	legacy_eof = false;
-	data = array;
 	lbyte = size;	
 }
 
@@ -55,137 +50,6 @@ abitreader::~abitreader( void )
 {
 }
 
-#define CHECK_LEGACY_READER
-/* -----------------------------------------------
-	reads n bits from abitreader
-	----------------------------------------------- */	
-//int bitreadercounter = 0;
-unsigned int abitreader::read( int nbits )
-{
-
-//    ++bitreadercounter;
-	// safety check for eof
-	if (eof || !nbits) {
-        return 0;
-    }
-	unsigned int bits_read = 0;
-#ifdef CHECK_LEGACY_READER
-	unsigned int retval = 0;
-    unsigned int nbits_bak = nbits;
-    bool earlyreturn = false;
-	while ( nbits_bak >= cbit ) {
-		nbits_bak -= cbit;
-		retval |= ( RBITS( data[cbyte], cbit ) << nbits_bak );		
-		cbit = 8;
-		if ( ++cbyte >= lbyte ) {
-			legacy_eof = true;
-            earlyreturn = true;
-			break;
-		}
-	}
-	
-	if ( nbits_bak > 0 && !earlyreturn) {		
-		retval |= ( MBITS( data[cbyte], cbit, (cbit-nbits_bak) ) );
-		cbit -= nbits_bak;		
-	}
-#endif
-    unsigned int retval2 = 0;
-    if (__builtin_expect(nbits >= cbit2, 0)) {
-        bits_read = cbit2;
-        retval2 = (RBITS64(buf, cbit2) << (nbits - bits_read)) & ((1 << nbits) - 1);
-        int cur_nbits = nbits - bits_read;
-        buf >>= bits_read;
-        cbit2 -= bits_read;
-        if (cbyte2 == lbyte && cbit2 == 0) {
-            eof = true;
-#ifdef CHECK_LEGACY_READER
-            assert(eof == legacy_eof);
-            assert(retval == retval2);
-#endif
-            return retval2;
-        }
-#ifdef CHECK_LEGACY_READER
-        assert(!earlyreturn);
-#endif
-        if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
-            int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
-            memcpy(&buf, &data[cbyte2], new_bytes);
-            buf = htobe64(buf);
-            buf >>= (sizeof(buf) - new_bytes) * 8;
-            cbyte2 += new_bytes;
-            cbit2 += new_bytes * 8;
-        } else {
-            memcpy(&buf, &data[cbyte2], sizeof(buf));
-            buf = htobe64(buf);
-            cbyte2 += sizeof(buf);
-            cbit2 += sizeof(buf) * 8;
-        }
-        if (cbyte2 == lbyte && cbit2 == 0) {
-            legacy_eof = true;
-        }
-        if (cur_nbits) {
-            if (cur_nbits <= cbit2) {
-                retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
-                cbit2 -= cur_nbits;
-            } else {
-                retval2 |= buf;
-                buf = 0;
-                cbit2 = 0;
-            }
-        }
-    } else {
-        retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
-        cbit2 -= nbits;
-    }
-#ifdef CHECK_LEGACY_READER
-    assert(legacy_eof == eof);
-
-	assert(retval == retval2);
-#endif
-	return retval2;
-}
-
-/* -----------------------------------------------
-	to skip padding from current byte
-	----------------------------------------------- */
-
-unsigned char abitreader::unpad( unsigned char fillbit )
-{
-/*
-    if (cbit == 8 || eof) {
-        //assert((cbit2 & 7) == 0 || eof);
-        return fillbit;
-    } else {
-		fillbit = read( 1 );
-		while (cbit != 8) {
-            //assert(cbit2 & 7);
-            read( 1 );
-        }
-
-    }
-    return fillbit;
-*/
-	if ((cbit2 & 7) == 0 || eof) return fillbit;
-	else {
-		fillbit = read( 1 );
-		while (cbit2 & 7) read( 1 );
-	}
-
-	return fillbit;
-}
-
-/* -----------------------------------------------
-	get current position in array
-	----------------------------------------------- */	
-
-int abitreader::getpos( void )
-{
-    //return cbyte;
-#ifdef CHECK_LEGACY_READER
-    assert(cbyte2 - (cbit2 >> 3) == cbyte);
-#endif
-	return cbyte2 - (cbit2 >> 3);
-}
 
 
 /* -----------------------------------------------
