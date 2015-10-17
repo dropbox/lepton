@@ -55,6 +55,7 @@ abitreader::~abitreader( void )
 {
 }
 
+#define CHECK_LEGACY_READER
 /* -----------------------------------------------
 	reads n bits from abitreader
 	----------------------------------------------- */	
@@ -68,6 +69,7 @@ unsigned int abitreader::read( int nbits )
         return 0;
     }
 	unsigned int bits_read = 0;
+#ifdef CHECK_LEGACY_READER
 	unsigned int retval = 0;
     unsigned int nbits_bak = nbits;
     bool earlyreturn = false;
@@ -86,8 +88,9 @@ unsigned int abitreader::read( int nbits )
 		retval |= ( MBITS( data[cbyte], cbit, (cbit-nbits_bak) ) );
 		cbit -= nbits_bak;		
 	}
+#endif
     unsigned int retval2 = 0;
-    if (__builtin_expect(nbits > cbit2, 0)) {
+    if (__builtin_expect(nbits >= cbit2, 0)) {
         bits_read = cbit2;
         retval2 = (RBITS64(buf, cbit2) << (nbits - bits_read)) & ((1 << nbits) - 1);
         int cur_nbits = nbits - bits_read;
@@ -95,11 +98,15 @@ unsigned int abitreader::read( int nbits )
         cbit2 -= bits_read;
         if (cbyte2 == lbyte && cbit2 == 0) {
             eof = true;
+#ifdef CHECK_LEGACY_READER
             assert(eof == legacy_eof);
             assert(retval == retval2);
+#endif
             return retval2;
         }
+#ifdef CHECK_LEGACY_READER
         assert(!earlyreturn);
+#endif
         if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
             int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
             memcpy(&buf, &data[cbyte2], new_bytes);
@@ -116,25 +123,25 @@ unsigned int abitreader::read( int nbits )
         if (cbyte2 == lbyte && cbit2 == 0) {
             legacy_eof = true;
         }
-        if (cur_nbits <= cbit2) {
-            retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
-            cbit2 -= cur_nbits;
-        } else {
-            retval2 = buf;
-            buf = 0;
-            cbit2 = 0;
+        if (cur_nbits) {
+            if (cur_nbits <= cbit2) {
+                retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
+                cbit2 -= cur_nbits;
+            } else {
+                retval2 |= buf;
+                buf = 0;
+                cbit2 = 0;
+            }
         }
     } else {
         retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
         cbit2 -= nbits;
     }
-    if (legacy_eof || eof) {
-        fprintf(stderr," THE END IS NEAR %d %d\n", eof, legacy_eof);
-    }
+#ifdef CHECK_LEGACY_READER
     assert(legacy_eof == eof);
 
 	assert(retval == retval2);
-
+#endif
 	return retval2;
 }
 
@@ -174,7 +181,9 @@ unsigned char abitreader::unpad( unsigned char fillbit )
 int abitreader::getpos( void )
 {
     //return cbyte;
+#ifdef CHECK_LEGACY_READER
     assert(cbyte2 - (cbit2 >> 3) == cbyte);
+#endif
 	return cbyte2 - (cbit2 >> 3);
 }
 
