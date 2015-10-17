@@ -173,6 +173,10 @@ protected:
 public:
     Model &model() {return model_;}
     void load_probability_tables();
+    static uint16_t* quantization_table(uint8_t color) {
+        return quantization_table_[color];
+    }
+
     static uint16_t quantization_table(uint8_t color, uint8_t coef) {
         return quantization_table_[color][coef];
     }

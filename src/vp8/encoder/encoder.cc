@@ -9,7 +9,7 @@
 #include <map>
 #include "weight.hh"
 #include <fstream>
-
+#include "../../lepton/idct.hh"
 using namespace std;
 
 uint8_t prefix_remap(uint8_t v) {
@@ -193,40 +193,7 @@ void serialize_tokens(ConstBlockContext context,
         serialized_so_far |= cur_bit;
     }
     ProbabilityTablesBase::
-    CoefficientContext prior = probability_tables.get_dc_coefficient_context(context,
-                                                                             num_nonzeros_7x7);
-    {
-        // do DC
-        uint8_t coord = 0;
-        int16_t coef = probability_tables.predict_or_unpredict_dc(context, false);
-#ifdef TRACK_HISTOGRAM
-        ++histogram[1][coef];
-#endif
-        uint16_t abs_coef = abs(coef);
-        uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_dc(pt, prior);
-        for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
-            bool cur_bit = (length != i);
-            encoder.put(cur_bit, exp_prob.at(i));
-            if (!cur_bit) {
-                break;
-            }
-        }
-        if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, prior);
-            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
-        }
-        if (length > 1){
-            auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
-            assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
-            assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
-            for (int i = length - 2; i >= 0; --i) {
-                encoder.put((abs_coef & (1 << i)), res_prob.at(i));
-            }
-        }
-    }
-
-
+        CoefficientContext prior;
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
@@ -293,6 +260,44 @@ void serialize_tokens(ConstBlockContext context,
                 num_nonzeros_7x7, eob_x, eob_y,
                 prior,
                 pt);
+
+
+    int32_t outp[64];
+    prior = probability_tables.get_dc_coefficient_context(context, num_nonzeros_7x7);
+    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, true);
+
+    {
+        // do DC
+        uint8_t coord = 0;
+        int16_t coef = probability_tables.predict_or_unpredict_dc(context, false);
+#ifdef TRACK_HISTOGRAM
+        ++histogram[1][coef];
+#endif
+        uint16_t abs_coef = abs(coef);
+        uint8_t length = bit_length(abs_coef);
+        auto exp_prob = probability_tables.exponent_array_dc(pt, prior);
+        for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
+            bool cur_bit = (length != i);
+            encoder.put(cur_bit, exp_prob.at(i));
+            if (!cur_bit) {
+                break;
+            }
+        }
+        if (length != 0) {
+            auto &sign_prob = probability_tables.sign_array_dc(pt, prior);
+            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+        }
+        if (length > 1){
+            auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
+            assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
+            assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
+            for (int i = length - 2; i >= 0; --i) {
+                encoder.put((abs_coef & (1 << i)), res_prob.at(i));
+            }
+        }
+    }
+    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
+
 }
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);

@@ -128,6 +128,8 @@ add_executable(lepton
    src/lepton/fork_serve.cc
    src/lepton/fork_serve.hh
    src/lepton/jpgcoder.cc
+   src/lepton/idct.cc
+   src/lepton/idct.hh
    src/lepton/uncompressed_components.cc
    src/lepton/jpgcoder.hh
    src/lepton/uncompressed_components.hh
@@ -199,6 +201,8 @@ add_executable(print-model
    src/vp8/model/model.cc
    src/vp8/encoder/encoder.cc
    src/vp8/decoder/decoder.cc
+   src/lepton/idct.cc
+   src/lepton/idct.hh
    src/vp8/model/numeric.cc
   )
 add_executable(test_invariants

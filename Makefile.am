@@ -9,6 +9,8 @@ lepton_SOURCES = \
    src/lepton/bitops.cc \
    src/lepton/smalljpeg.hh \
    src/lepton/bitops.hh \
+   src/lepton/idct.cc \
+   src/lepton/idct.hh \
    src/lepton/test_driver.cc \
    src/lepton/component_info.hh \
    src/lepton/htables.hh \
