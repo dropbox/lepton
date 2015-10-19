@@ -4,6 +4,7 @@
 
 struct NeighborSummary {
     uint8_t nonzeros_and_edge_pixels[16];
+    int16_t dc_residual;
     uint8_t num_nonzeros() const {
         return nonzeros_and_edge_pixels[0];
     }
@@ -14,18 +15,21 @@ struct NeighborSummary {
         return nonzeros_and_edge_pixels[index + 8];
     }
     uint8_t vertical(int index) const {
-        return nonzeros_and_edge_pixels[index == 0 ? 8 : index];
+        return nonzeros_and_edge_pixels[index == 7 ? 15 : (index + 1)];
     }
     void set_horizontal(int * data) {
         for (int i = 0; i < 8 ; ++i) {
-            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min(data[i] + 128, 256), 0);
+            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min(data[i + 56] + 128, 256), 0);
         }
-        assert(data[8] == (uint8_t)std::max(std::min(data[i] + 128, 256), 0));
+    }
+    void set_dc_residual(int16_t dc_r) {
+        dc_residual = dc_r;
     }
     void set_vertical(int * data) {
-        for (int i = 1; i < 8 ; ++i) {
-            nonzeros_and_edge_pixels[i] = (uint8_t)std::max(std::min(data[i] + 128, 256), 0);
+        for (int i = 0; i < 7 ; ++i) {
+            nonzeros_and_edge_pixels[i + 1] = (uint8_t)std::max(std::min(data[i * 8 + 7] + 128, 256), 0);
         }
+        assert(vertical(7) == (uint8_t)std::max(std::min(data[63] + 128, 256), 0));
     }
 };
 
@@ -96,6 +100,16 @@ template <class ABlock> struct MBlockContext {
         --tmp;
         // too slow // assert(num_nonzeros_check(*tmp, left_unchecked()));
         return tmp->num_nonzeros();
+    }
+    const NeighborSummary& neighbor_context_above_unchecked() const{
+        // too slow // assert(num_nonzeros_check(*num_nonzeros_above, above_unchecked()));
+        return *num_nonzeros_above;
+    }
+    const NeighborSummary& neighbor_context_left_unchecked() const{
+        std::vector<NeighborSummary>::iterator  tmp = num_nonzeros_here;
+        --tmp;
+        // too slow // assert(num_nonzeros_check(*tmp, left_unchecked()));
+        return *tmp;
     }
 };
 typedef MBlockContext<AlignedBlock> BlockContext;

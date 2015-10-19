@@ -51,6 +51,14 @@ struct Model
 
     typedef Sirikata::Array4d<Branch,
                               BLOCK_TYPES,
+                              (8>NUM_NONZEROS_BINS?8:NUM_NONZEROS_BINS),
+                              NUMERIC_LENGTH_MAX,
+                              COEF_BITS> ResidualNoiseCountsDc;
+
+    ResidualNoiseCountsDc residual_noise_counts_dc_;
+
+    typedef Sirikata::Array4d<Branch,
+                              BLOCK_TYPES,
                               (1<<(1 + RESIDUAL_NOISE_FLOOR)),
                               1 + RESIDUAL_NOISE_FLOOR,
                               1<<RESIDUAL_NOISE_FLOOR > ResidualThresholdCounts;
@@ -71,9 +79,10 @@ struct Model
                               NUMERIC_LENGTH_MAX,
                               MAX_EXPONENT> ExponentCounts7x7;
 
-typedef Sirikata::Array4d<Branch,
+typedef Sirikata::Array5d<Branch,
                           BLOCK_TYPES,
                           NUM_NONZEROS_BINS,
+                          NUMERIC_LENGTH_MAX,
                           NUMERIC_LENGTH_MAX,
                           MAX_EXPONENT> ExponentCountsDC;
 
@@ -292,7 +301,7 @@ public:
     ProbabilityTablesBase::CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
         CoefficientContext retval;
         retval.best_prior = compute_aavrg_dc(block);
-        retval.bsr_best_prior = bit_length(retval.best_prior);
+        retval.bsr_best_prior = bit_length(abs(retval.best_prior));
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
         return retval;
     }
@@ -427,13 +436,24 @@ public:
             context.num_nonzeros_bin);
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
-                                                                     const CoefficientContext context) {
+                                                                     const CoefficientContext context,
+                                                                     int mxm=0) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
-        return pt.model().exponent_counts_dc_
+        return pt.model().exponent_counts_dc_.at(color_index(),
+                                                 context.num_nonzeros_bin,
+                                                 0*context.bsr_best_prior,
+                                                 uint16bit_length(abs(mxm)));
+    }
+    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
+                                                                     const CoefficientContext context,
+                                                                     int mxm=0) {
+        ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
+        ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
+        return pt.model().residual_noise_counts_dc_
             .at(color_index(),
                 context.num_nonzeros_bin,
-                context.bsr_best_prior);
+                0*uint16bit_length(abs(mxm))/*context.bsr_best_prior*/);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
                                                           const unsigned int band,
@@ -835,9 +855,13 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context) {
+    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context, int pred_delta = 0, int avg_delta = 0) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
-        return pt.model().sign_counts_.at(color_index(), 0, 1);
+        int a = pred_delta > 0  ? 2 : 1;
+        (void)a;
+        int b = avg_delta >= 0  ? (avg_delta == 0 ? 3 : 2) : 1;
+        (void)b;
+        return pt.model().sign_counts_.at(color_index(), 0, b + 1);
     }
     Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
         ANNOTATE_CTX(band, SIGN7x7, 0, 0);
