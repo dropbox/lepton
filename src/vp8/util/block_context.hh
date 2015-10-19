@@ -17,17 +17,17 @@ struct NeighborSummary {
     uint8_t vertical(int index) const {
         return nonzeros_and_edge_pixels[index == 7 ? 15 : (index + 1)];
     }
-    void set_horizontal(int * data) {
+    void set_horizontal(int * data, int16_t dc) {
         for (int i = 0; i < 8 ; ++i) {
-            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min(data[i + 56] + 128, 256), 0);
+            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min((dc >> 3) + data[i + 56] + 128, 256), 0);
         }
     }
     void set_dc_residual(int16_t dc_r) {
         dc_residual = dc_r;
     }
-    void set_vertical(int * data) {
+    void set_vertical(int * data, int16_t dc) {
         for (int i = 0; i < 7 ; ++i) {
-            nonzeros_and_edge_pixels[i + 1] = (uint8_t)std::max(std::min(data[i * 8 + 7] + 128, 256), 0);
+            nonzeros_and_edge_pixels[i + 1] = (uint8_t)std::max(std::min((dc >> 3) + data[i * 8 + 7] + 128, 256), 0);
         }
         assert(vertical(7) == (uint8_t)std::max(std::min(data[63] + 128, 256), 0));
     }

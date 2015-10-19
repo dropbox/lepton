@@ -273,63 +273,24 @@ void serialize_tokens(ConstBlockContext context,
     int32_t outp_sans_dc[64];
     prior = probability_tables.get_dc_coefficient_context(context, num_nonzeros_7x7);
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp_sans_dc, true);
-    int dc_estimates[(has_left || has_above) ? (has_left ? 8 : 0) + (has_above ? 8 : 0) : 1] = {0};
-    size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
-    int avgmed = 0;
-    int avg_estimated_dc = 0;
     int predicted_dc = probability_tables.predict_or_unpredict_dc(context, false);
-    if(has_left||has_above) {
-        int dc_sum = 0;
-        if (has_left) {
-            for (int i = 0; i < 8;++i) {
-                int a = std::max(std::min(outp_sans_dc[i*8] + 128, 255),0);
-                int b = context.neighbor_context_left_unchecked().vertical(i);
-                dc_estimates[i] = b - a;
-                dc_sum += (b - a);
-            }
-        }
-        if (has_above) {
-            for (int i = 0; i < 8;++i) {
-                int a = std::max(std::min(outp_sans_dc[i] + 128, 255),0);
-                int b = context.neighbor_context_above_unchecked().horizontal(i);//xx
-                dc_estimates[i + (has_left ? 8 : 0)] = b - a;
-                dc_sum += (b - a);
-            }
-        }
-        int actual_dc = context.here().dc();
-        avg_estimated_dc = dc_sum;
-        if (has_left && has_above) {
-            avg_estimated_dc /=2;
-        }
-        std::sort(dc_estimates, dc_estimates + len_est);
-        for (size_t i = 0; i < len_est; ++i) {
-            if (i >= len_est/2 - 2 && i < len_est/2 + 2) {
-                avgmed += dc_estimates[i] * 2;
-            }
-            //fprintf(stderr, "PRE: %d\n", dc_estimates[i] * 8);
-        }
-        amd_err += abs(avgmed - actual_dc);
-        avg_err += abs(avg_estimated_dc - actual_dc);
-        ori_err += abs(predicted_dc - actual_dc);
-        med_err += abs(8 * (int)dc_estimates[len_est/2] - actual_dc);
-        fprintf(stderr, "MED: %d (%d)\n", 8 * (int)dc_estimates[len_est/2], med_err);
-        fprintf(stderr, "AMD: %d (%d)\n", avgmed, amd_err);
-        fprintf(stderr, "AVG: %d (%d)\n", avg_estimated_dc, avg_err);
-        fprintf(stderr, "ORI: %d (%d)\n", predicted_dc, ori_err);
-        fprintf(stderr, "MXM: %d\n", dc_estimates[len_est - 1] - dc_estimates[0]);
-        fprintf(stderr, "DC : %d\n", actual_dc);
-    }
-    int16_t dc_final_residual = context.here().dc() - avgmed;
+    (void)predicted_dc;
+    int uncertainty = 0; // this is how far off our max estimate vs min estimate is
+    int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context,
+                                                                          false, 
+                                                                          probability_tables.adv_predict_dc_pix(context,
+                                                                                                                outp_sans_dc,
+                                                                                                                &uncertainty));
+    (void)adv_predicted_dc;
     {
         // do DC
-        int16_t coef = dc_final_residual;//probability_tables.predict_or_unpredict_dc(context, false);
-        fprintf(stderr, "Enc: %d\n", coef);
+        int16_t coef = adv_predicted_dc;
 #ifdef TRACK_HISTOGRAM
         ++histogram[1][coef];
 #endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, dc_estimates[len_est - 1] - dc_estimates[0]);
+        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
             encoder.put(cur_bit, exp_prob.at(i));
@@ -338,11 +299,11 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, avgmed - predicted_dc, avgmed - avg_estimated_dc);
+            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
-            auto res_prob = probability_tables.residual_array_dc(pt, prior, avgmed - avg_estimated_dc);
+            auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {
@@ -352,34 +313,15 @@ void serialize_tokens(ConstBlockContext context,
     }
     int32_t outp[64];
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
-    int total_delta = 0;
-
-    if (has_left) {
-        for (int i = 0; i < 8;++i) {
-            int a = std::max(std::min(outp[i*8] + 128, 255),0);
-            int b = context.neighbor_context_left_unchecked().vertical(i);
-            //fprintf(stderr, "%d = %d - %d\n", abs(a - b), a, b);
-            total_delta += a-b;
-            total_error += abs(a-b);
-            total_signed_error += a-b;
-        }
-    }
-    if (has_above) {
-        for (int i = 0; i < 8;++i) {
-            int a = std::max(std::min(outp[i] + 128, 255),0);
-            int b = context.neighbor_context_above_unchecked().horizontal(i);//xx
-            //fprintf(stderr, "%d = %d - %d\n", abs(a-b) ,a ,b );
-            total_delta += a-b;
-            total_error += abs(a-b);
-            total_signed_error += a-b;
-        }
-    }
-    //fprintf(stderr, "Total delta %d Error %d Signed Error %d\n", total_delta, total_error, total_signed_error);
-    context.num_nonzeros_here->set_horizontal(outp);
-    context.num_nonzeros_here->set_vertical(outp);
-    context.num_nonzeros_here->set_dc_residual(dc_final_residual);
+    //context.num_nonzeros_here->set_horizontal(outp_sans_dc, context.here().dc());
+    ///context.num_nonzeros_here->set_vertical(outp_sans_dc, context.here().dc());
+    context.num_nonzeros_here->set_horizontal(outp, 0);
+    context.num_nonzeros_here->set_vertical(outp, 0);
+    context.num_nonzeros_here->set_dc_residual(adv_predicted_dc);
 
     if ((!g_threaded) && LeptonDebug::raw_YCbCr[(int)color]) {
+        int32_t outp[64];
+        idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
         double delta = 0;
         for (int i = 0; i < 64; ++i) {
             delta += outp[i] - outp_sans_dc[i];

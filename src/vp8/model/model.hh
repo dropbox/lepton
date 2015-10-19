@@ -6,6 +6,7 @@
 
 #include "../util/options.hh"
 #include "../util/nd_array.hh"
+#include "../../lepton/idct.hh"
 #include "numeric.hh"
 #include "branch.hh"
 #include "block.hh"
@@ -594,6 +595,67 @@ public:
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
     }
+
+    int adv_predict_dc_pix(const ConstBlockContext&context, int*pixels_sans_dc, int *uncertainty_val) {
+        idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), pixels_sans_dc, true);
+        int dc_estimates[(left_present || above_present) ? (left_present ? 8 : 0) + (above_present ? 8 : 0) : 1] = {0};
+        size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
+        int avgmed = 0;
+        int avg_estimated_dc = 0;
+        if(left_present || above_present) {
+            int dc_sum = 0;
+            if (left_present) {
+                for (int i = 0; i < 8;++i) {
+                    int a = std::max(std::min(pixels_sans_dc[i*8] + 128, 255),0);
+                    int b = context.neighbor_context_left_unchecked().vertical(i);
+                    dc_estimates[i] = b - a;
+                    dc_sum += (b - a);
+                }
+            }
+            if (above_present) {
+                for (int i = 0; i < 8;++i) {
+                    int a = std::max(std::min(pixels_sans_dc[i] + 128, 255),0);
+                    int b = context.neighbor_context_above_unchecked().horizontal(i);//xx
+                    dc_estimates[i + (left_present ? 8 : 0)] = b - a;
+                    dc_sum += (b - a);
+                }
+            }
+            avg_estimated_dc = dc_sum;
+            if (left_present && above_present) {
+                avg_estimated_dc /=2;
+            }
+            std::sort(dc_estimates, dc_estimates + len_est);
+            for (size_t i = 0; i < len_est; ++i) {
+                if (i >= len_est/2 - 2 && i < len_est/2 + 2) {
+                    avgmed += dc_estimates[i] * 2;
+                }
+                //fprintf(stderr, "PRE: %d\n", dc_estimates[i] * 8);
+                //fprintf(stderr, "MED: %d (%d)\n", 8 * (int)dc_estimates[len_est/2], med_err);
+                //fprintf(stderr, "AMD: %d (%d)\n", avgmed, amd_err);
+                //fprintf(stderr, "AVG: %d (%d)\n", avg_estimated_dc, avg_err);
+                //fprintf(stderr, "ORI: %d (%d)\n", predicted_dc, ori_err);
+                //fprintf(stderr, "MXM: %d\n", dc_estimates[len_est - 1] - dc_estimates[0]);
+                //fprintf(stderr, "DC : %d\n", actual_dc);
+
+            }
+            *uncertainty_val = dc_estimates[len_est - 1] - dc_estimates[0];
+        }
+        return avgmed;
+    }
+
+    int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {
+        int max_value = 0;
+        if (ProbabilityTablesBase::quantization_table((int)COLOR, 0)){
+            max_value = (1024 + ProbabilityTablesBase::quantization_table((int)COLOR,0) - 1) / ProbabilityTablesBase::quantization_table((int)COLOR, 0);
+        }
+        int min_value = -max_value;
+        int adjustment_factor = 2 * max_value + 1;
+        int retval = predicted_val;
+        retval = context.here().dc() + (recover_original ? retval : -retval);
+        if (retval < min_value) retval += adjustment_factor;
+        if (retval > max_value) retval -= adjustment_factor;
+        return retval;
+    }
     int compute_aavrg_dc(ConstBlockContext context) {
         return compute_aavrg(0, raster_to_aligned.at(0), context);
         
@@ -855,10 +917,8 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context, int pred_delta = 0, int avg_delta = 0) {
+    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context, int avg_delta = 0) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
-        int a = pred_delta > 0  ? 2 : 1;
-        (void)a;
         int b = avg_delta >= 0  ? (avg_delta == 0 ? 3 : 2) : 1;
         (void)b;
         return pt.model().sign_counts_.at(color_index(), 0, b + 1);
