@@ -87,7 +87,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         gctx->cur_jpeg_x = 0;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        *block_context.num_nonzeros_here = block.recalculate_coded_length();
+        block_context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
         serialize_tokens(block_context,
                          bool_encoder,
                          left_model,
@@ -102,7 +102,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         gctx->cur_jpeg_x = jpeg_x;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        *block_context.num_nonzeros_here = block.recalculate_coded_length();
+        block_context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
         serialize_tokens(block_context,
                          bool_encoder,
                          middle_model,
@@ -117,7 +117,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         gctx->cur_jpeg_x = block_width - 1;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        *block_context.num_nonzeros_here = block.recalculate_coded_length();
+        block_context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
         serialize_tokens(block_context,
                          bool_encoder,
                          right_model,
@@ -220,7 +220,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     using namespace Sirikata;
     BoolEncoder bool_encoder;
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
-    Array1d<std::vector<uint8_t>, (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros;
+    Array1d<std::vector<NeighborSummary>, (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros;
     for (size_t i = 0; i < num_nonzeros.size(); ++i) {
         num_nonzeros.at(i).resize(colldata->block_width(i) << 1);
     }

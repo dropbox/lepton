@@ -45,6 +45,8 @@ lepton_SOURCES = \
    src/vp8/util/generic_worker.hh \
    src/vp8/util/options.hh \
    src/vp8/util/generic_worker.cc \
+   src/vp8/util/debug.cc \
+   src/vp8/util/debug.h \
    src/vp8/util/memory.cc \
    src/vp8/util/memory.hh \
    src/vp8/util/nd_array.hh \

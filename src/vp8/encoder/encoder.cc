@@ -10,6 +10,7 @@
 #include "weight.hh"
 #include <fstream>
 #include "../../lepton/idct.hh"
+#include "../util/debug.hh"
 using namespace std;
 
 uint8_t prefix_remap(uint8_t v) {
@@ -171,6 +172,8 @@ void encode_edge(ConstBlockContext context,
                                                                         eob_y,
                                                                         pt);
 }
+// used for debugging
+static int k_debug_block[3] = {0, 0, 0};
 
 template <bool has_left, bool has_above, bool has_above_right, BlockType color>
 void serialize_tokens(ConstBlockContext context,
@@ -180,7 +183,7 @@ void serialize_tokens(ConstBlockContext context,
 {
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context);
     int serialized_so_far = 0;
-    uint8_t num_nonzeros_7x7 = *context.num_nonzeros_here;
+    uint8_t num_nonzeros_7x7 = context.num_nonzeros_here->num_nonzeros();
 #if 0
     fprintf(stderr, "7\t%d\n", (int)block.num_nonzeros_7x7());
     fprintf(stderr, "x\t%d\n", (int)block.num_nonzeros_x());
@@ -262,10 +265,10 @@ void serialize_tokens(ConstBlockContext context,
                 pt);
 
 
-    int32_t outp[64];
+    int32_t outp_sans_dc[64];
     prior = probability_tables.get_dc_coefficient_context(context, num_nonzeros_7x7);
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, true);
-
+    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp_sans_dc, true);
+    
     {
         // do DC
         uint8_t coord = 0;
@@ -296,8 +299,29 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
     }
+    int32_t outp[64];
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
-
+    if ((!g_threaded) && LeptonDebug::raw_YCbCr[(int)color]) {
+        double delta = 0;
+        for (int i = 0; i < 64; ++i) {
+            delta += outp[i] - outp_sans_dc[i];
+            //fprintf (stderr, "%d + %d = %d\n", outp_sans_dc[i], context.here().dc(), outp[i]);
+        }
+        delta /= 64;
+        fprintf (stderr, "==== %f = %f =?= %d\n", delta, delta * 8, context.here().dc());
+        
+        int debug_width = LeptonDebug::getDebugWidth((int)color);
+        int offset = k_debug_block[(int)color];
+        for (int y = 0; y  < 8; ++y) {
+            for (int x = 0; x  < 8; ++x) {
+                LeptonDebug::raw_YCbCr[(int)color][offset + y * debug_width + x] = std::max(std::min(outp[(y << 3) + x] + 128, 255),0);
+            }
+        }
+        k_debug_block[(int)color] += 8;
+        if (k_debug_block[(int)color] % debug_width == 0) {
+            k_debug_block[(int)color] += debug_width * 7;
+        }
+    }
 }
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);

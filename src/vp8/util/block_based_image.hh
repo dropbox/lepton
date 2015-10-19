@@ -32,20 +32,20 @@ public:
             image_ = (Block*)storage_;
         }
     }
-    BlockContext begin(std::vector<uint8_t>::iterator num_nonzeros_begin) {
+    BlockContext begin(std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
         return {image_, nullptr, num_nonzeros_begin, num_nonzeros_begin + width_};
     }
-    ConstBlockContext begin(std::vector<uint8_t>::iterator num_nonzeros_begin) const {
+    ConstBlockContext begin(std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
         return {image_, nullptr, num_nonzeros_begin, num_nonzeros_begin + width_};
     }
     BlockContext off_y(int y,
-                       std::vector<uint8_t>::iterator num_nonzeros_begin) {
+                       std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
         return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
             (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
             (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
     ConstBlockContext off_y(int y,
-                            std::vector<uint8_t>::iterator num_nonzeros_begin) const {
+                            std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
         return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
             (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
             (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};

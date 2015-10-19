@@ -1,5 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #include "../vp8/util/memory.hh"
+#include "../vp8/util/debug.hh"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -894,6 +895,8 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
 
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
+    LeptonDebug::dumpDebugData();
+
     custom_exit(errorlevel.load()); // custom exit will delete generic_workers
     // reset buffers
     reset_buffers();
@@ -2839,6 +2842,10 @@ bool setup_imginfo_jpg( void )
     mcuv = ( int ) ceil( (float) imgheight / (float) ( 8 * sfhm ) );
     mcuh = ( int ) ceil( (float) imgwidth  / (float) ( 8 * sfvm ) );
     mcuc  = mcuv * mcuh;
+    int maxChromaWidth = 0;
+    int maxChromaHeight = 0;
+    int maxLumaWidth = 0;
+    int maxLumaHeight = 0;
     for ( cmp = 0; cmp < cmpc; cmp++ ) {
         cmpnfo[ cmp ].mbs = cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
         cmpnfo[ cmp ].bcv = mcuv * cmpnfo[ cmp ].sfh;
@@ -2849,7 +2856,20 @@ bool setup_imginfo_jpg( void )
         cmpnfo[ cmp ].nch = ( int ) ceil( (float) imgwidth *
                             ( (float) cmpnfo[ cmp ].sfv / ( 8.0 * sfvm ) ) );
         cmpnfo[ cmp ].nc  = cmpnfo[ cmp ].ncv * cmpnfo[ cmp ].nch;
+        if (cmp == 0) {
+            maxLumaWidth = cmpnfo[ cmp ].bch * 8;
+            maxLumaHeight = cmpnfo[ cmp ].bcv * 8;
+        } else {
+            if (maxChromaWidth < cmpnfo[ cmp ].bch * 8) {
+                maxChromaWidth = cmpnfo[ cmp ].bch * 8;
+            }
+            if (maxChromaHeight < cmpnfo[ cmp ].bcv * 8) {
+                maxChromaHeight = cmpnfo[ cmp ].bcv * 8;
+            }
+        }
     }
+    LeptonDebug::setupDebugData(maxLumaWidth, maxLumaHeight,
+                                maxChromaWidth, maxChromaHeight);
 
     // decide components' statistical ids
     if ( cmpc <= 3 ) {
