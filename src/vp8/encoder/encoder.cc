@@ -318,7 +318,7 @@ void serialize_tokens(ConstBlockContext context,
     int32_t outp[64];
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
     for (int i = 0; i < 64; ++i) {
-        outp[i] >>= 3;
+        //outp[i] >>= 3;
     }
 
     //context.num_nonzeros_here->set_horizontal(outp_sans_dc, context.here().dc());

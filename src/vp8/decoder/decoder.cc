@@ -272,7 +272,7 @@ void parse_tokens(BlockContext context,
     context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.copy(), true, predicted_dc);
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
     for (int i = 0; i < 64; ++i) {
-        outp[i] >>= 3;
+        //outp[i] >>= 3;
     }
 
     context.num_nonzeros_here->set_num_nonzeros(num_nonzeros_7x7);
