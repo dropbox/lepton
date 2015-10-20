@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "model.hh"
-
+bool g_threaded = true;
 using namespace std;
 
 int main( int argc, char *argv[] )

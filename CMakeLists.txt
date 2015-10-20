@@ -195,6 +195,8 @@ target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localmd5 ${ADDITIONAL_FLAGS})
 
 
 add_executable(print-model
+   src/vp8/util/debug.cc
+   src/vp8/util/debug.hh
    src/lepton/print-model.cc
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh

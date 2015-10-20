@@ -315,17 +315,6 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
     }
-    int outp[64];
-    int outp2[64];
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp2, true);
-/*
-    fprintf(stderr, "%d::\n", context.here().dc());
-    for (int i= 0;i < 64;++i) {
-        fprintf(stderr, "%d - %d = %d\n", outp[i],outp2[i], outp[i] -outp2[i]);
-        assert(outp_sans_dc[i] +ProbabilityTablesBase::quantization_table((int)color)[0] * context.here().dc() == outp[i]);
-    }
-*/
     {
         int dc = context.here().dc();
         context.num_nonzeros_here->set_horizontal(outp_sans_dc,

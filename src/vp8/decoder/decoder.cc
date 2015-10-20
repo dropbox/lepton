@@ -269,10 +269,6 @@ void parse_tokens(BlockContext context,
                                                                          predicted_dc);
 
     context.num_nonzeros_here->set_num_nonzeros(num_nonzeros_7x7);
-    int outp[64];
-    int outp2[64];
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp2, true);
 
     context.num_nonzeros_here->set_horizontal(outp_sans_dc,
                                               ProbabilityTablesBase::quantization_table((int)color),
@@ -280,11 +276,7 @@ void parse_tokens(BlockContext context,
     context.num_nonzeros_here->set_vertical(outp_sans_dc,
                                             ProbabilityTablesBase::quantization_table((int)color),
                                             context.here().dc());
-    //context.num_nonzeros_here->set_horizontal_dc_included(outp);
-    //context.num_nonzeros_here->set_vertical_dc_included(outp);
-    for (int i= 0;i < 64;++i) {
-        //assert(std::min(std::max(0, outp_sans_dc[i] +context.here().dc() + 128 * 8),256 *8- 1) == outp[i]);
-    }
+    context.num_nonzeros_here->set_dc_residual(predicted_dc);
 }
 
 
