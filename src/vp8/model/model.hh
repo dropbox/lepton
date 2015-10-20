@@ -609,7 +609,7 @@ public:
             if (left_present) {
                 for (int i = 0; i < 8;++i) {
                     int a = std::max(std::min(pixels_sans_dc[i*8] + 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1),0);
-                    int b = 8*(context.neighbor_context_left_unchecked().vertical(i)>>3);
+                    int b = context.neighbor_context_left_unchecked().vertical(i);
                     dc_estimates[i] = b - a;
                     dc_sum += (b - a);
                 }
@@ -617,7 +617,7 @@ public:
             if (above_present) {
                 for (int i = 0; i < 8;++i) {
                     int a = std::max(std::min(pixels_sans_dc[i] + 128 * xIDCTSCALE, 256  * xIDCTSCALE - 1),0);
-                    int b = 8*(context.neighbor_context_above_unchecked().horizontal(i)>>3);//xx
+                    int b = context.neighbor_context_above_unchecked().horizontal(i);
                     dc_estimates[i + (left_present ? 8 : 0)] = b - a;
                     dc_sum += (b - a);
                 }
