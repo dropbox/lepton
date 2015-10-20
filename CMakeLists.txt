@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2 -fno-exceptions -fno-rtti")
-SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DHAVE_CONFIG_H")
+SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DHAVE_CONFIG_H ")
 
 SET(LIBLZMA_INCLUDE_DIRS)
 
@@ -189,7 +189,7 @@ add_executable(lepton
                )
 SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
-    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static)
+    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static -Wl,--no-export-dynamic -lstdc++)
 ENDIF()
 target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localmd5 ${ADDITIONAL_FLAGS})
 
@@ -208,7 +208,8 @@ add_executable(print-model
    src/lepton/idct.cc
    src/lepton/idct.hh
    src/vp8/model/numeric.cc
-  )
+   )
+ target_link_libraries(print-model ${ADDITIONAL_FLAGS})
 add_executable(test_invariants
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
