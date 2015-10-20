@@ -230,14 +230,9 @@ void parse_tokens(BlockContext context,
                 num_nonzeros_7x7, eob_x, eob_y,
                 prior,
                 pt);
-    int32_t outp[64];
     int32_t outp_sans_dc[64];
     int uncertainty = 0;
     int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc, &uncertainty);
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, true);
-    for (int i = 0; i < 64; ++i) {
-        outp[i] >>= 3;
-    }
 
     prior = probability_tables.get_dc_coefficient_context(context.copy(),num_nonzeros_7x7);
     { // dc
@@ -269,15 +264,13 @@ void parse_tokens(BlockContext context,
         }
         context.here().dc() = coef;
     }
-    context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.copy(), true, predicted_dc);
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
-    for (int i = 0; i < 64; ++i) {
-        //outp[i] >>= 3;
-    }
+    context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.copy(),
+                                                                         true,
+                                                                         predicted_dc);
 
     context.num_nonzeros_here->set_num_nonzeros(num_nonzeros_7x7);
-    context.num_nonzeros_here->set_horizontal(outp, 0);
-    context.num_nonzeros_here->set_vertical(outp, 0);
+    context.num_nonzeros_here->set_horizontal(outp_sans_dc, context.here().dc());
+    context.num_nonzeros_here->set_vertical(outp_sans_dc, context.here().dc());
 }
 
 

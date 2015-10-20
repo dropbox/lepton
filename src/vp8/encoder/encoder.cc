@@ -315,16 +315,8 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
     }
-    int32_t outp[64];
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
-    for (int i = 0; i < 64; ++i) {
-        //outp[i] >>= 3;
-    }
-
-    //context.num_nonzeros_here->set_horizontal(outp_sans_dc, context.here().dc());
-    ///context.num_nonzeros_here->set_vertical(outp_sans_dc, context.here().dc());
-    context.num_nonzeros_here->set_horizontal(outp, 0);
-    context.num_nonzeros_here->set_vertical(outp, 0);
+    context.num_nonzeros_here->set_horizontal(outp_sans_dc, context.here().dc());
+    context.num_nonzeros_here->set_vertical(outp_sans_dc, context.here().dc());
     context.num_nonzeros_here->set_dc_residual(adv_predicted_dc);
 
     if ((!g_threaded) && LeptonDebug::raw_YCbCr[(int)color]) {

@@ -32,7 +32,7 @@ struct NeighborSummary {
         for (int i = 0; i < 7 ; ++i) {
             nonzeros_and_edge_pixels[i + 1] = std::max(std::min(dc + data[i * 8 + 7]+ 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1), 0);
         }
-        assert(vertical(7) == std::max(std::min(data[63] + 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1), 0));
+        assert(vertical(7) == std::max(std::min(dc + data[63] + 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1), 0));
     }
 };
 
