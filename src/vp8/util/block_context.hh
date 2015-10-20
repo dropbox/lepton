@@ -6,7 +6,7 @@ enum {
     xIDCTSCALE = 8
 };
 struct NeighborSummary {
-    int32_t nonzeros_and_edge_pixels[16];
+    int16_t nonzeros_and_edge_pixels[16];
     int16_t dc_residual;
     uint8_t num_nonzeros() const {
         return nonzeros_and_edge_pixels[0];
@@ -14,15 +14,15 @@ struct NeighborSummary {
     void set_num_nonzeros(uint8_t nz) {
         nonzeros_and_edge_pixels[0] = nz;
     }
-    uint8_t horizontal(int index) const {
+    int16_t horizontal(int index) const {
         return nonzeros_and_edge_pixels[index + 8];
     }
-    uint8_t vertical(int index) const {
+    int16_t vertical(int index) const {
         return nonzeros_and_edge_pixels[index == 7 ? 15 : (index + 1)];
     }
     void set_horizontal(int * data, int16_t dc) {
         for (int i = 0; i < 8 ; ++i) {
-            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min((dc * IDCTSCALE >> 3) + (data[i + 56]>>3) + 128 * IDCTSCALE, 256* IDCTSCALE - 1), 0);
+            nonzeros_and_edge_pixels[i + 8] = std::max(std::min(dc + data[i + 56] + 128 * xIDCTSCALE, 256* xIDCTSCALE - 1), 0);
         }
     }
     void set_dc_residual(int16_t dc_r) {
@@ -30,9 +30,9 @@ struct NeighborSummary {
     }
     void set_vertical(int * data, int16_t dc) {
         for (int i = 0; i < 7 ; ++i) {
-            nonzeros_and_edge_pixels[i + 1] = (uint8_t)std::max(std::min((dc * IDCTSCALE >> 3) + (data[i * 8 + 7]>>3)+ 128 * IDCTSCALE, 256 * IDCTSCALE - 1), 0);
+            nonzeros_and_edge_pixels[i + 1] = std::max(std::min(dc + data[i * 8 + 7]+ 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1), 0);
         }
-        assert(vertical(7) == (uint8_t)std::max(std::min((data[63]>>3) + 128 * IDCTSCALE, 256 * IDCTSCALE - 1), 0));
+        assert(vertical(7) == std::max(std::min(data[63] + 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1), 0));
     }
 };
 
