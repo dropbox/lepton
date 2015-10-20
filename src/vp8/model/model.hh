@@ -596,7 +596,8 @@ public:
     }
 
     int adv_predict_dc_pix(const ConstBlockContext&context, int*pixels_sans_dc, int *uncertainty_val) {
-        idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), pixels_sans_dc, true);
+        uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
+        idct(context.here(), q, pixels_sans_dc, true);
         //for (int i = 0; i < 64; ++i) {
         //    pixels_sans_dc[i] >>= 3;
         //}
@@ -643,7 +644,7 @@ public:
             }
             *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + 4)>>3;
         }
-        return (avgmed + 4) >> 3;
+        return (((avgmed + 4)/q[0]) >> 3);
     }
 
     int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {
