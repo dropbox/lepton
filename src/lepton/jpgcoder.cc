@@ -35,6 +35,7 @@
 #include "../io/Compression.hh"
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
+bool fast_exit = true;
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
 
@@ -667,9 +668,6 @@ void kill_workers(void * workers) {
                 generic_workers->at(i).main_wait_for_done();
             }
         }
-        if (delete_workers) { // may not want to delete workers if under SECCOMP
-            delete [] generic_workers;
-        }
     }
 }
 void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writer)
@@ -803,14 +801,15 @@ void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writ
                 break;
         }
     }
-
-    // close iostreams
-    if ( str_in  != NULL ) delete( str_in  ); str_in  = NULL;
-    if ( str_out != NULL ) delete( str_out ); str_out = NULL;
-    if ( ujg_out != NULL ) delete( ujg_out ); ujg_out = NULL;
-    // delete if broken or if output not needed
-    if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp && action != forkserve) ) ) {
-        // FIXME: can't delete broken output--it's gone already
+    if (!fast_exit) {
+        // close iostreams
+        if ( str_in  != NULL ) delete( str_in  ); str_in  = NULL;
+        if ( str_out != NULL ) delete( str_out ); str_out = NULL;
+        if ( ujg_out != NULL ) delete( ujg_out ); ujg_out = NULL;
+        // delete if broken or if output not needed
+        if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp && action != forkserve) ) ) {
+            // FIXME: can't delete broken output--it's gone already
+        }
     }
     if (!g_use_seccomp) {
         end = clock();
@@ -2077,7 +2076,7 @@ bool recode_jpeg( void )
             tmp = rstc + ( ( cs_cmpc > 1 ) ?
                 ( mcuc / rsti ) : ( cmpnfo[ cs_cmp[ 0 ] ].bc / rsti ) );
             while ((int)rstp.size() <= tmp ) {
-                rstp.push_back( -1 );
+                rstp.push_back((unsigned int) -1 );
             }
         }
 
@@ -2356,11 +2355,12 @@ bool recode_jpeg( void )
     hufs = huffw->getpos();
     assert(huffw->no_remainder() && "this should have been padded");
     merge_jpeg_streaming(&streaming_progress, huffdata, hufs, true);
-    delete huffw;
+    if (!fast_exit) {
+        delete huffw;
 
-    // remove storage writer
-    delete storw;
-
+        // remove storage writer
+        delete storw;
+    }
     // store last scan & restart positions
     scnp[ scnc ] = hufs;
     if ( !rstp.empty() )
