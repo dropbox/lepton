@@ -624,7 +624,7 @@ public:
             }
             avg_estimated_dc = dc_sum;
             if (left_present && above_present) {
-                avg_estimated_dc /=2;
+                avg_estimated_dc >>= 1;
             }
             avg_estimated_dc = (avg_estimated_dc + xIDCTSCALE / 2) / xIDCTSCALE;
             std::sort(dc_estimates, dc_estimates + len_est);
@@ -641,9 +641,9 @@ public:
                 //fprintf(stderr, "DC : %d\n", actual_dc);
 
             }
-            *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + xIDCTSCALE/2) / xIDCTSCALE;
+            *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + 4)>>3;
         }
-        return (avgmed + xIDCTSCALE / 2) / xIDCTSCALE;
+        return (avgmed + 4) >> 3;
     }
 
     int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {
