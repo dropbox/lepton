@@ -273,6 +273,10 @@ void serialize_tokens(ConstBlockContext context,
     int32_t outp_sans_dc[64];
     prior = probability_tables.get_dc_coefficient_context(context, num_nonzeros_7x7);
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp_sans_dc, true);
+    for (int i = 0; i < 64; ++i) {
+        outp_sans_dc[i] >>= 3;
+    }
+
     int predicted_dc = probability_tables.predict_or_unpredict_dc(context, false);
     (void)predicted_dc;
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
@@ -313,6 +317,10 @@ void serialize_tokens(ConstBlockContext context,
     }
     int32_t outp[64];
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
+    for (int i = 0; i < 64; ++i) {
+        outp[i] >>= 3;
+    }
+
     //context.num_nonzeros_here->set_horizontal(outp_sans_dc, context.here().dc());
     ///context.num_nonzeros_here->set_vertical(outp_sans_dc, context.here().dc());
     context.num_nonzeros_here->set_horizontal(outp, 0);
@@ -322,6 +330,10 @@ void serialize_tokens(ConstBlockContext context,
     if ((!g_threaded) && LeptonDebug::raw_YCbCr[(int)color]) {
         int32_t outp[64];
         idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
+        for (int i = 0; i < 64; ++i) {
+            outp[i] >>= 3;
+        }
+
         double delta = 0;
         for (int i = 0; i < 64; ++i) {
             delta += outp[i] - outp_sans_dc[i];

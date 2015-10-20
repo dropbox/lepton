@@ -1,9 +1,12 @@
 #ifndef _BLOCK_CONTEXT_HH_
 #define _BLOCK_CONTEXT_HH_
 
-
+enum {
+    IDCTSCALE = 1,
+    xIDCTSCALE = 8
+};
 struct NeighborSummary {
-    uint8_t nonzeros_and_edge_pixels[16];
+    int32_t nonzeros_and_edge_pixels[16];
     int16_t dc_residual;
     uint8_t num_nonzeros() const {
         return nonzeros_and_edge_pixels[0];
@@ -19,7 +22,7 @@ struct NeighborSummary {
     }
     void set_horizontal(int * data, int16_t dc) {
         for (int i = 0; i < 8 ; ++i) {
-            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min((dc >> 3) + data[i + 56] + 128, 256), 0);
+            nonzeros_and_edge_pixels[i + 8] = (uint8_t)std::max(std::min((dc * IDCTSCALE >> 3) + data[i + 56] + 128 * IDCTSCALE, 256* IDCTSCALE - 1), 0);
         }
     }
     void set_dc_residual(int16_t dc_r) {
@@ -27,9 +30,9 @@ struct NeighborSummary {
     }
     void set_vertical(int * data, int16_t dc) {
         for (int i = 0; i < 7 ; ++i) {
-            nonzeros_and_edge_pixels[i + 1] = (uint8_t)std::max(std::min((dc >> 3) + data[i * 8 + 7] + 128, 256), 0);
+            nonzeros_and_edge_pixels[i + 1] = (uint8_t)std::max(std::min((dc * IDCTSCALE >> 3) + data[i * 8 + 7] + 128 * IDCTSCALE, 256 * IDCTSCALE - 1), 0);
         }
-        assert(vertical(7) == (uint8_t)std::max(std::min(data[63] + 128, 256), 0));
+        assert(vertical(7) == (uint8_t)std::max(std::min(data[63] + 128 * IDCTSCALE, 256 * IDCTSCALE - 1), 0));
     }
 };
 

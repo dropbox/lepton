@@ -32,7 +32,6 @@ constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = 10;
 
 
-
 struct Model
 {
     typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
@@ -598,6 +597,9 @@ public:
 
     int adv_predict_dc_pix(const ConstBlockContext&context, int*pixels_sans_dc, int *uncertainty_val) {
         idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), pixels_sans_dc, true);
+        //for (int i = 0; i < 64; ++i) {
+        //    pixels_sans_dc[i] >>= 3;
+        //}
         int dc_estimates[(left_present || above_present) ? (left_present ? 8 : 0) + (above_present ? 8 : 0) : 1] = {0};
         size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
         int avgmed = 0;
@@ -606,16 +608,16 @@ public:
             int dc_sum = 0;
             if (left_present) {
                 for (int i = 0; i < 8;++i) {
-                    int a = std::max(std::min(pixels_sans_dc[i*8] + 128, 255),0);
-                    int b = context.neighbor_context_left_unchecked().vertical(i);
+                    int a = std::max(std::min(pixels_sans_dc[i*8] + 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1),0);
+                    int b = xIDCTSCALE * context.neighbor_context_left_unchecked().vertical(i);
                     dc_estimates[i] = b - a;
                     dc_sum += (b - a);
                 }
             }
             if (above_present) {
                 for (int i = 0; i < 8;++i) {
-                    int a = std::max(std::min(pixels_sans_dc[i] + 128, 255),0);
-                    int b = context.neighbor_context_above_unchecked().horizontal(i);//xx
+                    int a = std::max(std::min(pixels_sans_dc[i] + 128 * xIDCTSCALE, 256  * xIDCTSCALE - 1),0);
+                    int b = xIDCTSCALE * context.neighbor_context_above_unchecked().horizontal(i);//xx
                     dc_estimates[i + (left_present ? 8 : 0)] = b - a;
                     dc_sum += (b - a);
                 }
@@ -624,6 +626,7 @@ public:
             if (left_present && above_present) {
                 avg_estimated_dc /=2;
             }
+            avg_estimated_dc = (avg_estimated_dc + xIDCTSCALE / 2) / xIDCTSCALE;
             std::sort(dc_estimates, dc_estimates + len_est);
             for (size_t i = 0; i < len_est; ++i) {
                 if (i >= len_est/2 - 2 && i < len_est/2 + 2) {
@@ -638,9 +641,9 @@ public:
                 //fprintf(stderr, "DC : %d\n", actual_dc);
 
             }
-            *uncertainty_val = dc_estimates[len_est - 1] - dc_estimates[0];
+            *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + xIDCTSCALE/2) / xIDCTSCALE;
         }
-        return avgmed;
+        return (avgmed + xIDCTSCALE / 2) / xIDCTSCALE;
     }
 
     int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {

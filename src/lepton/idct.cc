@@ -131,13 +131,16 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int32_t outp[64], boo
         y4 = (r2*(y4-y5) + 128) >> 8;
 
         // Stage 4.
-        outp[8*0+x] = (y7 + y1) >> 14;
-        outp[8*1+x] = (y3 + y2) >> 14;
-        outp[8*2+x] = (y0 + y4) >> 14;
-        outp[8*3+x] = (y8 + y6) >> 14;
-        outp[8*4+x] = (y8 - y6) >> 14;
-        outp[8*5+x] = (y0 - y4) >> 14;
-        outp[8*6+x] = (y3 - y2) >> 14;
-        outp[8*7+x] = (y7 - y1) >> 14;
+        outp[8*0+x] = (y7 + y1) >> 11;
+        outp[8*1+x] = (y3 + y2) >> 11;
+        outp[8*2+x] = (y0 + y4) >> 11;
+        outp[8*3+x] = (y8 + y6) >> 11;
+        outp[8*4+x] = (y8 - y6) >> 11;
+        outp[8*5+x] = (y0 - y4) >> 11;
+        outp[8*6+x] = (y3 - y2) >> 11;
+        outp[8*7+x] = (y7 - y1) >> 11;
+    }
+    for (int i = 0; i < 64;++i) {
+        //outp[i]>>=3;
     }
 }
