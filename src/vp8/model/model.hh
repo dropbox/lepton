@@ -438,24 +438,24 @@ public:
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
                                                                      const CoefficientContext context,
                                                                      int mxm
-                                                                     , int pixel_derivative) {
+                                                                     , int offset_to_closest_edge) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().exponent_counts_dc_.at(0*color_index(),
                                                  0*context.num_nonzeros_bin,
                                                  uint16bit_length(abs(mxm)),
-                                                 uint16bit_length(abs(pixel_derivative)) + 0*context.bsr_best_prior);
+                                                 uint16bit_length(abs(offset_to_closest_edge)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
                                                                      const CoefficientContext context,
                                                                      int mxm
-                                                                  , int pixel_derivative) {
+                                                                  , int offset_to_closest_edge) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_dc_
             .at(0*color_index(),
                 0*context.num_nonzeros_bin,
-                uint16bit_length(abs(mxm))/*context.bsr_best_prior*/);
+                uint16bit_length(abs(mxm)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
                                                           const unsigned int band,
@@ -600,41 +600,32 @@ public:
     int adv_predict_dc_pix(const ConstBlockContext&context, int*pixels_sans_dc, int *uncertainty_val, int *uncertainty2_val) {
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         idct(context.here(), q, pixels_sans_dc, true);
-        //for (int i = 0; i < 64; ++i) {
-        //    pixels_sans_dc[i] >>= 3;
-        //}
+
         int dc_estimates[(left_present || above_present) ? (left_present ? 8 : 0) + (above_present ? 8 : 0) : 1] = {0};
-        int pixel_deltas[sizeof(dc_estimates)/sizeof(dc_estimates[0])] = {};
         size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
         int avgmed = 0;
-        int avg_estimated_dc = 0;
-        int selected_pixel_deltas = 0;
         if(left_present || above_present) {
             int dc_sum = 0;
             if (left_present) {
                 for (int i = 0; i < 8;++i) {
-                    int a = std::max(std::min(pixels_sans_dc[i*8] + 128 * xIDCTSCALE, 256 * xIDCTSCALE - 1),0);
-                    pixel_deltas[i] = pixels_sans_dc[i*8] - pixels_sans_dc[i*8 + 1];
-                    int b = context.neighbor_context_left_unchecked().vertical(i) - pixel_deltas[i]/2;
+                    int a = std::min(std::max(pixels_sans_dc[i*8] + 128 * xIDCTSCALE, 0),
+                                     256 * xIDCTSCALE - 1);
+                    int pixel_delta = pixels_sans_dc[i*8] - pixels_sans_dc[i*8 + 1];
+                    int b = context.neighbor_context_left_unchecked().vertical(i) - pixel_delta/2;
                     dc_estimates[i] = b - a;
                     dc_sum += (b - a);
                 }
             }
             if (above_present) {
                 for (int i = 0; i < 8;++i) {
-                    int a = std::max(std::min(pixels_sans_dc[i] + 128 * xIDCTSCALE, 256  * xIDCTSCALE - 1),0);
-                    pixel_deltas[i + (left_present ? 8 : 0)] = pixels_sans_dc[i] - pixels_sans_dc[i+ 8];
-                    int b = context.neighbor_context_above_unchecked().horizontal(i) - pixel_deltas[i + (left_present ? 8 : 0)]/2;
+                    int a = std::min(std::max(pixels_sans_dc[i] + 128 * xIDCTSCALE, 0),
+                                     256  * xIDCTSCALE - 1);
+                    int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i+ 8];
+                    int b = context.neighbor_context_above_unchecked().horizontal(i) - pixel_delta/2;
                     dc_estimates[i + (left_present ? 8 : 0)] = b - a;
                     dc_sum += (b - a);
                 }
             }
-            int actual_dc = context.here().dc();
-            avg_estimated_dc = dc_sum;
-            if (left_present && above_present) {
-                avg_estimated_dc >>= 1;
-            }
-            avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
             int avg_h = 0;
             int avg_v = 0;
             for (size_t i = 0; i < 8; ++i) {
@@ -649,29 +640,35 @@ public:
             for (size_t i = 0; i < len_est; ++i) {
                 if (i >= len_est/2 - 4 && i < len_est/2 + 4) {
                     avgmed += dc_estimates[i];
-                    selected_pixel_deltas += pixel_deltas[i];
                 }
-                //fprintf(stderr, "PRE: %d [%d]\n", dc_estimates[i], pixel_deltas[i]);
             }
-            int scaled_med = (dc_estimates[len_est - 1]/q[0] + 4);
-            int scaled_avgmed = (((avgmed/q[0]) + 4) >> 3);
-            using namespace LeptonDebug;
-            med_err += abs(scaled_med - actual_dc);
-            amd_err += abs(scaled_avgmed - actual_dc);
-            avg_err += abs(avg_estimated_dc - actual_dc);
-            int locoi_pred = predict_locoi_dc_deprecated(context);
-            int predicted_dc = predict_dc_dct(context);
-            ori_err += abs(predicted_dc - actual_dc);
-            loc_err += abs(locoi_pred - actual_dc);
-/*
-            fprintf(stderr, "MXM: %d\n", dc_estimates[len_est - 1] - dc_estimates[0]);
-            fprintf(stderr, "MED: %d (%d)\n", scaled_med, med_err);
-            fprintf(stderr, "AMD: %d (%d)\n", scaled_avgmed, amd_err);
-            fprintf(stderr, "AVG: %d (%d)\n", avg_estimated_dc, avg_err);
-            fprintf(stderr, "ORI: %d (%d)\n", predicted_dc, ori_err);
-            fprintf(stderr, "LOC: %d (%d)\n", locoi_pred, loc_err);
-            fprintf(stderr, "DC : %d\n", actual_dc);
-*/              
+            if (false) { // this is to debug some of the differences
+                int actual_dc = context.here().dc();
+                int avg_estimated_dc = 0;
+                avg_estimated_dc = dc_sum;
+                if (left_present && above_present) {
+                    avg_estimated_dc >>= 1;
+                }
+                avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
+                int scaled_med = (dc_estimates[len_est - 1]/q[0] + 4);
+                int scaled_avgmed = (((avgmed/q[0]) + 4) >> 3);
+                using namespace LeptonDebug;
+                med_err += abs(scaled_med - actual_dc);
+                amd_err += abs(scaled_avgmed - actual_dc);
+                avg_err += abs(avg_estimated_dc - actual_dc);
+                int locoi_pred = predict_locoi_dc_deprecated(context);
+                int predicted_dc = predict_dc_dct(context);
+                ori_err += abs(predicted_dc - actual_dc);
+                loc_err += abs(locoi_pred - actual_dc);
+                
+                fprintf(stderr, "MXM: %d\n", dc_estimates[len_est - 1] - dc_estimates[0]);
+                fprintf(stderr, "MED: %d (%d)\n", scaled_med, med_err);
+                fprintf(stderr, "AMD: %d (%d)\n", scaled_avgmed, amd_err);
+                fprintf(stderr, "AVG: %d (%d)\n", avg_estimated_dc, avg_err);
+                fprintf(stderr, "ORI: %d (%d)\n", predicted_dc, ori_err);
+                fprintf(stderr, "LOC: %d (%d)\n", locoi_pred, loc_err);
+                fprintf(stderr, "DC : %d\n", actual_dc);
+            }
             *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + 4)>>3;
             *uncertainty2_val = 0;
             avg_h -= avgmed;
@@ -682,7 +679,7 @@ public:
             }
             *uncertainty2_val += (far_afield_value/q[0] + 4) >> 3;
         }
-        return ((avgmed/q[0] + 4) >> 3);
+        return ((avgmed / q[0] + 4) >> 3);
     }
 
     int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {
@@ -959,11 +956,15 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context, int avg_delta, int pixel_derivative) {
+    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context,
+                          int avg_delta,
+                          int offset_to_closest_edge) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
         return pt.model().sign_counts_.at(color_index(),
                                           0,
-                                          pixel_derivative >= 0 ? pixel_derivative==0?3:2:1);
+                                          offset_to_closest_edge >= 0
+                                          ? offset_to_closest_edge == 0
+                                          ? 3 : 2 : 1);
     }
     Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
         ANNOTATE_CTX(band, SIGN7x7, 0, 0);
