@@ -444,7 +444,7 @@ public:
         return pt.model().exponent_counts_dc_.at(0*color_index(),
                                                  0*context.num_nonzeros_bin,
                                                  uint16bit_length(abs(mxm)),
-                                                 pixel_derivative + 0*context.bsr_best_prior);
+                                                 uint16bit_length(abs(pixel_derivative)) + 0*context.bsr_best_prior);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
                                                                      const CoefficientContext context,
@@ -680,12 +680,7 @@ public:
             if (abs(avg_h) < abs(avg_v)) {
                 far_afield_value = avg_h;
             }
-            if (far_afield_value < 0) {
-                *uncertainty2_val |= 1;
-                far_afield_value = -far_afield_value;
-            }
-            *uncertainty2_val += 2 * uint16bit_length((far_afield_value/q[0])>> 6);
-            
+            *uncertainty2_val += (far_afield_value/q[0] + 4) >> 3;
         }
         return ((avgmed/q[0] + 4) >> 3);
     }
@@ -966,9 +961,9 @@ public:
     };
     Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context, int avg_delta, int pixel_derivative) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
-        int b = avg_delta >= 0  ? (avg_delta == 0 ? 3 : 2) : 1;
-        (void)b;
-        return pt.model().sign_counts_.at(color_index(), 0, (pixel_derivative&3) + 1);
+        return pt.model().sign_counts_.at(color_index(),
+                                          0,
+                                          pixel_derivative >= 0 ? pixel_derivative==0?3:2:1);
     }
     Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
         ANNOTATE_CTX(band, SIGN7x7, 0, 0);
