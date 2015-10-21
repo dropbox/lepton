@@ -7,7 +7,6 @@ enum {
 };
 struct NeighborSummary {
     int16_t nonzeros_and_edge_pixels[16];
-    int16_t dc_residual;
     uint8_t num_nonzeros() const {
         return nonzeros_and_edge_pixels[0];
     }
@@ -19,9 +18,6 @@ struct NeighborSummary {
     }
     int16_t vertical(int index) const {
         return nonzeros_and_edge_pixels[index == 7 ? 15 : (index + 1)];
-    }
-    void set_dc_residual(int16_t dc_r) {
-        dc_residual = dc_r;
     }
     void set_horizontal(int * data, uint16_t* quantization_table, int16_t dc) {
         for (int i = 0; i < 8 ; ++i) {

@@ -277,8 +277,6 @@ void serialize_tokens(ConstBlockContext context,
         outp_sans_dc[i] >>= 3;
     }
 
-    int predicted_dc = probability_tables.predict_or_unpredict_dc(context, false);
-    (void)predicted_dc;
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
     int uncertainty2 = 0;
     int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context,
@@ -326,7 +324,6 @@ void serialize_tokens(ConstBlockContext context,
                                                 ProbabilityTablesBase::quantization_table((int)color),
                                                 dc);
     }
-    context.num_nonzeros_here->set_dc_residual(adv_predicted_dc);
 
     if ((!g_threaded) && LeptonDebug::raw_YCbCr[(int)color]) {
         int32_t outp[64];

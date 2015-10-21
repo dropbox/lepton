@@ -277,7 +277,6 @@ void parse_tokens(BlockContext context,
     context.num_nonzeros_here->set_vertical(outp_sans_dc,
                                             ProbabilityTablesBase::quantization_table((int)color),
                                             context.here().dc());
-    context.num_nonzeros_here->set_dc_residual(predicted_dc);
 }
 
 
