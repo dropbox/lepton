@@ -280,11 +280,13 @@ void serialize_tokens(ConstBlockContext context,
     int predicted_dc = probability_tables.predict_or_unpredict_dc(context, false);
     (void)predicted_dc;
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
+    int uncertainty2 = 0;
     int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context,
                                                                           false, 
                                                                           probability_tables.adv_predict_dc_pix(context,
                                                                                                                 outp_sans_dc,
-                                                                                                                &uncertainty));
+                                                                                                                &uncertainty,
+                                                                              &uncertainty2));
     (void)adv_predicted_dc;
     {
         // do DC
@@ -294,7 +296,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty);
+        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty, uncertainty2);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
             encoder.put(cur_bit, exp_prob.at(i));
@@ -303,11 +305,11 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty);
+            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty, uncertainty2);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
-            auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty);
+            auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty, uncertainty2);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {

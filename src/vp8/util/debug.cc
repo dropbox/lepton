@@ -5,6 +5,11 @@
 #include "memory.hh"
 #define DUMP_RAW_IMAGE
 namespace LeptonDebug{
+int med_err;
+int amd_err;
+int avg_err;
+int ori_err;
+int loc_err;
 int luma_debug_width;
 int luma_debug_height;
 

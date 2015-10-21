@@ -232,13 +232,14 @@ void parse_tokens(BlockContext context,
                 pt);
     int32_t outp_sans_dc[64];
     int uncertainty = 0;
-    int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc, &uncertainty);
+    int uncertainty2 = 0;
+    int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc, &uncertainty, &uncertainty2);
 
     prior = probability_tables.get_dc_coefficient_context(context.copy(),num_nonzeros_7x7);
     { // dc
         uint8_t length;
         bool nonzero = false;
-        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty);
+        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty, uncertainty2);
         auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
             bool cur_bit = decoder.get(*exp_branch++);
@@ -249,11 +250,11 @@ void parse_tokens(BlockContext context,
         }
         int16_t coef = 0;
         if (nonzero) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty);
+            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty, uncertainty2);
             bool neg = !decoder.get(sign_prob);
             coef = (1 << (length - 1));
             if (length > 1){
-                auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty);
+                auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty, uncertainty2);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
