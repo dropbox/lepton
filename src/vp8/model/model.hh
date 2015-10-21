@@ -441,10 +441,10 @@ public:
                                                                      , int pixel_derivative) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
-        return pt.model().exponent_counts_dc_.at(color_index(),
+        return pt.model().exponent_counts_dc_.at(0*color_index(),
                                                  0*context.num_nonzeros_bin,
                                                  uint16bit_length(abs(mxm)),
-                                                 0*uint16bit_length(abs(pixel_derivative)));
+                                                 pixel_derivative + 0*context.bsr_best_prior);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
                                                                      const CoefficientContext context,
@@ -453,9 +453,9 @@ public:
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_dc_
-            .at(color_index(),
-                context.num_nonzeros_bin,
-                0*uint16bit_length(abs(mxm))/*context.bsr_best_prior*/);
+            .at(0*color_index(),
+                0*context.num_nonzeros_bin,
+                uint16bit_length(abs(mxm))/*context.bsr_best_prior*/);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
                                                           const unsigned int band,
@@ -635,11 +635,20 @@ public:
                 avg_estimated_dc >>= 1;
             }
             avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
+            int avg_h = 0;
+            int avg_v = 0;
+            for (size_t i = 0; i < 8; ++i) {
+                avg_h += dc_estimates[i];
+            }
+            for (size_t i = len_est - 8; i < len_est; ++i) {
+                avg_v += dc_estimates[i];
+            }
+            
             std::sort(dc_estimates, dc_estimates + len_est);
             
             for (size_t i = 0; i < len_est; ++i) {
-                if (i >= len_est/2 - 2 && i < len_est/2 + 2) {
-                    avgmed += dc_estimates[i] * 2;
+                if (i >= len_est/2 - 4 && i < len_est/2 + 4) {
+                    avgmed += dc_estimates[i];
                     selected_pixel_deltas += pixel_deltas[i];
                 }
                 //fprintf(stderr, "PRE: %d [%d]\n", dc_estimates[i], pixel_deltas[i]);
@@ -664,7 +673,19 @@ public:
             fprintf(stderr, "DC : %d\n", actual_dc);
 */              
             *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + 4)>>3;
-            *uncertainty2_val = selected_pixel_deltas;
+            *uncertainty2_val = 0;
+            avg_h -= avgmed;
+            avg_v -= avgmed;
+            int far_afield_value = avg_v;
+            if (abs(avg_h) < abs(avg_v)) {
+                far_afield_value = avg_h;
+            }
+            if (far_afield_value < 0) {
+                *uncertainty2_val |= 1;
+                far_afield_value = -far_afield_value;
+            }
+            *uncertainty2_val += 2 * uint16bit_length((far_afield_value/q[0])>> 6);
+            
         }
         return ((avgmed/q[0] + 4) >> 3);
     }
@@ -947,7 +968,7 @@ public:
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
         int b = avg_delta >= 0  ? (avg_delta == 0 ? 3 : 2) : 1;
         (void)b;
-        return pt.model().sign_counts_.at(color_index(), 0, b + 1);
+        return pt.model().sign_counts_.at(color_index(), 0, (pixel_derivative&3) + 1);
     }
     Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
         ANNOTATE_CTX(band, SIGN7x7, 0, 0);
