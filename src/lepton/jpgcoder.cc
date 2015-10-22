@@ -659,7 +659,6 @@ static void gen_nop(){}
 void kill_workers(void * workers) {
     Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = 
         (Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *) workers;
-    bool delete_workers = !g_use_seccomp;
     if (generic_workers) {
         for (size_t i = 0; i < generic_workers->size(); ++i){
             if (!generic_workers->at(i).has_ever_queued_work()){
@@ -2535,7 +2534,17 @@ bool write_ujpg( )
 /* -----------------------------------------------
     read uncompressed JPEG file
     ----------------------------------------------- */
+namespace {
+void mem_nop (void *opaque, void *ptr){
 
+}
+void * mem_init_nop(size_t prealloc_size, uint8_t align){
+    return NULL;
+}
+void* mem_realloc_nop(void * ptr, size_t size, size_t *actualSize, unsigned int movable, void *opaque){
+    return NULL;
+}
+}
 bool read_ujpg( void )
 {
     using namespace Sirikata;
@@ -2571,10 +2580,18 @@ bool read_ujpg( void )
     IOUtil::ReadFull(str_in, compressed_header_buffer.data(), compressed_header_buffer.size());
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
+        JpegAllocator<uint8_t> no_free_allocator;
+        no_free_allocator.setup_memory_subsystem(32 * 1024 * 1024,
+                                                 16,
+                                                 &mem_init_nop,
+                                                 &MemMgrAllocatorMalloc,
+                                                 &mem_nop,
+                                                 &mem_realloc_nop,
+                                                 &MemMgrAllocatorMsize);
         auto uncompressed_header_buffer
             = DecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
                                                      compressed_header_buffer.size(),
-                                                     JpegAllocator<uint8_t>());
+                                                     no_free_allocator);
         if (uncompressed_header_buffer.second) {
             assert(false && "Data not properly lzma coded");
             return false;
