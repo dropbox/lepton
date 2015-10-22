@@ -134,7 +134,12 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
     
     size_t pool_overhead_size = sizeof(MemMgrState) * (1 + num_workers);
     size_t total_size = pool_overhead_size + main_thread_pool_size + worker_thread_pool_size * num_workers;
-    uint8_t * data = (uint8_t*)mmap(NULL, total_size, PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANON, -1, 0);
+    uint8_t * data = NULL;
+#if defined(USE_MMAP) && defined(__linux) // only linux guarantees all zeros
+    data = (uint8_t*)mmap(NULL, total_size, PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+#else // lets favor the standard calloc for now
+    data = (uint8_t*)calloc(total_size, 1);
+#endif
     memmgrs = (MemMgrState*)data;
     memmgr_bytes_allocated = pool_overhead_size + main_thread_pool_size + worker_thread_pool_size * num_workers;
     data += pool_overhead_size;
@@ -201,7 +206,7 @@ void memmgr_print_stats()
 }
 
 
-static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas)
+static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas, mem_header_t** blessed_zero)
 {
     size_t total_req_size;
 
@@ -221,12 +226,31 @@ static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas)
     }
     else
     {
+        *blessed_zero = NULL;
         return 0;
     }
-
+    *blessed_zero = h;
     return memmgr.freep;
 }
 
+namespace {
+bool is_zero(const void * data, size_t size) {
+    const char * cdata = (const char *)data;
+    struct Zilch {
+        uint64_t a, b;
+    };
+    Zilch zilch = {0, 0};
+    int retval = 0;
+    size_t i;
+    for (i = 0; i + sizeof(zilch) <= size; i+= sizeof(zilch)) {
+        retval |= memcmp(cdata + i, &zilch, sizeof(zilch));
+    }
+    if (i != size) {
+        retval |= memcmp(cdata + i, &zilch, size - i);
+    }
+    return retval == 0;
+}
+}
 
 // Allocations are done in 'quantas' of header size.
 // The search for a free block of adequate size begins at the point 'memmgr.freep'
@@ -239,6 +263,7 @@ static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas)
 void* memmgr_alloc(size_t nuint8_ts)
 {
     MemMgrState& memmgr = get_local_memmgr();
+    mem_header_t* blessed_zero = NULL;
     mem_header_t* p;
     mem_header_t* prevp;
 
@@ -278,7 +303,13 @@ void* memmgr_alloc(size_t nuint8_ts)
             }
 
             memmgr.freep = prevp;
-            return (void*) (p + 1);
+            if (blessed_zero == p) {
+                assert(is_zero(p + 1, nuint8_ts) && "The item returned from the new pool must be zero");
+                return p + 1;
+            } else {
+                (void)is_zero;
+                return memset((p + 1), 0, nuint8_ts); // this makes sure we always return zero'd data
+            }
         }
         // Reached end of free list ?
         // Try to allocate the block from the memmgr.pool. If that succeeds,
@@ -289,7 +320,7 @@ void* memmgr_alloc(size_t nuint8_ts)
         //
         else if (p == memmgr.freep)
         {
-            if ((p = get_mem_from_pool(memmgr, nquantas)) == 0)
+            if ((p = get_mem_from_pool(memmgr, nquantas, &blessed_zero)) == 0)
             {
                 #ifdef DEBUG_MEMMGR_FATAL
                 printf("!! Memory allocation failed !!\n");

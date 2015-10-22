@@ -29,6 +29,10 @@ inline void custom_free(void* ptr) {
 }
 
 inline void * custom_calloc(size_t size) {
-    return memset(custom_malloc(size), 0, size);
+#if 0
+    return calloc(size, 1);
+#else
+    return Sirikata::memmgr_alloc(size); // guaranteed to return 0'd memory
+#endif
 }
 #endif

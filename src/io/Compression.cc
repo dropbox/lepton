@@ -504,7 +504,7 @@ std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
     strm.allocator = &lzmaAllocator;
               std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >, JpegError> retval (std::vector<uint8_t, JpegAllocator<uint8_t> >(alloc),
                                                       JpegError::nil());
-    retval.first.resize(8192);
+    retval.first.resize(size * 2);
     size_t retval_size  = 0;
     lzma_ret ret = lzma_stream_decoder(&strm, 1 << 28, LZMA_CONCATENATED);
     if (ret != LZMA_OK) {
