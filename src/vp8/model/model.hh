@@ -49,9 +49,7 @@ struct Model
 
     ResidualNoiseCounts residual_noise_counts_;
 
-    typedef Sirikata::Array4d<Branch,
-                              BLOCK_TYPES,
-                              (8>NUM_NONZEROS_BINS?8:NUM_NONZEROS_BINS),
+    typedef Sirikata::Array2d<Branch,
                               NUMERIC_LENGTH_MAX,
                               COEF_BITS> ResidualNoiseCountsDc;
 
@@ -79,11 +77,9 @@ struct Model
                               NUMERIC_LENGTH_MAX,
                               MAX_EXPONENT> ExponentCounts7x7;
 
-typedef Sirikata::Array5d<Branch,
-                          BLOCK_TYPES,
-                          NUM_NONZEROS_BINS,
+typedef Sirikata::Array3d<Branch,
                           NUMERIC_LENGTH_MAX,
-                          1024,
+                          NUMERIC_LENGTH_MAX,
                           MAX_EXPONENT> ExponentCountsDC;
 
   ExponentCounts7x7 exponent_counts_;
@@ -309,9 +305,6 @@ public:
                                        int aligned_zz,
                                        ProbabilityTablesBase::CoefficientContext & retval,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
-        if (aligned_zz < 45) {
-            //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
-        }
         retval.best_prior = compute_aavrg(coord, aligned_zz, block);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
@@ -399,7 +392,7 @@ public:
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
         return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
-                                                                     num_nonzeros_to_bin(num_nonzeros_context));
+                                                      num_nonzeros_to_bin(num_nonzeros_context));
     }
     Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(ProbabilityTablesBase &pt,
                                                           unsigned int eob_x,
@@ -441,9 +434,7 @@ public:
                                                                      , int offset_to_closest_edge) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
-        return pt.model().exponent_counts_dc_.at(0*color_index(),
-                                                 0*context.num_nonzeros_bin,
-                                                 uint16bit_length(abs(mxm)),
+        return pt.model().exponent_counts_dc_.at(uint16bit_length(abs(mxm)),
                                                  uint16bit_length(abs(offset_to_closest_edge)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
@@ -453,9 +444,7 @@ public:
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_dc_
-            .at(0*color_index(),
-                0*context.num_nonzeros_bin,
-                uint16bit_length(abs(mxm)));
+            .at(uint16bit_length(abs(mxm)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
                                                           const unsigned int band,
