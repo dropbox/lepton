@@ -20,8 +20,7 @@ uint16_t ProbabilityTablesBase::freqmax_[3][64] __attribute__ ((aligned (16)));
 uint8_t ProbabilityTablesBase::min_noise_threshold_[3][64] __attribute__ ((aligned (16)));
 
 uint8_t ProbabilityTablesBase::bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
-void get_median_8(int *dc_estimates) {
-    
+int get_sum_median_8(int *dc_estimates) {
     int len_est = 16;
     int min_dc, max_dc;
     for (int start = 0; start < 4; ++start) {
@@ -47,6 +46,11 @@ void get_median_8(int *dc_estimates) {
         dc_estimates[start] = min_dc;
         dc_estimates[len_est - 1 - start] = max_dc;
     }
+    int sum = 0;
+    for (int i = 4; i < len_est - 4; ++i) {
+        sum += dc_estimates[i];
+    }
+    return sum;
 }
 void serialize_model(const Model & model, int output_fp )
 {

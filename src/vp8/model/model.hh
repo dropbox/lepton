@@ -31,7 +31,7 @@ constexpr unsigned int ZERO_OR_EOB = 3;
 constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = 10;
 
-void get_median_8(int*data16i);
+int get_sum_median_8(int*data16i);
 struct Model
 {
     typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
@@ -621,7 +621,6 @@ public:
             for (size_t i = len_est - 8; i < len_est; ++i) {
                 avg_v += dc_estimates[i];
             }
-            int *valid_dc_estimates = dc_estimates;
             int min_dc = 0;
             int max_dc = 0;
             if (left_present && above_present) {
@@ -637,12 +636,14 @@ public:
                                       std::max(dc_estimates[len_est - 3],
                                                std::max(dc_estimates[len_est - 2],
                                                         dc_estimates[len_est - 1])));
-                    valid_dc_estimates = &dc_estimates[4];
+                    int *valid_dc_estimates = &dc_estimates[4];
+                    for (size_t i = 0; i < 8; ++i) {
+                        avgmed += valid_dc_estimates[i];
+                    }
                 } else {
-                    get_median_8(dc_estimates);
+                    avgmed = get_sum_median_8(dc_estimates);
                     min_dc = dc_estimates[0];
                     max_dc = dc_estimates[len_est - 1];
-                    valid_dc_estimates = &dc_estimates[4];
                 }
             } else {
                 assert(sizeof(dc_estimates) == 8 * sizeof(dc_estimates[0]));
@@ -651,12 +652,10 @@ public:
                 for (size_t i = 0; i < sizeof(dc_estimates)/sizeof(dc_estimates[0]); ++i) {
                     if (dc_estimates[i] > max_dc) max_dc = dc_estimates[i];
                     if (dc_estimates[i] < min_dc) min_dc = dc_estimates[i];
+                    avgmed += dc_estimates[i];
                 }
             }
             
-            for (size_t i = 0; i < 8; ++i) {
-                avgmed += valid_dc_estimates[i];
-            }
             if (false) { // this is to debug some of the differences
                 int actual_dc = context.here().dc();
                 int avg_estimated_dc = 0;
