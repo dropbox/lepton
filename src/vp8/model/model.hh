@@ -636,20 +636,20 @@ public:
                 }
             }
             
-            *uncertainty_val = (max_dc - min_dc)>>3;
+            *uncertainty_val = (max_dc - min_dc + 4)>>3;
             avg_h -= avgmed;
             avg_v -= avgmed;
             int far_afield_value = avg_v;
             if (abs(avg_h) < abs(avg_v)) {
                 far_afield_value = avg_h;
             }
-            *uncertainty2_val = (far_afield_value/q[0]) >> 3;
+            *uncertainty2_val = (far_afield_value/q[0] + 4) >> 3;
 
             if (false) { // this is to debug some of the differences
                 debug_print_deltas(context, dc_estimates, avgmed);
             }
         }
-        return ((avgmed / q[0]) >> 3);
+        return ((avgmed / q[0] + 4) >> 3);
     }
     void debug_print_deltas(const ConstBlockContext&context, int *dc_estimates, int avgmed) {
         int actual_dc = context.here().dc();
