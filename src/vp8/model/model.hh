@@ -594,14 +594,12 @@ public:
         size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
         int avgmed = 0;
         if(left_present || above_present) {
-            int dc_sum = 0;
             if (left_present) {
                 for (int i = 0; i < 8;++i) {
                     int a = pixels_sans_dc[i << 3] + 1024;
                     int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
                     int b = context.neighbor_context_left_unchecked().vertical(i) - (pixel_delta / 2); //round to zero
                     dc_estimates[i] = b - a;
-                    dc_sum += (b - a);
                 }
             }
             if (above_present) {
@@ -610,7 +608,6 @@ public:
                     int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
                     int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
                     dc_estimates[i + (left_present ? 8 : 0)] = b - a;
-                    dc_sum += (b - a);
                 }
             }
             int avg_h = 0;
@@ -639,20 +636,20 @@ public:
                 }
             }
             
-            *uncertainty_val = (max_dc - min_dc + 4)>>3;
+            *uncertainty_val = (max_dc - min_dc)>>3;
             avg_h -= avgmed;
             avg_v -= avgmed;
             int far_afield_value = avg_v;
             if (abs(avg_h) < abs(avg_v)) {
                 far_afield_value = avg_h;
             }
-            *uncertainty2_val = (far_afield_value/q[0] + 4) >> 3;
+            *uncertainty2_val = (far_afield_value/q[0]) >> 3;
 
             if (false) { // this is to debug some of the differences
                 debug_print_deltas(context, dc_estimates, avgmed);
             }
         }
-        return ((avgmed / q[0] + 4) >> 3);
+        return ((avgmed / q[0]) >> 3);
     }
     void debug_print_deltas(const ConstBlockContext&context, int *dc_estimates, int avgmed) {
         int actual_dc = context.here().dc();
