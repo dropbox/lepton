@@ -20,7 +20,34 @@ uint16_t ProbabilityTablesBase::freqmax_[3][64] __attribute__ ((aligned (16)));
 uint8_t ProbabilityTablesBase::min_noise_threshold_[3][64] __attribute__ ((aligned (16)));
 
 uint8_t ProbabilityTablesBase::bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
-
+void get_median_8(int *dc_estimates) {
+    
+    int len_est = 16;
+    int min_dc, max_dc;
+    for (int start = 0; start < 4; ++start) {
+        if (dc_estimates[start] > dc_estimates[len_est - 1 - start]) {
+            std::swap(dc_estimates[start], dc_estimates[len_est - 1 - start]);
+        }
+        min_dc = dc_estimates[start];
+        max_dc = dc_estimates[len_est - 1 - start];
+        int min_idx = start;
+        int max_idx = len_est - 1 - start;
+        for (int i = start + 1; i < len_est - start - 1; ++i) {
+            if (dc_estimates[i] > max_dc) {
+                max_idx = i;
+                max_dc = dc_estimates[i];
+            }
+            if (dc_estimates[i] < min_dc) {
+                min_idx = i;
+                min_dc = dc_estimates[i];
+            }
+        }
+        dc_estimates[min_idx] = dc_estimates[start];
+        dc_estimates[max_idx] = dc_estimates[len_est - 1 - start];
+        dc_estimates[start] = min_dc;
+        dc_estimates[len_est - 1 - start] = max_dc;
+    }
+}
 void serialize_model(const Model & model, int output_fp )
 {
     size_t left_to_write = sizeof(model);

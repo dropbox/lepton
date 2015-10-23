@@ -31,7 +31,7 @@ constexpr unsigned int ZERO_OR_EOB = 3;
 constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = 10;
 
-
+void get_median_8(int*data16i);
 struct Model
 {
     typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
@@ -626,22 +626,28 @@ public:
             int max_dc = 0;
             if (left_present && above_present) {
                 assert(sizeof(dc_estimates) / sizeof(dc_estimates[0]) == 16);
-                std::nth_element(dc_estimates, dc_estimates + len_est - 4, dc_estimates + len_est);
-                std::nth_element(dc_estimates, dc_estimates + 4, dc_estimates + len_est - 4);
-                min_dc = std::min(dc_estimates[0],
-                                  std::min(dc_estimates[1],
-                                           std::min(dc_estimates[2],
-                                                    dc_estimates[3])));
-                max_dc = std::max(dc_estimates[len_est - 4],
-                                  std::max(dc_estimates[len_est - 3],
-                                           std::max(dc_estimates[len_est - 2],
-                                                    dc_estimates[len_est - 1])));
-                valid_dc_estimates = &dc_estimates[4];
+                if(false) {
+                    std::nth_element(dc_estimates, dc_estimates + len_est - 4, dc_estimates + len_est);
+                    std::nth_element(dc_estimates, dc_estimates + 4, dc_estimates + len_est - 4);
+                    min_dc = std::min(dc_estimates[0],
+                                      std::min(dc_estimates[1],
+                                               std::min(dc_estimates[2],
+                                                        dc_estimates[3])));
+                    max_dc = std::max(dc_estimates[len_est - 4],
+                                      std::max(dc_estimates[len_est - 3],
+                                               std::max(dc_estimates[len_est - 2],
+                                                        dc_estimates[len_est - 1])));
+                    valid_dc_estimates = &dc_estimates[4];
+                } else {
+                    get_median_8(dc_estimates);
+                    min_dc = dc_estimates[0];
+                    max_dc = dc_estimates[len_est - 1];
+                    valid_dc_estimates = &dc_estimates[4];
+                }
             } else {
                 assert(sizeof(dc_estimates) == 8 * sizeof(dc_estimates[0]));
                 min_dc = dc_estimates[0];
                 max_dc = dc_estimates[0];
-                memcpy(valid_dc_estimates, dc_estimates, sizeof(dc_estimates));
                 for (size_t i = 0; i < sizeof(dc_estimates)/sizeof(dc_estimates[0]); ++i) {
                     if (dc_estimates[i] > max_dc) max_dc = dc_estimates[i];
                     if (dc_estimates[i] < min_dc) min_dc = dc_estimates[i];
