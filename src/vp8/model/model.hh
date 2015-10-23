@@ -625,26 +625,9 @@ public:
             int max_dc = 0;
             if (left_present && above_present) {
                 assert(sizeof(dc_estimates) / sizeof(dc_estimates[0]) == 16);
-                if(false) {
-                    std::nth_element(dc_estimates, dc_estimates + len_est - 4, dc_estimates + len_est);
-                    std::nth_element(dc_estimates, dc_estimates + 4, dc_estimates + len_est - 4);
-                    min_dc = std::min(dc_estimates[0],
-                                      std::min(dc_estimates[1],
-                                               std::min(dc_estimates[2],
-                                                        dc_estimates[3])));
-                    max_dc = std::max(dc_estimates[len_est - 4],
-                                      std::max(dc_estimates[len_est - 3],
-                                               std::max(dc_estimates[len_est - 2],
-                                                        dc_estimates[len_est - 1])));
-                    int *valid_dc_estimates = &dc_estimates[4];
-                    for (size_t i = 0; i < 8; ++i) {
-                        avgmed += valid_dc_estimates[i];
-                    }
-                } else {
-                    avgmed = get_sum_median_8(dc_estimates);
-                    min_dc = dc_estimates[0];
-                    max_dc = dc_estimates[len_est - 1];
-                }
+                avgmed = get_sum_median_8(dc_estimates);
+                min_dc = dc_estimates[0];
+                max_dc = dc_estimates[len_est - 1];
             } else {
                 assert(sizeof(dc_estimates) == 8 * sizeof(dc_estimates[0]));
                 min_dc = dc_estimates[0];
@@ -656,33 +639,6 @@ public:
                 }
             }
             
-            if (false) { // this is to debug some of the differences
-                int actual_dc = context.here().dc();
-                int avg_estimated_dc = 0;
-                avg_estimated_dc = dc_sum;
-                if (left_present && above_present) {
-                    avg_estimated_dc >>= 1;
-                }
-                avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
-                int scaled_med = (dc_estimates[len_est - 1]/q[0] + 4);
-                int scaled_avgmed = (((avgmed/q[0]) + 4) >> 3);
-                using namespace LeptonDebug;
-                med_err += abs(scaled_med - actual_dc);
-                amd_err += abs(scaled_avgmed - actual_dc);
-                avg_err += abs(avg_estimated_dc - actual_dc);
-                int locoi_pred = predict_locoi_dc_deprecated(context);
-                int predicted_dc = predict_dc_dct(context);
-                ori_err += abs(predicted_dc - actual_dc);
-                loc_err += abs(locoi_pred - actual_dc);
-                
-                fprintf(stderr, "MXM: %d\n", dc_estimates[len_est - 1] - dc_estimates[0]);
-                fprintf(stderr, "MED: %d (%d)\n", scaled_med, med_err);
-                fprintf(stderr, "AMD: %d (%d)\n", scaled_avgmed, amd_err);
-                fprintf(stderr, "AVG: %d (%d)\n", avg_estimated_dc, avg_err);
-                fprintf(stderr, "ORI: %d (%d)\n", predicted_dc, ori_err);
-                fprintf(stderr, "LOC: %d (%d)\n", locoi_pred, loc_err);
-                fprintf(stderr, "DC : %d\n", actual_dc);
-            }
             *uncertainty_val = (max_dc - min_dc + 4)>>3;
             avg_h -= avgmed;
             avg_v -= avgmed;
@@ -691,10 +647,46 @@ public:
                 far_afield_value = avg_h;
             }
             *uncertainty2_val = (far_afield_value/q[0] + 4) >> 3;
+
+            if (false) { // this is to debug some of the differences
+                debug_print_deltas(context, dc_estimates, avgmed);
+            }
         }
         return ((avgmed / q[0] + 4) >> 3);
     }
+    void debug_print_deltas(const ConstBlockContext&context, int *dc_estimates, int avgmed) {
+        int actual_dc = context.here().dc();
+        uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
+        int len_est = (left_present && above_present ? 16 : 8);
+        int avg_estimated_dc = 0;
+        int dc_sum = 0;
+        for (int i = 0 ;i < len_est; ++i) {
+            dc_sum += dc_estimates[i];
+        }
+        avg_estimated_dc = dc_sum;
+        if (left_present && above_present) {
+            avg_estimated_dc >>= 1;
+        }
+        avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
+        int scaled_med = (dc_estimates[len_est - 1]/q[0] + 4);
+        int scaled_avgmed = (((avgmed/q[0]) + 4) >> 3);
+        using namespace LeptonDebug;
+        med_err += abs(scaled_med - actual_dc);
+        amd_err += abs(scaled_avgmed - actual_dc);
+        avg_err += abs(avg_estimated_dc - actual_dc);
+        int locoi_pred = predict_locoi_dc_deprecated(context);
+        int predicted_dc = predict_dc_dct(context);
+        ori_err += abs(predicted_dc - actual_dc);
+        loc_err += abs(locoi_pred - actual_dc);
 
+        fprintf(stderr, "MXM: %d\n", dc_estimates[len_est - 1] - dc_estimates[0]);
+        fprintf(stderr, "MED: %d (%d)\n", scaled_med, med_err);
+        fprintf(stderr, "AMD: %d (%d)\n", scaled_avgmed, amd_err);
+        fprintf(stderr, "AVG: %d (%d)\n", avg_estimated_dc, avg_err);
+        fprintf(stderr, "ORI: %d (%d)\n", predicted_dc, ori_err);
+        fprintf(stderr, "LOC: %d (%d)\n", locoi_pred, loc_err);
+        fprintf(stderr, "DC : %d\n", actual_dc);
+    }
     int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {
         int max_value = 0;
         if (ProbabilityTablesBase::quantization_table((int)COLOR, 0)){
