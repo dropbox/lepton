@@ -597,20 +597,18 @@ public:
             int dc_sum = 0;
             if (left_present) {
                 for (int i = 0; i < 8;++i) {
-                    int a = std::min(std::max(pixels_sans_dc[i*8] + 128 * xIDCTSCALE, 0),
-                                     256 * xIDCTSCALE - 1);
-                    int pixel_delta = pixels_sans_dc[i*8] - pixels_sans_dc[i*8 + 1];
-                    int b = context.neighbor_context_left_unchecked().vertical(i) - pixel_delta/2;
+                    int a = pixels_sans_dc[i << 3] + 1024;
+                    int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
+                    int b = context.neighbor_context_left_unchecked().vertical(i) - (pixel_delta / 2); //round to zero
                     dc_estimates[i] = b - a;
                     dc_sum += (b - a);
                 }
             }
             if (above_present) {
                 for (int i = 0; i < 8;++i) {
-                    int a = std::min(std::max(pixels_sans_dc[i] + 128 * xIDCTSCALE, 0),
-                                     256  * xIDCTSCALE - 1);
-                    int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i+ 8];
-                    int b = context.neighbor_context_above_unchecked().horizontal(i) - pixel_delta/2;
+                    int a = pixels_sans_dc[i] + 1024;
+                    int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
+                    int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
                     dc_estimates[i + (left_present ? 8 : 0)] = b - a;
                     dc_sum += (b - a);
                 }
@@ -623,13 +621,35 @@ public:
             for (size_t i = len_est - 8; i < len_est; ++i) {
                 avg_v += dc_estimates[i];
             }
-            
-            std::sort(dc_estimates, dc_estimates + len_est);
-            
-            for (size_t i = 0; i < len_est; ++i) {
-                if (i >= len_est/2 - 4 && i < len_est/2 + 4) {
-                    avgmed += dc_estimates[i];
+            int *valid_dc_estimates = dc_estimates;
+            int min_dc = 0;
+            int max_dc = 0;
+            if (left_present && above_present) {
+                assert(sizeof(dc_estimates) / sizeof(dc_estimates[0]) == 16);
+                std::nth_element(dc_estimates, dc_estimates + len_est - 4, dc_estimates + len_est);
+                std::nth_element(dc_estimates, dc_estimates + 4, dc_estimates + len_est - 4);
+                min_dc = std::min(dc_estimates[0],
+                                  std::min(dc_estimates[1],
+                                           std::min(dc_estimates[2],
+                                                    dc_estimates[3])));
+                max_dc = std::max(dc_estimates[len_est - 4],
+                                  std::max(dc_estimates[len_est - 3],
+                                           std::max(dc_estimates[len_est - 2],
+                                                    dc_estimates[len_est - 1])));
+                valid_dc_estimates = &dc_estimates[4];
+            } else {
+                assert(sizeof(dc_estimates) == 8 * sizeof(dc_estimates[0]));
+                min_dc = dc_estimates[0];
+                max_dc = dc_estimates[0];
+                memcpy(valid_dc_estimates, dc_estimates, sizeof(dc_estimates));
+                for (size_t i = 0; i < sizeof(dc_estimates)/sizeof(dc_estimates[0]); ++i) {
+                    if (dc_estimates[i] > max_dc) max_dc = dc_estimates[i];
+                    if (dc_estimates[i] < min_dc) min_dc = dc_estimates[i];
                 }
+            }
+            
+            for (size_t i = 0; i < 8; ++i) {
+                avgmed += valid_dc_estimates[i];
             }
             if (false) { // this is to debug some of the differences
                 int actual_dc = context.here().dc();
@@ -658,15 +678,14 @@ public:
                 fprintf(stderr, "LOC: %d (%d)\n", locoi_pred, loc_err);
                 fprintf(stderr, "DC : %d\n", actual_dc);
             }
-            *uncertainty_val = (dc_estimates[len_est - 1] - dc_estimates[0] + 4)>>3;
-            *uncertainty2_val = 0;
+            *uncertainty_val = (max_dc - min_dc + 4)>>3;
             avg_h -= avgmed;
             avg_v -= avgmed;
             int far_afield_value = avg_v;
             if (abs(avg_h) < abs(avg_v)) {
                 far_afield_value = avg_h;
             }
-            *uncertainty2_val += (far_afield_value/q[0] + 4) >> 3;
+            *uncertainty2_val = (far_afield_value/q[0] + 4) >> 3;
         }
         return ((avgmed / q[0] + 4) >> 3);
     }

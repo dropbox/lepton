@@ -1,9 +1,10 @@
 #include <sys/types.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/fcntl.h>
 #include "debug.hh"
 #include "memory.hh"
-#define DUMP_RAW_IMAGE
+
 namespace LeptonDebug{
 int med_err;
 int amd_err;
