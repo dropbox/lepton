@@ -230,7 +230,7 @@ void parse_tokens(BlockContext context,
                 num_nonzeros_7x7, eob_x, eob_y,
                 prior,
                 pt);
-    int32_t outp_sans_dc[64];
+    int16_t outp_sans_dc[64];
     int uncertainty = 0;
     int uncertainty2 = 0;
     int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc, &uncertainty, &uncertainty2);

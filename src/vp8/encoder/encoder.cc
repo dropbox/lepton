@@ -270,7 +270,7 @@ void serialize_tokens(ConstBlockContext context,
                 pt);
 
 
-    int32_t outp_sans_dc[64];
+    int16_t outp_sans_dc[64];
     prior = probability_tables.get_dc_coefficient_context(context, num_nonzeros_7x7);
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp_sans_dc, true);
     for (int i = 0; i < 64; ++i) {
@@ -326,7 +326,7 @@ void serialize_tokens(ConstBlockContext context,
     }
 
     if ((!g_threaded) && LeptonDebug::raw_YCbCr[(int)color]) {
-        int32_t outp[64];
+        int16_t outp[64];
         idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp, false);
         for (int i = 0; i < 64; ++i) {
             outp[i] >>= 3;

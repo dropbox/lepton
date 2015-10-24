@@ -19,7 +19,8 @@ enum {
     r2 = 181 // 256/sqrt(2)
 };
 }
-void idct(const AlignedBlock &block, const uint16_t q[64], int32_t outp[64], bool ignore_dc) {
+void idct(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], bool ignore_dc) {
+    int32_t intermed[64];
     using namespace idct_local;
     // Horizontal 1-D IDCT.
     for (int y = 0; y < 8; ++y) {
@@ -36,14 +37,14 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int32_t outp[64], boo
         // If all the AC components are zero, then the IDCT is trivial.
         if (x1 ==0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0 && x7 == 0) {
             int32_t dc = (x0 - 128) >> 8; // coefficients[0] << 3
-            outp[y8 + 0] = dc;
-            outp[y8 + 1] = dc;
-            outp[y8 + 2] = dc;
-            outp[y8 + 3] = dc;
-            outp[y8 + 4] = dc;
-            outp[y8 + 5] = dc;
-            outp[y8 + 6] = dc;
-            outp[y8 + 7] = dc;
+            intermed[y8 + 0] = dc;
+            intermed[y8 + 1] = dc;
+            intermed[y8 + 2] = dc;
+            intermed[y8 + 3] = dc;
+            intermed[y8 + 4] = dc;
+            intermed[y8 + 5] = dc;
+            intermed[y8 + 6] = dc;
+            intermed[y8 + 7] = dc;
             continue;
         }
 
@@ -77,14 +78,14 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int32_t outp[64], boo
         x4 = (r2*(x4-x5) + 128) >> 8;
 
         // Stage 4.
-        outp[y8+0] = (x7 + x1) >> 8;
-        outp[y8+1] = (x3 + x2) >> 8;
-        outp[y8+2] = (x0 + x4) >> 8;
-        outp[y8+3] = (x8 + x6) >> 8;
-        outp[y8+4] = (x8 - x6) >> 8;
-        outp[y8+5] = (x0 - x4) >> 8;
-        outp[y8+6] = (x3 - x2) >> 8;
-        outp[y8+7] = (x7 - x1) >> 8;
+        intermed[y8+0] = (x7 + x1) >> 8;
+        intermed[y8+1] = (x3 + x2) >> 8;
+        intermed[y8+2] = (x0 + x4) >> 8;
+        intermed[y8+3] = (x8 + x6) >> 8;
+        intermed[y8+4] = (x8 - x6) >> 8;
+        intermed[y8+5] = (x0 - x4) >> 8;
+        intermed[y8+6] = (x3 - x2) >> 8;
+        intermed[y8+7] = (x7 - x1) >> 8;
     }
 
     // Vertical 1-D IDCT.
@@ -94,14 +95,14 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int32_t outp[64], boo
         // we do not bother to check for the all-zero case.
 
         // Prescale.
-        int32_t y0 = (outp[8*0+x] << 8) + 8192;
-        int32_t y1 = outp[8*4+x] << 8;
-        int32_t y2 = outp[8*6+x];
-        int32_t y3 = outp[8*2+x];
-        int32_t y4 = outp[8*1+x];
-        int32_t y5 = outp[8*7+x];
-        int32_t y6 = outp[8*5+x];
-        int32_t y7 = outp[8*3+x];
+        int32_t y0 = (intermed[8*0+x] << 8) + 8192;
+        int32_t y1 = intermed[8*4+x] << 8;
+        int32_t y2 = intermed[8*6+x];
+        int32_t y3 = intermed[8*2+x];
+        int32_t y4 = intermed[8*1+x];
+        int32_t y5 = intermed[8*7+x];
+        int32_t y6 = intermed[8*5+x];
+        int32_t y7 = intermed[8*3+x];
 
         // Stage 1.
         int32_t y8 = w7*(y4+y5) + 4;

@@ -6,6 +6,9 @@ enum {
     xIDCTSCALE = 8
 };
 struct NeighborSummary {
+    enum {
+        VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL = 14
+    };
     int16_t nonzeros_and_edge_pixels[16];
     uint8_t num_nonzeros() const {
         return nonzeros_and_edge_pixels[0];
@@ -19,14 +22,20 @@ struct NeighborSummary {
     int16_t vertical(int index) const {
         return nonzeros_and_edge_pixels[index == 7 ? 15 : (index + 1)];
     }
-    void set_horizontal(int * data, uint16_t* quantization_table, int16_t dc) {
+    const int16_t* vertical_ptr_except_7() const {
+        return &nonzeros_and_edge_pixels[1];
+    }
+    const int16_t* horizontal_ptr() const {
+        return &nonzeros_and_edge_pixels[8];
+    }
+    void set_horizontal(int16_t * data, uint16_t* quantization_table, int16_t dc) {
         for (int i = 0; i < 8 ; ++i) {
             nonzeros_and_edge_pixels[i + 8]
                 = std::max(std::min(dc * quantization_table[0] + data[i + 56] + 128 * xIDCTSCALE,
                                     256* xIDCTSCALE - 1), 0);
         }
     }
-    void set_vertical(int * data, uint16_t* quantization_table, int16_t dc) {
+    void set_vertical(int16_t * data, uint16_t* quantization_table, int16_t dc) {
         for (int i = 0; i < 7 ; ++i) {
             nonzeros_and_edge_pixels[i + 1]
                 = std::max(std::min(dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE,

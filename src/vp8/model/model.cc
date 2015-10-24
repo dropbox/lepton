@@ -20,7 +20,7 @@ uint16_t ProbabilityTablesBase::freqmax_[3][64] __attribute__ ((aligned (16)));
 uint8_t ProbabilityTablesBase::min_noise_threshold_[3][64] __attribute__ ((aligned (16)));
 
 uint8_t ProbabilityTablesBase::bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
-int get_sum_median_8(int *dc_estimates) {
+int get_sum_median_8(int16_t *dc_estimates) {
     int len_est = 16;
     int min_dc, max_dc;
     for (int start = 0; start < 4; ++start) {

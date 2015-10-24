@@ -31,7 +31,7 @@ constexpr unsigned int ZERO_OR_EOB = 3;
 constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = 10;
 
-int get_sum_median_8(int*data16i);
+int get_sum_median_8(int16_t*data16i);
 struct Model
 {
     typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
@@ -585,32 +585,79 @@ public:
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
     }
-
-    int adv_predict_dc_pix(const ConstBlockContext&context, int*pixels_sans_dc, int *uncertainty_val, int *uncertainty2_val) {
+#define shift_right_round_zero_epi16(vec, imm8) (_mm_sign_epi16(_mm_srli_epi16(_mm_sign_epi16(vec, vec), imm8), vec));
+    int adv_predict_dc_pix(const ConstBlockContext&context, int16_t*pixels_sans_dc, int *uncertainty_val, int *uncertainty2_val) {
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         idct(context.here(), q, pixels_sans_dc, true);
 
-        int dc_estimates[(left_present || above_present) ? (left_present ? 8 : 0) + (above_present ? 8 : 0) : 1] = {0};
+        int16_t dc_estimates[(left_present || above_present) ? (left_present ? 8 : 0) + (above_present ? 8 : 0) : 1] = {0};
         size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
-        int avgmed = 0;
+        int32_t avgmed = 0;
         if(left_present || above_present) {
-            if (left_present) {
-                for (int i = 0; i < 8;++i) {
-                    int a = pixels_sans_dc[i << 3] + 1024;
-                    int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
-                    int b = context.neighbor_context_left_unchecked().vertical(i) - (pixel_delta / 2); //round to zero
-                    dc_estimates[i] = b - a;
+            if ((VECTORIZE || MICROVECTORIZE)) {
+                if (above_present) { //above goes first to prime the cache
+                    __m128i neighbor_above = _mm_loadu_si128((const __m128i*)context
+                                                             .neighbor_context_above_unchecked()
+                                                             .horizontal_ptr());
+                    __m128i pixels_sans_dc_reg = _mm_loadu_si128((const __m128i*)pixels_sans_dc);
+                    __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
+                                                          _mm_loadu_si128((const __m128i*)(pixels_sans_dc + 8)));
+                    __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
+                    __m128i pixels_sans_dc_recentered = _mm_add_epi16(pixels_sans_dc_reg,
+                                                                      _mm_set1_epi16(1024));
+                    __m128i above_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_above, pixels_delta_div2),
+                                                              pixels_sans_dc_recentered);
+
+                    _mm_storeu_si128((__m128i*)(dc_estimates + (left_present ? 8 : 0)), above_dc_estimate);
+                }
+                if (left_present) {
+                    const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
+                    __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)horiz_data);
+                    neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
+                    __m128i pixels_sans_dc_reg = _mm_set_epi16(pixels_sans_dc[56],
+                                                               pixels_sans_dc[48],
+                                                               pixels_sans_dc[40],
+                                                               pixels_sans_dc[32],
+                                                               pixels_sans_dc[24],
+                                                               pixels_sans_dc[16],
+                                                               pixels_sans_dc[8],
+                                                               pixels_sans_dc[0]);
+                    __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
+                                                         _mm_set_epi16(pixels_sans_dc[57],
+                                                                       pixels_sans_dc[49],
+                                                                       pixels_sans_dc[41],
+                                                                       pixels_sans_dc[33],
+                                                                       pixels_sans_dc[25],
+                                                                       pixels_sans_dc[17],
+                                                                       pixels_sans_dc[9],
+                                                                       pixels_sans_dc[1]));
+                    
+                    __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
+                    __m128i left_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_horiz, pixels_delta_div2),
+                                                              _mm_add_epi16(pixels_sans_dc_reg,
+                                                                            _mm_set1_epi16(1024)));
+                    
+                    _mm_storeu_si128((__m128i*)dc_estimates, left_dc_estimate);
+                }
+            } else {
+                if (left_present) {
+                    for (int i = 0; i < 8;++i) {
+                        int a = pixels_sans_dc[i << 3] + 1024;
+                        int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
+                        int b = context.neighbor_context_left_unchecked().vertical(i) - (pixel_delta / 2); //round to zero
+                        dc_estimates[i] = b - a;
+                    }
+                }
+                if (above_present) {
+                    for (int i = 0; i < 8;++i) {
+                        int a = pixels_sans_dc[i] + 1024;
+                        int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
+                        int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
+                        dc_estimates[i + (left_present ? 8 : 0)] = b - a;
+                    }
                 }
             }
-            if (above_present) {
-                for (int i = 0; i < 8;++i) {
-                    int a = pixels_sans_dc[i] + 1024;
-                    int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
-                    int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
-                    dc_estimates[i + (left_present ? 8 : 0)] = b - a;
-                }
-            }
-            int avg_h = 0;
+            int32_t avg_h = 0;
             int avg_v = 0;
             for (size_t i = 0; i < 8; ++i) {
                 avg_h += dc_estimates[i];
@@ -618,8 +665,8 @@ public:
             for (size_t i = len_est - 8; i < len_est; ++i) {
                 avg_v += dc_estimates[i];
             }
-            int min_dc = 0;
-            int max_dc = 0;
+            int32_t min_dc = 0;
+            int32_t max_dc = 0;
             if (left_present && above_present) {
                 assert(sizeof(dc_estimates) / sizeof(dc_estimates[0]) == 16);
                 avgmed = get_sum_median_8(dc_estimates);
@@ -639,7 +686,7 @@ public:
             *uncertainty_val = (max_dc - min_dc + 4)>>3;
             avg_h -= avgmed;
             avg_v -= avgmed;
-            int far_afield_value = avg_v;
+            int32_t far_afield_value = avg_v;
             if (abs(avg_h) < abs(avg_v)) {
                 far_afield_value = avg_h;
             }
@@ -651,7 +698,7 @@ public:
         }
         return ((avgmed / q[0] + 4) >> 3);
     }
-    void debug_print_deltas(const ConstBlockContext&context, int *dc_estimates, int avgmed) {
+    void debug_print_deltas(const ConstBlockContext&context, int16_t *dc_estimates, int avgmed) {
         int actual_dc = context.here().dc();
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         int len_est = (left_present && above_present ? 16 : 8);
