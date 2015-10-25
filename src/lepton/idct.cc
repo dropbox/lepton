@@ -160,7 +160,20 @@ template<int offset, int stride> __m128i vquantize(int which_vec, __m128i vec, c
                                               q[which_vec + 1 * stride + offset],
                                               q[which_vec + offset]));
 }
-void idct(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], bool ignore_dc) {
+
+
+__m128i epi32l_to_epi16(__m128i lowvec) {
+    int16_t a,b,c,d;
+    a = _mm_extract_epi32(lowvec,0);
+    b = _mm_extract_epi32(lowvec,1);
+    c = _mm_extract_epi32(lowvec,2);
+    d = _mm_extract_epi32(lowvec,3);
+    return _mm_set_epi16(0,0,0,0,d,c,b,a);
+    return _mm_shuffle_epi8(lowvec, _mm_set_epi8(0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                 0xe, 0xc, 0xa, 0x8, 0x6, 0x4, 0x2, 0x0));
+}
+void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+    int16_t outp[64];
     char intermed_storage[64 * sizeof(int32_t) + 16];
     // align intermediate storage to 16 bytes
     int32_t *intermed = (int32_t*) (intermed_storage + 16 - ((intermed_storage - (char*)nullptr)&0xf));
@@ -344,6 +357,7 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], boo
     }
     // Vertical 1-D IDCT.
     for (uint8_t xvec = 0; xvec < 8; xvec += 4) {
+        __m128i yv0, yv1, yv2, yv3, yv4, yv5, yv6, yv7, yv8;
         int32_t yvec0[4];
         int32_t yvec1[4];
         int32_t yvec2[4];
@@ -362,6 +376,15 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], boo
 #define y6 yvec6[x&3]
 #define y7 yvec7[x&3]
 #define y8 yvec8[x&3]
+        yv0 = _mm_add_epi32(_mm_slli_epi32(_mm_load_si128((const __m128i*)(vintermed + xvec)), 8),
+                            _mm_set1_epi32(8192));
+        yv1 = _mm_slli_epi32(_mm_load_si128((const __m128i*)(vintermed + 8 * 4 + xvec)), 8);
+        yv2 = _mm_load_si128((const __m128i*)(vintermed + 8 * 6 + xvec));
+        yv3 = _mm_load_si128((const __m128i*)(vintermed + 8 * 2 + xvec));
+        yv4 = _mm_load_si128((const __m128i*)(vintermed + 8 * 1 + xvec));
+        yv5 = _mm_load_si128((const __m128i*)(vintermed + 8 * 7 + xvec));
+        yv6 = _mm_load_si128((const __m128i*)(vintermed + 8 * 5 + xvec));
+        yv7 = _mm_load_si128((const __m128i*)(vintermed + 8 * 3 + xvec));
     for (int32_t x = xvec; x < xvec + 4; ++x) {
         // Similar to the horizontal 1-D IDCT case, if all the AC components are zero, then the IDCT is trivial.
         // However, after performing the horizontal 1-D IDCT, there are typically non-zero AC components, so
@@ -376,7 +399,14 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], boo
          y5 = intermed[8*7+x];
          y6 = intermed[8*5+x];
          y7 = intermed[8*3+x];
-
+        assert(y0 == _mm_extract_epi32(yv0, x & 3));
+        assert(y1 == _mm_extract_epi32(yv1, x & 3));
+        assert(y2 == _mm_extract_epi32(yv2, x & 3));
+        assert(y3 == _mm_extract_epi32(yv3, x & 3));
+        assert(y4 == _mm_extract_epi32(yv4, x & 3));
+        assert(y5 == _mm_extract_epi32(yv5, x & 3));
+        assert(y6 == _mm_extract_epi32(yv6, x & 3));
+        assert(y7 == _mm_extract_epi32(yv7, x & 3));
         // Stage 1.
          y8 = w7*(y4+y5) + 4;
         y4 = (y8 + w1mw7*y4) >> 3;
@@ -414,5 +444,56 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], boo
         outp[8*6+x] = (y3 - y2) >> 11;
         outp[8*7+x] = (y7 - y1) >> 11;
     }
+        // Stage 1.
+        yv8 = _mm_add_epi32(_mm_mullo_epi32(_mm_add_epi32(yv4, yv5), _mm_set1_epi32(w7)), _mm_set1_epi32(4));
+        yv4 = _mm_srai_epi32(_mm_add_epi32(yv8, _mm_mullo_epi32(_mm_set1_epi32(w1mw7), yv4)), 3);
+        yv5 = _mm_srai_epi32(_mm_sub_epi32(yv8, _mm_mullo_epi32(_mm_set1_epi32(w1pw7), yv5)), 3);
+        yv8 = _mm_add_epi32(_mm_mullo_epi32(_mm_set1_epi32(w3), _mm_add_epi32(yv6, yv7)), _mm_set1_epi32(4));
+        yv6 = _mm_srai_epi32(_mm_sub_epi32(yv8, _mm_mullo_epi32(_mm_set1_epi32(w3mw5), yv6)), 3);
+        yv7 = _mm_srai_epi32(_mm_sub_epi32(yv8, _mm_mullo_epi32(_mm_set1_epi32(w3pw5), yv7)), 3);
+        // Stage 2.
+        yv8 = _mm_add_epi32(yv0, yv1);
+        yv0 = _mm_sub_epi32(yv0, yv1);
+        yv1 = _mm_add_epi32(_mm_mullo_epi32(_mm_set1_epi32(w6), _mm_add_epi32(yv3, yv2)), _mm_set1_epi32(4));
+        yv2 = _mm_srai_epi32(_mm_sub_epi32(yv1, _mm_mullo_epi32(_mm_set1_epi32(w2pw6), yv2)), 3);
+        yv3 = _mm_srai_epi32(_mm_add_epi32(yv1, _mm_mullo_epi32(_mm_set1_epi32(w2mw6), yv3)), 3);
+        yv1 = _mm_add_epi32(yv4, yv6);
+        yv4 = _mm_sub_epi32(yv4, yv6);
+        yv6 = _mm_add_epi32(yv5, yv7);
+        yv5 = _mm_sub_epi32(yv5, yv7);
+        
+        // Stage 3.
+        yv7 = _mm_add_epi32(yv8, yv3);
+        yv8 = _mm_sub_epi32(yv8, yv3);
+        yv3 = _mm_add_epi32(yv0, yv2);
+        yv0 = _mm_sub_epi32(yv0, yv2);
+        yv2 = _mm_srai_epi32(_mm_add_epi32(_mm_mullo_epi32(_mm_set1_epi32(r2),
+                                                           _mm_add_epi32(yv4, yv5)),
+                                           _mm_set1_epi32(128)), 8);
+        yv4 = _mm_srai_epi32(_mm_add_epi32(_mm_mullo_epi32(_mm_set1_epi32(r2),
+                                                           _mm_sub_epi32(yv4, yv5)),
+                                           _mm_set1_epi32(128)), 8);
+        __m128i row0 = _mm_srai_epi32(_mm_add_epi32(yv7, yv1), 11);
+        __m128i row1 = _mm_srai_epi32(_mm_add_epi32(yv3, yv2), 11);
+        __m128i row2 = _mm_srai_epi32(_mm_add_epi32(yv0, yv4), 11);
+        __m128i row3 = _mm_srai_epi32(_mm_add_epi32(yv8, yv6), 11);
+        __m128i row4 = _mm_srai_epi32(_mm_sub_epi32(yv8, yv6), 11);
+        __m128i row5 = _mm_srai_epi32(_mm_sub_epi32(yv0, yv4), 11);
+        __m128i row6 = _mm_srai_epi32(_mm_sub_epi32(yv3, yv2), 11);
+        __m128i row7 = _mm_srai_epi32(_mm_sub_epi32(yv7, yv1), 11);
+        __m128i row0short = epi32l_to_epi16(row0);
+        _mm_storel_epi64((__m128i*)(char*)(voutp + xvec), row0short);
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 8 + xvec), epi32l_to_epi16(row1));
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 2 * 8 + xvec), epi32l_to_epi16(row2));
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 3 * 8 + xvec), epi32l_to_epi16(row3));
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 4 * 8 + xvec), epi32l_to_epi16(row4));
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 5 * 8 + xvec), epi32l_to_epi16(row5));
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 6 * 8 + xvec), epi32l_to_epi16(row6));
+        _mm_storel_epi64((__m128i*)(char*)(voutp + 7 * 8 + xvec), epi32l_to_epi16(row7));
+        for (int i = 0; i < 8; ++i) {
+            for (int v = 0; v < 4; ++v) {
+                assert(voutp[xvec + v + i * 8] == outp[xvec + v + i * 8]);
+            }
+        }
     }
 }
