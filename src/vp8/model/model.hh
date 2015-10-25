@@ -658,7 +658,7 @@ public:
                 }
             }
             int32_t avg_h = 0;
-            int avg_v = 0;
+            int32_t avg_v = 0;
             for (size_t i = 0; i < 8; ++i) {
                 avg_h += dc_estimates[i];
             }
