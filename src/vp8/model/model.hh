@@ -79,7 +79,7 @@ struct Model
 
 typedef Sirikata::Array3d<Branch,
                           NUMERIC_LENGTH_MAX,
-                          NUMERIC_LENGTH_MAX,
+                          17/*any 16 bit number should fit*/,
                           MAX_EXPONENT> ExponentCountsDC;
 
   ExponentCounts7x7 exponent_counts_;
@@ -430,8 +430,8 @@ public:
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
                                                                      const CoefficientContext context,
-                                                                     int mxm
-                                                                     , int offset_to_closest_edge) {
+                                                                     int16_t mxm
+                                                                     , int16_t offset_to_closest_edge) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().exponent_counts_dc_.at(uint16bit_length(abs(mxm)),
@@ -439,8 +439,8 @@ public:
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
                                                                      const CoefficientContext context,
-                                                                     int mxm
-                                                                  , int offset_to_closest_edge) {
+                                                                     int16_t mxm
+                                                                  , int16_t offset_to_closest_edge) {
         ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
         ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_dc_
@@ -586,7 +586,7 @@ public:
         return retval;
     }
 #define shift_right_round_zero_epi16(vec, imm8) (_mm_sign_epi16(_mm_srli_epi16(_mm_sign_epi16(vec, vec), imm8), vec));
-    int adv_predict_dc_pix(const ConstBlockContext&context, int16_t*pixels_sans_dc, int *uncertainty_val, int *uncertainty2_val) {
+    int adv_predict_dc_pix(const ConstBlockContext&context, int16_t*pixels_sans_dc, int32_t *uncertainty_val, int32_t *uncertainty2_val) {
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         idct(context.here(), q, pixels_sans_dc, true);
 
@@ -679,14 +679,14 @@ public:
             }
             int32_t overall_avg = (avg_h_v[0] + avg_h_v[1]) >> 1;
             avgmed = overall_avg;
-            *uncertainty_val = (max_dc - min_dc + 4)>>3;
+            *uncertainty_val = (max_dc - min_dc)>>3;
             avg_h_v[0] -= avgmed;
             avg_h_v[1] -= avgmed;
             int32_t far_afield_value = avg_h_v[1];
             if (abs(avg_h_v[0]) < abs(avg_h_v[1])) {
                 far_afield_value = avg_h_v[0];
             }
-            *uncertainty2_val = (far_afield_value/q[0] + 4) >> 3;
+            *uncertainty2_val = (far_afield_value) >> 3;
 
             if (false) { // this is to debug some of the differences
                 debug_print_deltas(context, dc_estimates.begin(), avgmed);
