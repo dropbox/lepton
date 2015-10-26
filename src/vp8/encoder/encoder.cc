@@ -157,7 +157,6 @@ void encode_edge(ConstBlockContext context,
                  BoolEncoder& encoder,
                  ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
-                 ProbabilityTablesBase::CoefficientContext input_prior,
                  ProbabilityTablesBase& pt) {
     encode_one_edge<has_left, has_above, has_above_right, color, true>(context,
                                                                         encoder,
@@ -200,8 +199,6 @@ void serialize_tokens(ConstBlockContext context,
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
-    ProbabilityTablesBase::
-        CoefficientContext prior;
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
@@ -233,10 +230,11 @@ void serialize_tokens(ConstBlockContext context,
 #ifdef TRACK_HISTOGRAM
             ++histogram[0][coef];
 #endif
+            ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
 #ifdef OPTIMIZED_7x7
-            probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
+            prior = probability_tables.update_coefficient_context7x7_precomp(zz, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
 #else
-            probability_tables.update_coefficient_context7x7(coord, zz, prior, context.copy(), num_nonzeros_left_7x7);
+            prior = probability_tables.update_coefficient_context7x7(coord, zz, context.copy(), num_nonzeros_left_7x7);
 #endif
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
@@ -266,12 +264,10 @@ void serialize_tokens(ConstBlockContext context,
                 encoder,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
-                prior,
                 pt);
 
 
     int16_t outp_sans_dc[64];
-    prior = probability_tables.get_dc_coefficient_context(context, num_nonzeros_7x7);
     idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp_sans_dc, true);
     for (int i = 0; i < 64; ++i) {
         outp_sans_dc[i] >>= 3;
@@ -280,7 +276,7 @@ void serialize_tokens(ConstBlockContext context,
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
     int uncertainty2 = 0;
     int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context,
-                                                                          false, 
+                                                                          false,
                                                                           probability_tables.adv_predict_dc_pix(context,
                                                                                                                 outp_sans_dc,
                                                                                                                 &uncertainty,
@@ -294,7 +290,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty, uncertainty2);
+        auto exp_prob = probability_tables.exponent_array_dc(pt, uncertainty, uncertainty2);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
             encoder.put(cur_bit, exp_prob.at(i));
@@ -303,11 +299,11 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty, uncertainty2);
+            auto &sign_prob = probability_tables.sign_array_dc(pt, uncertainty, uncertainty2);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
-            auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty, uncertainty2);
+            auto res_prob = probability_tables.residual_array_dc(pt, uncertainty, uncertainty2);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {

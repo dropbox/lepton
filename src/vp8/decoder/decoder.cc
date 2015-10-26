@@ -55,7 +55,7 @@ void decode_one_edge(BlockContext mcontext,
 
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
-        ProbabilityTablesBase::CoefficientContext prior;
+        ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
         if (ProbabilityTablesBase::MICROVECTORIZE) {
             if (horizontal) {
                 prior = probability_tables.update_coefficient_context8_horiz(coord,
@@ -130,7 +130,6 @@ void decode_edge(BlockContext mcontext,
                  BoolDecoder& decoder,
                  ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
-                 ProbabilityTablesBase::CoefficientContext input_prior,
                  ProbabilityTablesBase& pt) {
     decode_one_edge<has_left, has_above, has_above_right, color, true>(mcontext,
                                                                         decoder,
@@ -165,7 +164,6 @@ void parse_tokens(BlockContext context,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
-    ProbabilityTablesBase::CoefficientContext prior;
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
@@ -181,10 +179,12 @@ void parse_tokens(BlockContext context,
         unsigned int b_y = (coord >> 3);
         assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
+            ProbabilityTablesBase::CoefficientContext prior;
+
 #ifdef OPTIMIZED_7x7
-            probability_tables.update_coefficient_context7x7(zz, prior, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
+            prior = probability_tables.update_coefficient_context7x7_precomp(zz, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
 #else
-            probability_tables.update_coefficient_context7x7(coord, zz, prior, context.copy(), num_nonzeros_left_7x7);
+            prior = probability_tables.update_coefficient_context7x7(coord, zz, context.copy(), num_nonzeros_left_7x7);
 #endif
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length;
@@ -228,18 +228,16 @@ void parse_tokens(BlockContext context,
                 decoder,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
-                prior,
                 pt);
     int16_t outp_sans_dc[64];
     int uncertainty = 0;
     int uncertainty2 = 0;
     int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc, &uncertainty, &uncertainty2);
 
-    prior = probability_tables.get_dc_coefficient_context(context.copy(),num_nonzeros_7x7);
     { // dc
         uint8_t length;
         bool nonzero = false;
-        auto exp_prob = probability_tables.exponent_array_dc(pt, prior, uncertainty, uncertainty2);
+        auto exp_prob = probability_tables.exponent_array_dc(pt, uncertainty, uncertainty2);
         auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
             bool cur_bit = decoder.get(*exp_branch++);
@@ -250,11 +248,11 @@ void parse_tokens(BlockContext context,
         }
         int16_t coef = 0;
         if (nonzero) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, prior, uncertainty, uncertainty2);
+            auto &sign_prob = probability_tables.sign_array_dc(pt, uncertainty, uncertainty2);
             bool neg = !decoder.get(sign_prob);
             coef = (1 << (length - 1));
             if (length > 1){
-                auto res_prob = probability_tables.residual_array_dc(pt, prior, uncertainty, uncertainty2);
+                auto res_prob = probability_tables.residual_array_dc(pt, uncertainty, uncertainty2);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
                 }

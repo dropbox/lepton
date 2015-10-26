@@ -294,30 +294,25 @@ public:
         }
         return (int)COLOR;
     }
-    ProbabilityTablesBase::CoefficientContext get_dc_coefficient_context(const ConstBlockContext block, uint8_t num_nonzeros) {
-        CoefficientContext retval;
-        retval.best_prior = compute_aavrg_dc(block);
-        retval.bsr_best_prior = bit_length(abs(retval.best_prior));
-        retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros);
-        return retval;
-    }
-    void update_coefficient_context7x7(int coord,
+    ProbabilityTablesBase::CoefficientContext update_coefficient_context7x7(int coord,
                                        int aligned_zz,
-                                       ProbabilityTablesBase::CoefficientContext & retval,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
+        ProbabilityTablesBase::CoefficientContext retval;
         retval.best_prior = compute_aavrg(coord, aligned_zz, block);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
+        return retval;
     }
-    void update_coefficient_context7x7(int aligned_zz,
-                                       ProbabilityTablesBase::CoefficientContext & retval,
+    ProbabilityTablesBase::CoefficientContext update_coefficient_context7x7_precomp(int aligned_zz,
                                        int aavrg,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
+        ProbabilityTablesBase::CoefficientContext retval;
         assert(aavrg == compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz, block));
         //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
         retval.best_prior = aavrg;
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
         retval.bsr_best_prior = bit_length(retval.best_prior);
+        return retval;
     }
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8(uint8_t coefficient,
                                                    const ConstBlockContext block, uint8_t num_nonzeros_x) {
@@ -429,20 +424,14 @@ public:
             context.num_nonzeros_bin);
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
-                                                                     const CoefficientContext context,
                                                                      int16_t mxm
                                                                      , int16_t offset_to_closest_edge) {
-        ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
-        ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().exponent_counts_dc_.at(uint16bit_length(abs(mxm)),
                                                  uint16bit_length(abs(offset_to_closest_edge)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
-                                                                     const CoefficientContext context,
                                                                      int16_t mxm
                                                                   , int16_t offset_to_closest_edge) {
-        ANNOTATE_CTX(0, EXPDC, 0, context.bsr_best_prior);
-        ANNOTATE_CTX(0, EXPDC, 1, context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_dc_
             .at(uint16bit_length(abs(mxm)));
     }
@@ -1006,7 +995,7 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array_dc(ProbabilityTablesBase &pt, CoefficientContext context,
+    Branch& sign_array_dc(ProbabilityTablesBase &pt,
                           int avg_delta,
                           int offset_to_closest_edge) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
