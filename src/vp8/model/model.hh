@@ -590,8 +590,8 @@ public:
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         idct(context.here(), q, pixels_sans_dc, true);
 
-        int16_t dc_estimates[(left_present || above_present) ? (left_present ? 8 : 0) + (above_present ? 8 : 0) : 1] = {0};
-        size_t len_est = sizeof(dc_estimates)/sizeof(dc_estimates[0]);
+        Sirikata::AlignedArray1d<int16_t, (left_present ? 8 : 0) + (above_present ? 8 : 0)> dc_estimates;
+        dc_estimates.memset(0);
         int32_t avgmed = 0;
         if(left_present || above_present) {
             if ((VECTORIZE || MICROVECTORIZE)) {
@@ -608,7 +608,7 @@ public:
                     __m128i above_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_above, pixels_delta_div2),
                                                               pixels_sans_dc_recentered);
 
-                    _mm_storeu_si128((__m128i*)(dc_estimates + (left_present ? 8 : 0)), above_dc_estimate);
+                    _mm_store_si128((__m128i*)(dc_estimates.begin() + (left_present ? 8 : 0)), above_dc_estimate);
                 }
                 if (left_present) {
                     const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
@@ -637,7 +637,7 @@ public:
                                                               _mm_add_epi16(pixels_sans_dc_reg,
                                                                             _mm_set1_epi16(1024)));
                     
-                    _mm_storeu_si128((__m128i*)dc_estimates, left_dc_estimate);
+                    _mm_store_si128((__m128i*)dc_estimates.begin(), left_dc_estimate);
                 }
             } else {
                 if (left_present) {
@@ -657,43 +657,39 @@ public:
                     }
                 }
             }
-            int32_t avg_h = 0;
-            int32_t avg_v = 0;
-            for (size_t i = 0; i < 8; ++i) {
-                avg_h += dc_estimates[i];
-            }
-            for (size_t i = len_est - 8; i < len_est; ++i) {
-                avg_v += dc_estimates[i];
-            }
-            int32_t min_dc = 0;
-            int32_t max_dc = 0;
-            if (left_present && above_present) {
-                assert(sizeof(dc_estimates) / sizeof(dc_estimates[0]) == 16);
-                avgmed = get_sum_median_8(dc_estimates);
-                min_dc = dc_estimates[0];
-                max_dc = dc_estimates[len_est - 1];
-            } else {
-                assert(sizeof(dc_estimates) == 8 * sizeof(dc_estimates[0]));
-                min_dc = dc_estimates[0];
-                max_dc = dc_estimates[0];
-                for (size_t i = 0; i < sizeof(dc_estimates)/sizeof(dc_estimates[0]); ++i) {
-                    if (dc_estimates[i] > max_dc) max_dc = dc_estimates[i];
-                    if (dc_estimates[i] < min_dc) min_dc = dc_estimates[i];
-                    avgmed += dc_estimates[i];
+            int32_t avg_h_v[2] = {0, 0};
+            int32_t min_dc = dc_estimates[0];
+            int32_t max_dc = dc_estimates[0];
+            size_t which_est = 0;
+            for (int vert = 0; vert != 2; ++vert) {
+                for (int i = 0; i < 8; ++which_est, ++i) {
+                    int16_t cur_est = dc_estimates[which_est];
+                    avg_h_v[vert] += cur_est;
+                    if (min_dc > cur_est) {
+                        min_dc = cur_est;
+                    }
+                    if (max_dc < cur_est) {
+                        max_dc = cur_est;
+                    }
+                }
+                if (above_present == false || left_present == false) {
+                    avg_h_v[1] = avg_h_v[0];
+                    break;
                 }
             }
-            
+            int32_t overall_avg = (avg_h_v[0] + avg_h_v[1]) >> 1;
+            avgmed = overall_avg;
             *uncertainty_val = (max_dc - min_dc + 4)>>3;
-            avg_h -= avgmed;
-            avg_v -= avgmed;
-            int32_t far_afield_value = avg_v;
-            if (abs(avg_h) < abs(avg_v)) {
-                far_afield_value = avg_h;
+            avg_h_v[0] -= avgmed;
+            avg_h_v[1] -= avgmed;
+            int32_t far_afield_value = avg_h_v[1];
+            if (abs(avg_h_v[0]) < abs(avg_h_v[1])) {
+                far_afield_value = avg_h_v[0];
             }
             *uncertainty2_val = (far_afield_value/q[0] + 4) >> 3;
 
             if (false) { // this is to debug some of the differences
-                debug_print_deltas(context, dc_estimates, avgmed);
+                debug_print_deltas(context, dc_estimates.begin(), avgmed);
             }
         }
         return ((avgmed / q[0] + 4) >> 3);
@@ -711,8 +707,13 @@ public:
         if (left_present && above_present) {
             avg_estimated_dc >>= 1;
         }
+        
         avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
-        int scaled_med = (dc_estimates[len_est - 1]/q[0] + 4);
+        int16_t dc_copy[16];
+        memcpy(dc_copy, dc_estimates, len_est*sizeof(int16_t));
+        std::sort(dc_copy, dc_copy + len_est);
+        int mmed = dc_copy[len_est/2];
+        int scaled_med = (mmed/q[0] + 4);
         int scaled_avgmed = (((avgmed/q[0]) + 4) >> 3);
         using namespace LeptonDebug;
         med_err += abs(scaled_med - actual_dc);
