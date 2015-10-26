@@ -85,13 +85,13 @@ class SIRIKATA_EXPORT MuxReader {
     uint32_t mOffset[MAX_STREAM_ID];
     bool eof;
     MuxReader(const JpegAllocator<uint8_t> &alloc,
-              int num_stream_hint = 4, Reader *reader = NULL)
+              int num_stream_hint = 4, int stream_hint_reserve_size=65536, Reader *reader = NULL)
         : mReader(reader) {
         eof = false;
         for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
             mBuffer[i] = std::vector<uint8_t, JpegAllocator<uint8_t> > (alloc);
             if (i < num_stream_hint) {
-                mBuffer[i].reserve(65536); // prime some of the vectors
+                mBuffer[i].reserve(stream_hint_reserve_size); // prime some of the vectors
             }
             mOffset[i] = 0;
         }
