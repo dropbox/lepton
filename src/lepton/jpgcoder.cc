@@ -2031,7 +2031,6 @@ bool recode_jpeg( void )
     int eob, sta;
     int tmp;
 
-
     // open huffman coded image data in abitwriter
     huffw = new abitwriter( 4096 * 1024 + 1024 );
     huffw->fillbit = padbit;
@@ -2056,6 +2055,12 @@ bool recode_jpeg( void )
                 if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
                     return false;
                 }
+                int max_scan = 0;
+                for (int i = 0; i < cmpc; ++i) {
+                    max_scan = std::max(max_scan, cmpnfo[i].bcv);
+                }
+                rstp.reserve(max_scan);
+                scnp.reserve(max_scan);
                 hpos += len;
             }
             else {
