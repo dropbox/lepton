@@ -3044,11 +3044,11 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
             imgwidth  = B_SHORT( segment[ hpos + 3 ], segment[ hpos + 4 ] );
             cmpc      = segment[ hpos + 5 ];
             if ( cmpc > 4 ) {
+                cmpc = 4;
                 fprintf( stderr, "image has %i components, max 4 are supported", cmpc );
                 errorlevel.store(2);
                 return false;
             }
-
             hpos += 6;
             // components contained in image
             for ( cmp = 0; cmp < cmpc; cmp++ ) {
