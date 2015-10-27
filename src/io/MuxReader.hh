@@ -28,12 +28,95 @@
  */
 #ifndef _SIRIKATA_MUX_READER_HPP_
 #define _SIRIKATA_MUX_READER_HPP_
-
+#include <assert.h>
 #include "Allocator.hh"
 #include "Error.hh"
 #include "Reader.hh"
 namespace Sirikata {
+
 class SIRIKATA_EXPORT MuxReader {
+public:
+    class SIRIKATA_EXPORT ResizableByteBuffer {
+        uint8_t *mBegin;
+        size_t mSize;
+        size_t mReserved;
+        JpegAllocator<uint8_t> mAlloc;
+        ResizableByteBuffer(const ResizableByteBuffer&other);
+        ResizableByteBuffer& operator=(const ResizableByteBuffer&other);
+    public:
+        typedef uint8_t * iterator;
+        typedef const uint8_t * const_iterator;
+        ResizableByteBuffer(const JpegAllocator<uint8_t> &alloc = JpegAllocator<uint8_t>()) : mAlloc(alloc) {
+            mBegin = NULL;
+            mSize = 0;
+            mReserved = 0;
+        }
+        void swap(ResizableByteBuffer&other) {
+            std::swap(mBegin, other.mBegin);
+            std::swap(mSize, other.mSize);
+            std::swap(mReserved, other.mReserved);
+            std::swap(mAlloc, other.mAlloc);
+        }
+        uint8_t& operator[](const size_t offset) {
+            assert(offset <mSize);
+            return mBegin[offset];
+        }
+        uint8_t operator[](const size_t offset) const{
+            assert(offset <mSize);
+            return mBegin[offset];
+        }
+        uint8_t *data() {
+            return mBegin;
+        }
+        uint8_t *begin() {
+            return mBegin;
+        }
+        uint8_t *end() {
+            return mBegin + mSize;
+        }
+        const uint8_t *data() const {
+            return mBegin;
+        }
+        size_t size() const {
+            return mSize;
+        }
+        JpegAllocator<uint8_t> get_allocator() {
+            return mAlloc;
+        }
+        void set_allocator(const JpegAllocator<uint8_t> &new_alloc) {
+            assert(mReserved == 0);
+            mAlloc = new_alloc;
+        }
+        void reserve(size_t new_reserved) {
+            if (new_reserved > mReserved) {
+                mReserved = new_reserved;
+                uint8_t *new_begin = (uint8_t*)mAlloc.allocate(mReserved);
+                memcpy(new_begin, mBegin, mSize);
+                mAlloc.destroy(mBegin);
+                mBegin = new_begin;
+            }
+        }
+        void resize(size_t new_size) {
+            if (mReserved < new_size) {
+                mReserved *= 2;
+                if (mReserved < new_size) {
+                    mReserved = new_size;
+                }
+                uint8_t *new_begin = (uint8_t*)mAlloc.allocate(mReserved);
+                memcpy(new_begin, mBegin, mSize);
+                mAlloc.destroy(mBegin);
+                mBegin = new_begin;
+            }
+            assert(mSize <= mReserved);
+            mSize = new_size;
+        }
+        ~ResizableByteBuffer() {
+            if (mBegin) {
+                mAlloc.destroy(mBegin);
+            }
+        }
+    };
+private:
     typedef Sirikata::DecoderReader Reader;
     Reader *mReader;
     static JpegError ReadFull(Reader* r, uint8_t *buffer, uint32_t len) {
@@ -49,7 +132,7 @@ class SIRIKATA_EXPORT MuxReader {
         return JpegError::nil();
     }
 
-    JpegError fillBufferOnce(std::vector<uint8_t, JpegAllocator<uint8_t> >&incomingBuffer) {
+    JpegError fillBufferOnce(ResizableByteBuffer &incomingBuffer) {
         uint8_t header[4] = {0, 0, 0};
         JpegError err = ReadFull(mReader, header, 3);
         if (err != JpegError::nil()) {
@@ -60,7 +143,7 @@ class SIRIKATA_EXPORT MuxReader {
         if (stream_id >= MAX_STREAM_ID) {
             return JpegError::errMissingFF00();
         }
-        std::vector<uint8_t, JpegAllocator<uint8_t> > *buffer = &mBuffer[stream_id];
+        ResizableByteBuffer *buffer = &mBuffer[stream_id];
         uint8_t flags = (header[0] >> 4) & 3;
         size_t offset = buffer->size();
         uint32_t len;
@@ -81,7 +164,7 @@ class SIRIKATA_EXPORT MuxReader {
     }
  public:
     enum {MAX_STREAM_ID = 16};
-    std::vector<uint8_t, JpegAllocator<uint8_t> > mBuffer[MAX_STREAM_ID];
+    ResizableByteBuffer mBuffer[MAX_STREAM_ID];
     uint32_t mOffset[MAX_STREAM_ID];
     bool eof;
     MuxReader(const JpegAllocator<uint8_t> &alloc,
@@ -89,7 +172,7 @@ class SIRIKATA_EXPORT MuxReader {
         : mReader(reader) {
         eof = false;
         for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
-            mBuffer[i] = std::vector<uint8_t, JpegAllocator<uint8_t> > (alloc);
+            mBuffer[i].set_allocator(alloc);
             if (i < num_stream_hint) {
                 mBuffer[i].reserve(stream_hint_reserve_size); // prime some of the vectors
             }
@@ -99,12 +182,10 @@ class SIRIKATA_EXPORT MuxReader {
     void init (Reader *reader){
         mReader = reader;
     }
-    void fillBufferEntirely(std::pair<std::vector<uint8_t,
-                                            JpegAllocator<uint8_t> >::const_iterator,
-                                       std::vector<uint8_t,
-                                            JpegAllocator<uint8_t> >::const_iterator>* ret) {
+    void fillBufferEntirely(std::pair<ResizableByteBuffer::const_iterator,
+                                      ResizableByteBuffer::const_iterator>* ret) {
         bool all_error = false;
-        std::vector<uint8_t, JpegAllocator<uint8_t> > ib;
+        ResizableByteBuffer ib;
         while (!all_error) {
             all_error = true;
             for (int i = 0; i < MAX_STREAM_ID; ++i) {
@@ -124,7 +205,7 @@ class SIRIKATA_EXPORT MuxReader {
         }
         assert(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
         mOffset[desired_stream_id] = 0;
-        std::vector<uint8_t, JpegAllocator<uint8_t> > incomingBuffer(mBuffer[desired_stream_id].get_allocator());
+        ResizableByteBuffer incomingBuffer(mBuffer[desired_stream_id].get_allocator());
         incomingBuffer.swap(mBuffer[desired_stream_id]);
         do {
             JpegError err = JpegError::nil();

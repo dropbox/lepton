@@ -257,8 +257,8 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
                 thread_state_[thread_id]->context_.at(i).y = 0;
             }
         }
-        std::pair <std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >::const_iterator,
-        std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >::const_iterator> streams[Sirikata::MuxReader::MAX_STREAM_ID];
+        std::pair <Sirikata::MuxReader::ResizableByteBuffer::const_iterator,
+        Sirikata::MuxReader::ResizableByteBuffer::const_iterator> streams[Sirikata::MuxReader::MAX_STREAM_ID];
         /* read entire chunk into memory */
         mux_reader_.fillBufferEntirely(streams);
         /* initialize the bool decoder */
