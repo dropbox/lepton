@@ -142,10 +142,16 @@ public:
       unsigned int tcount = counts_[1];
       bool overflow = (counts_[obs]++ == 0xff);
       if (__builtin_expect(overflow, 0)) { // check less than 512
-          counts_[0] = ((1 + (unsigned int)fcount) >> 1);
-          counts_[1] = ((1 + (unsigned int)tcount) >> 1);
-          counts_[obs] = 129;
-          probability_ = optimize(counts_[0] + counts_[1]);
+          bool neverseen = counts_[!obs] == 1;
+          if (neverseen) {
+              counts_[obs] = 0xff;
+              probability_ = obs ? 0 : 255;
+          } else {
+              counts_[0] = ((1 + (unsigned int)fcount) >> 1);
+              counts_[1] = ((1 + (unsigned int)tcount) >> 1);
+              counts_[obs] = 129;
+              probability_ = optimize(counts_[0] + counts_[1]);
+          }
       } else {
           probability_ = optimize(fcount + tcount + 1);
       }
