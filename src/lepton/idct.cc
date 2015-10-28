@@ -243,7 +243,7 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bo
                      row1 = _mm_srai_epi32(_mm_add_epi32(xv3, xv2), 8),
                      row2 = _mm_srai_epi32(_mm_add_epi32(xv0, xv4), 8),
                      row3 = _mm_srai_epi32(_mm_add_epi32(xv8, xv6), 8);
-             index != 8;
+             true; // will break if index == 4 at the end of this loop
              index += 4,
              row0 = _mm_srai_epi32(_mm_sub_epi32(xv8, xv6), 8),
              row1 = _mm_srai_epi32(_mm_sub_epi32(xv0, xv4), 8),
@@ -264,8 +264,10 @@ void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bo
             _mm_store_si128((__m128i*)(vintermed + index + 8 + yvec), col1);
             _mm_store_si128((__m128i*)(vintermed + index + 16 + yvec), col2);
             _mm_store_si128((__m128i*)(vintermed + index + 24 + yvec), col3);
+            if (index == 4) {
+                break; // only iterate twice
+            }
         }
-
     }
     // Vertical 1-D IDCT.
     for (uint8_t xvec = 0; xvec < 8; xvec += 4) {
