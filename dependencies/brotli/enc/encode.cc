@@ -147,7 +147,7 @@ BrotliCompressor::BrotliCompressor(BrotliParams params)
 
 BrotliCompressor::~BrotliCompressor() {
   delete[] storage_;
-  free(commands_);
+  custom_free(commands_);
   delete ringbuffer_;
   delete hashers_;
 }
@@ -237,7 +237,7 @@ bool BrotliCompressor::WriteBrotliData(const bool is_last,
     newsize += bytes / 4;
     cmd_alloc_size_ = newsize;
     commands_ =
-        static_cast<Command*>(realloc(commands_, sizeof(Command) * newsize));
+        static_cast<Command*>(custom_realloc(commands_, sizeof(Command) * newsize));
   }
 
   CreateBackwardReferences(bytes, last_processed_pos_, data, mask,

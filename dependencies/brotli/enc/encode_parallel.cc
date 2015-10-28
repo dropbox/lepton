@@ -105,7 +105,7 @@ bool WriteMetaBlockParallel(const BrotliParams& params,
   int max_backward_distance = (1 << params.lgwin) - 16;
   int dist_cache[4] = { -4, -4, -4, -4 };
   Command* commands = static_cast<Command*>(
-      malloc(sizeof(Command) * ((input_size + 1) >> 1)));
+      custom_malloc(sizeof(Command) * ((input_size + 1) >> 1)));
   if (commands == 0) {
     delete hashers;
     return false;
@@ -180,10 +180,10 @@ bool WriteMetaBlockParallel(const BrotliParams& params,
                       commands, num_commands,
                       mb,
                       &storage_ix, &storage[0])) {
-    free(commands);
+    custom_free(commands);
     return false;
   }
-  free(commands);
+  custom_free(commands);
 
   // If this is not the last meta-block, store an empty metadata
   // meta-block so that the meta-block will end at a byte boundary.

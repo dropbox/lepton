@@ -572,7 +572,6 @@ void initialize_options( int argc, char** argv )
 
     // preset temporary fiolelist pointer
     tmp_flp = filelist;
-    g_use_seccomp = false;
 
     // read in arguments
     while ( --argc > 0 ) {

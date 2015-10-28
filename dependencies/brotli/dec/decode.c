@@ -652,7 +652,7 @@ static BrotliResult DecodeContextMap(uint32_t context_map_size,
       s->context_index = 0;
       BROTLI_LOG_UINT(context_map_size);
       BROTLI_LOG_UINT(*num_htrees);
-      *context_map_arg = (uint8_t*)malloc((size_t)context_map_size);
+      *context_map_arg = (uint8_t*)custom_malloc((size_t)context_map_size);
       if (*context_map_arg == 0) {
         return BROTLI_FAILURE();
       }
@@ -948,7 +948,7 @@ static int BROTLI_NOINLINE BrotliAllocateRingBuffer(BrotliState* s,
   }
 
   s->ringbuffer_mask = s->ringbuffer_size - 1;
-  s->ringbuffer = (uint8_t*)malloc((size_t)(s->ringbuffer_size +
+  s->ringbuffer = (uint8_t*)custom_malloc((size_t)(s->ringbuffer_size +
                                          kRingBufferWriteAheadSlack +
                                          kBrotliMaxDictionaryWordLength));
   if (s->ringbuffer == 0) {
@@ -1071,7 +1071,7 @@ BrotliResult BrotliDecompressStreaming(BrotliInput input, BrotliOutput output,
             s->max_backward_distance - s->custom_dict_size;
 
         /* Allocate memory for both block_type_trees and block_len_trees. */
-        s->block_type_trees = (HuffmanCode*)malloc(
+        s->block_type_trees = (HuffmanCode*)custom_malloc(
             6 * BROTLI_HUFFMAN_MAX_TABLE_SIZE * sizeof(HuffmanCode));
         if (s->block_type_trees == 0) {
           result = BROTLI_FAILURE();
@@ -1209,7 +1209,7 @@ BrotliResult BrotliDecompressStreaming(BrotliInput input, BrotliOutput output,
         BROTLI_LOG_UINT(s->num_direct_distance_codes);
         BROTLI_LOG_UINT(s->distance_postfix_bits);
         s->distance_postfix_mask = (int)BitMask(s->distance_postfix_bits);
-        s->context_modes = (uint8_t*)malloc((size_t)s->num_block_types[0]);
+        s->context_modes = (uint8_t*)custom_malloc((size_t)s->num_block_types[0]);
         if (s->context_modes == 0) {
           result = BROTLI_FAILURE();
           break;

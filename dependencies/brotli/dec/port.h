@@ -220,7 +220,7 @@ static BROTLI_INLINE unsigned BrotliRBit(unsigned input) {
 #endif  /* gcc || clang */
 
 #define BROTLI_FREE(X) { \
-  free(X); \
+  custom_free(X); \
   X = NULL; \
 }
 

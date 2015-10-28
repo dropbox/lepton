@@ -6,7 +6,39 @@
 #if defined(__APPLE__) || __cplusplus <= 199711L
 #define thread_local __thread
 #endif
+extern "C" {
+void* custom_malloc (size_t size) {
+#if 0
+    return malloc(size);
+#else
+    return Sirikata::memmgr_alloc(size);
+#endif
+}
 
+void* custom_realloc (void * old, size_t size) {
+#if 0
+    return realloc(old, size);
+#else
+    size_t actual_size = 0;
+    return Sirikata::MemMgrAllocatorRealloc(old, size, &actual_size, true, NULL);
+#endif
+}
+void custom_free(void* ptr) {
+#if 0
+    free(ptr);
+#else
+    Sirikata::memmgr_free(ptr);
+#endif
+}
+
+void * custom_calloc(size_t size) {
+#if 0
+    return calloc(size, 1);
+#else
+    return Sirikata::memmgr_alloc(size); // guaranteed to return 0'd memory
+#endif
+}
+}
 bool g_use_seccomp =
 #ifndef __linux
     false

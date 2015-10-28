@@ -1,6 +1,6 @@
 #ifndef _MEMORY_HH_
 #define _MEMORY_HH_
-
+#if defined(__cplusplus) || defined(c_plusplus)
 #include <new>
 #include <cstdlib>
 #include <assert.h>
@@ -12,27 +12,18 @@ extern bool g_use_seccomp;
 void custom_exit(uint8_t exit_code);
 void custom_terminate_this_thread(uint8_t exit_code);
 void custom_atexit(void (*atexit)(void*) , void *arg);
+extern "C" {
+#else
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#endif
+void* custom_malloc (size_t size);
+void* custom_realloc (void * old, size_t size);
+void custom_free(void* ptr);
 
-inline void* custom_malloc (size_t size) {
-#if 0
-    return malloc(size);
-#else
-    return Sirikata::memmgr_alloc(size);
-#endif
+void * custom_calloc(size_t size);
+#if defined(__cplusplus) || defined(c_plusplus)
 }
-inline void custom_free(void* ptr) {
-#if 0
-    free(ptr);
-#else
-    Sirikata::memmgr_free(ptr);
 #endif
-}
-
-inline void * custom_calloc(size_t size) {
-#if 0
-    return calloc(size, 1);
-#else
-    return Sirikata::memmgr_alloc(size); // guaranteed to return 0'd memory
-#endif
-}
 #endif

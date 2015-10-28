@@ -368,7 +368,7 @@ void BrotliHuffmanTreeGroupInit(HuffmanTreeGroup* group, uint32_t alphabet_size,
   const size_t code_size =
       sizeof(HuffmanCode) * (size_t)(ntrees * BROTLI_HUFFMAN_MAX_TABLE_SIZE);
   const size_t htree_size = sizeof(HuffmanCode*) * (size_t)ntrees;
-  char *p = (char*)malloc(code_size + htree_size);
+  char *p = (char*)custom_malloc(code_size + htree_size);
   group->alphabet_size = (uint16_t)alphabet_size;
   group->num_htrees = (uint16_t)ntrees;
   group->codes = (HuffmanCode*)p;

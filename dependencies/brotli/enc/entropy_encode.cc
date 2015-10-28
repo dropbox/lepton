@@ -360,7 +360,7 @@ int OptimizeHuffmanCountsForRle(int length, int* counts) {
       }
     }
   }
-  free(good_for_rle);
+  custom_free(good_for_rle);
   return 1;
 }
 

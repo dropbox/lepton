@@ -94,7 +94,7 @@ dependencies/brotli/dec/decode.c
 dependencies/brotli/dec/bit_reader.c
 dependencies/brotli/dec/huffman.h
 )
-set_target_properties (localbrotli PROPERTIES COMPILE_FLAGS "-Wno-sign-compare")
+set_target_properties (localbrotli PROPERTIES COMPILE_FLAGS "-Wno-sign-compare -include memory.hh")
 add_library(localxz
 dependencies/xz/src/liblzma/delta/delta_common.c
 dependencies/xz/src/liblzma/delta/delta_encoder.c
