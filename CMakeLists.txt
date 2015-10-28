@@ -34,6 +34,67 @@ ENDIF()
 ENDIF()
 ENDIF()
 add_library(localmd5 dependencies/md5/md5.c)
+add_library(localbrotli
+dependencies/brotli/enc/encode.cc
+dependencies/brotli/enc/histogram.h
+dependencies/brotli/enc/histogram.cc
+dependencies/brotli/enc/streams.h
+dependencies/brotli/enc/prefix.h
+dependencies/brotli/enc/context.h
+dependencies/brotli/enc/utf8_util.cc
+dependencies/brotli/enc/hash.h
+dependencies/brotli/enc/bit_cost.h
+dependencies/brotli/enc/entropy_encode.h
+dependencies/brotli/enc/streams.cc
+dependencies/brotli/enc/cluster.h
+dependencies/brotli/enc/port.h
+dependencies/brotli/enc/encode.h
+dependencies/brotli/enc/static_dict_lut.h
+dependencies/brotli/enc/backward_references.h
+dependencies/brotli/enc/block_splitter.h
+dependencies/brotli/enc/fast_log.h
+dependencies/brotli/enc/literal_cost.cc
+dependencies/brotli/enc/write_bits.h
+dependencies/brotli/enc/literal_cost.h
+dependencies/brotli/enc/entropy_encode.cc
+dependencies/brotli/enc/find_match_length.h
+dependencies/brotli/enc/metablock.h
+dependencies/brotli/enc/ringbuffer.h
+dependencies/brotli/enc/dictionary.h
+dependencies/brotli/enc/block_splitter.cc
+dependencies/brotli/enc/brotli_bit_stream.cc
+dependencies/brotli/enc/transform.h
+dependencies/brotli/enc/command.h
+dependencies/brotli/enc/utf8_util.h
+dependencies/brotli/enc/brotli_bit_stream.h
+dependencies/brotli/enc/types.h
+dependencies/brotli/enc/encode_parallel.cc
+dependencies/brotli/enc/dictionary_hash.h
+dependencies/brotli/enc/dictionary.cc
+dependencies/brotli/enc/static_dict.h
+dependencies/brotli/enc/metablock.cc
+dependencies/brotli/enc/static_dict.cc
+dependencies/brotli/enc/backward_references.cc
+dependencies/brotli/enc/encode_parallel.h
+dependencies/brotli/dec/bit_reader.h
+dependencies/brotli/dec/streams.h
+dependencies/brotli/dec/decode.h
+dependencies/brotli/dec/prefix.h
+dependencies/brotli/dec/streams.c
+dependencies/brotli/dec/context.h
+dependencies/brotli/dec/state.h
+dependencies/brotli/dec/dictionary.c
+dependencies/brotli/dec/port.h
+dependencies/brotli/dec/dictionary.h
+dependencies/brotli/dec/transform.h
+dependencies/brotli/dec/types.h
+dependencies/brotli/dec/state.c
+dependencies/brotli/dec/huffman.c
+dependencies/brotli/dec/decode.c
+dependencies/brotli/dec/bit_reader.c
+dependencies/brotli/dec/huffman.h
+)
+set_target_properties (localbrotli PROPERTIES COMPILE_FLAGS "-Wno-sign-compare")
 add_library(localxz
 dependencies/xz/src/liblzma/delta/delta_common.c
 dependencies/xz/src/liblzma/delta/delta_encoder.c
@@ -144,6 +205,8 @@ add_executable(lepton
    src/io/BufferedIO.hh
    src/io/Compression.cc
    src/io/Compression.hh
+   src/io/BrotliWrapper.cc
+   src/io/BrotliWrapper.hh
    src/io/SwitchableCompression.hh
    src/io/Error.hh
    src/io/Reader.hh
@@ -191,7 +254,7 @@ SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static -Wl,--no-export-dynamic -lstdc++)
 ENDIF()
-target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localmd5 ${ADDITIONAL_FLAGS})
+target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localbrotli localmd5 ${ADDITIONAL_FLAGS})
 
 
 add_executable(print-model
@@ -217,4 +280,4 @@ add_executable(test_invariants
    src/lepton/test_invariants.cc
    src/io/Compression.cc
  )
-target_link_libraries(test_invariants ${LIBLZMA_LIBRARIES} ${ADDITIONAL_FLAGS})
+target_link_libraries(test_invariants ${LIBLZMA_LIBRARIES} localbrotli ${ADDITIONAL_FLAGS})

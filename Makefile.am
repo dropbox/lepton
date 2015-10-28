@@ -1,8 +1,8 @@
-noinst_LIBRARIES = liblocalxz.a libtestdriver.a liblocalmd5.a
+noinst_LIBRARIES = liblocalxz.a liblocalbrotli.a libtestdriver.a liblocalmd5.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
 bin_PROGRAMS = lepton test_invariants
-lepton_CXXFLAGS = $(CXX11_FLAGS)  -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
-lepton_LDADD = -lpthread liblocalxz.a liblocalmd5.a
+lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies
+lepton_LDADD = -lpthread liblocalxz.a liblocalbrotli.a liblocalmd5.a
 lepton_SOURCES = \
    src/lepton/base_coders.hh \
    src/lepton/simple_encoder.hh \
@@ -33,6 +33,8 @@ lepton_SOURCES = \
    src/io/BufferedIO.hh \
    src/io/Compression.cc \
    src/io/Compression.hh \
+   src/io/BrotliWrapper.cc \
+   src/io/BrotliWrapper.hh \
    src/io/SwitchableCompression.hh \
    src/io/Error.hh \
    src/io/Reader.hh \
@@ -82,6 +84,68 @@ liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -I$(srcdir)/dependencies
 
 liblocalmd5_a_CFLAGS = -std=c99 -msse4.2
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
+liblocalbrotli_a_CFLAGS = -msse4.2 -Wno-sign-compare
+liblocalbrotli_a_CXXFLAGS = -msse4.2 -Wno-sign-compare
+
+liblocalbrotli_a_SOURCES = dependencies/brotli/enc/encode.cc \
+dependencies/brotli/enc/histogram.h \
+dependencies/brotli/enc/histogram.cc \
+dependencies/brotli/enc/streams.h \
+dependencies/brotli/enc/prefix.h \
+dependencies/brotli/enc/context.h \
+dependencies/brotli/enc/utf8_util.cc \
+dependencies/brotli/enc/hash.h \
+dependencies/brotli/enc/bit_cost.h \
+dependencies/brotli/enc/entropy_encode.h \
+dependencies/brotli/enc/streams.cc \
+dependencies/brotli/enc/cluster.h \
+dependencies/brotli/enc/port.h \
+dependencies/brotli/enc/encode.h \
+dependencies/brotli/enc/static_dict_lut.h \
+dependencies/brotli/enc/backward_references.h \
+dependencies/brotli/enc/block_splitter.h \
+dependencies/brotli/enc/fast_log.h \
+dependencies/brotli/enc/literal_cost.cc \
+dependencies/brotli/enc/write_bits.h \
+dependencies/brotli/enc/literal_cost.h \
+dependencies/brotli/enc/entropy_encode.cc \
+dependencies/brotli/enc/find_match_length.h \
+dependencies/brotli/enc/metablock.h \
+dependencies/brotli/enc/ringbuffer.h \
+dependencies/brotli/enc/dictionary.h \
+dependencies/brotli/enc/block_splitter.cc \
+dependencies/brotli/enc/brotli_bit_stream.cc \
+dependencies/brotli/enc/transform.h \
+dependencies/brotli/enc/command.h \
+dependencies/brotli/enc/utf8_util.h \
+dependencies/brotli/enc/brotli_bit_stream.h \
+dependencies/brotli/enc/types.h \
+dependencies/brotli/enc/encode_parallel.cc \
+dependencies/brotli/enc/dictionary_hash.h \
+dependencies/brotli/enc/dictionary.cc \
+dependencies/brotli/enc/static_dict.h \
+dependencies/brotli/enc/metablock.cc \
+dependencies/brotli/enc/static_dict.cc \
+dependencies/brotli/enc/backward_references.cc \
+dependencies/brotli/enc/encode_parallel.h \
+dependencies/brotli/dec/bit_reader.h \
+dependencies/brotli/dec/streams.h \
+dependencies/brotli/dec/decode.h \
+dependencies/brotli/dec/prefix.h \
+dependencies/brotli/dec/streams.c \
+dependencies/brotli/dec/context.h \
+dependencies/brotli/dec/state.h \
+dependencies/brotli/dec/dictionary.c \
+dependencies/brotli/dec/port.h \
+dependencies/brotli/dec/dictionary.h \
+dependencies/brotli/dec/transform.h \
+dependencies/brotli/dec/types.h \
+dependencies/brotli/dec/state.c \
+dependencies/brotli/dec/huffman.c \
+dependencies/brotli/dec/decode.c \
+dependencies/brotli/dec/bit_reader.c \
+dependencies/brotli/dec/huffman.h
+
 
 liblocalxz_a_SOURCES = dependencies/xz/src/liblzma/delta/delta_common.c \
 dependencies/xz/src/liblzma/delta/delta_encoder.c \
@@ -180,7 +244,7 @@ test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
 test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
-test_invariants_LDADD = liblocalxz.a
+test_invariants_LDADD = liblocalxz.a liblocalbrotli.a 
 
 
 check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
