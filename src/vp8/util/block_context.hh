@@ -30,15 +30,20 @@ struct NeighborSummary {
     }
     void set_horizontal(int16_t * data, uint16_t* quantization_table, int16_t dc) {
         for (int i = 0; i < 8 ; ++i) {
+            int delta = data[i + 56] - data[i + 48];
+            if (i == 7) {
+                delta = 0; //don't pollute shared pixel
+            }
             nonzeros_and_edge_pixels[i + 8]
-                = std::max(std::min(dc * quantization_table[0] + data[i + 56] + 128 * xIDCTSCALE,
+                = std::max(std::min(dc * quantization_table[0] + data[i + 56] + 128 * xIDCTSCALE + delta / 2,
                                     256* xIDCTSCALE - 1), 0);
         }
     }
     void set_vertical(int16_t * data, uint16_t* quantization_table, int16_t dc) {
         for (int i = 0; i < 7 ; ++i) {
+            int delta = data[i * 8 + 7] - data[i * 8 + 6];
             nonzeros_and_edge_pixels[i + 1]
-                = std::max(std::min(dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE,
+                = std::max(std::min(dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + delta / 2,
                                     256 * xIDCTSCALE - 1), 0);
         }
         assert(vertical(7)
@@ -47,12 +52,17 @@ struct NeighborSummary {
     }
     void set_horizontal_dc_included(int * data) {
         for (int i = 0; i < 8 ; ++i) {
-            nonzeros_and_edge_pixels[i + 8] = std::max(std::min(data[i + 56], 256* xIDCTSCALE - 1), 0);
+            int delta = data[i + 56] - data[i + 48];
+            if (i == 7) {
+                delta = 0;
+            }
+            nonzeros_and_edge_pixels[i + 8] = std::max(std::min(data[i + 56] + delta / 2, 256* xIDCTSCALE - 1), 0);
         }
     }
     void set_vertical_dc_included(int * data) {
         for (int i = 0; i < 7 ; ++i) {
-            nonzeros_and_edge_pixels[i + 1] = std::max(std::min(data[i * 8 + 7], 256 * xIDCTSCALE - 1), 0);
+            int delta = data[i * 8 + 7] - data[i * 8 + 6];
+            nonzeros_and_edge_pixels[i + 1] = std::max(std::min(data[i * 8 + 7] + delta / 2, 256 * xIDCTSCALE - 1), 0);
         }
         assert(vertical(7) == std::max(std::min(data[63], 256 * xIDCTSCALE - 1), 0));
     }

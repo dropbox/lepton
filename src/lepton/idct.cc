@@ -163,7 +163,7 @@ template<int offset, int stride> __m128i vquantize(int which_vec, __m128i vec, c
 
 
 __m128i epi32l_to_epi16(__m128i lowvec) {
-    return _mm_shuffle_epi8(lowvec, _mm_set_epi8(0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    return _mm_shuffle_epi8(lowvec, _mm_set_epi8(-1, -1, -1, -1, -1, -1, -1, -1,
                                                  0xd, 0xc, 0x9, 0x8, 0x5, 0x4, 0x1, 0x0));
 }
 void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
