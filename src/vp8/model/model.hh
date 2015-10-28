@@ -602,7 +602,7 @@ public:
                 if (left_present) {
                     const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
                     __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)horiz_data);
-                    neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
+                    //neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
                     __m128i pixels_sans_dc_reg = _mm_set_epi16(pixels_sans_dc[56],
                                                                pixels_sans_dc[48],
                                                                pixels_sans_dc[40],

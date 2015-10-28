@@ -1,6 +1,6 @@
 #ifndef _BLOCK_CONTEXT_HH_
 #define _BLOCK_CONTEXT_HH_
-
+#include "options.hh"
 enum {
     IDCTSCALE = 1,
     xIDCTSCALE = 8
@@ -9,62 +9,64 @@ struct NeighborSummary {
     enum {
         VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL = 14
     };
-    int16_t nonzeros_and_edge_pixels[16];
+    int16_t edge_pixels[16];
+    uint8_t num_nonzeros_;
     uint8_t num_nonzeros() const {
-        return nonzeros_and_edge_pixels[0];
+        return num_nonzeros_;
     }
     void set_num_nonzeros(uint8_t nz) {
-        nonzeros_and_edge_pixels[0] = nz;
+        num_nonzeros_ = nz;
     }
     int16_t horizontal(int index) const {
-        return nonzeros_and_edge_pixels[index + 8];
+        return edge_pixels[index + 8];
     }
     int16_t vertical(int index) const {
-        return nonzeros_and_edge_pixels[index == 7 ? 15 : (index + 1)];
+        return edge_pixels[index];
     }
     const int16_t* vertical_ptr_except_7() const {
-        return &nonzeros_and_edge_pixels[1];
+        return &edge_pixels[0];
     }
     const int16_t* horizontal_ptr() const {
-        return &nonzeros_and_edge_pixels[8];
+        return &edge_pixels[8];
     }
-    void set_horizontal(int16_t * data, uint16_t* quantization_table, int16_t dc) {
-        for (int i = 0; i < 8 ; ++i) {
-            int delta = data[i + 56] - data[i + 48];
-            if (i == 7) {
-                delta = 0; //don't pollute shared pixel
+#define shift_right_round_zero_epi16(vec, imm8) (_mm_sign_epi16(_mm_srli_epi16(_mm_sign_epi16(vec, vec), imm8), vec));
+    void set_horizontal(int16_t * data_aligned, uint16_t* quantization_table, int16_t dc) {
+        if (VECTORIZE) {
+            __m128i cur_row = _mm_load_si128((const __m128i*)(data_aligned + 56));
+            __m128i prev_row = _mm_loadu_si128((const __m128i*)(data_aligned + 48));
+            __m128i delta = _mm_sub_epi16(cur_row, prev_row);
+            __m128i half_delta = shift_right_round_zero_epi16(delta, 1);
+            __m128i pred_row = _mm_add_epi16(_mm_add_epi16(cur_row, half_delta), _mm_set1_epi16(128 * xIDCTSCALE));
+            pred_row = _mm_add_epi16(pred_row, _mm_set1_epi16(quantization_table[0] * dc));
+            _mm_storeu_si128((__m128i*)&edge_pixels[8], pred_row);
+        } else {
+            for (int i = 0; i < 8 ; ++i) {
+                int delta = data_aligned[i + 56] - data_aligned[i + 48];
+                //if (i == 7) delta = 0;
+                edge_pixels[i + 8] = dc * quantization_table[0] + data_aligned[i + 56] + 128 * xIDCTSCALE + (delta/2);
             }
-            nonzeros_and_edge_pixels[i + 8]
-                = std::max(std::min(dc * quantization_table[0] + data[i + 56] + 128 * xIDCTSCALE + delta / 2,
-                                    256* xIDCTSCALE - 1), 0);
         }
     }
     void set_vertical(int16_t * data, uint16_t* quantization_table, int16_t dc) {
-        for (int i = 0; i < 7 ; ++i) {
+        for (int i = 0; i < 8 ; ++i) {
             int delta = data[i * 8 + 7] - data[i * 8 + 6];
-            nonzeros_and_edge_pixels[i + 1]
-                = std::max(std::min(dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + delta / 2,
-                                    256 * xIDCTSCALE - 1), 0);
+            //if (i == 7) delta = 0;
+            edge_pixels[i] = dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + (delta/2);
         }
-        assert(vertical(7)
-               == std::max(std::min(dc * quantization_table[0]+ data[63] + 128 * xIDCTSCALE,
-                                    256 * xIDCTSCALE - 1), 0));
     }
     void set_horizontal_dc_included(int * data) {
         for (int i = 0; i < 8 ; ++i) {
             int delta = data[i + 56] - data[i + 48];
-            if (i == 7) {
-                delta = 0;
-            }
-            nonzeros_and_edge_pixels[i + 8] = std::max(std::min(data[i + 56] + delta / 2, 256* xIDCTSCALE - 1), 0);
+            //if (i == 7) delta = 0;
+            edge_pixels[i + 8] = data[i + 56] + delta / 2;
         }
     }
     void set_vertical_dc_included(int * data) {
         for (int i = 0; i < 7 ; ++i) {
             int delta = data[i * 8 + 7] - data[i * 8 + 6];
-            nonzeros_and_edge_pixels[i + 1] = std::max(std::min(data[i * 8 + 7] + delta / 2, 256 * xIDCTSCALE - 1), 0);
+            //if (i == 7) delta = 0;
+            edge_pixels[i] = data[i * 8 + 7] + delta / 2;
         }
-        assert(vertical(7) == std::max(std::min(data[63], 256 * xIDCTSCALE - 1), 0));
     }
 };
 

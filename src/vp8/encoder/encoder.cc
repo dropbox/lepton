@@ -267,18 +267,13 @@ void serialize_tokens(ConstBlockContext context,
                 pt);
 
 
-    int16_t outp_sans_dc[64];
-    idct(context.here(), ProbabilityTablesBase::quantization_table((int)color), outp_sans_dc, true);
-    for (int i = 0; i < 64; ++i) {
-        outp_sans_dc[i] >>= 3;
-    }
-
+    Sirikata::AlignedArray1d<int16_t, 64> outp_sans_dc;
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
     int uncertainty2 = 0;
     int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context,
                                                                           false,
                                                                           probability_tables.adv_predict_dc_pix(context,
-                                                                                                                outp_sans_dc,
+                                                                                                                outp_sans_dc.begin(),
                                                                                                                 &uncertainty,
                                                                               &uncertainty2));
     (void)adv_predicted_dc;
@@ -313,10 +308,10 @@ void serialize_tokens(ConstBlockContext context,
     }
     {
         int dc = context.here().dc();
-        context.num_nonzeros_here->set_horizontal(outp_sans_dc,
+        context.num_nonzeros_here->set_horizontal(outp_sans_dc.begin(),
                                                   ProbabilityTablesBase::quantization_table((int)color),
                                                   dc);
-        context.num_nonzeros_here->set_vertical(outp_sans_dc,
+        context.num_nonzeros_here->set_vertical(outp_sans_dc.begin(),
                                                 ProbabilityTablesBase::quantization_table((int)color),
                                                 dc);
     }
