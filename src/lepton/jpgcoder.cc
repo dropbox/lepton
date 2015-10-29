@@ -226,7 +226,7 @@ private:
 
 bool do_streaming = true;
 bool use_xz = false;
-bool use_zlib = false;
+bool use_brotli = false;
 
 unsigned short qtables[4][64];                // quantization tables
 huffCodes      hcodes[2][4];                // huffman codes
@@ -600,8 +600,8 @@ void initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-xz" ) == 0)  {
             use_xz = true;
         }
-        else if ( strcmp((*argv), "-zlib" ) == 0)  {
-            use_zlib = true;
+        else if ( strcmp((*argv), "-brotli" ) == 0)  {
+            use_brotli = true;
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
@@ -2508,20 +2508,20 @@ bool write_ujpg( )
         err = mrw.Write( grbgdata, grbs ).second;
     }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
-    if (use_zlib) {
-        compressed_header =
-            Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
-                                                             mrw.buffer().size(),
-                                                             Sirikata::JpegAllocator<uint8_t>());
+    if (use_brotli) {
+        using namespace Sirikata;
+        compressed_header = brotli_full_compress(mrw.buffer().data(),
+                                                 mrw.buffer().size());                                                         
     } else if (use_xz) {
         compressed_header =
             Sirikata::DecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                          mrw.buffer().size(),
                                                          Sirikata::JpegAllocator<uint8_t>());
-    } else {
-        using namespace Sirikata;
-        compressed_header = brotli_full_compress(mrw.buffer().data(),
-                                                 mrw.buffer().size());                                                         
+    } else { // zlib
+        compressed_header =
+            Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
+                                                             mrw.buffer().size(),
+                                                             Sirikata::JpegAllocator<uint8_t>());
     }
     unsigned char siz_mrk[] = {'Z'};
     err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
@@ -2618,20 +2618,20 @@ bool read_ujpg( void )
                                                  &MemMgrAllocatorMsize);
         std::pair<std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >,
                   JpegError> uncompressed_header_buffer;
-        if (use_zlib) {
-            uncompressed_header_buffer
-                = ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
-                                                         compressed_header_buffer.size(),
-                                                         no_free_allocator);
+        if (use_brotli) {
+            using namespace Sirikata;
+            uncompressed_header_buffer = brotli_full_decompress(compressed_header_buffer.data(),
+                                                                compressed_header_buffer.size());
         } else if (use_xz) {
             uncompressed_header_buffer
                 = DecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
                                                          compressed_header_buffer.size(),
                                                          no_free_allocator);
         } else {
-            using namespace Sirikata;
-            uncompressed_header_buffer = brotli_full_decompress(compressed_header_buffer.data(),
-                                                                compressed_header_buffer.size());
+            uncompressed_header_buffer
+                = ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
+                                                         compressed_header_buffer.size(),
+                                                         no_free_allocator);
         }
         if (uncompressed_header_buffer.second) {
             assert(false && "Data not properly lzma coded");
