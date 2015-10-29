@@ -1,8 +1,8 @@
-noinst_LIBRARIES = liblocalxz.a liblocalbrotli.a libtestdriver.a liblocalmd5.a
+noinst_LIBRARIES = liblocalxz.a liblocalbrotli.a liblocalzlib.a libtestdriver.a liblocalmd5.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
 bin_PROGRAMS = lepton test_invariants
 lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies
-lepton_LDADD = -lpthread liblocalxz.a liblocalbrotli.a liblocalmd5.a
+lepton_LDADD = -lpthread liblocalxz.a liblocalbrotli.a liblocalmd5.a liblocalzlib.a 
 lepton_SOURCES = \
    src/lepton/base_coders.hh \
    src/lepton/simple_encoder.hh \
@@ -33,6 +33,8 @@ lepton_SOURCES = \
    src/io/BufferedIO.hh \
    src/io/Compression.cc \
    src/io/Compression.hh \
+   src/io/ZlibCompression.cc \
+   src/io/ZlibCompression.hh \
    src/io/BrotliWrapper.cc \
    src/io/BrotliWrapper.hh \
    src/io/SwitchableCompression.hh \
@@ -86,6 +88,33 @@ liblocalmd5_a_CFLAGS = -std=c99 -msse4.2
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
 liblocalbrotli_a_CFLAGS = -msse4.2 -Wno-sign-compare -include "$(srcdir)/src/vp8/util/memory.hh"
 liblocalbrotli_a_CXXFLAGS = -msse4.2 -Wno-sign-compare -include "$(srcdir)/src/vp8/util/memory.hh"
+liblocalzlib_a_CFLAGS = -msse4.2
+liblocalzlib_a_SOURCES = dependencies/zlib/inflate.c \
+dependencies/zlib/inflate.h \
+dependencies/zlib/gzguts.h \
+dependencies/zlib/infback.c \
+dependencies/zlib/trees.c \
+dependencies/zlib/adler32.c \
+dependencies/zlib/gzclose.c \
+dependencies/zlib/inftrees.h \
+dependencies/zlib/zconf.h \
+dependencies/zlib/compress.c \
+dependencies/zlib/crc32.c \
+dependencies/zlib/crc32.h \
+dependencies/zlib/trees.h \
+dependencies/zlib/inftrees.c \
+dependencies/zlib/zutil.c \
+dependencies/zlib/gzwrite.c \
+dependencies/zlib/zutil.h \
+dependencies/zlib/zlib.h \
+dependencies/zlib/inffixed.h \
+dependencies/zlib/deflate.c \
+dependencies/zlib/inffast.h \
+dependencies/zlib/inffast.c \
+dependencies/zlib/uncompr.c \
+dependencies/zlib/gzread.c \
+dependencies/zlib/deflate.h \
+dependencies/zlib/gzlib.c
 
 liblocalbrotli_a_SOURCES = dependencies/brotli/enc/encode.cc \
 dependencies/brotli/enc/histogram.h \
@@ -244,7 +273,7 @@ test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
 test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
-test_invariants_LDADD = liblocalxz.a liblocalbrotli.a 
+test_invariants_LDADD = liblocalxz.a liblocalbrotli.a liblocalzlib.a
 
 
 check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq

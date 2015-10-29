@@ -34,6 +34,34 @@ ENDIF()
 ENDIF()
 ENDIF()
 add_library(localmd5 dependencies/md5/md5.c)
+add_library(localzlib
+dependencies/zlib/inflate.c
+dependencies/zlib/inflate.h
+dependencies/zlib/gzguts.h
+dependencies/zlib/infback.c
+dependencies/zlib/trees.c
+dependencies/zlib/adler32.c
+dependencies/zlib/gzclose.c
+dependencies/zlib/inftrees.h
+dependencies/zlib/zconf.h
+dependencies/zlib/compress.c
+dependencies/zlib/crc32.c
+dependencies/zlib/crc32.h
+dependencies/zlib/trees.h
+dependencies/zlib/inftrees.c
+dependencies/zlib/zutil.c
+dependencies/zlib/gzwrite.c
+dependencies/zlib/zutil.h
+dependencies/zlib/zlib.h
+dependencies/zlib/inffixed.h
+dependencies/zlib/deflate.c
+dependencies/zlib/inffast.h
+dependencies/zlib/inffast.c
+dependencies/zlib/uncompr.c
+dependencies/zlib/gzread.c
+dependencies/zlib/deflate.h
+dependencies/zlib/gzlib.c)
+
 add_library(localbrotli
 dependencies/brotli/enc/encode.cc
 dependencies/brotli/enc/histogram.h
@@ -207,6 +235,8 @@ add_executable(lepton
    src/io/Compression.hh
    src/io/BrotliWrapper.cc
    src/io/BrotliWrapper.hh
+   src/io/ZlibCompression.cc
+   src/io/ZlibCompression.hh
    src/io/SwitchableCompression.hh
    src/io/Error.hh
    src/io/Reader.hh
@@ -254,7 +284,7 @@ SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static -Wl,--no-export-dynamic -lstdc++)
 ENDIF()
-target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localbrotli localmd5 ${ADDITIONAL_FLAGS})
+target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localbrotli localzlib localmd5 ${ADDITIONAL_FLAGS})
 
 
 add_executable(print-model
@@ -280,4 +310,4 @@ add_executable(test_invariants
    src/lepton/test_invariants.cc
    src/io/Compression.cc
  )
-target_link_libraries(test_invariants ${LIBLZMA_LIBRARIES} localbrotli ${ADDITIONAL_FLAGS})
+target_link_libraries(test_invariants ${LIBLZMA_LIBRARIES} localbrotli localzlib ${ADDITIONAL_FLAGS})

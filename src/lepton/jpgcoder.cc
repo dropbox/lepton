@@ -34,6 +34,7 @@
 #include "simple_encoder.hh"
 #include "fork_serve.hh"
 #include "../io/Compression.hh"
+#include "../io/ZlibCompression.hh"
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
 #include "../io/BrotliWrapper.hh"
@@ -225,6 +226,7 @@ private:
 
 bool do_streaming = true;
 bool use_xz = false;
+bool use_zlib = false;
 
 unsigned short qtables[4][64];                // quantization tables
 huffCodes      hcodes[2][4];                // huffman codes
@@ -597,6 +599,9 @@ void initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-xz" ) == 0)  {
             use_xz = true;
+        }
+        else if ( strcmp((*argv), "-zlib" ) == 0)  {
+            use_zlib = true;
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
@@ -2503,7 +2508,12 @@ bool write_ujpg( )
         err = mrw.Write( grbgdata, grbs ).second;
     }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
-    if (use_xz) {
+    if (use_zlib) {
+        compressed_header =
+            Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
+                                                             mrw.buffer().size(),
+                                                             Sirikata::JpegAllocator<uint8_t>());
+    } else if (use_xz) {
         compressed_header =
             Sirikata::DecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                          mrw.buffer().size(),
@@ -2608,7 +2618,12 @@ bool read_ujpg( void )
                                                  &MemMgrAllocatorMsize);
         std::pair<std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >,
                   JpegError> uncompressed_header_buffer;
-        if (use_xz) {
+        if (use_zlib) {
+            uncompressed_header_buffer
+                = ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
+                                                         compressed_header_buffer.size(),
+                                                         no_free_allocator);
+        } else if (use_xz) {
             uncompressed_header_buffer
                 = DecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
                                                          compressed_header_buffer.size(),
