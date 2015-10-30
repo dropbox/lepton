@@ -1,8 +1,8 @@
-noinst_LIBRARIES = liblocalxz.a liblocalbrotli.a liblocalzlib.a libtestdriver.a liblocalmd5.a
+noinst_LIBRARIES = liblocalzlib.a libtestdriver.a liblocalmd5.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
 bin_PROGRAMS = lepton test_invariants
 lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies
-lepton_LDADD = -lpthread liblocalxz.a liblocalbrotli.a liblocalmd5.a liblocalzlib.a 
+lepton_LDADD = -lpthread liblocalmd5.a liblocalzlib.a 
 lepton_SOURCES = \
    src/io/MemReadWriter.cc \
    src/lepton/base_coders.hh \
@@ -32,13 +32,8 @@ lepton_SOURCES = \
    src/io/MemMgrAllocator.hh \
    src/io/MemMgrAllocator.cc \
    src/io/BufferedIO.hh \
-   src/io/Compression.cc \
-   src/io/Compression.hh \
    src/io/ZlibCompression.cc \
    src/io/ZlibCompression.hh \
-   src/io/BrotliWrapper.cc \
-   src/io/BrotliWrapper.hh \
-   src/io/SwitchableCompression.hh \
    src/io/Error.hh \
    src/io/Reader.hh \
    src/io/MuxReader.hh \
@@ -117,141 +112,7 @@ dependencies/zlib/gzread.c \
 dependencies/zlib/deflate.h \
 dependencies/zlib/gzlib.c
 
-liblocalbrotli_a_SOURCES = dependencies/brotli/enc/encode.cc \
-dependencies/brotli/enc/histogram.h \
-dependencies/brotli/enc/histogram.cc \
-dependencies/brotli/enc/streams.h \
-dependencies/brotli/enc/prefix.h \
-dependencies/brotli/enc/context.h \
-dependencies/brotli/enc/utf8_util.cc \
-dependencies/brotli/enc/hash.h \
-dependencies/brotli/enc/bit_cost.h \
-dependencies/brotli/enc/entropy_encode.h \
-dependencies/brotli/enc/streams.cc \
-dependencies/brotli/enc/cluster.h \
-dependencies/brotli/enc/port.h \
-dependencies/brotli/enc/encode.h \
-dependencies/brotli/enc/static_dict_lut.h \
-dependencies/brotli/enc/backward_references.h \
-dependencies/brotli/enc/block_splitter.h \
-dependencies/brotli/enc/fast_log.h \
-dependencies/brotli/enc/literal_cost.cc \
-dependencies/brotli/enc/write_bits.h \
-dependencies/brotli/enc/literal_cost.h \
-dependencies/brotli/enc/entropy_encode.cc \
-dependencies/brotli/enc/find_match_length.h \
-dependencies/brotli/enc/metablock.h \
-dependencies/brotli/enc/ringbuffer.h \
-dependencies/brotli/enc/dictionary.h \
-dependencies/brotli/enc/block_splitter.cc \
-dependencies/brotli/enc/brotli_bit_stream.cc \
-dependencies/brotli/enc/transform.h \
-dependencies/brotli/enc/command.h \
-dependencies/brotli/enc/utf8_util.h \
-dependencies/brotli/enc/brotli_bit_stream.h \
-dependencies/brotli/enc/types.h \
-dependencies/brotli/enc/encode_parallel.cc \
-dependencies/brotli/enc/dictionary_hash.h \
-dependencies/brotli/enc/dictionary.cc \
-dependencies/brotli/enc/static_dict.h \
-dependencies/brotli/enc/metablock.cc \
-dependencies/brotli/enc/static_dict.cc \
-dependencies/brotli/enc/backward_references.cc \
-dependencies/brotli/enc/encode_parallel.h \
-dependencies/brotli/dec/bit_reader.h \
-dependencies/brotli/dec/streams.h \
-dependencies/brotli/dec/decode.h \
-dependencies/brotli/dec/prefix.h \
-dependencies/brotli/dec/streams.c \
-dependencies/brotli/dec/context.h \
-dependencies/brotli/dec/state.h \
-dependencies/brotli/dec/dictionary.c \
-dependencies/brotli/dec/port.h \
-dependencies/brotli/dec/dictionary.h \
-dependencies/brotli/dec/transform.h \
-dependencies/brotli/dec/types.h \
-dependencies/brotli/dec/state.c \
-dependencies/brotli/dec/huffman.c \
-dependencies/brotli/dec/decode.c \
-dependencies/brotli/dec/bit_reader.c \
-dependencies/brotli/dec/huffman.h
-
-
-liblocalxz_a_SOURCES = dependencies/xz/src/liblzma/delta/delta_common.c \
-dependencies/xz/src/liblzma/delta/delta_encoder.c \
-dependencies/xz/src/liblzma/delta/delta_decoder.c \
-dependencies/xz/src/liblzma/rangecoder/price_table.c \
-dependencies/xz/src/liblzma/lz/lz_encoder_mf.c \
-dependencies/xz/src/liblzma/lz/lz_decoder.c \
-dependencies/xz/src/liblzma/lz/lz_encoder.c \
-dependencies/xz/src/liblzma/check/sha256.c \
-dependencies/xz/src/liblzma/check/crc32_table.c \
-dependencies/xz/src/liblzma/check/check.c \
-dependencies/xz/src/liblzma/check/crc64_table.c \
-dependencies/xz/src/liblzma/check/crc64_fast.c \
-dependencies/xz/src/liblzma/check/crc32_fast.c \
-dependencies/xz/src/liblzma/lzma/lzma_encoder_optimum_fast.c \
-dependencies/xz/src/liblzma/lzma/fastpos_table.c \
-dependencies/xz/src/liblzma/lzma/lzma_encoder_presets.c \
-dependencies/xz/src/liblzma/lzma/lzma_encoder_optimum_normal.c \
-dependencies/xz/src/liblzma/lzma/lzma2_encoder.c \
-dependencies/xz/src/liblzma/lzma/lzma_encoder.c \
-dependencies/xz/src/liblzma/lzma/lzma_decoder.c \
-dependencies/xz/src/liblzma/lzma/lzma2_decoder.c \
-dependencies/xz/src/liblzma/simple/sparc.c \
-dependencies/xz/src/liblzma/simple/arm.c \
-dependencies/xz/src/liblzma/simple/ia64.c \
-dependencies/xz/src/liblzma/simple/armthumb.c \
-dependencies/xz/src/liblzma/simple/simple_decoder.c \
-dependencies/xz/src/liblzma/simple/powerpc.c \
-dependencies/xz/src/liblzma/simple/x86.c \
-dependencies/xz/src/liblzma/simple/simple_coder.c \
-dependencies/xz/src/liblzma/simple/simple_encoder.c \
-dependencies/xz/src/liblzma/common/block_encoder.c \
-dependencies/xz/src/liblzma/common/alone_encoder.c \
-dependencies/xz/src/liblzma/common/easy_encoder.c \
-dependencies/xz/src/liblzma/common/stream_buffer_decoder.c \
-dependencies/xz/src/liblzma/common/filter_decoder.c \
-dependencies/xz/src/liblzma/common/block_header_encoder.c \
-dependencies/xz/src/liblzma/common/auto_decoder.c \
-dependencies/xz/src/liblzma/common/easy_decoder_memusage.c \
-dependencies/xz/src/liblzma/common/index.c \
-dependencies/xz/src/liblzma/common/easy_encoder_memusage.c \
-dependencies/xz/src/liblzma/common/stream_decoder.c \
-dependencies/xz/src/liblzma/common/stream_encoder.c \
-dependencies/xz/src/liblzma/common/vli_encoder.c \
-dependencies/xz/src/liblzma/common/easy_buffer_encoder.c \
-dependencies/xz/src/liblzma/common/hardware_cputhreads.c \
-dependencies/xz/src/liblzma/common/easy_preset.c \
-dependencies/xz/src/liblzma/common/filter_common.c \
-dependencies/xz/src/liblzma/common/vli_size.c \
-dependencies/xz/src/liblzma/common/vli_decoder.c \
-dependencies/xz/src/liblzma/common/block_buffer_decoder.c \
-dependencies/xz/src/liblzma/common/block_header_decoder.c \
-dependencies/xz/src/liblzma/common/stream_buffer_encoder.c \
-dependencies/xz/src/liblzma/common/index_hash.c \
-dependencies/xz/src/liblzma/common/filter_flags_encoder.c \
-dependencies/xz/src/liblzma/common/stream_flags_encoder.c \
-dependencies/xz/src/liblzma/common/filter_buffer_encoder.c \
-dependencies/xz/src/liblzma/common/outqueue.c \
-dependencies/xz/src/liblzma/common/alone_decoder.c \
-dependencies/xz/src/liblzma/common/filter_flags_decoder.c \
-dependencies/xz/src/liblzma/common/common.c \
-dependencies/xz/src/liblzma/common/block_util.c \
-dependencies/xz/src/liblzma/common/block_buffer_encoder.c \
-dependencies/xz/src/liblzma/common/hardware_physmem.c \
-dependencies/xz/src/liblzma/common/block_decoder.c \
-dependencies/xz/src/liblzma/common/stream_flags_decoder.c \
-dependencies/xz/src/liblzma/common/index_encoder.c \
-dependencies/xz/src/liblzma/common/stream_flags_common.c \
-dependencies/xz/src/liblzma/common/index_decoder.c \
-dependencies/xz/src/liblzma/common/filter_buffer_decoder.c \
-dependencies/xz/src/liblzma/common/filter_encoder.c \
-dependencies/xz/src/common/tuklib_cpucores.c \
-dependencies/xz/src/common/tuklib_physmem.c
-
 DEFAULT_INCLUDES=-I$(srcdir)/src
-
 
 
 #noinst_LIBRARIES = libtestdriver.a
@@ -260,9 +121,6 @@ libtestdriver_a_SOURCES = src/lepton/test_driver.cc
 test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/vp8/util/memory.cc \
    src/io/BufferedIO.hh \
-   src/io/Compression.cc \
-   src/io/Compression.hh \
-   src/io/SwitchableCompression.hh \
    src/io/Error.hh \
    src/io/Reader.hh \
    src/io/MuxReader.hh \
@@ -270,58 +128,59 @@ test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/io/ioutil.cc \
    src/io/Zlib0.hh \
    src/io/Zlib0.cc \
+   src/io/MemReadWriter.cc \
    src/io/MemMgrAllocator.cc \
    src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
 test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
-test_invariants_LDADD = liblocalxz.a liblocalbrotli.a liblocalzlib.a
+test_invariants_LDADD = liblocalzlib.a
 
 
 check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
 
 
 test_baseline_ujg_SOURCES = src/lepton/test_harness.cc
-test_baseline_ujg_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_baseline_ujg_LDADD = libtestdriver.a -lpthread
 
 test_baseline_SOURCES = src/lepton/test_harness.cc
 test_baseline_CXXFLAGS = -DUSE_LEPTON
-test_baseline_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_baseline_LDADD = libtestdriver.a -lpthread
 
 test_iphone_SOURCES = src/lepton/test_harness.cc
 test_iphone_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
-test_iphone_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_iphone_LDADD = libtestdriver.a -lpthread
 
 test_slr_SOURCES = src/lepton/test_harness.cc
 test_slr_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity
-test_slr_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_slr_LDADD = libtestdriver.a -lpthread
 
 test_hq_SOURCES = src/lepton/test_harness.cc
 test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq
-test_hq_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_hq_LDADD = libtestdriver.a -lpthread
 
 test_misc_SOURCES = src/lepton/test_harness.cc
 test_misc_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
-test_misc_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_misc_LDADD = libtestdriver.a -lpthread
 
 test_arithmetic_failfast_SOURCES = src/lepton/test_harness.cc
 test_arithmetic_failfast_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=arithmetic -DEXPECT_FAILURE
-test_arithmetic_failfast_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_arithmetic_failfast_LDADD = libtestdriver.a -lpthread
 
 test_progressive_ujg_SOURCES = src/lepton/test_harness.cc
 test_progressive_ujg_CXXFLAGS = -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
-test_progressive_ujg_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_progressive_ujg_LDADD = libtestdriver.a -lpthread
 
 test_progressive_SOURCES = src/lepton/test_harness.cc
 test_progressive_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
-test_progressive_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_progressive_LDADD = libtestdriver.a -lpthread
 
 test_truncate_ujg_SOURCES = src/lepton/test_harness.cc
 test_truncate_ujg_CXXFLAGS = -DTEST_FILE=trunc
-test_truncate_ujg_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_truncate_ujg_LDADD = libtestdriver.a -lpthread
 
 test_truncate_SOURCES = src/lepton/test_harness.cc
 test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
-test_truncate_LDADD = libtestdriver.a liblocalxz.a -lpthread
+test_truncate_LDADD = libtestdriver.a -lpthread
 
 TESTS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
 dist_check_SCRIPTS = test_invariants test_baseline_ujg src/lepton/test_custom_table.sh test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
