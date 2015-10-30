@@ -3,36 +3,6 @@ project(lepton)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2 -fno-exceptions -fno-rtti")
 SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DHAVE_CONFIG_H ")
 
-SET(LIBLZMA_INCLUDE_DIRS)
-
-IF(EXISTS ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/api/lzma.h)
-SET(LIBLZMA_INCLUDE_DIRS
-    ${LIBLZMA_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/common
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/common
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/lzma
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/lz
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/check
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/rangecoder
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/api
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/simple
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/delta
-    ${PROJECT_SOURCE_DIR}/dependencies
-    ${PROJECT_SOURCE_DIR}/dependencies/xz/src/liblzma/)
-SET(LIBLZMA_LIBRARIES localxz)
-ELSE()
-IF(APPLE)
-# not widely supported on linux yet
-find_package(LibLZMA REQUIRED)
-ELSE()
-find_path(LIBLZMA_INCLUDE_DIRS lzma.h )
-find_library(LIBLZMA_LIBRARIES lzma)
-IF(NOT WIN32)
-  SET(LIBLZMA_LIBRARIES ${LIBLZMA_LIBRARIES} pthread)
-ENDIF()
-
-ENDIF()
-ENDIF()
 add_library(localmd5 dependencies/md5/md5.c)
 add_library(localzlib
 dependencies/zlib/inflate.c
@@ -62,144 +32,8 @@ dependencies/zlib/gzread.c
 dependencies/zlib/deflate.h
 dependencies/zlib/gzlib.c)
 
-add_library(localbrotli
-dependencies/brotli/enc/encode.cc
-dependencies/brotli/enc/histogram.h
-dependencies/brotli/enc/histogram.cc
-dependencies/brotli/enc/streams.h
-dependencies/brotli/enc/prefix.h
-dependencies/brotli/enc/context.h
-dependencies/brotli/enc/utf8_util.cc
-dependencies/brotli/enc/hash.h
-dependencies/brotli/enc/bit_cost.h
-dependencies/brotli/enc/entropy_encode.h
-dependencies/brotli/enc/streams.cc
-dependencies/brotli/enc/cluster.h
-dependencies/brotli/enc/port.h
-dependencies/brotli/enc/encode.h
-dependencies/brotli/enc/static_dict_lut.h
-dependencies/brotli/enc/backward_references.h
-dependencies/brotli/enc/block_splitter.h
-dependencies/brotli/enc/fast_log.h
-dependencies/brotli/enc/literal_cost.cc
-dependencies/brotli/enc/write_bits.h
-dependencies/brotli/enc/literal_cost.h
-dependencies/brotli/enc/entropy_encode.cc
-dependencies/brotli/enc/find_match_length.h
-dependencies/brotli/enc/metablock.h
-dependencies/brotli/enc/ringbuffer.h
-dependencies/brotli/enc/dictionary.h
-dependencies/brotli/enc/block_splitter.cc
-dependencies/brotli/enc/brotli_bit_stream.cc
-dependencies/brotli/enc/transform.h
-dependencies/brotli/enc/command.h
-dependencies/brotli/enc/utf8_util.h
-dependencies/brotli/enc/brotli_bit_stream.h
-dependencies/brotli/enc/types.h
-dependencies/brotli/enc/encode_parallel.cc
-dependencies/brotli/enc/dictionary_hash.h
-dependencies/brotli/enc/dictionary.cc
-dependencies/brotli/enc/static_dict.h
-dependencies/brotli/enc/metablock.cc
-dependencies/brotli/enc/static_dict.cc
-dependencies/brotli/enc/backward_references.cc
-dependencies/brotli/enc/encode_parallel.h
-dependencies/brotli/dec/bit_reader.h
-dependencies/brotli/dec/streams.h
-dependencies/brotli/dec/decode.h
-dependencies/brotli/dec/prefix.h
-dependencies/brotli/dec/streams.c
-dependencies/brotli/dec/context.h
-dependencies/brotli/dec/state.h
-dependencies/brotli/dec/dictionary.c
-dependencies/brotli/dec/port.h
-dependencies/brotli/dec/dictionary.h
-dependencies/brotli/dec/transform.h
-dependencies/brotli/dec/types.h
-dependencies/brotli/dec/state.c
-dependencies/brotli/dec/huffman.c
-dependencies/brotli/dec/decode.c
-dependencies/brotli/dec/bit_reader.c
-dependencies/brotli/dec/huffman.h
-)
-set_target_properties (localbrotli PROPERTIES COMPILE_FLAGS "-Wno-sign-compare -include memory.hh")
-add_library(localxz
-dependencies/xz/src/liblzma/delta/delta_common.c
-dependencies/xz/src/liblzma/delta/delta_encoder.c
-dependencies/xz/src/liblzma/delta/delta_decoder.c
-dependencies/xz/src/liblzma/rangecoder/price_table.c
-dependencies/xz/src/liblzma/lz/lz_encoder_mf.c
-dependencies/xz/src/liblzma/lz/lz_decoder.c
-dependencies/xz/src/liblzma/lz/lz_encoder.c
-dependencies/xz/src/liblzma/check/sha256.c
-dependencies/xz/src/liblzma/check/crc32_table.c
-dependencies/xz/src/liblzma/check/check.c
-dependencies/xz/src/liblzma/check/crc64_table.c
-dependencies/xz/src/liblzma/check/crc64_fast.c
-dependencies/xz/src/liblzma/check/crc32_fast.c
-dependencies/xz/src/liblzma/lzma/lzma_encoder_optimum_fast.c
-dependencies/xz/src/liblzma/lzma/fastpos_table.c
-dependencies/xz/src/liblzma/lzma/lzma_encoder_presets.c
-dependencies/xz/src/liblzma/lzma/lzma_encoder_optimum_normal.c
-dependencies/xz/src/liblzma/lzma/lzma2_encoder.c
-dependencies/xz/src/liblzma/lzma/lzma_encoder.c
-dependencies/xz/src/liblzma/lzma/lzma_decoder.c
-dependencies/xz/src/liblzma/lzma/lzma2_decoder.c
-dependencies/xz/src/liblzma/simple/sparc.c
-dependencies/xz/src/liblzma/simple/arm.c
-dependencies/xz/src/liblzma/simple/ia64.c
-dependencies/xz/src/liblzma/simple/armthumb.c
-dependencies/xz/src/liblzma/simple/simple_decoder.c
-dependencies/xz/src/liblzma/simple/powerpc.c
-dependencies/xz/src/liblzma/simple/x86.c
-dependencies/xz/src/liblzma/simple/simple_coder.c
-dependencies/xz/src/liblzma/simple/simple_encoder.c
-dependencies/xz/src/liblzma/common/block_encoder.c
-dependencies/xz/src/liblzma/common/alone_encoder.c
-dependencies/xz/src/liblzma/common/easy_encoder.c
-dependencies/xz/src/liblzma/common/stream_buffer_decoder.c
-dependencies/xz/src/liblzma/common/filter_decoder.c
-dependencies/xz/src/liblzma/common/block_header_encoder.c
-dependencies/xz/src/liblzma/common/auto_decoder.c
-dependencies/xz/src/liblzma/common/easy_decoder_memusage.c
-dependencies/xz/src/liblzma/common/index.c
-dependencies/xz/src/liblzma/common/easy_encoder_memusage.c
-dependencies/xz/src/liblzma/common/stream_decoder.c
-dependencies/xz/src/liblzma/common/stream_encoder.c
-dependencies/xz/src/liblzma/common/vli_encoder.c
-dependencies/xz/src/liblzma/common/easy_buffer_encoder.c
-dependencies/xz/src/liblzma/common/hardware_cputhreads.c
-dependencies/xz/src/liblzma/common/easy_preset.c
-dependencies/xz/src/liblzma/common/filter_common.c
-dependencies/xz/src/liblzma/common/vli_size.c
-dependencies/xz/src/liblzma/common/vli_decoder.c
-dependencies/xz/src/liblzma/common/block_buffer_decoder.c
-dependencies/xz/src/liblzma/common/block_header_decoder.c
-dependencies/xz/src/liblzma/common/stream_buffer_encoder.c
-dependencies/xz/src/liblzma/common/index_hash.c
-dependencies/xz/src/liblzma/common/filter_flags_encoder.c
-dependencies/xz/src/liblzma/common/stream_flags_encoder.c
-dependencies/xz/src/liblzma/common/filter_buffer_encoder.c
-dependencies/xz/src/liblzma/common/outqueue.c
-dependencies/xz/src/liblzma/common/alone_decoder.c
-dependencies/xz/src/liblzma/common/filter_flags_decoder.c
-dependencies/xz/src/liblzma/common/common.c
-dependencies/xz/src/liblzma/common/block_util.c
-dependencies/xz/src/liblzma/common/block_buffer_encoder.c
-dependencies/xz/src/liblzma/common/hardware_physmem.c
-dependencies/xz/src/liblzma/common/block_decoder.c
-dependencies/xz/src/liblzma/common/stream_flags_decoder.c
-dependencies/xz/src/liblzma/common/index_encoder.c
-dependencies/xz/src/liblzma/common/stream_flags_common.c
-dependencies/xz/src/liblzma/common/index_decoder.c
-dependencies/xz/src/liblzma/common/filter_buffer_decoder.c
-dependencies/xz/src/liblzma/common/filter_encoder.c
-dependencies/xz/src/common/tuklib_cpucores.c
-dependencies/xz/src/common/tuklib_physmem.c)
-
 
 include_directories(
-    ${LIBLZMA_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/src/vp8/util
     ${PROJECT_SOURCE_DIR}/src/vp8/model
     ${PROJECT_SOURCE_DIR}/src/vp8/encoder
@@ -231,12 +65,9 @@ add_executable(lepton
    src/lepton/vp8_encoder.hh
    src/io/Allocator.hh
    src/io/BufferedIO.hh
-   src/io/Compression.cc
-   src/io/Compression.hh
-   src/io/BrotliWrapper.cc
-   src/io/BrotliWrapper.hh
    src/io/ZlibCompression.cc
    src/io/ZlibCompression.hh
+   src/io/MemReadWriter.cc
    src/io/SwitchableCompression.hh
    src/io/Error.hh
    src/io/Reader.hh
@@ -284,7 +115,7 @@ SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static -Wl,--no-export-dynamic -lstdc++)
 ENDIF()
-target_link_libraries(lepton ${LIBLZMA_LIBRARIES} localbrotli localzlib localmd5 ${ADDITIONAL_FLAGS})
+target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
 
 
 add_executable(print-model
@@ -306,8 +137,8 @@ add_executable(print-model
 add_executable(test_invariants
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
+   src/io/MemReadWriter.cc
    src/vp8/util/memory.cc
    src/lepton/test_invariants.cc
-   src/io/Compression.cc
  )
-target_link_libraries(test_invariants ${LIBLZMA_LIBRARIES} localbrotli localzlib ${ADDITIONAL_FLAGS})
+target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})

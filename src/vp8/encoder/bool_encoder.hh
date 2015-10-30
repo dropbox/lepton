@@ -7,7 +7,7 @@
 #include "../util/arithmetic_code.hh"
 #include <assert.h>
 #include "branch.hh"
-#include "../../io/Reader.hh"
+#include "../../io/MemReadWriter.hh"
 #include "JpegArithmeticCoder.hh"
 #include "vpx_bool_writer.hh"
 /* Routines taken from ISO/IEC 10918-1 : 1993(E) */

@@ -33,11 +33,10 @@
 #include "simple_decoder.hh"
 #include "simple_encoder.hh"
 #include "fork_serve.hh"
-#include "../io/Compression.hh"
 #include "../io/ZlibCompression.hh"
+#include "../io/MemReadWriter.hh"
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
-#include "../io/BrotliWrapper.hh"
 bool fast_exit = true;
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -2508,21 +2507,10 @@ bool write_ujpg( )
         err = mrw.Write( grbgdata, grbs ).second;
     }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
-    if (use_brotli) {
-        using namespace Sirikata;
-        compressed_header = brotli_full_compress(mrw.buffer().data(),
-                                                 mrw.buffer().size());                                                         
-    } else if (use_xz) {
-        compressed_header =
-            Sirikata::DecoderCompressionWriter::Compress(mrw.buffer().data(),
-                                                         mrw.buffer().size(),
-                                                         Sirikata::JpegAllocator<uint8_t>());
-    } else { // zlib
-        compressed_header =
+    compressed_header =
             Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                              mrw.buffer().size(),
                                                              Sirikata::JpegAllocator<uint8_t>());
-    }
     unsigned char siz_mrk[] = {'Z'};
     err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
     err = ujg_out->Write( g_executable_md5, sizeof(g_executable_md5) ).second;
@@ -2618,23 +2606,12 @@ bool read_ujpg( void )
                                                  &MemMgrAllocatorMsize);
         std::pair<std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >,
                   JpegError> uncompressed_header_buffer;
-        if (use_brotli) {
-            using namespace Sirikata;
-            uncompressed_header_buffer = brotli_full_decompress(compressed_header_buffer.data(),
-                                                                compressed_header_buffer.size());
-        } else if (use_xz) {
-            uncompressed_header_buffer
-                = DecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
-                                                         compressed_header_buffer.size(),
-                                                         no_free_allocator);
-        } else {
-            uncompressed_header_buffer
+        uncompressed_header_buffer
                 = ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
                                                          compressed_header_buffer.size(),
                                                          no_free_allocator);
-        }
         if (uncompressed_header_buffer.second) {
-            assert(false && "Data not properly lzma coded");
+            assert(false && "Data not properly zlib coded");
             return false;
         }
         header_reader.SwapIn(uncompressed_header_buffer.first, 0);

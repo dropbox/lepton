@@ -229,10 +229,10 @@ void parse_tokens(BlockContext context,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
                 pt);
-    int16_t outp_sans_dc[64];
+    Sirikata::AlignedArray1d<int16_t, 64> outp_sans_dc;
     int uncertainty = 0;
     int uncertainty2 = 0;
-    int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc, &uncertainty, &uncertainty2);
+    int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc.begin(), &uncertainty, &uncertainty2);
 
     { // dc
         uint8_t length;
@@ -269,10 +269,10 @@ void parse_tokens(BlockContext context,
 
     context.num_nonzeros_here->set_num_nonzeros(num_nonzeros_7x7);
 
-    context.num_nonzeros_here->set_horizontal(outp_sans_dc,
+    context.num_nonzeros_here->set_horizontal(outp_sans_dc.begin(),
                                               ProbabilityTablesBase::quantization_table((int)color),
                                               context.here().dc());
-    context.num_nonzeros_here->set_vertical(outp_sans_dc,
+    context.num_nonzeros_here->set_vertical(outp_sans_dc.begin(),
                                             ProbabilityTablesBase::quantization_table((int)color),
                                             context.here().dc());
 }

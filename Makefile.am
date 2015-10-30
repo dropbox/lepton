@@ -4,6 +4,7 @@ bin_PROGRAMS = lepton test_invariants
 lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies
 lepton_LDADD = -lpthread liblocalxz.a liblocalbrotli.a liblocalmd5.a liblocalzlib.a 
 lepton_SOURCES = \
+   src/io/MemReadWriter.cc \
    src/lepton/base_coders.hh \
    src/lepton/simple_encoder.hh \
    src/lepton/bitops.cc \

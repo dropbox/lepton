@@ -4,6 +4,7 @@
 #include "../vp8/util/nd_array.hh"
 #include "../vp8/model/numeric.hh"
 #include "../io/MuxReader.hh"
+#include "../io/MemReadWriter.hh"
 #include <stdio.h>
 struct Data {
     unsigned char prob;
