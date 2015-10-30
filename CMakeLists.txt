@@ -68,7 +68,6 @@ add_executable(lepton
    src/io/ZlibCompression.cc
    src/io/ZlibCompression.hh
    src/io/MemReadWriter.cc
-   src/io/SwitchableCompression.hh
    src/io/Error.hh
    src/io/Reader.hh
    src/io/MuxReader.hh
