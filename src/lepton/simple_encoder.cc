@@ -5,7 +5,7 @@
 #include "uncompressed_components.hh"
 #include "jpgcoder.hh"
 #include "simple_encoder.hh"
-#include "../io/Compression.hh"
+#include "../io/ZlibCompression.hh"
 #include <algorithm>
 
 unsigned int get_cmp(int cur_read_batch[4], int target[4]);

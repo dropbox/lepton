@@ -15,7 +15,7 @@
 #include "bool_encoder.hh"
 #include "model.hh"
 #include "numeric.hh"
-#include "../io/SwitchableCompression.hh"
+
 #include "../vp8/model/model.hh"
 #include "../vp8/encoder/encoder.hh"
 #include "../io/MuxReader.hh"

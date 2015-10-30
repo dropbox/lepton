@@ -4,7 +4,6 @@
 #include "component_info.hh"
 #include "uncompressed_components.hh"
 #include "jpgcoder.hh"
-#include "../io/SwitchableCompression.hh"
 #include "simple_decoder.hh"
 
 #include <algorithm>
