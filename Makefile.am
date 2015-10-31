@@ -82,9 +82,7 @@ liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -I$(srcdir)/dependencies
 
 liblocalmd5_a_CFLAGS = -std=c99 -msse4.2
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
-liblocalbrotli_a_CFLAGS = -msse4.2 -Wno-sign-compare -include "$(srcdir)/src/vp8/util/memory.hh"
-liblocalbrotli_a_CXXFLAGS = -msse4.2 -Wno-sign-compare -include "$(srcdir)/src/vp8/util/memory.hh"
-liblocalzlib_a_CFLAGS = -msse4.2
+liblocalzlib_a_CFLAGS = -msse4.2 -include unistd.h
 liblocalzlib_a_SOURCES = dependencies/zlib/inflate.c \
 dependencies/zlib/inflate.h \
 dependencies/zlib/gzguts.h \

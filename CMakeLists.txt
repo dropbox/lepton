@@ -115,7 +115,7 @@ IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static -Wl,--no-export-dynamic -lstdc++)
 ENDIF()
 target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
-
+set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-include unistd.h")
 
 add_executable(print-model
    src/vp8/util/debug.cc
