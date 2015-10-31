@@ -266,7 +266,7 @@ int imgheight   = 0; // height of image
 int sfhm        = 0; // max horizontal sample factor
 int sfvm        = 0; // max verical sample factor
 int mcuv        = 0; // mcus per line
-int mcuh        = 0; // mcus per collumn
+unsigned int mcuh        = 0; // mcus per collumn
 int mcuc        = 0; // count of mcus
 bool early_eof_encountered = false;
 
@@ -3793,34 +3793,46 @@ int next_huffcode( abitreader *huffw, huffTree *ctree )
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw )
 {
     int sta = 0; // status
-
-
+    unsigned int local_mcuh = mcuh;
+    unsigned int local_mcu = *mcu;
+    unsigned int local_cmp = *cmp;
+    unsigned int local_sub;
     // increment all counts where needed
-    if ( ( ++(*sub) ) >= cmpnfo[(*cmp)].mbs ) {
-        (*sub) = 0;
+    if ( (local_sub = ++(*sub) ) >= (unsigned int)cmpnfo[local_cmp].mbs) {
+        local_sub = (*sub) = 0;
 
         if ( ( ++(*csc) ) >= cs_cmpc ) {
             (*csc) = 0;
-            (*cmp) = cs_cmp[ 0 ];
-            (*mcu)++;
-            if ( (*mcu) >= mcuc ) sta = 2;
-            else if ( rsti > 0 )
-                if ( --(*rstw) == 0 ) sta = 1;
+            local_cmp = (*cmp) = cs_cmp[ 0 ];
+            local_mcu = ++(*mcu);
+            if ( local_mcu >= (unsigned int)mcuc ) {
+                sta = 2;
+            } else if ( rsti > 0 ){
+                if ( --(*rstw) == 0 ) {
+                    sta = 1;
+                }
+            }
         }
         else {
-            (*cmp) = cs_cmp[(*csc)];
+            local_cmp = (*cmp) = cs_cmp[(*csc)];
         }
     }
-
+    unsigned int sfh = cmpnfo[local_cmp].sfh;
+    unsigned int sfv = cmpnfo[local_cmp].sfv;
     // get correct position in image ( x & y )
-    if ( cmpnfo[(*cmp)].sfh > 1 ) { // to fix mcu order
-        (*dpos)  = ( (*mcu) / mcuh ) * cmpnfo[(*cmp)].sfh + ( (*sub) / cmpnfo[(*cmp)].sfv );
-        (*dpos) *= cmpnfo[(*cmp)].bch;
-        (*dpos) += ( (*mcu) % mcuh ) * cmpnfo[(*cmp)].sfv + ( (*sub) % cmpnfo[(*cmp)].sfv );
+    if ( sfh > 1 ) { // to fix mcu order
+        unsigned int mcu_o_mcuh = local_mcu / local_mcuh;
+        unsigned int sub_o_sfv = local_sub / sfv;
+        unsigned int mcu_mod_mcuh = local_mcu - mcu_o_mcuh * local_mcuh;
+        unsigned int sub_mod_sfv = local_sub - sub_o_sfv * sfv;
+        unsigned int local_dpos = mcu_o_mcuh * sfh + sub_o_sfv;
+        local_dpos *= cmpnfo[local_cmp].bch;
+        local_dpos += mcu_mod_mcuh * sfv + sub_mod_sfv;
+        *dpos = local_dpos;
     }
-    else if ( cmpnfo[(*cmp)].sfv > 1 ) {
+    else if ( sfv > 1 ) {
         // simple calculation to speed up things if simple fixing is enough
-        (*dpos) = ( (*mcu) * cmpnfo[(*cmp)].mbs ) + (*sub);
+        (*dpos) = local_mcu * cmpnfo[local_cmp].mbs + local_sub;
     }
     else {
         // no calculations needed without subsampling
