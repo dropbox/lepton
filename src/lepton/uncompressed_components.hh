@@ -106,31 +106,17 @@ public:
             adj_y[i] = (uint32_t)(((uint64_t)curr_y[i].y * (uint64_t)min_height)/(uint64_t)header_[i].info_.bcv);
         }
         int max_component = std::min(cmpc_, (int)ColorChannel::NumBlockTypes);
-        int original = -1;
+        int original = max_component;
         int best_selection = original;
-        for (int i = best_selection + 1; i < max_component ; ++i) {
-            if ((best_selection == original || adj_y[best_selection] > adj_y[i])
-                && curr_y[i].y < header_[i].trunc_bcv_) {
-                best_selection = i;
-            }
-        }
-
-/*
-        int best_selection = max_component;
         for (int i = best_selection - 1; i >= 0; --i) {
             if ((best_selection == max_component || adj_y[best_selection] > adj_y[i]) && curr_y[i].y < header_[i].trunc_bcv_) {
                 best_selection = i;
             }
         }
-*/
         if (best_selection != original) {
-            //fprintf(stderr, "BEST COMPONNET for %d = %d\n", curr_y[best_selection].y, best_selection);
+            //fprintf(stderr, "Best next component for y=%d is %d\n", curr_y[best_selection].y, best_selection);
             *out_component = (BlockType)best_selection;
-            if (best_selection == 0) {
-                *out_luma_y = curr_y[0].y;
-            } else {
-                *out_luma_y = curr_y[0].y - 1;
-            }
+            *out_luma_y = curr_y[0].y;
             return true;
         }
         return false;
