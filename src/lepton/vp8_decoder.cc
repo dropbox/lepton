@@ -115,15 +115,14 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
     assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];
-    while(colldata->get_next_component(context_, &component)) {
+    int luma_y = 0;
+    while(colldata->get_next_component(context_, &component, &luma_y)) {
         int curr_y = context_.at((int)component).y;
-        if (component == BlockType::Y) {
-            if (curr_y >= min_y) {
-                is_valid_range_ = true;
-            }
-            if (curr_y >= max_y) {
-                break; // coding done
-            }
+        if (luma_y >= min_y) {
+            is_valid_range_ = true;
+        }
+        if (luma_y >= max_y) {
+            break; // coding done
         }
         if (!is_valid_range_) {
             ++context_.at((int)component).y;

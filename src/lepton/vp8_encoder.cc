@@ -232,18 +232,17 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
     memset(is_top_row, true, sizeof(is_top_row));
     bool valid_range = false;
-    for(;colldata->get_next_component(context, &component); ++context.at((int)component).y) {
+    int luma_y = 0;
+    for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y) {
         int curr_y = context.at((int)component).y;
         context[(int)component].context
             = colldata->full_component_nosync((int)component).off_y(curr_y,
                                                                     num_nonzeros.at((int)component).begin());
-        if (component == BlockType::Y) {
-            if (curr_y >= min_y) {
-                valid_range = true;
-            }
-            if (curr_y >= max_y && thread_id + 1 != NUM_THREADS) {
-                break; // we are out of range
-            }
+        if (luma_y >= min_y) {
+            valid_range = true;
+        }
+        if (luma_y >= max_y && thread_id + 1 != NUM_THREADS) {
+            break; // we are out of range
         }
         if (!valid_range) {
             continue; // before range for this thread

@@ -2132,6 +2132,7 @@ bool recode_jpeg( void )
                         // copy from colldata
                         int16_t dc = block [ 0 ] = colldata.at((BlockType)cmp,
                                                                0 , dpos );
+                        //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
                         for ( bpos = 1; bpos < 64; bpos++ )
                             block[ bpos ] = colldata.at_nosync((BlockType)cmp , bpos , dpos );
 
