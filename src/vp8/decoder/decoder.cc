@@ -167,12 +167,12 @@ void parse_tokens(BlockContext context,
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
-    int avg[4] __attribute__((aligned(16)));
+    Sirikata::AlignedArray1d<short, 8> avg;
     for (unsigned int zz = 0; zz < 49 && num_nonzeros_left_7x7; ++zz) {
         unsigned int coord = unzigzag49[zz];
-        if ((zz & 3) == 0) {
+        if ((zz & 7) == 0) {
 #ifdef OPTIMIZED_7x7
-            probability_tables.compute_aavrg_vec(zz, context.copy(), avg);
+            probability_tables.compute_aavrg_vec(zz, context.copy(), avg.begin());
 #endif
         }
         unsigned int b_x = (coord & 7);
@@ -182,7 +182,7 @@ void parse_tokens(BlockContext context,
             ProbabilityTablesBase::CoefficientContext prior;
 
 #ifdef OPTIMIZED_7x7
-            prior = probability_tables.update_coefficient_context7x7_precomp(zz, avg[zz & 3], context.copy(), num_nonzeros_left_7x7);
+            prior = probability_tables.update_coefficient_context7x7_precomp(zz, avg[zz & 7], context.copy(), num_nonzeros_left_7x7);
 #else
             prior = probability_tables.update_coefficient_context7x7(coord, zz, context.copy(), num_nonzeros_left_7x7);
 #endif

@@ -44,7 +44,8 @@ std::vector<uint8_t,
             JpegAllocator<uint8_t> > ZlibDecoderCompressionWriter::Compress(const uint8_t *buffer,
                                                                         size_t size,
                                                                         const JpegAllocator<uint8_t> &alloc) {
-    z_stream strm = {};
+    z_stream strm;
+    memset(&strm, 0, sizeof(z_stream));
     JpegAllocator<uint8_t> local_alloc;
     strm.zalloc = &custom_zallocator;
     strm.zfree = &custom_zdeallocator;
@@ -74,7 +75,8 @@ std::vector<uint8_t,
 }
 std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
           JpegError > ZlibDecoderDecompressionReader::Decompress(const uint8_t *buffer, size_t size, const JpegAllocator<uint8_t> &alloc) {
-    z_stream strm = {};
+    z_stream strm;
+    memset(&strm, 0, sizeof(z_stream));
     JpegAllocator<uint8_t> local_alloc;
     strm.zalloc = &custom_zallocator;
     strm.zfree = &custom_zdeallocator;
@@ -128,7 +130,8 @@ ZlibDecoderDecompressionReader::ZlibDecoderDecompressionReader(DecoderReader *r,
     mClosed = false;
     mStreamEndEncountered = false;
     mBase = r;
-    z_stream tmp = {};
+    z_stream tmp;
+    memset(&tmp, 0, sizeof(z_stream));
     mStream = tmp;
     mStream.zalloc = &custom_zallocator;
     mStream.zfree = &custom_zdeallocator;
@@ -210,7 +213,8 @@ ZlibDecoderCompressionWriter::ZlibDecoderCompressionWriter(DecoderWriter *w,
         : mAlloc(alloc) {
     mClosed = false;
     mBase = w;
-    z_stream tmp = {};
+    z_stream tmp;
+    memset(&tmp, 0, sizeof(z_stream));
     mStream = tmp;
     mStream.zalloc = &custom_zallocator;
     mStream.zfree = &custom_zdeallocator;

@@ -745,17 +745,16 @@ public:
             total += abs(context.above_unchecked().dc());
         }
         if (left_present && above_present) {
-            constexpr unsigned int log_weight = 10;
-            total *= 205 * 2;
-            total += 204 * abs(context.above_left_unchecked().dc());
-            total += (1 << (log_weight - 1)); //rounding
+            constexpr unsigned int log_weight = 5;
+            total *= 13;
+            total += 6 * abs(context.above_left_unchecked().dc());
             return total >> log_weight;
         } else {
             return total;
         }
     }
-    int compute_aavrg(unsigned int coord, unsigned int aligned_zz, ConstBlockContext context) {
-        uint32_t total = 0;
+    int16_t compute_aavrg(unsigned int coord, unsigned int aligned_zz, ConstBlockContext context) {
+        int16_t total = 0;
         if (left_present) {
             total += abs(context.left_unchecked().coefficients_raster(coord));
         }
@@ -763,10 +762,9 @@ public:
             total += abs(context.above_unchecked().coefficients_raster(coord));
         }
         if (left_present && above_present) {
-            constexpr unsigned int log_weight = 10;
-            total *= 205 * 2;
-            total += 204 * abs(context.above_left_unchecked().coefficients_raster(coord));
-            total += (1 << (log_weight - 1));
+            constexpr unsigned int log_weight = 5;
+            total *= 13;
+            total += 6 * abs(context.above_left_unchecked().coefficients_raster(coord));
             return total >> log_weight;
         } else {
             return total;
@@ -777,15 +775,19 @@ public:
     }
 #ifdef OPTIMIZED_7x7
     bool aavrg_vec_matches(__m128i retval, unsigned int aligned_zz, ConstBlockContext context) {
-        int ret[4];
+        short ret[8];
         _mm_storeu_si128((__m128i*)(char*)ret, retval);
-        int correct[4] = {compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz +0, context),
+        short correct[8] = {compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz +0, context),
             compute_aavrg(aligned_to_raster.at(aligned_zz+1), aligned_zz + 1, context),
             compute_aavrg(aligned_to_raster.at(aligned_zz+2), aligned_zz + 2, context),
-            compute_aavrg(aligned_to_raster.at(aligned_zz+3), aligned_zz + 3, context)};
-        return memcmp(ret, correct, sizeof(correct)) == 0;
+            compute_aavrg(aligned_to_raster.at(aligned_zz+3), aligned_zz + 3, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+4), aligned_zz + 4, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+5), aligned_zz + 5, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+6), aligned_zz + 6, context),
+            compute_aavrg(aligned_to_raster.at(aligned_zz+7), aligned_zz + 7, context)};
+        return (memcmp(ret, correct, sizeof(correct)) == 0);
     }
-    void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, int* aligned_retval) {
+    void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, short* aligned_retval) {
         _mm_store_si128((__m128i*)(char*)aligned_retval, compute_aavrg_vec(aligned_zz, context));
     }
 #if defined (__clang__) || defined(__GNUC__)
@@ -799,25 +801,24 @@ public:
         }
         __m128i left;
         if (left_present) {
-            left = _mm_cvtepi16_epi32(_mm_abs_epi16(x_mm_loadu_si64(&context.left_unchecked().coef.at(aligned_zz))));
+            left = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)&context.left_unchecked().coef.at(aligned_zz)));
             if (!above_present) {
                 return left;
             }
         }
         __m128i above;
         if (above_present) {
-            above = _mm_cvtepi16_epi32(_mm_abs_epi16(x_mm_loadu_si64(&context.above_unchecked().coef.at(aligned_zz))));
+            above = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)&context.above_unchecked().coef.at(aligned_zz)));
             if (!left_present) {
                 return above;
             }
         }
-        constexpr unsigned int log_weight = 10;
-        __m128i total = _mm_add_epi32(left, above);
-        total = _mm_mullo_epi32(total, _mm_set1_epi32(205 * 2));
-        __m128i aboveleft =_mm_cvtepi16_epi32(_mm_abs_epi16(x_mm_loadu_si64(&context.above_left_unchecked().coef.at(aligned_zz))));
-        total = _mm_add_epi32(total, _mm_mullo_epi32(aboveleft, _mm_set1_epi32(204)));
-        total = _mm_add_epi32(total, _mm_set1_epi32(1 << (log_weight - 1)));
-        __m128i retval = _mm_srli_epi32(total, log_weight);
+        constexpr unsigned int log_weight = 5;
+        __m128i total = _mm_add_epi16(left, above);
+        total = _mm_mullo_epi16(total, _mm_set1_epi16(13)); // approximate (a*2+b*2 + c)/5 as (a *13 + b * 13 + c * 6)/32
+        __m128i aboveleft = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)&context.above_left_unchecked().coef.at(aligned_zz)));
+        total = _mm_add_epi16(total, _mm_mullo_epi16(aboveleft, _mm_set1_epi16(6)));
+        __m128i retval = _mm_srli_epi16(total, log_weight);
         assert(aavrg_vec_matches(retval, aligned_zz, context));
         return retval;
         //if (block.context().above_right.initialized()) {
