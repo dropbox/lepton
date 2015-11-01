@@ -155,6 +155,13 @@ void pick_luma_splits(const UncompressedComponents *colldata,
                       int luma_splits[NUM_THREADS]) {
     int height = colldata->block_height(0);
     int width = colldata->block_width(0);
+    int minheight = height;
+    for (int cmp = 1; cmp < colldata->get_num_components(); ++cmp) {
+        if (colldata->block_height(cmp) < minheight) {
+            minheight = colldata->block_height(cmp);
+        }
+    }
+    int mod_by = height / minheight;
     std::vector<uint32_t> row_costs(height);
     const BlockBasedImage &image = colldata->full_component_nosync(0);
     for (int i = 0; i < height; ++i) {
@@ -171,7 +178,10 @@ void pick_luma_splits(const UncompressedComponents *colldata,
         auto split = std::lower_bound(row_costs.begin(), row_costs.end(),
                                       row_costs.back() * (i + 1) / NUM_THREADS);
         luma_splits[i] = split - row_costs.begin();
-        if (luma_splits[i] < height) {
+        if (mod_by == 1 && luma_splits[i] < height) {
+            ++luma_splits[i];
+        }
+        while (luma_splits[i] % mod_by && luma_splits[i] < height) {
             ++luma_splits[i];
         }
     }
@@ -247,6 +257,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         if (!valid_range) {
             continue; // before range for this thread
         }
+        // DEBUG only fprintf(stderr, "Thread %d min_y %d - max_y %d cmp[%d] y = %d\n", thread_id, min_y, max_y, (int)component, curr_y);
         int block_width = colldata->block_width( component );
         if (is_top_row[(int)component]) {
             is_top_row[(int)component] = false;
