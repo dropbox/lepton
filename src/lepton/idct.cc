@@ -3,6 +3,7 @@
 #include <smmintrin.h>
 #include <immintrin.h>
 #include "../vp8/util/aligned_block.hh"
+
 namespace idct_local{
 enum {
     w1 = 2841, // 2048*sqrt(2)*cos(1*pi/16)
@@ -182,7 +183,7 @@ __m128i epi32l_to_epi16(__m128i lowvec) {
 
 
 
-void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+void idct_sse(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
     
     char vintermed_storage[64 * sizeof(int32_t) + 16];
     // align intermediate storage to 16 bytes
@@ -376,9 +377,8 @@ __m128i m256_to_epi16(__m256i vec) {
     return _mm_or_si128(lopacked, hipacked);
 
     }*/
-#if __AVX2__
+#if USE_AVX2
 void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
-    
     // align intermediate storage to 16 bytes
     using namespace idct_local;
     // Horizontal 1-D IDCT.
@@ -568,10 +568,27 @@ void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64]
         _mm_store_si128((__m128i*)(char*)(voutp + 5 * 8), m256_to_epi16(row5));
         _mm_store_si128((__m128i*)(char*)(voutp + 6 * 8), m256_to_epi16(row6));
         _mm_store_si128((__m128i*)(char*)(voutp + 7 * 8), m256_to_epi16(row7));
+#ifndef NDEBUG
+
+        static bool nevermore = false;
+        if (!nevermore) {
+            Sirikata::AlignedArray1d<int16_t, 64> test_case;
+            idct_sse(block, q, test_case.begin(), ignore_dc);
+            if (memcmp(test_case.begin(), voutp, 64 * sizeof(int16_t)) != 0) {
+                nevermore = true;
+                idct_sse(block, q, test_case.begin(), ignore_dc);
+                idct_avx(block, q, test_case.begin(), ignore_dc);
+                assert(false);
+            }
+        }
+#endif
     }
 }
 #else
 void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
-    idct(block, q, voutp, ignore_dc);
+    idct_sse(block, q, voutp, ignore_dc);
 }
 #endif
+void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+    idct_avx(block, q, voutp, ignore_dc);
+}
