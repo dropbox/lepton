@@ -27,7 +27,7 @@ public:
         storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
         size_t offset = storage_ - (uint8_t*)nullptr;
         if (offset & 31) { //needs alignment adjustment
-            image_ = (Block*)(storage_ + 32 - offset);
+            image_ = (Block*)(storage_ + 32 - (offset & 31));
         } else { // already aligned
             image_ = (Block*)storage_;
         }
