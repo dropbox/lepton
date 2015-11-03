@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
-SET(CMAKE_CXX_FLAGS "-std=c++11 -msse4.2 -fno-exceptions -fno-rtti")
-SET(CMAKE_C_FLAGS "-std=c99 -msse4.2 -DHAVE_CONFIG_H ")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
+SET(CMAKE_C_FLAGS "-std=c99 -DHAVE_CONFIG_H ")
 
 add_library(localmd5 dependencies/md5/md5.c)
 add_library(localzlib
@@ -39,7 +39,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/src/vp8/encoder
     ${PROJECT_SOURCE_DIR}/src/vp8/decoder)
 
-add_executable(lepton
+SET(LEPTON_SOURCES
    src/lepton/base_coders.hh
    src/lepton/simple_encoder.hh
    src/lepton/bitops.cc
@@ -108,14 +108,18 @@ add_executable(lepton
    src/vp8/decoder/vpx_bool_reader.hh
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
-
-               )
+   )
+add_executable(lepton ${LEPTON_SOURCES})
+add_executable(lepton-avx ${LEPTON_SOURCES})
 SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -static -Wl,--no-export-dynamic -lstdc++)
 ENDIF()
 target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
+target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
 set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-include unistd.h")
+set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2")
+set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2")
 
 add_executable(print-model
    src/vp8/util/debug.cc
