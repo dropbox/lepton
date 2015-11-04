@@ -3275,6 +3275,21 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
     return eob;
 }
 
+int find_aligned_end_64_scalar(int16_t *block) {
+    int end = 63;
+    while (end && !block[end]) {
+        --end;
+    }
+    return end;
+}
+int find_aligned_end_64(int16_t *block) {
+
+    int end = 63;
+    while (end && !block[end]) {
+        --end;
+    }
+    return end;
+}
 
 /* -----------------------------------------------
     sequential block encoding routine
@@ -3295,54 +3310,10 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     huffw->write( dctbl->cval[ s ], dctbl->clen[ s ] );
     huffw->write( n, s );
     signed z = -1;
-    if (g_vectorized_encode_block) {
-    uint64_t block_data;
-    memcpy(&block_data, block, sizeof(block_data));
-    block_data = htole64(block_data);
-    constexpr uint64_t all_ones = 0xffffffffffffffffULL;
-    block_data &= (all_ones ^ 0xffff); // zero out the 0th item
-    for(int counter = 0; counter < 64; counter += 4) {
-        int shorts_left = 4;
-        do {
-            if (block_data == 0) {
-                z += shorts_left;
-                break;
-            } else {
-                int ctz = __builtin_ctzl(block_data);
-                uint8_t num_zeros = (ctz >> 4);
-                z += num_zeros;
-                shorts_left -= num_zeros + 1;
-                block_data >>= num_zeros << 4;
-                int16_t tmp = (int16_t)htole16(block_data & 0xffff);
-                s = nonzero_bit_length(ABS(tmp));
-                n = ENVLI(s, tmp);
-                hc = ( ( (z & 0xf) << 4 ) + s );                
-                if (__builtin_expect(z & 0xf0, 0)) {
-                    // write remaining zeroes
-                    do {
-                        huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
-                        z -= 16;
-                    } while ( z & 0xf0 );
-                }
-                // write to huffman writer
-                //fprintf(stderr, "Writing %d %d %d\n", hc, n, s);
-                huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );
-                huffw->write( n, s );
-                
-                z = 0;
-                block_data >>= 16;
-            }
-        } while (shorts_left);
-        if (counter == 60) {
-            break;
-        }
-        memcpy(&block_data, block + counter + 4, sizeof(block_data));
-        block_data = htole64(block_data);
-    }
-    } else {
     // encode AC
     z = 0;
-    for ( bpos = 1; bpos < 64; bpos++ )
+    int end = find_aligned_end_64(block);
+    for ( bpos = 1; bpos <= end; bpos++ )
     {
         // if nonzero is encountered
         tmp = block[bpos];
@@ -3367,13 +3338,12 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
         // reset zeroes
         z = 0;
     }
-    }
     // write eob if needed
-    if ( z > 0 )
+    if ( end != 63 )
         huffw->write( actbl->cval[ 0x00 ], actbl->clen[ 0x00 ] );
 
 
-    return 64 - z;
+    return end + 1;
 }
 
 
