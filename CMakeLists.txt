@@ -121,22 +121,22 @@ set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-include unistd.h")
 set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
 set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 -DUSE_SSE42=1 -DUSE_AVX2=1")
 
-add_executable(print-model
-   src/vp8/util/debug.cc
-   src/vp8/util/debug.hh
-   src/lepton/print-model.cc
-   src/io/MemMgrAllocator.cc
-   src/io/MemMgrAllocator.hh
-   src/vp8/util/memory.cc
-   src/vp8/util/memory.hh
-   src/vp8/model/model.cc
-   src/vp8/encoder/encoder.cc
-   src/vp8/decoder/decoder.cc
-   src/lepton/idct.cc
-   src/lepton/idct.hh
-   src/vp8/model/numeric.cc
-   )
- target_link_libraries(print-model ${ADDITIONAL_FLAGS})
+#add_executable(print-model
+#   src/vp8/util/debug.cc
+#   src/vp8/util/debug.hh
+#   src/lepton/print-model.cc
+#   src/io/MemMgrAllocator.cc
+#   src/io/MemMgrAllocator.hh
+#   src/vp8/util/memory.cc
+#   src/vp8/util/memory.hh
+#   src/vp8/model/model.cc
+#   src/vp8/encoder/encoder.cc
+#   src/vp8/decoder/decoder.cc
+#   src/lepton/idct.cc
+#   src/lepton/idct.hh
+#   src/vp8/model/numeric.cc
+#   )
+# target_link_libraries(print-model ${ADDITIONAL_FLAGS})
 add_executable(test_invariants
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
@@ -145,3 +145,5 @@ add_executable(test_invariants
    src/lepton/test_invariants.cc
  )
 target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})
+#set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
+set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
