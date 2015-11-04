@@ -1661,7 +1661,7 @@ bool decode_jpeg( void )
     unsigned int   hpos = 0; // current position in header
 
     int lastdc[ 4 ]; // last dc for each component
-    short block[ 64 ]; // store block for coeffs
+    Sirikata::Aligned256Array1d<int16_t,64> block; // store block for coeffs
     int peobrun; // previous eobrun
     unsigned int eobrun; // run of eobs
     int rstw; // restart wait counter
@@ -1757,7 +1757,7 @@ bool decode_jpeg( void )
                         eob = decode_block_seq( huffr,
                             &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
                             &(htrees[ 1 ][ cmpnfo[cmp].huffdc ]),
-                            block );
+                            block.begin() );
                         if ( eob > 1 && !block[ eob - 1 ] ) {
                             fprintf( stderr, "cannot encode image with eob after last 0" );
                             errorlevel.store(1);
@@ -1783,7 +1783,7 @@ bool decode_jpeg( void )
                         if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                         sta = decode_dc_prg_fs( huffr,
                             &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
-                            block );
+                            block.begin() );
 
                         // fix dc for diff coding
                         colldata.set((BlockType)cmp,0,dpos) = block[0] + lastdc[ cmp ];
@@ -1804,7 +1804,7 @@ bool decode_jpeg( void )
                         if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                         // decode next bit
                         sta = decode_dc_prg_sa( huffr,
-                            block );
+                            block.begin() );
 
                         // shift in next bit
                         colldata.set((BlockType)cmp,0,dpos) += block[0] << cs_sal;
@@ -1825,7 +1825,7 @@ bool decode_jpeg( void )
                         eob = decode_block_seq( huffr,
                             &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
                             &(htrees[ 1 ][ cmpnfo[cmp].huffdc ]),
-                            block );
+                            block.begin() );
                         if ( eob > 1 && !block[ eob - 1 ] ) {
                             fprintf( stderr, "cannot encode image with eob after last 0" );
                             errorlevel.store(1);
@@ -1851,7 +1851,7 @@ bool decode_jpeg( void )
                             if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                             sta = decode_dc_prg_fs( huffr,
                                 &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
-                                block );
+                                block.begin() );
 
                             // fix dc for diff coding
                             colldata.set((BlockType)cmp,0,dpos) = block[0] + lastdc[ cmp ];
@@ -1872,7 +1872,7 @@ bool decode_jpeg( void )
                             if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                             // decode next bit
                             sta = decode_dc_prg_sa( huffr,
-                                block );
+                                block.begin() );
 
                             // shift in next bit
                             colldata.set((BlockType)cmp,0,dpos) += block[0] << cs_sal;
@@ -1891,8 +1891,8 @@ bool decode_jpeg( void )
                             if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                             // decode block
                             eob = decode_ac_prg_fs( huffr,
-                                &(htrees[ 1 ][ cmpnfo[cmp].huffac ]),
-                                block, &eobrun, cs_from, cs_to );
+                                                    &(htrees[ 1 ][ cmpnfo[cmp].huffac ]),
+                                                    block.begin(), &eobrun, cs_from, cs_to );
 
                             // check for non optimal coding
                             if ( ( eob == cs_from ) && ( eobrun > 0 ) &&
@@ -1928,8 +1928,8 @@ bool decode_jpeg( void )
                                 if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                                 // decode block (long routine)
                                 eob = decode_ac_prg_sa( huffr,
-                                    &(htrees[ 1 ][ cmpnfo[cmp].huffac ]),
-                                    block, &eobrun, cs_from, cs_to );
+                                                        &(htrees[ 1 ][ cmpnfo[cmp].huffac ]),
+                                                        block.begin(), &eobrun, cs_from, cs_to );
 
                                 // check for non optimal coding
                                 if ( ( eob == cs_from ) && ( eobrun > 0 ) &&
@@ -1947,7 +1947,7 @@ bool decode_jpeg( void )
                                 if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                                 // decode block (short routine)
                                 eob = decode_eobrun_sa( huffr,
-                                    block, &eobrun, cs_from, cs_to );
+                                                        block.begin(), &eobrun, cs_from, cs_to );
                                 if ( eob > 1 && !block[ eob - 1 ] ) {
                                     fprintf( stderr, "cannot encode image with eob after last 0" );
                                     errorlevel.store(1);
@@ -2026,7 +2026,7 @@ bool recode_jpeg( void )
     unsigned int   hpos = 0; // current position in header
 
     int lastdc[ 4 ]; // last dc for each component
-    short block[ 64 ]; // store block for coeffs
+    Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     unsigned int eobrun; // run of eobs
     int rstw; // restart wait counter
 
@@ -2138,9 +2138,9 @@ bool recode_jpeg( void )
 
                         // encode block
                         eob = encode_block_seq( huffw,
-                            &(hcodes[ 0 ][ cmpnfo[cmp].huffac ]),
-                            &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
-                            block );
+                                                &(hcodes[ 0 ][ cmpnfo[cmp].huffac ]),
+                                                &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
+                                                block.begin() );
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
@@ -2161,8 +2161,8 @@ bool recode_jpeg( void )
 
                         // encode dc
                         sta = encode_dc_prg_fs( huffw,
-                            &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
-                            block );
+                                                &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
+                                                block.begin() );
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
@@ -2180,7 +2180,7 @@ bool recode_jpeg( void )
                         block[ 0 ] = BITN( colldata.at((BlockType)cmp , 0 , dpos ), cs_sal );
 
                         // encode dc correction bit
-                        sta = encode_dc_prg_sa( huffw, block );
+                        sta = encode_dc_prg_sa( huffw, block.begin() );
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
@@ -2210,7 +2210,7 @@ bool recode_jpeg( void )
                         eob = encode_block_seq( huffw,
                             &(hcodes[ 0 ][ cmpnfo[cmp].huffac ]),
                             &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
-                            block );
+                                                block.begin() );
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
@@ -2234,7 +2234,7 @@ bool recode_jpeg( void )
                             // encode dc
                             sta = encode_dc_prg_fs( huffw,
                                 &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
-                                block );
+                                                    block.begin() );
 
                             // check for errors, increment dpos otherwise
                             if ( sta != -1 )
@@ -2253,7 +2253,7 @@ bool recode_jpeg( void )
                             block[ 0 ] = BITN( colldata.at((BlockType)cmp , 0 , dpos ), cs_sal );
 
                             // encode dc correction bit
-                            sta = encode_dc_prg_sa( huffw, block );
+                            sta = encode_dc_prg_sa( huffw, block.begin() );
 
                             // next mcupos if no error happened
                             if ( sta != -1 )
@@ -2277,7 +2277,7 @@ bool recode_jpeg( void )
                             // encode block
                             eob = encode_ac_prg_fs( huffw,
                                 &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
-                                block, &eobrun, cs_from, cs_to );
+                                                    block.begin(), &eobrun, cs_from, cs_to );
 
                             // check for errors, proceed if no error encountered
                             if ( eob < 0 ) sta = -1;
@@ -2305,7 +2305,7 @@ bool recode_jpeg( void )
                             // encode block
                             eob = encode_ac_prg_sa( huffw, storw,
                                 &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
-                                block, &eobrun, cs_from, cs_to );
+                                block.begin(), &eobrun, cs_from, cs_to );
 
                             // check for errors, proceed if no error encountered
                             if ( eob < 0 ) sta = -1;
@@ -3282,15 +3282,54 @@ int find_aligned_end_64_scalar(int16_t *block) {
     }
     return end;
 }
-int find_aligned_end_64(int16_t *block) {
-
-    int end = 63;
-    while (end && !block[end]) {
-        --end;
+int find_aligned_end_64_sse41(int16_t *block) {
+    unsigned int mask = 0;
+    int iter;
+    for (iter = 56; iter >= 0; iter -=8) {
+        __m128i row = _mm_load_si128((__m128i*)(block + iter));
+        __m128i row_cmp = _mm_cmpeq_epi16(row, _mm_setzero_si128());
+        mask = _mm_movemask_epi8(row_cmp);
+        if (mask != 0xffff) {
+            break;
+        }
     }
-    return end;
-}
+    if (mask == 0xffff) {
+        assert(find_aligned_end_64_scalar(block) == 0);
+        return 0;
+    }
+    unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffff);
+    int retval = iter + ((bitpos >> 1) - 1) ;
 
+    assert(retval == find_aligned_end_64_scalar(block));
+    return retval;
+}
+#if 0
+int find_aligned_end_64(int16_t *block) {
+    uint32_t mask = 0;
+    int iter;
+    for (iter = 48; iter >= 0; iter -=16) {
+        __m256i row = _mm256_load_si256((const __m256*)(const char*)(block + iter));
+        __m256i row_cmp = _mm256_cmpeq_epi16(row, _mm256_setzero_si256());
+        mask = _mm256_movemask_epi8(row_cmp);
+        if (mask != 0xffffffffU) {
+            break;
+        }
+    }
+    if (mask == 0xffffffffU) {
+        assert(find_aligned_end_64_scalar(block) == 0);
+        return 0;
+    }
+    unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffffffffU);
+    int retval = iter + ((bitpos >> 1) - 1) ;
+
+    assert(retval == find_aligned_end_64_scalar(block));
+    return retval;
+}
+#else
+int find_aligned_end_64(int16_t *block) {
+    return find_aligned_end_64_sse41(block);
+}
+#endif
 /* -----------------------------------------------
     sequential block encoding routine
     ----------------------------------------------- */
@@ -3312,7 +3351,7 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     signed z = -1;
     // encode AC
     z = 0;
-    int end = find_aligned_end_64(block);
+    int end = find_aligned_end_64_scalar(block);
     for ( bpos = 1; bpos <= end; bpos++ )
     {
         // if nonzero is encountered

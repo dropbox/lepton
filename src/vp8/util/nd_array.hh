@@ -1061,6 +1061,35 @@ private:
 
 };
 
+
+template<class Slice> struct Aligned256ArrayNd : public Slice {
+    uint8_t backingStore[sizeof(typename Slice::Array) + 31];
+    Aligned256ArrayNd() {
+        init();
+    }
+    Aligned256ArrayNd(const Aligned256ArrayNd&other){
+        // need to memcpy around to the aligned areas
+        init();
+        *this = other;
+    }
+    Aligned256ArrayNd& operator=(const Aligned256ArrayNd& other) {
+        memcpy(this->data, other.data, sizeof(typename Slice::Array));
+        return *this;
+    }
+private:
+    void init() {
+        uint8_t* begin = NULL;
+        size_t offset = ((backingStore - begin) & 31);
+        if (offset == 0) {
+            this->data = (typename Slice::Array*)backingStore;
+        } else {
+            this->data = (typename Slice::Array*)(backingStore + 32 - offset);
+        }
+
+    }
+
+};
+
 template <class T,
           uint32_t s0>
 struct AlignedArray1d : AlignedArrayNd<typename Array1d<T, s0, RoundToPow2>::Slice > {};
@@ -1096,7 +1125,49 @@ template <class T,
 uint32_t s0, uint32_t s1, uint32_t s2,
 uint32_t s3, uint32_t s4, uint32_t s5,
           uint32_t s6> struct AlignedArray7d : AlignedArrayNd<typename Array7d<T, s0, s1, s2, s3, s4, s5, s6, RoundToPow2>::Slice > {};
+
+
+
+
+
+
+template <class T,
+          uint32_t s0>
+struct Aligned256Array1d : Aligned256ArrayNd<typename Array1d<T, s0, RoundToPow2>::Slice > {};
+
+template <class T,
+          uint32_t s0, uint32_t s1>
+struct Aligned256Array2d : Aligned256ArrayNd<typename Array2d<T, s0, s1, RoundToPow2>::Slice > {};
+
+
+template <class T,
+          uint32_t s0, uint32_t s1, uint32_t s2>
+struct Aligned256Array3d : Aligned256ArrayNd<typename Array3d<T, s0, s1, s2, RoundToPow2>::Slice > {};
+
+
+template <class T,
+          uint32_t s0, uint32_t s1, uint32_t s2,
+          uint32_t s3>
+struct Aligned256Array4d : Aligned256ArrayNd<typename Array4d<T, s0, s1, s2, s3, RoundToPow2>::Slice > {};
+
+
+template <class T,
+          uint32_t s0, uint32_t s1, uint32_t s2,
+          uint32_t s3, uint32_t s4>
+struct Aligned256Array5d : Aligned256ArrayNd<typename Array5d<T, s0, s1, s2, s3, s4, RoundToPow2>::Slice > {};
+
+
+template <class T,
+          uint32_t s0, uint32_t s1, uint32_t s2,
+          uint32_t s3, uint32_t s4, uint32_t s5>
+struct Aligned256Array6d : Aligned256ArrayNd<typename Array6d<T, s0, s1, s2, s3, s4, s5, RoundToPow2>::Slice > {};
+
+template <class T,
+uint32_t s0, uint32_t s1, uint32_t s2,
+uint32_t s3, uint32_t s4, uint32_t s5,
+          uint32_t s6> struct Aligned256Array7d : Aligned256ArrayNd<typename Array7d<T, s0, s1, s2, s3, s4, s5, s6, RoundToPow2>::Slice > {};
 }
+
 
 #if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
 #undef constexpr
