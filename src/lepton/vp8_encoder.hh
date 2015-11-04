@@ -24,9 +24,9 @@ class VP8ComponentEncoder : public BaseEncoder {
 public:
     VP8ComponentEncoder();
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
-                                               Sirikata::DecoderWriter *);
+                                        IOUtil::FileWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                   Sirikata::DecoderWriter *);
+                                   IOUtil::FileWriter *);
     virtual void enable_threading(Sirikata::Array1d<GenericWorker,
                                                     (NUM_THREADS
                                                      - 1)>::Slice workers) {

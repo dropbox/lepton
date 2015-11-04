@@ -20,7 +20,9 @@ class DecoderWriter;
 template <class T> class SwitchableDecompressionReader;
 template <class T> class SwitchableCompressionWriter;
 }
-
+namespace IOUtil {
+class FileWriter;
+}
 class BaseDecoder {
  public:
     virtual ~BaseDecoder(){}
@@ -49,7 +51,7 @@ class BaseEncoder {
     virtual void disable_threading() = 0;
     virtual ~BaseEncoder(){}
     virtual CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                           Sirikata::DecoderWriter *) = 0;
+                                           IOUtil::FileWriter *) = 0;
 };
 
 #endif

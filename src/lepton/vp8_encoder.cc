@@ -65,7 +65,7 @@ void printContext(FILE * fp) {
 }
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,
-                                                    Sirikata::DecoderWriter *output) {
+                                                    IOUtil::FileWriter *output) {
     return vp8_full_encoder(input, output);
 }
 
@@ -384,8 +384,7 @@ int model_file_fd = load_model_file_fd_output();
 
 const bool dospin = true;
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
-                                            Sirikata::
-                                            DecoderWriter *str_out)
+                                                         IOUtil::FileWriter *str_out)
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
@@ -478,8 +477,20 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         delete stream[i]; // allocate streams as pointers so threads don't modify them inline
     }
     /* possibly write out new probability model */
-
-
+    {
+        uint32_t out_file_size = str_out->getsize() + 4; // gotta include the final uint32_t
+        uint32_t file_size = out_file_size;
+        uint8_t out_buffer[sizeof(out_file_size)] = {};
+        for (uint8_t i = 0; i < sizeof(out_file_size); ++i) {
+            out_buffer[i] = out_file_size & 0xff;
+            out_file_size >>= 8;
+        }
+        str_out->Write(out_buffer, sizeof(out_file_size));
+        (void)file_size;
+        fprintf(stderr, "Writing %d\n", file_size);
+        assert(str_out->getsize() == file_size);
+    }
+    
     if ( model_file_fd >= 0 ) {
         const char * msg = "Writing new compression model...\n";
         while (write(2, msg, strlen(msg)) < 0 && errno == EINTR){}

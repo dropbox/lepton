@@ -14,7 +14,7 @@ SimpleComponentEncoder::SimpleComponentEncoder() {
     memset(cur_read_batch, 0, sizeof(cur_read_batch));
 }
 CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedComponents *colldata,
-                                                       Sirikata::DecoderWriter *str_out) {
+                                                       IOUtil::FileWriter *str_out) {
     // read coefficient data from file
     unsigned int batch_size = 1600;
 

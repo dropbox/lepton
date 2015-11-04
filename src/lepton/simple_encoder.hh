@@ -6,7 +6,7 @@ class SimpleComponentEncoder : public BaseEncoder {
 public:
     SimpleComponentEncoder();
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                   Sirikata::DecoderWriter *);
+                                   IOUtil::FileWriter *);
     virtual void enable_threading(Sirikata::Array1d<GenericWorker,
                                                     (NUM_THREADS
                                                      - 1)>::Slice){}

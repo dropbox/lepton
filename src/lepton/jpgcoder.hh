@@ -5,4 +5,8 @@
 //extern int cmpc;
 extern std::atomic<int> errorlevel;
 extern std::string errormessage;
-void process_file(Sirikata::DecoderReader* reader, Sirikata::DecoderWriter *writer);
+namespace IOUtil {
+class FileReader;
+class FileWriter;
+}
+void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer);
