@@ -37,6 +37,8 @@
 #include "../io/MemReadWriter.hh"
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
+#include <immintrin.h>
+
 bool fast_exit = true;
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -224,7 +226,6 @@ private:
     ----------------------------------------------- */
 
 bool do_streaming = true;
-bool g_vectorized_encode_block = false;
 
 unsigned short qtables[4][64];                // quantization tables
 huffCodes      hcodes[2][4];                // huffman codes
@@ -594,9 +595,6 @@ void initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-nostreaming" ) == 0)  {
             do_streaming = false;
-        }
-        else if ( strcmp((*argv), "-vec" ) == 0)  {
-            g_vectorized_encode_block = true;
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
@@ -3275,14 +3273,14 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
     return eob;
 }
 
-int find_aligned_end_64_scalar(int16_t *block) {
+int find_aligned_end_64_scalar(const int16_t *block) {
     int end = 63;
     while (end && !block[end]) {
         --end;
     }
     return end;
 }
-int find_aligned_end_64_sse41(int16_t *block) {
+int find_aligned_end_64_sse41(const int16_t *block) {
     unsigned int mask = 0;
     int iter;
     for (iter = 56; iter >= 0; iter -=8) {
@@ -3303,12 +3301,12 @@ int find_aligned_end_64_sse41(int16_t *block) {
     assert(retval == find_aligned_end_64_scalar(block));
     return retval;
 }
-#if 0
-int find_aligned_end_64(int16_t *block) {
+#ifdef USE_AVX2
+int find_aligned_end_64(const int16_t *block) {
     uint32_t mask = 0;
     int iter;
     for (iter = 48; iter >= 0; iter -=16) {
-        __m256i row = _mm256_load_si256((const __m256*)(const char*)(block + iter));
+        __m256i row = _mm256_load_si256((const __m256i*)(const char*)(block + iter));
         __m256i row_cmp = _mm256_cmpeq_epi16(row, _mm256_setzero_si256());
         mask = _mm256_movemask_epi8(row_cmp);
         if (mask != 0xffffffffU) {
@@ -3326,7 +3324,7 @@ int find_aligned_end_64(int16_t *block) {
     return retval;
 }
 #else
-int find_aligned_end_64(int16_t *block) {
+int find_aligned_end_64(const int16_t *block) {
     return find_aligned_end_64_sse41(block);
 }
 #endif
@@ -3351,7 +3349,7 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     signed z = -1;
     // encode AC
     z = 0;
-    int end = find_aligned_end_64_scalar(block);
+    int end = find_aligned_end_64(block);
     for ( bpos = 1; bpos <= end; bpos++ )
     {
         // if nonzero is encountered
