@@ -1,6 +1,7 @@
 #ifndef _BLOCK_CONTEXT_HH_
 #define _BLOCK_CONTEXT_HH_
 #include "options.hh"
+#include "tmmintrin.h"
 enum {
     IDCTSCALE = 1,
     xIDCTSCALE = 8
