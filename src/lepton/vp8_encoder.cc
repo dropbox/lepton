@@ -487,7 +487,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         }
         str_out->Write(out_buffer, sizeof(out_file_size));
         (void)file_size;
-        fprintf(stderr, "Writing %d\n", file_size);
         assert(str_out->getsize() == file_size);
     }
     
