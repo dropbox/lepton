@@ -83,7 +83,12 @@ def test_compression(binary_name):
     u.join()
 
 test_compression('./lepton')
-cpuinfo = open('/proc/cpuinfo')
-if 'avx2' in cpuinfo.read():
+has_avx2 = False
+try:
+    cpuinfo = open('/proc/cpuinfo')
+    has_avx2 = 'avx2' in cpuinfo.read()
+except Exception:
+    pass
+if has_avx2:
     test_compression('./lepton-avx')
 
