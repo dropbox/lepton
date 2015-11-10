@@ -106,8 +106,9 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
     function declarations: main interface
     ----------------------------------------------- */
 
-void initialize_options( int argc, char** argv );
-void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer);
+// returns the max size of the input file
+int initialize_options( int argc, char** argv );
+void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
 void execute( bool (*function)() );
 void show_help( void );
 
@@ -116,7 +117,7 @@ void show_help( void );
     function declarations: main functions
     ----------------------------------------------- */
 
-bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer);
+bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
 bool read_jpeg( void );
 struct MergeJpegProgress;
 bool merge_jpeg_streaming( MergeJpegProgress * prog, int num_scans);
@@ -499,7 +500,7 @@ int main( int argc, char** argv )
 #endif
 
     // read options from command line
-    initialize_options( argc, argv );
+    int max_file_size = initialize_options( argc, argv );
     if (action != forkserve) {
         // write program info to screen
         fprintf( msgout,  "%s v%i.%i%s\n",
@@ -523,7 +524,7 @@ int main( int argc, char** argv )
         g_use_seccomp = true; // do not allow forked mode without security in place
         fork_serve();
     } else {
-        process_file(nullptr, nullptr);
+        process_file(nullptr, nullptr, max_file_size);
     }
     if (errorlevel.load() >= err_tresh) error_cnt++;
     if (errorlevel.load() == 1 ) warn_cnt++;
@@ -562,11 +563,12 @@ int main( int argc, char** argv )
     reads in commandline arguments
     ----------------------------------------------- */
 char g_dash[] = "-";
-void initialize_options( int argc, char** argv )
+// returns the maximum file size
+int initialize_options( int argc, char** argv )
 {
     char** tmp_flp;
     int tmp_val;
-
+    int max_file_size = 0;
     // get memory for filelist & preset with NULL
     filelist = (char**)custom_calloc(argc * sizeof(char*));
 
@@ -606,6 +608,9 @@ void initialize_options( int argc, char** argv )
         }
          else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-timing="), "a");
+        }
+        else if ( strncmp((*argv), "-trunc=", strlen("-trunc=") ) == 0 ) {
+            max_file_size = atoi((*argv) + strlen("-trunc="));
         }
         else if ( strncmp((*argv), "-trunctiming=", strlen("-trunctiming=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-trunctiming="), "w");
@@ -652,6 +657,7 @@ void initialize_options( int argc, char** argv )
     }
     for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
     }
+    return max_file_size;
 }
 
 /* -----------------------------------------------
@@ -671,7 +677,7 @@ void kill_workers(void * workers) {
         }
     }
 }
-void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer)
+void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size)
 {
     clock_t begin = 0, end = 1;
     const char* actionmsg  = NULL;
@@ -693,7 +699,7 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer)
     if (!reader) {
         // compare file name, set pipe if needed
         if ( ( strcmp( filelist[ file_no ], "-" ) == 0 ) && ( action == comp ) ) {
-            reader = ujg_base_in = IOUtil::OpenFileOrPipe("STDIN", 2, 0, 1 ),
+            reader = ujg_base_in = IOUtil::OpenFileOrPipe("STDIN", 2, max_file_size),
             pipe_on = true;
         }
         else {
@@ -703,7 +709,7 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer)
         ujg_base_in = reader;
     }
     // check input file and determine filetype
-    check_file(reader, writer);
+    check_file(reader, writer, max_file_size);
     begin = clock();
 #ifdef __linux
     if (g_use_seccomp) {
@@ -1009,7 +1015,7 @@ void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
     check file and determine filetype
     ----------------------------------------------- */
 
-bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer)
+bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_file_size)
 {
     unsigned char fileid[ 2 ] = { 0, 0 };
 
@@ -1018,7 +1024,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer)
     if (!reader) {
         assert(!pipe_on); // we should have filled the pipe here
         ifilename = filelist[ file_no++ ];
-        reader = ujg_base_in = IOUtil::OpenFileOrPipe(ifilename.c_str(), 0, 0, 0);
+        reader = ujg_base_in = IOUtil::OpenFileOrPipe(ifilename.c_str(), 0, max_file_size);
     } else {
         pipe_on = true;
     }
@@ -1062,7 +1068,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer)
         // open output stream, check for errors
         ujg_out = writer;
         if (!writer) {
-            writer = ujg_out = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
+            writer = ujg_out = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2);
             if(!writer) {
                 const char * errormessage = "Output file unable to be opened for writing\n";
                 while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {
@@ -1097,7 +1103,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer)
         }
         // open output stream, check for errors
         if (!writer) {
-            writer = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2, 0, 1 );
+            writer = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2);
         }
         std::function<void(Sirikata::DecoderWriter*, size_t file_size)> known_size_callback = &nop;
         Sirikata::DecoderWriter * write_target = writer;

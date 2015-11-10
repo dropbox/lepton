@@ -108,7 +108,7 @@ void fork_serve() {
             // leave stderr open for complaints
             IOUtil::FileReader reader(reader_pipe);
             IOUtil::FileWriter writer(writer_pipe, false);
-            process_file(&reader, &writer);
+            process_file(&reader, &writer, 0);
             custom_exit(0);
         } else {
             int err = -1;

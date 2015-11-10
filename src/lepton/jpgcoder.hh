@@ -9,4 +9,4 @@ namespace IOUtil {
 class FileReader;
 class FileWriter;
 }
-void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer);
+void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int file_input_length = 0);
