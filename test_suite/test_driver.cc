@@ -121,6 +121,12 @@ int run_test(const std::vector<unsigned char> &testImage, bool use_lepton, bool 
     if (status != 0) {
         return(status);
     }
+    FILE * fp = fopen("lepton", "r");
+    if (fp) {
+        fclose(fp);
+    } else {
+        exit(1); // file does not exist
+    }
     pid_t encoder_pid = fork();
     if (encoder_pid == 0) {
         fclose(stdin);
@@ -271,6 +277,9 @@ int test_file(int argc, char **argv, bool use_lepton, const std::vector<const ch
             int status = 0;
             do {
                 status = chdir(argv[0]);
+            } while (status == -1 && errno == EINTR);
+            do {
+                status = chdir("..");
             } while (status == -1 && errno == EINTR);
             break;
         }

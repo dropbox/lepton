@@ -181,6 +181,6 @@ test_suite_test_truncate_SOURCES = test_suite/test_harness.cc
 test_suite_test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
 test_suite_test_truncate_LDADD = libtestdriver.a -lpthread
 
-TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
+TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh
 
-dist_check_SCRIPTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
+dist_check_SCRIPTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq

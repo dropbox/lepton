@@ -43,9 +43,7 @@ SET(LEPTON_SOURCES
    src/lepton/base_coders.hh
    src/lepton/simple_encoder.hh
    src/lepton/bitops.cc
-   src/lepton/smalljpeg.hh
    src/lepton/bitops.hh
-   src/lepton/test_driver.cc
    src/lepton/component_info.hh
    src/lepton/htables.hh
    src/lepton/fork_serve.cc
@@ -144,7 +142,7 @@ add_executable(test_invariants
    src/io/MemMgrAllocator.hh
    src/io/MemReadWriter.cc
    src/vp8/util/memory.cc
-   src/lepton/test_invariants.cc
+   test_suite/test_invariants.cc
  )
 target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})
 #set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
