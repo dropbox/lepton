@@ -9,7 +9,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include "smalljpeg.hh"
+#include "smalljpg.hh"
 ssize_t read_until(int fd, void *buf, size_t size) {
     size_t progress = 0;
     while (progress < size) {

@@ -50,6 +50,8 @@ SET(LEPTON_SOURCES
    src/lepton/htables.hh
    src/lepton/fork_serve.cc
    src/lepton/fork_serve.hh
+   src/lepton/socket_serve.cc
+   src/lepton/socket_serve.hh
    src/lepton/jpgcoder.cc
    src/lepton/idct.cc
    src/lepton/idct.hh

@@ -16,20 +16,20 @@
 #include <errno.h>
 #include "jpgcoder.hh"
 #include "../io/ioutil.hh"
-char hex_nibble(uint8_t val) {
+static char hex_nibble(uint8_t val) {
     if (val < 10) return val + '0';
     return val - 10 + 'a';
 }
 
-void always_assert(bool expr) {
+static void always_assert(bool expr) {
     if (!expr) custom_exit(1);
 }
 
-const char last_prefix[] = "/tmp/";
-const char last_postfix[2][7]={".iport", ".oport"};
-char last_pipes[sizeof(last_postfix) / sizeof(last_postfix[0])][128] = {};
+static const char last_prefix[] = "/tmp/";
+static const char last_postfix[2][7]={".iport", ".oport"};
+static char last_pipes[sizeof(last_postfix) / sizeof(last_postfix[0])][128] = {};
 
-void name_cur_pipes(FILE * dev_random) {
+static void name_cur_pipes(FILE * dev_random) {
     char random_data[16] = {0};
     auto retval = fread(random_data, 1, sizeof(random_data), dev_random);
     (void)retval;// dev random should yield reasonable results
@@ -51,7 +51,7 @@ void name_cur_pipes(FILE * dev_random) {
     }
 }
 
-void exit_on_stdin(pid_t child) {
+static void exit_on_stdin(pid_t child) {
     if (!child) {
         fclose(stdin);
         return;
@@ -65,7 +65,7 @@ void exit_on_stdin(pid_t child) {
     custom_exit(0);
 }
 
-void cleanup_pipes(int) {
+static void cleanup_pipes(int) {
     for (size_t i = 0;i < sizeof(last_pipes)/sizeof(last_pipes[0]); ++i) {
         if (last_pipes[i][0]) { // if we've started serving pipes
             unlink(last_pipes[i]);

@@ -33,6 +33,7 @@
 #include "simple_decoder.hh"
 #include "simple_encoder.hh"
 #include "fork_serve.hh"
+#include "socket_serve.hh"
 #include "../io/ZlibCompression.hh"
 #include "../io/MemReadWriter.hh"
 #include "../io/BufferedIO.hh"
@@ -67,10 +68,23 @@ bool fast_exit = true;
 /* -----------------------------------------------
     struct & enum declarations
     ----------------------------------------------- */
-enum {JPG_READ_BUFFER_SIZE = 1024 * 256};
-enum ACTION {     comp  =  1, forkserve = 2, info = 3 };
+enum {
+    JPG_READ_BUFFER_SIZE = 1024 * 256
+};
 
-enum F_TYPE {   JPEG = 0, UJG = 1, LEPTON=2, UNK = 3        };
+enum ACTION {
+    comp  =  1,
+    forkserve = 2,
+    socketserve = 3,
+    info = 4
+};
+
+enum F_TYPE {
+    JPEG = 0,
+    UJG = 1,
+    LEPTON=2,
+    UNK = 3
+};
 
 struct huffCodes {
     unsigned short cval[ 256 ];
@@ -501,14 +515,14 @@ int main( int argc, char** argv )
 
     // read options from command line
     int max_file_size = initialize_options( argc, argv );
-    if (action != forkserve) {
+    if (action != forkserve && action != socketserve) {
         // write program info to screen
         fprintf( msgout,  "%s v%i.%i%s\n",
                  appname, ujgversion / 10, ujgversion % 10, subversion );
     }
     // check if user input is wrong, show help screen if it is
-    if ( ( file_cnt == 0 && action != forkserve) ||
-        ( ( !developer ) && ( (action != comp && action != forkserve) ) ) ) {
+    if ((file_cnt == 0 && action != forkserve && action != socketserve)
+        || ((!developer) && ((action != comp && action != forkserve && action != socketserve)))) {
         show_help();
         return -1;
     }
@@ -523,6 +537,9 @@ int main( int argc, char** argv )
     if (action == forkserve) {
         g_use_seccomp = true; // do not allow forked mode without security in place
         fork_serve();
+    } else if (action == socketserve) {
+        g_use_seccomp = true; // do not allow forked mode without security in place
+        socket_serve(max_file_size);
     } else {
         process_file(nullptr, nullptr, max_file_size);
     }
@@ -635,6 +652,12 @@ int initialize_options( int argc, char** argv )
             action = info;
         } else if ( strcmp((*argv), "-fork") == 0 ) {    
             action = forkserve;
+            // sets it up in serving mode
+            msgout = stderr;
+            // use "-" as placeholder for the socket
+            *(tmp_flp++) = g_dash;
+        } else if ( strcmp((*argv), "-socket") == 0 ) {    
+            action = socketserve;
             // sets it up in serving mode
             msgout = stderr;
             // use "-" as placeholder for the socket
@@ -755,6 +778,7 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int ma
         {
             case comp:
             case forkserve:
+            case socketserve:
                 timing_operation_start( 'c' );
                 execute( read_jpeg );
                 execute( decode_jpeg );
@@ -789,6 +813,7 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int ma
         {
             case comp:
             case forkserve:
+            case socketserve:
                 if (!g_use_seccomp) {
                     overall_start = clock();
                 }
@@ -816,7 +841,8 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int ma
         if ( str_out != NULL ) delete( str_out ); str_out = NULL;
         if ( ujg_out != NULL ) delete( ujg_out ); ujg_out = NULL;
         // delete if broken or if output not needed
-        if ( ( !pipe_on ) && ( ( errorlevel.load() >= err_tresh ) || ( action != comp && action != forkserve) ) ) {
+        if ((!pipe_on) && ((errorlevel.load() >= err_tresh)
+                           || (action != comp && action != forkserve && action != socketserve))) {
             // FIXME: can't delete broken output--it's gone already
         }
     }

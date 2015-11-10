@@ -1,6 +1,6 @@
 noinst_LIBRARIES = liblocalzlib.a libtestdriver.a liblocalmd5.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
-bin_PROGRAMS = lepton test_invariants
+bin_PROGRAMS = lepton test_suite/test_invariants
 lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies
 lepton_LDADD = -lpthread liblocalmd5.a liblocalzlib.a 
 lepton_SOURCES = \
@@ -12,11 +12,12 @@ lepton_SOURCES = \
    src/lepton/bitops.hh \
    src/lepton/idct.cc \
    src/lepton/idct.hh \
-   src/lepton/test_driver.cc \
    src/lepton/component_info.hh \
    src/lepton/htables.hh \
    src/lepton/fork_serve.cc \
    src/lepton/fork_serve.hh \
+   src/lepton/socket_serve.cc \
+   src/lepton/socket_serve.hh \
    src/lepton/jpgcoder.cc \
    src/lepton/uncompressed_components.cc \
    src/lepton/jpgcoder.hh \
@@ -114,9 +115,9 @@ DEFAULT_INCLUDES=-I$(srcdir)/src
 
 
 #noinst_LIBRARIES = libtestdriver.a
-libtestdriver_a_SOURCES = src/lepton/test_driver.cc
+libtestdriver_a_SOURCES = test_suite/test_driver.cc
 
-test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
+test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/Allocator.hh \
    src/vp8/util/memory.cc \
    src/io/BufferedIO.hh \
    src/io/Error.hh \
@@ -130,55 +131,56 @@ test_invariants_SOURCES = src/lepton/test_invariants.cc    src/io/Allocator.hh \
    src/io/MemMgrAllocator.cc \
    src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
-test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
-test_invariants_LDADD = liblocalzlib.a
+test_suite_test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
+test_suite_test_invariants_LDADD = liblocalzlib.a
 
 
-check_PROGRAMS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
+check_PROGRAMS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
 
 
-test_baseline_ujg_SOURCES = src/lepton/test_harness.cc
-test_baseline_ujg_LDADD = libtestdriver.a -lpthread
+test_suite_test_baseline_ujg_SOURCES = test_suite/test_harness.cc
+test_suite_test_baseline_ujg_LDADD = libtestdriver.a -lpthread
 
-test_baseline_SOURCES = src/lepton/test_harness.cc
-test_baseline_CXXFLAGS = -DUSE_LEPTON
-test_baseline_LDADD = libtestdriver.a -lpthread
+test_suite_test_baseline_SOURCES = test_suite/test_harness.cc
+test_suite_test_baseline_CXXFLAGS = -DUSE_LEPTON
+test_suite_test_baseline_LDADD = libtestdriver.a -lpthread
 
-test_iphone_SOURCES = src/lepton/test_harness.cc
-test_iphone_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
-test_iphone_LDADD = libtestdriver.a -lpthread
+test_suite_test_iphone_SOURCES = test_suite/test_harness.cc
+test_suite_test_iphone_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
+test_suite_test_iphone_LDADD = libtestdriver.a -lpthread
 
-test_slr_SOURCES = src/lepton/test_harness.cc
-test_slr_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity
-test_slr_LDADD = libtestdriver.a -lpthread
+test_suite_test_SLR_SOURCES = test_suite/test_harness.cc
+test_suite_test_SLR_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity
+test_suite_test_SLR_LDADD = libtestdriver.a -lpthread
 
-test_hq_SOURCES = src/lepton/test_harness.cc
-test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq
-test_hq_LDADD = libtestdriver.a -lpthread
+test_suite_test_hq_SOURCES = test_suite/test_harness.cc
+test_suite_test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq
+test_suite_test_hq_LDADD = libtestdriver.a -lpthread
 
-test_misc_SOURCES = src/lepton/test_harness.cc
-test_misc_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
-test_misc_LDADD = libtestdriver.a -lpthread
+test_suite_test_misc_SOURCES = test_suite/test_harness.cc
+test_suite_test_misc_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
+test_suite_test_misc_LDADD = libtestdriver.a -lpthread
 
-test_arithmetic_failfast_SOURCES = src/lepton/test_harness.cc
-test_arithmetic_failfast_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=arithmetic -DEXPECT_FAILURE
-test_arithmetic_failfast_LDADD = libtestdriver.a -lpthread
+test_suite_test_arithmetic_failfast_SOURCES = test_suite/test_harness.cc
+test_suite_test_arithmetic_failfast_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=arithmetic -DEXPECT_FAILURE
+test_suite_test_arithmetic_failfast_LDADD = libtestdriver.a -lpthread
 
-test_progressive_ujg_SOURCES = src/lepton/test_harness.cc
-test_progressive_ujg_CXXFLAGS = -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
-test_progressive_ujg_LDADD = libtestdriver.a -lpthread
+test_suite_test_progressive_ujg_SOURCES = test_suite/test_harness.cc
+test_suite_test_progressive_ujg_CXXFLAGS = -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
+test_suite_test_progressive_ujg_LDADD = libtestdriver.a -lpthread
 
-test_progressive_SOURCES = src/lepton/test_harness.cc
-test_progressive_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
-test_progressive_LDADD = libtestdriver.a -lpthread
+test_suite_test_progressive_SOURCES = test_suite/test_harness.cc
+test_suite_test_progressive_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2
+test_suite_test_progressive_LDADD = libtestdriver.a -lpthread
 
-test_truncate_ujg_SOURCES = src/lepton/test_harness.cc
-test_truncate_ujg_CXXFLAGS = -DTEST_FILE=trunc
-test_truncate_ujg_LDADD = libtestdriver.a -lpthread
+test_suite_test_truncate_ujg_SOURCES = test_suite/test_harness.cc
+test_suite_test_truncate_ujg_CXXFLAGS = -DTEST_FILE=trunc
+test_suite_test_truncate_ujg_LDADD = libtestdriver.a -lpthread
 
-test_truncate_SOURCES = src/lepton/test_harness.cc
-test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
-test_truncate_LDADD = libtestdriver.a -lpthread
+test_suite_test_truncate_SOURCES = test_suite/test_harness.cc
+test_suite_test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
+test_suite_test_truncate_LDADD = libtestdriver.a -lpthread
 
-TESTS = test_invariants test_baseline_ujg test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
-dist_check_SCRIPTS = test_invariants test_baseline_ujg src/lepton/test_custom_table.sh test_baseline test_misc test_iphone test_truncate_ujg test_truncate test_slr test_progressive_ujg test_progressive test_arithmetic_failfast test_hq
+TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
+
+dist_check_SCRIPTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
