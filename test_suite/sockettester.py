@@ -10,13 +10,6 @@ if len(sys.argv) > 1:
 else:
     jpg_name = os.path.join(base_dir, "..", "images", "iphone.jpg")
 
-def htole(item):
-    retval = chr(item & 0xff)
-    retval += chr((item >> 8) & 0xff)
-    retval += chr((item >> 16) & 0xff)
-    retval += chr((item >> 24) & 0xff)
-    return retval
-
 def read_all_fd(fd):
     datas = []
     while True:
@@ -38,8 +31,8 @@ def test_compression(binary_name):
 
     valid_fds = []
     valid_socks = []
-    def add4():
-        for i in range(4):
+    def add2():
+        for i in range(2):
             print 'connecting to', socket_name
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.connect(socket_name)
@@ -50,19 +43,14 @@ def test_compression(binary_name):
         jpg = f.read()
     jpglen = len(jpg)
     def fn():
-        aa = htole(jpglen)
-        valid_socks[0].sendall(aa[0])
-        valid_socks[0].sendall(aa[1])
-        valid_socks[0].sendall(aa[2])
-        valid_socks[0].sendall(aa[3])
         valid_socks[0].sendall(jpg)
-
+        valid_socks[0].shutdown(socket.SHUT_WR)
     def fn1():
-        valid_socks[1].sendall(htole(len(dat)))
         valid_socks[1].sendall(dat)
+        valid_socks[1].shutdown(socket.SHUT_WR)
 
 
-    u=threading.Thread(target=add4)
+    u=threading.Thread(target=add2)
     u.start()
     u.join()
     t=threading.Thread(target=fn)

@@ -54,26 +54,10 @@ static void cleanup_socket(int) {
     unlink(socket_name);
 }
 
-static void exit_on_stdin(pid_t child) {
-    if (!child) {
-        fclose(stdin);
-        return;
-    }
-    fclose(stdout);
-    getc(stdin);
-    cleanup_socket(0);
-    kill(child, SIGQUIT);
-    sleep(1); // 1 second to clean up its temp pipes
-    kill(child, SIGKILL);
-    fclose(stderr);
-    custom_exit(0);
-}
-
 void socket_serve(uint32_t global_max_length) {
     FILE* dev_random = fopen("/dev/urandom", "rb");
     name_socket(dev_random);
     fclose(dev_random);
-    //exit_on_stdin(fork());
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
     // listen
@@ -99,34 +83,9 @@ void socket_serve(uint32_t global_max_length) {
         if (serve_file == 0) {
             while (close(1) < 0 && errno == EINTR){ // close stdout
             }
-            unsigned char max_length_le[4];
-            uint8_t length_read = 0;
-            do {
-                int err = read(active_connection, max_length_le + length_read, 4 - length_read);
-                if (err <= 0) {
-                    if (err == EINTR) {
-                        continue;
-                    }
-                    exit(1);
-                }
-                length_read += err;
-            }while(length_read < 4);
-            uint32_t max_length = max_length_le[3];
-            max_length <<= 8;
-            max_length |= max_length_le[2];
-            max_length <<= 8;
-            max_length |= max_length_le[1];
-            max_length <<= 8;
-            max_length |= max_length_le[0];
-            // leave stderr open for complaints
-            if (global_max_length != 0) {
-                max_length = std::min(max_length, global_max_length);
-                // so we can assert than the file <= 4 MB
-                // to bound the data that we could read
-            }
-            IOUtil::FileReader reader(active_connection, max_length);
+            IOUtil::FileReader reader(active_connection, global_max_length);
             IOUtil::FileWriter writer(active_connection, false);
-            process_file(&reader, &writer, max_length);
+            process_file(&reader, &writer, global_max_length);
             custom_exit(0);
         } else {
             int err = -1;
