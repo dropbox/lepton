@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(lepton)
+
+FIND_PACKAGE(Git)
+
 SET(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
 SET(CMAKE_C_FLAGS "-std=c99 -DHAVE_CONFIG_H ")
 
@@ -34,6 +37,7 @@ dependencies/zlib/gzlib.c)
 
 
 include_directories(
+    ${CMAKE_BINARY_DIR}
     ${PROJECT_SOURCE_DIR}/src/vp8/util
     ${PROJECT_SOURCE_DIR}/src/vp8/model
     ${PROJECT_SOURCE_DIR}/src/vp8/encoder
@@ -147,3 +151,27 @@ add_executable(test_invariants
 target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})
 #set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
 set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
+
+FILE(WRITE ${CMAKE_BINARY_DIR}/version.hh.in
+"\#define GIT_REVISION \"@VERSION@\"\n"
+)
+
+FILE(WRITE ${CMAKE_BINARY_DIR}/version.cmake
+"EXECUTE_PROCESS(
+     COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+     OUTPUT_VARIABLE VERSION
+     OUTPUT_STRIP_TRAILING_WHITESPACE
+ )
+ CONFIGURE_FILE(\${SRC} \${DST} @ONLY)
+")
+
+INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR})
+
+ADD_CUSTOM_TARGET(
+    version
+    ${CMAKE_COMMAND} -D SRC=${CMAKE_BINARY_DIR}/version.hh.in
+                     -D DST=${CMAKE_BINARY_DIR}/version.hh
+                     -P ${CMAKE_BINARY_DIR}/version.cmake
+)
+
+ADD_DEPENDENCIES(lepton version)

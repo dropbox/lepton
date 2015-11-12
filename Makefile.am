@@ -1,7 +1,7 @@
 noinst_LIBRARIES = liblocalzlib.a libtestdriver.a liblocalmd5.a
 #libio.a libdecoder.a libencoder.a libmodel.a libutil.a
 bin_PROGRAMS = lepton test_suite/test_invariants
-lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies
+lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies -DGIT_REVISION=\"$(shell git rev-parse HEAD)\"
 lepton_LDADD = -lpthread liblocalmd5.a liblocalzlib.a 
 lepton_SOURCES = \
    src/io/MemReadWriter.cc \

@@ -39,7 +39,12 @@
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
 #include <immintrin.h>
-
+#ifndef GIT_REVISION
+#include "version.hh"
+#ifndef GIT_REVISION
+#define GIT_REVISION "unknown"
+#endif
+#endif
 bool fast_exit = true;
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
@@ -603,6 +608,10 @@ int initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-o" ) == 0 ) {
             overwrite = true;
+        }
+        else if (strcmp((*argv), "-version" ) == 0 || strcmp((*argv), "--version") == 0) {
+            printf("%s\n", GIT_REVISION);
+            exit(0);
         }
         else if ( strcmp((*argv), "-decode" ) == 0 ) {
             g_encoder.reset(new VP8ComponentEncoder);
