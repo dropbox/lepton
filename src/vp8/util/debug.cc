@@ -23,17 +23,7 @@ int getDebugHeight(int color){
     return color == 0 ? luma_debug_height : chroma_debug_height;
 }
 
-#if defined(NDEBUG) && !defined(DUMP_RAW_IMAGE)
-int load_raw_fd_output(const char * fname) {
-    return -1;
-}
-void dumpDebugData(){
-}
-void setupDebugData(int lumaWidth, int lumaHeight,
-                    int chromaWidth, int chromaHeight){
-}
-
-#else
+#if defined(DUMP_RAW_IMAGE)
 int load_raw_fd_output(const char *fname) {
     return open(fname, O_CREAT|O_TRUNC|O_WRONLY, S_IWUSR | S_IRUSR);
 }
@@ -98,6 +88,16 @@ void setupDebugData(int lumaWidth, int lumaHeight,
     luma_debug_height = lumaHeight;
     chroma_debug_width = chromaWidth;
     chroma_debug_height = chromaHeight;
+}
+#else
+
+int load_raw_fd_output(const char * fname) {
+    return -1;
+}
+void dumpDebugData(){
+}
+void setupDebugData(int lumaWidth, int lumaHeight,
+                    int chromaWidth, int chromaHeight){
 }
 
 #endif
