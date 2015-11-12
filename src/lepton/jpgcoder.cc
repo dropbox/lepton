@@ -1814,6 +1814,11 @@ bool decode_jpeg( void )
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if(huffr->eof) {
+                            sta = 2;
+                            break;
+                        }
+
                     }
                 }
                 else if ( cs_sah == 0 ) {
@@ -1835,6 +1840,11 @@ bool decode_jpeg( void )
                         // next mcupos if no error happened
                         if ( sta != -1 )
                             sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if(huffr->eof) {
+                            sta = 2;
+                            break;
+                        }
+
                     }
                 }
                 else {
@@ -1852,6 +1862,11 @@ bool decode_jpeg( void )
                         // next mcupos if no error happened
                         if ( sta != -1 )
                             sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if(huffr->eof) {
+                            sta = 2;
+                            break;
+                        }
+
                     }
                 }
             }
@@ -1881,6 +1896,11 @@ bool decode_jpeg( void )
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcuposn( &cmp, &dpos, &rstw );
+                        if(huffr->eof) {
+                            sta = 2;
+                            break;
+                        }
+
                     }
                 }
                 else if ( cs_to == 0 ) {
@@ -1903,6 +1923,11 @@ bool decode_jpeg( void )
                             // check for errors, increment dpos otherwise
                             if ( sta != -1 )
                                 sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if(huffr->eof) {
+                                sta = 2;
+                                break;
+                            }
+
                         }
                     }
                     else {
@@ -1920,6 +1945,11 @@ bool decode_jpeg( void )
                             // check for errors, increment dpos otherwise
                             if ( sta != -1 )
                                 sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if(huffr->eof) {
+                                sta = 2;
+                                break;
+                            }
+
                         }
                     }
                 }
@@ -1954,6 +1984,11 @@ bool decode_jpeg( void )
                             // proceed only if no error encountered
                             if ( sta == 0 )
                                 sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if(huffr->eof) {
+                                sta = 2;
+                                break;
+                            }
+
                         }
                     }
                     else {
@@ -2001,6 +2036,10 @@ bool decode_jpeg( void )
                             // proceed only if no error encountered
                             if ( eob < 0 ) sta = -1;
                             else sta = next_mcuposn( &cmp, &dpos, &rstw );
+                            if(huffr->eof) {
+                                sta = 2;
+                                break;
+                            }
                         }
                     }
                 }
