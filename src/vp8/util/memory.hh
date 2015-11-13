@@ -23,6 +23,8 @@ void* custom_realloc (void * old, size_t size);
 void custom_free(void* ptr);
 
 void * custom_calloc(size_t size);
+void set_close_thread_handle(int handle);
+void reset_close_thread_handle();
 #if defined(__cplusplus) || defined(c_plusplus)
 }
 #endif

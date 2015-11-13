@@ -40,6 +40,7 @@ void GenericWorker::wait_for_work() {
             return;
         }
     }
+    set_close_thread_handle(work_done_pipe[1]);
     while(!new_work_exists_.load(std::memory_order_relaxed)) {
         _mm_pause();
     }
@@ -49,6 +50,7 @@ void GenericWorker::wait_for_work() {
         assert(false);// invariant violated
     }
     _generic_respond_to_main(1);
+    reset_close_thread_handle();
     custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }
 
@@ -83,7 +85,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
         while (read(work_done_pipe[0], &data, 1) < 0 && errno == EINTR) {
         }
         if (data != expected_arg) {
-            char err[] = "x worker protocol error";
+            char err[] = "x: Worker thread out of memory.\n";
             err[0] = '0' + expected_arg;
             while (write(2, err, strlen(err)) <0 && errno == EINTR) {
 

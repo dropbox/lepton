@@ -371,8 +371,3 @@ template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTable
 
 
 
-inline void VP8BoolEncoder::put( const bool value, Branch & branch )
-{
-  put( value, branch.prob() );
-  branch.record_obs_and_update(value);
-}

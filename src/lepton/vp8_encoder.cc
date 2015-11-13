@@ -363,7 +363,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         }
         
     }
-    *stream = bool_encoder.finish();
+    bool_encoder.finish(*stream);
 }
 VP8ComponentEncoder::VP8ComponentEncoder() {
     for (int i = 0; i < NUM_THREADS; ++i) {

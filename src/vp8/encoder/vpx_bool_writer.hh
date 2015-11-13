@@ -20,10 +20,10 @@ public:
         }
         branch.record_obs_and_update(value);
     }
-    std::vector<uint8_t> &finish() {
+    void finish(std::vector<uint8_t> &finish) {
         vpx_stop_encode(&boolwriter);
         output_.resize(boolwriter.pos);
-        return output_;
+        finish.swap(output_);
     }
 };
 
