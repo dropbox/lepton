@@ -77,6 +77,6 @@ try:
     has_avx2 = 'avx2' in cpuinfo.read()
 except Exception:
     pass
-if has_avx2:
+if has_avx2 and os.path.exists('lepton-avx'):
     test_compression('./lepton-avx')
 
