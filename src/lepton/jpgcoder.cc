@@ -2555,7 +2555,7 @@ bool write_ujpg( )
         // marker: "FRS" + [number of scans]
         unsigned char frs_mrk[] = {'F', 'R', 'S'};
         err = mrw.Write( frs_mrk, 3 ).second;
-        uint32toLE(scnc, ujpg_mrk);
+        uint32toLE((uint32_t)rst_err.size(), ujpg_mrk);
         err = mrw.Write( ujpg_mrk, 4).second;
         // data: numbers of false set markers
         err = mrw.Write( rst_err.data(), rst_err.size() ).second;

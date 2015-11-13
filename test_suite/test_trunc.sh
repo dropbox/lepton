@@ -5,7 +5,7 @@ if [ $# -eq 0 ]; then
 else
     export INPUT_TO_TEST=$1
 fi
-for trunc in 65536 128001 256257 1000000 10241023; do
+for trunc in 58000 65536 128001 256257 1000000 10241023 ; do
     export COMPRESSED_LEPTON="`mktemp /tmp/temp.XXXXXX`"
     export FTRUNC="`mktemp /tmp/temp.XXXXXX`"
     export ORIGINAL="`mktemp /tmp/temp.XXXXXX`"
