@@ -325,6 +325,9 @@ public:
     bool chkerr();
     unsigned int getsize();
     void set_bound(size_t bound); // bound of zero = fine
+    bool has_reached_bound() const {
+        return byte_bound && byte_position == byte_bound;
+    }
     unsigned int write_no_buffer( const void* from, size_t bytes_to_write );
     unsigned int write_byte(uint8_t byte) {
         assert(buffer_position < buffer_size && "Full buffer wasn't flushed");

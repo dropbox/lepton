@@ -1527,6 +1527,9 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         progress.within_scan = false;
         // proceed with next scan
         progress.scan++;
+        if(str_out->has_reached_bound()) {
+            break;
+        }
     }
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)
@@ -2227,6 +2230,9 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
+                        if (str_out->has_reached_bound()) {
+                            sta = 2;
+                        }
                     }
                 }
                 else if ( cs_sah == 0 ) {
@@ -2249,6 +2255,9 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
+                        if (str_out->has_reached_bound()) {
+                            sta = 2;
+                        }
                     }
                 }
                 else {
@@ -2266,6 +2275,9 @@ bool recode_jpeg( void )
                             sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
+                        if (str_out->has_reached_bound()) {
+                            sta = 2;
                         }
 
                     }
@@ -2297,6 +2309,9 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
+                        if (str_out->has_reached_bound()) {
+                            sta = 2;
+                        }
 
                     }
                 }
@@ -2321,6 +2336,9 @@ bool recode_jpeg( void )
                             if (sta == 0 && huffw->no_remainder()) {
                                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                             }
+                            if (str_out->has_reached_bound()) {
+                                sta = 2;
+                            }
 
                         }
                     }
@@ -2340,6 +2358,9 @@ bool recode_jpeg( void )
                         }
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                        }
+                        if (str_out->has_reached_bound()) {
+                            sta = 2;
                         }
                     }
                 }
@@ -2364,6 +2385,10 @@ bool recode_jpeg( void )
                             if (sta == 0 && huffw->no_remainder()) {
                                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                             }
+                            if (str_out->has_reached_bound()) {
+                                sta = 2;
+                            }
+
                         }
 
                         // encode remaining eobrun
@@ -2391,6 +2416,9 @@ bool recode_jpeg( void )
                             else sta = next_mcuposn( &cmp, &dpos, &rstw );
                             if (sta == 0 && huffw->no_remainder()) {
                                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                            }
+                            if (str_out->has_reached_bound()) {
+                                sta = 2;
                             }
 
                         }
