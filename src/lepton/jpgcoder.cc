@@ -490,8 +490,8 @@ int main( int argc, char** argv )
 #ifndef __linux
     n_threads += 4;
 #endif
-    Sirikata::memmgr_init(768 * 1024 * 1024,
-                64 * 1024 * 1024,
+    Sirikata::memmgr_init(192 * 1024 * 1024,
+                1024 * 1024,
                 n_threads,
                 256);
     compute_md5(argv[0], g_executable_md5);
