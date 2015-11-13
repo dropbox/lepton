@@ -2478,7 +2478,7 @@ bool check_value_range( void )
     for ( cmp = 0; cmp < cmpc; cmp++ ) {
     for ( bpos = 0; bpos < 64; bpos++ ) {
         absmax = MAX_V( cmp, bpos );
-        for ( dpos = 0; dpos < cmpnfo[cmp].bc; dpos++ ) {
+        for ( dpos = 0; dpos < cmpnfo[cmp].bc && dpos < max_dpos[cmp] ; dpos++ ) {
             if ( ( colldata.at_nosync((BlockType)cmp,bpos,dpos) > absmax ) ||
                  ( colldata.at_nosync((BlockType)cmp,bpos,dpos) < -absmax ) ) {
                 if (!early_eof_encountered) {
