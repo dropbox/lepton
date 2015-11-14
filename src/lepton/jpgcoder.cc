@@ -380,7 +380,7 @@ bool   pipe_on  = false;    // use stdin/stdout instead of filelist
     global variables: info about program
     ----------------------------------------------- */
 
-const unsigned char ujgversion   = 129;
+const unsigned char ujgversion   = 1;
 static const char*  subversion   = "a";
 static const char*  appname      = "lepton";
 static const unsigned char   ujg_header[] = { 'U', 'J' };
@@ -609,8 +609,12 @@ int initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-o" ) == 0 ) {
             overwrite = true;
         }
-        else if (strcmp((*argv), "-version" ) == 0 || strcmp((*argv), "--version") == 0) {
+        else if (strcmp((*argv), "-revision" ) == 0 || strcmp((*argv), "--revision") == 0) {
             printf("%s\n", GIT_REVISION);
+            exit(0);
+        }
+        else if (strcmp((*argv), "-version" ) == 0 || strcmp((*argv), "--version") == 0) {
+            printf("%02x\n", ujgversion);
             exit(0);
         }
         else if ( strcmp((*argv), "-decode" ) == 0 ) {
