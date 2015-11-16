@@ -70,7 +70,6 @@ void socket_serve(uint32_t global_max_length) {
     name_socket(dev_random);
     fclose(dev_random);
     std::thread do_cleanup(&cleanup_on_stdin);
-    do_cleanup.detach();
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
