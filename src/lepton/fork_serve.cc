@@ -71,9 +71,11 @@ static void cleanup_pipes(int) {
             unlink(last_pipes[i]);
         }
     }
+    custom_exit(3);
 }
 void fork_serve() {
     exit_on_stdin(fork());
+    signal(SIGINT, &cleanup_pipes);
     signal(SIGQUIT, &cleanup_pipes);
     signal(SIGTERM, &cleanup_pipes);
     FILE* dev_random = fopen("/dev/urandom", "rb");

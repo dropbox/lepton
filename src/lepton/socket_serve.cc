@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
+#include <thread>
 #ifndef __APPLE__
 #include <wait.h>
 #else
@@ -28,7 +29,7 @@ static void always_assert(bool expr) {
 static const char last_prefix[] = "/tmp/";
 static const char last_postfix[]=".uport";
 static char socket_name[sizeof((struct sockaddr_un*)0)->sun_path] = {};
-
+bool is_parent_process = true;
 static void name_socket(FILE * dev_random) {
     char random_data[16] = {0};
     auto retval = fread(random_data, 1, sizeof(random_data), dev_random);
@@ -50,14 +51,27 @@ static void name_socket(FILE * dev_random) {
     memcpy(socket_name+offset, last_postfix, sizeof(last_postfix));
 }
 
-static void cleanup_socket(int) {
-    unlink(socket_name);
+static void cleanup_socket(int code) {
+    if (is_parent_process) {
+        unlink(socket_name);
+        exit(code); // this calls exit_group
+    }
+    custom_exit(code); // this can only exit a single thread
 }
+void cleanup_on_stdin() {
+    unsigned char data[1];
+    while (read(0, data, sizeof(data)) < 0 && errno == EINTR) {
 
+    }
+    cleanup_socket(0);
+}
 void socket_serve(uint32_t global_max_length) {
     FILE* dev_random = fopen("/dev/urandom", "rb");
     name_socket(dev_random);
     fclose(dev_random);
+    std::thread do_cleanup(&cleanup_on_stdin);
+    do_cleanup.detach();
+    signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
     // listen
@@ -81,6 +95,7 @@ void socket_serve(uint32_t global_max_length) {
         int active_connection = accept(socket_fd, (sockaddr*)&client, &len);
         pid_t serve_file = fork();
         if (serve_file == 0) {
+            is_parent_process = false;
             while (close(1) < 0 && errno == EINTR){ // close stdout
             }
             IOUtil::FileReader reader(active_connection, global_max_length);
