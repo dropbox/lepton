@@ -545,7 +545,7 @@ int main( int argc, char** argv )
         fork_serve();
     } else if (action == socketserve) {
         g_use_seccomp = true; // do not allow forked mode without security in place
-        socket_serve(max_file_size);
+        socket_serve(&process_file, g_time_bound_ms, max_file_size);
     } else {
         process_file(nullptr, nullptr, &gen_nop, max_file_size);
     }

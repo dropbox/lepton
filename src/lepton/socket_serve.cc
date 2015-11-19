@@ -1,4 +1,3 @@
-#include "../../vp8/util/memory.hh"
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -16,8 +15,10 @@
 #endif
 #include <poll.h>
 #include <errno.h>
-#include "jpgcoder.hh"
-#include "../io/ioutil.hh"
+#include "../io/Reader.hh"
+#include "socket_serve.hh"
+#include "../../vp8/util/memory.hh"
+
 static char hex_nibble(uint8_t val) {
     if (val < 10) return val + '0';
     return val - 10 + 'a';
@@ -30,7 +31,9 @@ static void always_assert(bool expr) {
 static const char last_prefix[] = "/tmp/";
 static const char last_postfix[]=".uport";
 static char socket_name[sizeof((struct sockaddr_un*)0)->sun_path] = {};
+
 bool is_parent_process = true;
+
 static void name_socket(FILE * dev_random) {
     char random_data[16] = {0};
     auto retval = fread(random_data, 1, sizeof(random_data), dev_random);
@@ -57,8 +60,16 @@ static void cleanup_socket(int code) {
         unlink(socket_name);
         exit(code); // this calls exit_group
     }
-    custom_exit(code); // this can only exit a single thread
 }
+/**
+ * This closes the timer_pipe which will signal the main thread to start the clock for this pid
+ */
+static void subprocess_start_timer(int timer_pipe) {
+    while(close(timer_pipe) < 0 && errno == EINTR) {
+
+    }
+}
+
 struct ProcessInfo {
     uint64_t start_ms;
     pid_t pid;
@@ -72,30 +83,72 @@ pollfd make_pollfd(int fd) {
     retval.events = POLLIN;
     return retval;
 }
-ProcessInfo accept_new_connection(int active_connection, uint32_t global_max_length);
 
-void serving_loop(int unix_domain_socket_server, uint32_t global_max_length) {
+ProcessInfo accept_new_connection(int active_connection,
+                                  const SocketServeWorkFunction& work,
+                                  uint32_t global_max_length) {
+    int timer_pipe[2] = {-1, -1};
+    while(pipe(timer_pipe) < 0 && errno == EINTR) {
+    }
+    pid_t serve_file = fork();
+    if (serve_file == 0) {
+        is_parent_process = false;
+        while (close(1) < 0 && errno == EINTR){ // close stdout
+        }
+        while (close(timer_pipe[0]) < 0 && errno == EINTR){
+            // close timer pipe read end (will close write end on data recv)
+        }
+        IOUtil::FileReader reader(active_connection, global_max_length);
+        IOUtil::FileWriter writer(active_connection, false);
+        work(&reader,
+             &writer,
+             std::bind(&subprocess_start_timer,
+                       timer_pipe[1]
+                 ),
+             global_max_length);
+        custom_exit(0);
+    } else {
+        while (close(active_connection) < 0 && errno == EINTR){
+            // close the Unix Domain Socket
+        }
+        while (close(timer_pipe[1]) < 0 && errno == EINTR){
+          // close the end of the timer start pipe, so the child may close it
+          // to signal that it has received data and the clock is running
+        }
+    }
+    ProcessInfo process_info;
+    process_info.start_ms = 0;
+    process_info.pid = serve_file;
+    process_info.pipe_fd = timer_pipe[0];
+    return process_info;
+}
+
+void serving_loop(int unix_domain_socket_server,
+                  const SocketServeWorkFunction& work,
+                  uint64_t time_bound_ms,
+                  uint32_t global_max_length) {
     std::vector<ProcessInfo> process_map;
     std::vector<pid_t> terminated_processes;
     std::vector<pollfd> fd_of_interest;
     std::vector<int> active_fds;
     fd_of_interest.push_back(make_pollfd(0));
     fd_of_interest.push_back(make_pollfd(unix_domain_socket_server));
-    int64_t sleep_for = g_time_bound_ms;
+    int64_t sleep_for = time_bound_ms;
     while(true) {
         active_fds.clear();
         int num_fd = poll(&fd_of_interest[0],
                       fd_of_interest.size(),
                       sleep_for);
         if (fd_of_interest[0].revents) {
-            cleanup_socket(0); // this will exit
-            assert(false && "unreachable");
+            cleanup_socket(0);
+            return; // exit
         } else if (fd_of_interest[1].revents) { // new_socket
             struct sockaddr_un client;
             socklen_t len = sizeof(client);
             int active_connection = accept(unix_domain_socket_server,
                                            (sockaddr*)&client, &len);
             process_map.push_back(accept_new_connection(active_connection,
+                                                        work,
                                                         global_max_length));
             assert(num_fd > 0);
             --num_fd;
@@ -147,9 +200,9 @@ void serving_loop(int unix_domain_socket_server, uint32_t global_max_length) {
                         fd_of_interest.push_back(make_pollfd(cur_process->pipe_fd));
                     }
                     uint64_t delta_ms = now_ms - cur_process->start_ms;
-                    if (cur_process->start_ms && g_time_bound_ms && delta_ms > g_time_bound_ms) {
+                    if (cur_process->start_ms && time_bound_ms && delta_ms > time_bound_ms) {
                         fprintf(stderr, "Time Bound Reached: Killing %d\n", cur_process->pid);
-                        kill(cur_process->pid, delta_ms > g_time_bound_ms * 2 ? SIGKILL : SIGTERM);
+                        kill(cur_process->pid, delta_ms > time_bound_ms * 2 ? SIGKILL : SIGTERM);
                     } else {
                         if (cur_process->start_ms && cur_process->start_ms < min_start) {
                             min_start = cur_process->start_ms;
@@ -163,61 +216,16 @@ void serving_loop(int unix_domain_socket_server, uint32_t global_max_length) {
             assert(processes_to_pop <= process_map.size());
             process_map.resize(process_map.size() - processes_to_pop);
         }
-        sleep_for = g_time_bound_ms ? g_time_bound_ms - (now_ms - min_start) : 100000;
+        sleep_for = time_bound_ms ? time_bound_ms - (now_ms - min_start) : 100000;
         if (sleep_for < 0) {
             sleep_for = 0;
         }
     }
 }
-/**
- * This closes the timer_pipe which will signal the main thread to start the clock for this pid
- */
-void subprocess_start_timer(int timer_pipe) {
-    while(close(timer_pipe) < 0 && errno == EINTR) {
 
-    }
-}
-
-ProcessInfo accept_new_connection(int active_connection,
-                                  uint32_t global_max_length) {
-    int timer_pipe[2] = {-1, -1};
-    while(pipe(timer_pipe) < 0 && errno == EINTR) {
-    }
-    pid_t serve_file = fork();
-    if (serve_file == 0) {
-        is_parent_process = false;
-        while (close(1) < 0 && errno == EINTR){ // close stdout
-        }
-        while (close(timer_pipe[0]) < 0 && errno == EINTR){
-            // close timer pipe read end (will close write end on data recv)
-        }
-        IOUtil::FileReader reader(active_connection, global_max_length);
-        IOUtil::FileWriter writer(active_connection, false);
-        process_file(&reader,
-                     &writer,
-                     std::bind(&subprocess_start_timer,
-                               timer_pipe[1]
-                               ),
-                     global_max_length);
-        custom_exit(0);
-    } else {
-        while (close(active_connection) < 0 && errno == EINTR){
-            // close the Unix Domain Socket
-        }
-        while (close(timer_pipe[1]) < 0 && errno == EINTR){
-          // close the end of the timer start pipe, so the child may close it
-          // to signal that it has received data and the clock is running
-        }
-        ProcessInfo process_info;
-        process_info.start_ms = 0;
-        process_info.pid = serve_file;
-        process_info.pipe_fd = timer_pipe[0];
-        return process_info;
-    }
-}
-
-
-void socket_serve(uint32_t global_max_length) {
+void socket_serve(const SocketServeWorkFunction &work_fn,
+                  uint64_t time_bound_ms,
+                  uint32_t global_max_length) {
     FILE* dev_random = fopen("/dev/urandom", "rb");
     name_socket(dev_random);
     fclose(dev_random);
@@ -242,5 +250,5 @@ void socket_serve(uint32_t global_max_length) {
     always_assert(err == 0);
     fprintf(stdout, "%s\n", socket_name);
     fflush(stdout);
-    serving_loop(socket_fd, global_max_length);
+    serving_loop(socket_fd, work_fn, time_bound_ms, global_max_length);
 }

@@ -1,3 +1,5 @@
+#ifndef _SIRIKIATA_IO_UTIL_HH_
+#define _SIRIKIATA_IO_UTIL_HH_
 #include <unistd.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
@@ -103,3 +105,4 @@ SIRIKATA_FUNCTION_EXPORT FileReader * OpenFileOrPipe(const char * filename, int 
 SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe);
 
 }
+#endif
