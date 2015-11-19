@@ -110,7 +110,6 @@ void cleanup_on_stdin(int new_process_pipe) {
             }
         }
         terminated_processes.clear();
-#ifdef TIMINGIT
         int status;
         pid_t term_pid = 0;
         while ((term_pid = waitpid(-1, &status, WNOHANG)) > 0) {
@@ -157,15 +156,16 @@ void cleanup_on_stdin(int new_process_pipe) {
             process_map.resize(process_map.size() - processes_to_pop);
         }
     }
-#endif
 }
 /**
  * This closes the timer_pipe which will signal the main thread to start the clock for this pid
  */
 void subprocess_start_timer(int timer_pipe) {
+#ifdef TIMINGIT
     while(close(timer_pipe) < 0 && errno == EINTR) {
 
     }
+#endif
 }
 
 void socket_serve(uint32_t global_max_length) {
@@ -175,7 +175,9 @@ void socket_serve(uint32_t global_max_length) {
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
+#ifdef TIMINGIT
     std::thread do_cleanup(std::bind(&cleanup_on_stdin, new_process_pipe[0]));
+#endif
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
