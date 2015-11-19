@@ -558,10 +558,11 @@ int main( int argc, char** argv )
     if (!g_use_seccomp) {
         end = clock();
     }
-
-    // show statistics
-    fprintf( msgout,  "\n\n-> %i file(s) processed, %i error(s), %i warning(s)\n",
-        file_cnt, error_cnt, warn_cnt );
+    if (action != socketserve && action != forkserve) {
+        // show statistics
+        fprintf(msgout,  "\n\n-> %i file(s) processed, %i error(s), %i warning(s)\n",
+                file_cnt, error_cnt, warn_cnt);
+    }
     if ( ( file_cnt > error_cnt ) && ( verbosity > 0 ) )
     if ( action == comp ) {
         speed = (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC );

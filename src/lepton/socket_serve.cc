@@ -55,11 +55,12 @@ static void name_socket(FILE * dev_random) {
     memcpy(socket_name+offset, last_postfix, sizeof(last_postfix));
 }
 
-static void cleanup_socket(int code) {
+static void cleanup_socket(int) {
     if (is_parent_process) {
         unlink(socket_name);
-        exit(code); // this calls exit_group
+        return;
     }
+    custom_exit(0);
 }
 /**
  * This closes the timer_pipe which will signal the main thread to start the clock for this pid
