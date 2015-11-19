@@ -18,7 +18,6 @@
 #endif
 #include <poll.h>
 #include <errno.h>
-#include <set>
 #include "jpgcoder.hh"
 #include "../io/ioutil.hh"
 static char hex_nibble(uint8_t val) {
@@ -81,14 +80,15 @@ static std::vector<ProcessInfo> process_map;
 void cleanup_on_stdin(int new_process_pipe) {
     std::vector<pid_t> terminated_processes;
     std::vector<pollfd> fd_of_interest;
-    std::set<int> active_fds;
+    std::vector<int> active_fds;
     fd_of_interest.push_back(make_pollfd(0));
     fd_of_interest.push_back(make_pollfd(new_process_pipe));
+    int64_t sleep_for = g_time_bound_ms;
     while(true) {
         active_fds.clear();
         int num_fd = poll(&fd_of_interest[0],
                       fd_of_interest.size(),
-                      g_time_bound_ms);
+                      sleep_for);
         if (fd_of_interest[0].revents) {
             cleanup_socket(0); // this will exit
             assert(false && "unreachable");
@@ -102,7 +102,7 @@ void cleanup_on_stdin(int new_process_pipe) {
         for (std::vector<pollfd>::const_iterator i = fd_of_interest.begin(),
                  ie = fd_of_interest.end(); num_fd && i != ie; ++i) {
             if (i->revents) {
-                active_fds.insert(i->fd);
+                active_fds.push_back(i->fd);
                 --num_fd;
             }
         }
@@ -117,19 +117,24 @@ void cleanup_on_stdin(int new_process_pipe) {
         uint64_t now_ms = now.tv_sec;
         now_ms *= 1000;
         now_ms += now.tv_usec / 1000;
+        uint64_t min_start = now_ms;
         fd_of_interest.resize(2); // get stdin and new_process_pipe only
         {
             std::lock_guard<std::mutex> lock(process_map_mutex);
             std::vector<ProcessInfo>::iterator cur_process = process_map.begin(),
                 end_process = process_map.end();
             while(cur_process != end_process) {
-                if (active_fds.find(cur_process->pipe_fd) != active_fds.end()) {
+                if (std::find(active_fds.begin(),
+                              active_fds.end(),
+                              cur_process->pipe_fd) != active_fds.end()) {
                     cur_process->start_ms = now_ms;
                     while(close(cur_process->pipe_fd) < 0 && errno == EINTR) {
                     }
                     cur_process->pipe_fd = -1;
                 }
-                if (std::find(terminated_processes.begin(), terminated_processes.end(), cur_process->pid) != terminated_processes.end()) {
+                if (std::find(terminated_processes.begin(),
+                              terminated_processes.end(),
+                              cur_process->pid) != terminated_processes.end()) {
                     if (cur_process->pipe_fd != -1) {
                         while(close(cur_process->pipe_fd) < 0 && errno == EINTR) {
                         }
@@ -145,6 +150,11 @@ void cleanup_on_stdin(int new_process_pipe) {
                     if (cur_process->start_ms && g_time_bound_ms && delta_ms > g_time_bound_ms) {
                         fprintf(stderr, "Time Bound Reached: Killing %d\n", cur_process->pid);
                         kill(cur_process->pid, delta_ms > g_time_bound_ms * 2 ? SIGKILL : SIGTERM);
+                    } else {
+                        if (cur_process->start_ms && cur_process->start_ms < min_start) {
+                            min_start = cur_process->start_ms;
+                        }
+
                     }
                     ++cur_process;
                 }
@@ -152,6 +162,10 @@ void cleanup_on_stdin(int new_process_pipe) {
             size_t processes_to_pop = process_map.end() - end_process;
             assert(processes_to_pop <= process_map.size());
             process_map.resize(process_map.size() - processes_to_pop);
+        }
+        sleep_for = g_time_bound_ms ? g_time_bound_ms - (now_ms - min_start) : 100000;
+        if (sleep_for < 0) {
+            sleep_for = 0;
         }
     }
 }
