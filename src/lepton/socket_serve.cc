@@ -62,7 +62,6 @@ static void cleanup_socket(int code) {
     }
     custom_exit(code); // this can only exit a single thread
 }
-#ifdef TIMINGIT
 struct ProcessInfo {
     uint64_t start_ms;
     pid_t pid;
@@ -158,14 +157,6 @@ void cleanup_on_stdin(int new_process_pipe) {
         }
     }
 }
-#else
-void cleanup_on_stdin() {
-    unsigned char data[1];
-    while (read(0, data, sizeof(data)) < 0 && errno == EINTR) {
-    }
-    cleanup_socket(0);
-}
-#endif
 /**
  * This closes the timer_pipe which will signal the main thread to start the clock for this pid
  */
@@ -181,13 +172,11 @@ void socket_serve(uint32_t global_max_length) {
     FILE* dev_random = fopen("/dev/urandom", "rb");
     name_socket(dev_random);
     fclose(dev_random);
-#ifdef TIMINGIT
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
+#ifdef TIMINGIT
     std::thread do_cleanup(std::bind(&cleanup_on_stdin, new_process_pipe[0]));
-#else
-    std::thread do_cleanup(&cleanup_on_stdin);
 #endif
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
@@ -206,6 +195,9 @@ void socket_serve(uint32_t global_max_length) {
     always_assert(err == 0);
     err = listen(socket_fd, 16);
     always_assert(err == 0);
+    fprintf(stdout, "%s\n", socket_name);
+    fflush(stdout);
+
     while (true) {
         socklen_t len = sizeof(client);
         int active_connection = accept(socket_fd, (sockaddr*)&client, &len);
