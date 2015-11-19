@@ -18,7 +18,7 @@
 #endif
 #include <poll.h>
 #include <errno.h>
-#include <map>
+#include <set>
 #include "jpgcoder.hh"
 #include "../io/ioutil.hh"
 static char hex_nibble(uint8_t val) {
@@ -81,19 +81,33 @@ static std::vector<ProcessInfo> process_map;
 void cleanup_on_stdin(int new_process_pipe) {
     std::vector<pid_t> terminated_processes;
     std::vector<pollfd> fd_of_interest;
+    std::set<int> active_fds;
     fd_of_interest.push_back(make_pollfd(0));
     fd_of_interest.push_back(make_pollfd(new_process_pipe));
     while(true) {
-        int fd = poll(&fd_of_interest[0],
+        active_fds.clear();
+        int num_fd = poll(&fd_of_interest[0],
                       fd_of_interest.size(),
                       g_time_bound_ms);
-        if (fd == 0) {
+        if (num_fd) {
+            fprintf(stderr, "POLL FROM %d retval: %d\n", num_fd, fd_of_interest[0].revents);
+        }
+        if (fd_of_interest[0].revents) {
             cleanup_socket(0); // this will exit
             assert(false && "unreachable");
-        } else if (fd == new_process_pipe) {
+        } else if (fd_of_interest[1].revents) { // new_process_pipe
             unsigned char buf = 0;
             while (read(new_process_pipe, &buf, 1) < 0 && errno == EINTR) {
             } // empty the buffer
+            assert(num_fd > 0);
+            --num_fd;
+        }
+        for (std::vector<pollfd>::const_iterator i = fd_of_interest.begin(),
+                 ie = fd_of_interest.end(); num_fd && i != ie; ++i) {
+            if (i->revents) {
+                active_fds.insert(i->fd);
+                --num_fd;
+            }
         }
         terminated_processes.clear();
         int status;
@@ -107,38 +121,40 @@ void cleanup_on_stdin(int new_process_pipe) {
         now_ms *= 1000;
         now_ms += now.tv_usec / 1000;
         fd_of_interest.resize(2); // get stdin and new_process_pipe only
-        std::lock_guard<std::mutex> lock(process_map_mutex);
-        std::vector<ProcessInfo>::iterator cur_process = process_map.begin(),
-            end_process = process_map.end();
-        while(cur_process != end_process) {
-            if (fd >= 0 && cur_process->pipe_fd == fd) {
-                cur_process->start_ms = now_ms;
-                while(close(cur_process->pipe_fd) < 0 && errno == EINTR) {
-                }
-                cur_process->pipe_fd = -1;
-            }
-            if (cur_process->pipe_fd != -1) {
-                fd_of_interest.push_back(make_pollfd(cur_process->pipe_fd));
-            }
-            if (std::find(terminated_processes.begin(), terminated_processes.end(), cur_process->pid) != terminated_processes.end()) {
-                if (cur_process->pipe_fd != -1) {
+        {
+            std::lock_guard<std::mutex> lock(process_map_mutex);
+            std::vector<ProcessInfo>::iterator cur_process = process_map.begin(),
+                end_process = process_map.end();
+            while(cur_process != end_process) {
+                if (active_fds.find(cur_process->pipe_fd) != active_fds.end()) {
+                    cur_process->start_ms = now_ms;
                     while(close(cur_process->pipe_fd) < 0 && errno == EINTR) {
                     }
                     cur_process->pipe_fd = -1;
                 }
-                --end_process;
-                *cur_process = *end_process;
-            } else {
-                uint64_t delta_ms = now_ms - cur_process->start_ms;
-                if (cur_process->start_ms && g_time_bound_ms && delta_ms > g_time_bound_ms) {
-                    kill(cur_process->start_ms, delta_ms > g_time_bound_ms * 2 ? SIGKILL : SIGTERM);
+                if (std::find(terminated_processes.begin(), terminated_processes.end(), cur_process->pid) != terminated_processes.end()) {
+                    if (cur_process->pipe_fd != -1) {
+                        while(close(cur_process->pipe_fd) < 0 && errno == EINTR) {
+                        }
+                        cur_process->pipe_fd = -1;
+                    }
+                    --end_process;
+                    *cur_process = *end_process;
+                } else {
+                    if (cur_process->pipe_fd != -1) {
+                        fd_of_interest.push_back(make_pollfd(cur_process->pipe_fd));
+                    }
+                    uint64_t delta_ms = now_ms - cur_process->start_ms;
+                    if (cur_process->start_ms && g_time_bound_ms && delta_ms > g_time_bound_ms) {
+                        kill(cur_process->start_ms, delta_ms > g_time_bound_ms * 2 ? SIGKILL : SIGTERM);
+                    }
+                    ++cur_process;
                 }
-                ++cur_process;
             }
+            size_t processes_to_pop = process_map.end() - end_process;
+            assert(processes_to_pop <= process_map.size());
+            process_map.resize(process_map.size() - processes_to_pop);
         }
-        size_t processes_to_pop = process_map.end() - end_process;
-        assert(processes_to_pop < process_map.size());
-        process_map.resize(process_map.size() - processes_to_pop);
     }
 }
 /**
@@ -151,14 +167,12 @@ void subprocess_start_timer(int timer_pipe) {
 }
 
 void socket_serve(uint32_t global_max_length) {
-    fprintf(stderr, "A\n");
     FILE* dev_random = fopen("/dev/urandom", "rb");
     name_socket(dev_random);
     fclose(dev_random);
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
-    fprintf(stderr, "B\n");
     std::thread do_cleanup(std::bind(&cleanup_on_stdin, new_process_pipe[0]));
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
@@ -175,15 +189,11 @@ void socket_serve(uint32_t global_max_length) {
     memcpy(address.sun_path, socket_name, std::min(strlen(socket_name), sizeof(address.sun_path)));
     err = bind(socket_fd, (struct sockaddr*)&address, sizeof(address));
     always_assert(err == 0);
-    fprintf(stderr, "C\n");
     err = listen(socket_fd, 16);
     always_assert(err == 0);
-    fprintf(stdout, "%s\n", socket_name);
-    fflush(stdout);
     while (true) {
         socklen_t len = sizeof(client);
         int active_connection = accept(socket_fd, (sockaddr*)&client, &len);
-        fprintf(stderr, "D\n");
         int timer_pipe[2] = {-1, -1};
         while(pipe(timer_pipe) < 0 && errno == EINTR) {
 
@@ -217,7 +227,6 @@ void socket_serve(uint32_t global_max_length) {
                 // close the end of the timer start pipe, so the child may close it
                 // to signal that it has received data and the clock is running
             }
-            fprintf(stderr, "E\n");
             ProcessInfo process_info;
             process_info.start_ms = 0;
             process_info.pid = serve_file;
