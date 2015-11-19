@@ -24,7 +24,7 @@ def read_all_fd(fd):
 
 def test_compression(binary_name):
     global jpg_name
-    proc = subprocess.Popen([binary_name,'-socket','-recode','-decode'],
+    proc = subprocess.Popen([binary_name,'-socket','-timebound=4500ms','-recode','-decode'],
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE)
     socket_name = proc.stdout.readline().strip()
@@ -41,7 +41,6 @@ def test_compression(binary_name):
 
     with open(jpg_name) as f:
         jpg = f.read()
-    jpglen = len(jpg)
     def fn():
         valid_socks[0].sendall(jpg)
         valid_socks[0].shutdown(socket.SHUT_WR)

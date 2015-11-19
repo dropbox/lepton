@@ -72,7 +72,7 @@ pollfd make_pollfd(int fd) {
     pollfd retval;
     memset(&retval, 0, sizeof(retval));
     retval.fd = fd;
-    retval.events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+    retval.events = POLLIN;
     return retval;
 }
 
@@ -89,9 +89,6 @@ void cleanup_on_stdin(int new_process_pipe) {
         int num_fd = poll(&fd_of_interest[0],
                       fd_of_interest.size(),
                       g_time_bound_ms);
-        if (num_fd) {
-            fprintf(stderr, "POLL FROM %d retval: %d\n", num_fd, fd_of_interest[0].revents);
-        }
         if (fd_of_interest[0].revents) {
             cleanup_socket(0); // this will exit
             assert(false && "unreachable");
@@ -146,7 +143,8 @@ void cleanup_on_stdin(int new_process_pipe) {
                     }
                     uint64_t delta_ms = now_ms - cur_process->start_ms;
                     if (cur_process->start_ms && g_time_bound_ms && delta_ms > g_time_bound_ms) {
-                        kill(cur_process->start_ms, delta_ms > g_time_bound_ms * 2 ? SIGKILL : SIGTERM);
+                        fprintf(stderr, "Time Bound Reached: Killing %d\n", cur_process->pid);
+                        kill(cur_process->pid, delta_ms > g_time_bound_ms * 2 ? SIGKILL : SIGTERM);
                     }
                     ++cur_process;
                 }
@@ -161,11 +159,9 @@ void cleanup_on_stdin(int new_process_pipe) {
  * This closes the timer_pipe which will signal the main thread to start the clock for this pid
  */
 void subprocess_start_timer(int timer_pipe) {
-#ifdef TIMINGIT
     while(close(timer_pipe) < 0 && errno == EINTR) {
 
     }
-#endif
 }
 
 void socket_serve(uint32_t global_max_length) {
@@ -175,14 +171,11 @@ void socket_serve(uint32_t global_max_length) {
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
-#ifdef TIMINGIT
     std::thread do_cleanup(std::bind(&cleanup_on_stdin, new_process_pipe[0]));
-#endif
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
     // listen
-    
     struct sockaddr_un address, client;
     memset(&address, 0, sizeof(struct sockaddr_un));
     int socket_fd;
@@ -249,6 +242,5 @@ void socket_serve(uint32_t global_max_length) {
                 // signal to the thread that new processes need to be added to the pollfd
             }
         }
-        
     }
 }

@@ -767,6 +767,7 @@ void process_file(IOUtil::FileReader* reader,
     }
     // check input file and determine filetype
     check_file(reader, writer, max_file_size);
+    signal_data_recv();
     begin = clock();
 #ifdef __linux
     if (g_use_seccomp) {
