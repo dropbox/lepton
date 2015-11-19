@@ -23,7 +23,8 @@
 #include <sys/syscall.h>
 
 #endif
-#include "emmintrin.h"
+#include <emmintrin.h>
+#include "jpgcoder.hh"
 #include "bitops.hh"
 #include "htables.hh"
 #include "component_info.hh"
@@ -127,7 +128,6 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
 
 // returns the max size of the input file
 int initialize_options( int argc, char** argv );
-void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
 void execute( bool (*function)() );
 void show_help( void );
 
@@ -336,6 +336,7 @@ F_TYPE ofiletype = LEPTON;            // desired type of output file
 std::unique_ptr<BaseEncoder> g_encoder;
 std::unique_ptr<BaseDecoder> g_decoder;
 bool g_threaded = true;
+uint64_t g_time_bound_ms = 0;
 
 Sirikata::DecoderReader* str_in  = NULL;    // input stream
 bounded_iostream* str_out = NULL;    // output stream
@@ -375,7 +376,7 @@ ACTION action   = comp;        // what to do with JPEG/UJG files
 FILE*  msgout   = stderr;    // stream for output of messages
 bool   pipe_on  = false;    // use stdin/stdout instead of filelist
 
-
+void gen_nop(){}
 /* -----------------------------------------------
     global variables: info about program
     ----------------------------------------------- */
@@ -546,7 +547,7 @@ int main( int argc, char** argv )
         g_use_seccomp = true; // do not allow forked mode without security in place
         socket_serve(max_file_size);
     } else {
-        process_file(nullptr, nullptr, max_file_size);
+        process_file(nullptr, nullptr, &gen_nop, max_file_size);
     }
     if (errorlevel.load() >= err_tresh) error_cnt++;
     if (errorlevel.load() == 1 ) warn_cnt++;
@@ -627,6 +628,20 @@ int initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-nostreaming" ) == 0)  {
             do_streaming = false;
         }
+        else if ( strncmp((*argv), "-timebound=", strlen("-timebound=")) == 0) {
+            char * endptr = NULL;
+            g_time_bound_ms = strtoll((*argv) + strlen("-timebound="), &endptr, 10);
+            if (endptr) {
+                if (strcmp(endptr, "s") == 0) {
+                    g_time_bound_ms *= 1000;
+                } else if (strcmp(endptr, "us") == 0) {
+                    g_time_bound_ms /= 1000;
+                } else if (strcmp(endptr, "ms") != 0) {
+                    fprintf(stderr, "Time must have units (ms or s)\n");
+                    exit(1);
+                }
+            }
+        }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
         }
@@ -693,13 +708,16 @@ int initialize_options( int argc, char** argv )
     }
     for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
     }
+    if (g_time_bound_ms && action != socketserve) {
+        fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
+        exit(1);
+    }
     return max_file_size;
 }
 
 /* -----------------------------------------------
     processes one file
     ----------------------------------------------- */
-static void gen_nop(){}
 void kill_workers(void * workers) {
     Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = 
         (Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *) workers;
@@ -713,7 +731,10 @@ void kill_workers(void * workers) {
         }
     }
 }
-void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size)
+void process_file(IOUtil::FileReader* reader,
+                  IOUtil::FileWriter *writer,
+                  const std::function<void()> &signal_data_recv,
+                  int max_file_size)
 {
     clock_t begin = 0, end = 1;
     const char* actionmsg  = NULL;
@@ -766,7 +787,7 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int ma
         actionmsg = "Decompressing to JPEG\n";
     }
 
-    if ( verbosity < 2 ) {
+    if ( verbosity > 0 ) {
         while (write(2, actionmsg , strlen(actionmsg)) < 0 && errno == EINTR) {}
     }
 
@@ -889,12 +910,9 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int ma
                     }
                 }
                 else {
-                    fprintf( msgout,  "DONE" );
+                    fprintf( msgout,  "DONE\n" );
                 }
             }
-            else fprintf( msgout,  "ERROR" );
-          if ( errorlevel.load() > 0 )
-                fprintf( msgout,  "\n" );
             break;
 
         case 1:
@@ -928,10 +946,12 @@ void process_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int ma
 
     if ( errorlevel.load() > 0 )
     {
-        fprintf( stderr, " %s:\n", errtypemsg  );
-        fprintf( stderr, " %s\n", errormessage.c_str() );
-        if ( verbosity > 1 )
-            fprintf( stderr, " (in file \"%s\")\n", filelist[ file_no ] );
+        if (false && action != socketserve && action != forkserve) {
+            fprintf( stderr, " %s:\n", errtypemsg  );
+            fprintf( stderr, " %s\n", errormessage.c_str() );
+            if ( verbosity > 1 )
+                fprintf( stderr, " (in file \"%s\")\n", filelist[ file_no ] );
+        }
     }
     if ( (verbosity > 0) && (errorlevel.load() < err_tresh) )
     if ( action == comp )
@@ -1086,7 +1106,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
     // immediately return error if 2 bytes can't be read
     if ( IOUtil::ReadFull(str_in, fileid, 2 ) != 2 ) {
         filetype = UNK;
-        fprintf( stderr, "file doesn't contain enough data" );
+        errormessage = "file doesn't contain enough data";
         errorlevel.store(2);
         return false;
     }
