@@ -8,26 +8,17 @@ typedef uint8_t Probability;
 
 //#define JPEG_ENCODER
 // ^^^ if we want to try to use the JPEG spec arithmetic coder, uncomment above
-//#define USE_COUNT_FREE_UPDATE
 class Branch
 {
 private:
-#ifndef USE_COUNT_FREE_UPDATE
   uint8_t counts_[2] = {1, 1};
-#endif
   Probability probability_ = 128;
-#ifdef USE_COUNT_FREE_UPDATE
-  uint8_t full_count = 0;
-  uint8_t lprob = 128;
-#endif
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
 public:
   Probability prob() const { return probability_; }
-#ifndef USE_COUNT_FREE_UPDATE
   uint32_t true_count() const { return counts_[1]; }
   uint32_t false_count() const { return counts_[0]; }
-#endif
     struct ProbUpdate {
         struct ProbOutcome {
             uint8_t log_prob;
@@ -129,15 +120,6 @@ public:
           pr = false;
           print_prob_update();
           }*/
-#ifdef USE_COUNT_FREE_UPDATE
-      if (full_count != 0xff) ++full_count;
-      {
-          auto ret = update_lookup[full_count / (256 / (sizeof(update_lookup)/sizeof(update_lookup[0])))][lprob].next[obs];
-          lprob = ret.log_prob;
-          probability_ = update_lookup[full_count / (256 / (sizeof(update_lookup)/sizeof(update_lookup[0])))][lprob].prob;
-          return;
-      }
-#else
       unsigned int fcount = counts_[0];
       unsigned int tcount = counts_[1];
       bool overflow = (counts_[obs]++ == 0xff);
@@ -155,24 +137,11 @@ public:
       } else {
           probability_ = optimize(fcount + tcount + 1);
       }
-#endif
-#ifdef USE_COUNT_FREE_UPDATE
-      auto ret = update_from_log_prob(lprob);
-      if (obs) {
-          lprob = ret.log_prob_true();
-      } else {
-          lprob = ret.log_prob_false();
-      }
-      probability_ = compute_prob_from_log_prob(lprob);
-#endif
   }
   void normalize() {
-#ifndef USE_COUNT_FREE_UPDATE
       counts_[0] = ((1 + (unsigned int)counts_[0]) >> 1);
       counts_[1] = ((1 + (unsigned int)counts_[1]) >> 1);
-#endif
   }
-#ifndef USE_COUNT_FREE_UPDATE
   __attribute__((always_inline))
   Probability optimize(int sum) const
   {
@@ -192,7 +161,6 @@ public:
 #error needs to be updated
 #endif
   }
-#endif
 
   Branch(){}
 };

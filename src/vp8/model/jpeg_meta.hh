@@ -40,7 +40,7 @@ static const unsigned char unzigzag49[] =
     53, 60, 61, 54, 47, 55, 62, 63
 };
 
-// precalculated int base values for 8x8 DCT, multplied by 8192
+// precalculated int base values for 8x8 dct scaled by 8192
 const int icos_base_8192_scaled[ 64 ] =
 {
 	 8192,  8192,  8192,  8192,  8192,  8192,  8192,  8192,
@@ -65,7 +65,7 @@ const int icos_idct_linear_8192_scaled[ 64 ] =
 	 1024, -1420,  1338, -1204,  1024,  -805,   554,  -283,
 };
 
-static const unsigned char nonzero_to_bin[ 49 ][ 50 ] = {
+constexpr unsigned char nonzero_to_bin[49][50] = {
 	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, },
 	{  0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,

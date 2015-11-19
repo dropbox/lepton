@@ -9,7 +9,6 @@
 #include "../../lepton/idct.hh"
 #include "numeric.hh"
 #include "branch.hh"
-#include "block.hh"
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 #include <smmintrin.h>
@@ -957,15 +956,7 @@ public:
         assert(((band & 7) ? compute_lak_horizontal(context,band): compute_lak_vertical(context,band)) == prediction
                && "Vectorized version must match sequential version");
         return prediction;
-    }/*
-    SignValue compute_sign(const Block&block, unsigned int band) {
-        if (block.context().left.initialized()) {
-            return block.context().left.get()->coefficients().at(band);
-        } else if (block.context().above.initialized()) {
-            return block.context().above.get()->coefficients().at(band);
-        }
-        return 0;
-        }*/
+    }
     Sirikata::Array1d<Branch,
             (1<<RESIDUAL_NOISE_FLOOR)>::Slice
         residual_thresh_array(ProbabilityTablesBase &pt,

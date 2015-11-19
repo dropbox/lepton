@@ -2,12 +2,10 @@
 #include "bool_encoder.hh"
 #include "boolwriter.hh"
 #include "jpeg_meta.hh"
-#include "block.hh"
 #include "numeric.hh"
 #include "model.hh"
 #include "encoder.hh"
 #include <map>
-#include "weight.hh"
 #include <fstream>
 #include "../../lepton/idct.hh"
 #include "../util/debug.hh"

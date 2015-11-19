@@ -11,7 +11,6 @@
 #include "jpgcoder.hh"
 #include "vp8_encoder.hh"
 
-#include "block.hh"
 #include "bool_encoder.hh"
 #include "model.hh"
 #include "numeric.hh"
