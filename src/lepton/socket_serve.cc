@@ -110,6 +110,7 @@ void cleanup_on_stdin(int new_process_pipe) {
             }
         }
         terminated_processes.clear();
+#ifdef TIMINGIT
         int status;
         pid_t term_pid = 0;
         while ((term_pid = waitpid(-1, &status, WNOHANG)) > 0) {
@@ -156,16 +157,15 @@ void cleanup_on_stdin(int new_process_pipe) {
             process_map.resize(process_map.size() - processes_to_pop);
         }
     }
+#endif
 }
 /**
  * This closes the timer_pipe which will signal the main thread to start the clock for this pid
  */
 void subprocess_start_timer(int timer_pipe) {
-#ifdef TIMINGIT
     while(close(timer_pipe) < 0 && errno == EINTR) {
 
     }
-#endif
 }
 
 void socket_serve(uint32_t global_max_length) {
@@ -175,9 +175,7 @@ void socket_serve(uint32_t global_max_length) {
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
-#ifdef TIMINGIT
     std::thread do_cleanup(std::bind(&cleanup_on_stdin, new_process_pipe[0]));
-#endif
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
@@ -201,18 +199,15 @@ void socket_serve(uint32_t global_max_length) {
     while (true) {
         socklen_t len = sizeof(client);
         int active_connection = accept(socket_fd, (sockaddr*)&client, &len);
-#ifdef TIMINGIT
         int timer_pipe[2] = {-1, -1};
         while(pipe(timer_pipe) < 0 && errno == EINTR) {
 
         }
-#endif
         pid_t serve_file = fork();
         if (serve_file == 0) {
             is_parent_process = false;
             while (close(1) < 0 && errno == EINTR){ // close stdout
             }
-#ifdef TIMINGIT
             while (close(timer_pipe[0]) < 0 && errno == EINTR){
                 // close timer pipe read end (will close write end on data recv)
             }
@@ -222,17 +217,12 @@ void socket_serve(uint32_t global_max_length) {
             while (close(new_process_pipe[1]) < 0 && errno == EINTR){
                 // close other end of new process pipe
             }
-#endif
             IOUtil::FileReader reader(active_connection, global_max_length);
             IOUtil::FileWriter writer(active_connection, false);
             process_file(&reader,
                          &writer,
                          std::bind(&subprocess_start_timer,
-#ifdef TIMINGIT
                                    timer_pipe[1]
-#else
-                                   -1
-#endif
                              ),
                                          global_max_length);
             custom_exit(0);
@@ -240,7 +230,6 @@ void socket_serve(uint32_t global_max_length) {
             while (close(active_connection) < 0 && errno == EINTR){
                 // close the Unix Domain Socket
             }
-#ifdef TIMINGIT
             while (close(timer_pipe[1]) < 0 && errno == EINTR){
                 // close the end of the timer start pipe, so the child may close it
                 // to signal that it has received data and the clock is running
@@ -257,7 +246,6 @@ void socket_serve(uint32_t global_max_length) {
             while (write(new_process_pipe[1], &val, 1) < 0 && errno == EINTR){
                 // signal to the thread that new processes need to be added to the pollfd
             }
-#endif
         }
         
     }
