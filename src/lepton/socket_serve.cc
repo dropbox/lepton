@@ -8,8 +8,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
-#include <thread>
-#include <mutex>
 #include <sys/time.h>
 #ifndef __APPLE__
 #include <wait.h>
@@ -74,15 +72,15 @@ pollfd make_pollfd(int fd) {
     retval.events = POLLIN;
     return retval;
 }
+ProcessInfo accept_new_connection(int active_connection, uint32_t global_max_length);
 
-std::mutex process_map_mutex;
-static std::vector<ProcessInfo> process_map;
-void cleanup_on_stdin(int new_process_pipe) {
+void serving_loop(int unix_domain_socket_server, uint32_t global_max_length) {
+    std::vector<ProcessInfo> process_map;
     std::vector<pid_t> terminated_processes;
     std::vector<pollfd> fd_of_interest;
     std::vector<int> active_fds;
     fd_of_interest.push_back(make_pollfd(0));
-    fd_of_interest.push_back(make_pollfd(new_process_pipe));
+    fd_of_interest.push_back(make_pollfd(unix_domain_socket_server));
     int64_t sleep_for = g_time_bound_ms;
     while(true) {
         active_fds.clear();
@@ -92,10 +90,13 @@ void cleanup_on_stdin(int new_process_pipe) {
         if (fd_of_interest[0].revents) {
             cleanup_socket(0); // this will exit
             assert(false && "unreachable");
-        } else if (fd_of_interest[1].revents) { // new_process_pipe
-            unsigned char buf = 0;
-            while (read(new_process_pipe, &buf, 1) < 0 && errno == EINTR) {
-            } // empty the buffer
+        } else if (fd_of_interest[1].revents) { // new_socket
+            struct sockaddr_un client;
+            socklen_t len = sizeof(client);
+            int active_connection = accept(unix_domain_socket_server,
+                                           (sockaddr*)&client, &len);
+            process_map.push_back(accept_new_connection(active_connection,
+                                                        global_max_length));
             assert(num_fd > 0);
             --num_fd;
         }
@@ -120,7 +121,6 @@ void cleanup_on_stdin(int new_process_pipe) {
         uint64_t min_start = now_ms;
         fd_of_interest.resize(2); // get stdin and new_process_pipe only
         {
-            std::lock_guard<std::mutex> lock(process_map_mutex);
             std::vector<ProcessInfo>::iterator cur_process = process_map.begin(),
                 end_process = process_map.end();
             while(cur_process != end_process) {
@@ -178,6 +178,45 @@ void subprocess_start_timer(int timer_pipe) {
     }
 }
 
+ProcessInfo accept_new_connection(int active_connection,
+                                  uint32_t global_max_length) {
+    int timer_pipe[2] = {-1, -1};
+    while(pipe(timer_pipe) < 0 && errno == EINTR) {
+    }
+    pid_t serve_file = fork();
+    if (serve_file == 0) {
+        is_parent_process = false;
+        while (close(1) < 0 && errno == EINTR){ // close stdout
+        }
+        while (close(timer_pipe[0]) < 0 && errno == EINTR){
+            // close timer pipe read end (will close write end on data recv)
+        }
+        IOUtil::FileReader reader(active_connection, global_max_length);
+        IOUtil::FileWriter writer(active_connection, false);
+        process_file(&reader,
+                     &writer,
+                     std::bind(&subprocess_start_timer,
+                               timer_pipe[1]
+                               ),
+                     global_max_length);
+        custom_exit(0);
+    } else {
+        while (close(active_connection) < 0 && errno == EINTR){
+            // close the Unix Domain Socket
+        }
+        while (close(timer_pipe[1]) < 0 && errno == EINTR){
+          // close the end of the timer start pipe, so the child may close it
+          // to signal that it has received data and the clock is running
+        }
+        ProcessInfo process_info;
+        process_info.start_ms = 0;
+        process_info.pid = serve_file;
+        process_info.pipe_fd = timer_pipe[0];
+        return process_info;
+    }
+}
+
+
 void socket_serve(uint32_t global_max_length) {
     FILE* dev_random = fopen("/dev/urandom", "rb");
     name_socket(dev_random);
@@ -185,12 +224,11 @@ void socket_serve(uint32_t global_max_length) {
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
-    std::thread do_cleanup(std::bind(&cleanup_on_stdin, new_process_pipe[0]));
     signal(SIGINT, &cleanup_socket);
     signal(SIGQUIT, &cleanup_socket);
     signal(SIGTERM, &cleanup_socket);
     // listen
-    struct sockaddr_un address, client;
+    struct sockaddr_un address;
     memset(&address, 0, sizeof(struct sockaddr_un));
     int socket_fd;
     int err;
@@ -204,57 +242,5 @@ void socket_serve(uint32_t global_max_length) {
     always_assert(err == 0);
     fprintf(stdout, "%s\n", socket_name);
     fflush(stdout);
-
-    while (true) {
-        socklen_t len = sizeof(client);
-        int active_connection = accept(socket_fd, (sockaddr*)&client, &len);
-        int timer_pipe[2] = {-1, -1};
-        while(pipe(timer_pipe) < 0 && errno == EINTR) {
-
-        }
-        pid_t serve_file = fork();
-        if (serve_file == 0) {
-            is_parent_process = false;
-            while (close(1) < 0 && errno == EINTR){ // close stdout
-            }
-            while (close(timer_pipe[0]) < 0 && errno == EINTR){
-                // close timer pipe read end (will close write end on data recv)
-            }
-            while (close(new_process_pipe[0]) < 0 && errno == EINTR){
-                // close new process communication pipe
-            }
-            while (close(new_process_pipe[1]) < 0 && errno == EINTR){
-                // close other end of new process pipe
-            }
-            IOUtil::FileReader reader(active_connection, global_max_length);
-            IOUtil::FileWriter writer(active_connection, false);
-            process_file(&reader,
-                         &writer,
-                         std::bind(&subprocess_start_timer,
-                                   timer_pipe[1]
-                             ),
-                                         global_max_length);
-            custom_exit(0);
-        } else {
-            while (close(active_connection) < 0 && errno == EINTR){
-                // close the Unix Domain Socket
-            }
-            while (close(timer_pipe[1]) < 0 && errno == EINTR){
-                // close the end of the timer start pipe, so the child may close it
-                // to signal that it has received data and the clock is running
-            }
-            ProcessInfo process_info;
-            process_info.start_ms = 0;
-            process_info.pid = serve_file;
-            process_info.pipe_fd = timer_pipe[0];
-            {
-                std::lock_guard<std::mutex> guard(process_map_mutex);
-                process_map.push_back(process_info);
-            }
-            unsigned char val = 1;
-            while (write(new_process_pipe[1], &val, 1) < 0 && errno == EINTR){
-                // signal to the thread that new processes need to be added to the pollfd
-            }
-        }
-    }
+    serving_loop(socket_fd, global_max_length);
 }

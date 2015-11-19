@@ -251,7 +251,6 @@ bool is_zero(const void * data, size_t size) {
     return retval == 0;
 }
 }
-
 // Allocations are done in 'quantas' of header size.
 // The search for a free block of adequate size begins at the point 'memmgr.freep'
 // where the last block was found.

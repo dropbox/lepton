@@ -24,7 +24,7 @@ def read_all_fd(fd):
 
 def test_compression(binary_name):
     global jpg_name
-    proc = subprocess.Popen([binary_name,'-socket','-timebound=4500ms','-recode','-decode'],
+    proc = subprocess.Popen([binary_name,'-socket','-timebound=5000ms','-unjailed', '-recode','-decode'],
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE)
     socket_name = proc.stdout.readline().strip()
