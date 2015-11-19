@@ -1,6 +1,7 @@
 #include "memory.hh"
-#ifdef __linux
 #include <unistd.h>
+#include <errno.h>
+#ifdef __linux
 #include <sys/syscall.h>
 #endif
 #if defined(__APPLE__) || __cplusplus <= 199711L
