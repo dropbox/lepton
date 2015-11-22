@@ -5,21 +5,28 @@
 #include <iostream>
 
 #include "model.hh"
-int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[3][64] __attribute__ ((aligned (16))) = {{0}};
+int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned (16))) = {{0}};
 
-int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16))) = {{0}};
-int32_t ProbabilityTablesBase::icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16))) = {{0}};
+int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned (16))) = {{0}};
+int32_t ProbabilityTablesBase::icos_idct_linear_8192_dequantized_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned (16))) = {{0}};
 #ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 #endif
 
-uint16_t ProbabilityTablesBase::quantization_table_[3][64] __attribute__ ((aligned(16)));
+uint16_t ProbabilityTablesBase::quantization_table_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned(16)));
 
-uint16_t ProbabilityTablesBase::freqmax_[3][64] __attribute__ ((aligned (16)));
+uint16_t ProbabilityTablesBase::freqmax_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned (16)));
 
-uint8_t ProbabilityTablesBase::min_noise_threshold_[3][64] __attribute__ ((aligned (16)));
+uint8_t ProbabilityTablesBase::min_noise_threshold_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned (16)));
 
-uint8_t ProbabilityTablesBase::bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
+uint8_t ProbabilityTablesBase::bitlen_freqmax_[(int)ColorChannel::NumBlockTypes][64]
+    __attribute__ ((aligned (16)));
 int get_sum_median_8(int16_t *dc_estimates) {
     int len_est = 16;
     int min_dc, max_dc;

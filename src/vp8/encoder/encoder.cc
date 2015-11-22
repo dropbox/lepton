@@ -170,7 +170,7 @@ void encode_edge(ConstBlockContext context,
                                                                         pt);
 }
 // used for debugging
-static int k_debug_block[3] = {0, 0, 0};
+static int k_debug_block[(int)ColorChannel::NumBlockTypes] = {0, 0, 0, 0};
 int total_error = 0;
 int total_signed_error = 0;
 int amd_err = 0;
@@ -346,26 +346,29 @@ void serialize_tokens(ConstBlockContext context,
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, false, false, BlockType::Ck>&, ProbabilityTablesBase&);
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, false, BlockType::Ck>&, ProbabilityTablesBase&);
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, true, true, BlockType::Ck>&, ProbabilityTablesBase&);
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, true, BlockType::Ck>&, ProbabilityTablesBase&);
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, true, false, BlockType::Ck>&, ProbabilityTablesBase&);
 
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
-
-
-
+template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, false, false, BlockType::Ck>&, ProbabilityTablesBase&);

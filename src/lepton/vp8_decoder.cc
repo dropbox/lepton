@@ -89,28 +89,52 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
     using namespace std;
     BlockType component = BlockType::Y;
     tuple<ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR0>,
-    ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR1>,
-    ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR2> > corner(BlockType::Y,BlockType::Cb,BlockType::Cr);
-    
+          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR2>,
+          ProbabilityTables<false, false, false, TEMPLATE_ARG_COLOR3> > corner(BlockType::Y,
+                                                                               BlockType::Cb,
+                                                                               BlockType::Cr,
+                                                                               BlockType::Ck);
+
     tuple<ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR0>,
-    ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR1>,
-    ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR2> > top(BlockType::Y,BlockType::Cb,BlockType::Cr);
-    
+          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR2>,
+          ProbabilityTables<true, false, false, TEMPLATE_ARG_COLOR3> > top(BlockType::Y,
+                                                                           BlockType::Cb,
+                                                                           BlockType::Cr,
+                                                                           BlockType::Ck);
+
     tuple<ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR0>,
-    ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR1>,
-    ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR2> > midleft(BlockType::Y,BlockType::Cb,BlockType::Cr);
-    
+          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR2>,
+          ProbabilityTables<false, true, true, TEMPLATE_ARG_COLOR3> > midleft(BlockType::Y,
+                                                                              BlockType::Cb,
+                                                                              BlockType::Cr,
+                                                                              BlockType::Ck);
+
     tuple<ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR0>,
-    ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR1>,
-    ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR2> > middle(BlockType::Y,BlockType::Cb,BlockType::Cr);
-    
+          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR2>,
+          ProbabilityTables<true, true, true, TEMPLATE_ARG_COLOR3> > middle(BlockType::Y,
+                                                                            BlockType::Cb,
+                                                                            BlockType::Cr,
+                                                                            BlockType::Ck);
+
     tuple<ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR0>,
-    ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR1>,
-    ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR2> > midright(BlockType::Y,BlockType::Cb,BlockType::Cr);
-    
+          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR2>,
+          ProbabilityTables<true, true, false, TEMPLATE_ARG_COLOR3> > midright(BlockType::Y,
+                                                                               BlockType::Cb,
+                                                                               BlockType::Cr,
+                                                                               BlockType::Ck);
+
     tuple<ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR0>,
-    ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR1>,
-    ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2> > width_one(BlockType::Y,BlockType::Cb,BlockType::Cr);
+          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR1>,
+          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR2>,
+          ProbabilityTables<false, true, false, TEMPLATE_ARG_COLOR3> > width_one(BlockType::Y,
+                                                                                 BlockType::Cb,
+                                                                                 BlockType::Cr,
+                                                                                 BlockType::Ck);
 
     assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
     int min_y = luma_splits_[0];
@@ -154,6 +178,13 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
                                 block_width,
                                 colldata);
                     break;
+                case BlockType::Ck:
+                    process_row(std::get<(int)BlockType::Ck>(corner),
+                                std::get<(int)BlockType::Ck>(top),
+                                std::get<(int)BlockType::Ck>(top),
+                                block_width,
+                                colldata);
+                    break;
             }
         } else if (block_width > 1) {
             assert(curr_y); // just a sanity check that the zeroth row took the first branch
@@ -176,6 +207,13 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
                     process_row(std::get<(int)BlockType::Cr>(midleft),
                                 std::get<(int)BlockType::Cr>(middle),
                                 std::get<(int)BlockType::Cr>(midright),
+                                block_width,
+                                colldata);
+                    break;
+                case BlockType::Ck:
+                    process_row(std::get<(int)BlockType::Ck>(midleft),
+                                std::get<(int)BlockType::Ck>(middle),
+                                std::get<(int)BlockType::Ck>(midright),
                                 block_width,
                                 colldata);
                     break;
@@ -205,6 +243,13 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
                                 block_width,
                                 colldata);
                     break;
+                case BlockType::Ck:
+                    process_row(std::get<(int)BlockType::Ck>(width_one),
+                                std::get<(int)BlockType::Ck>(width_one),
+                                std::get<(int)BlockType::Ck>(width_one),
+                                block_width,
+                                colldata);
+                    break;
             }
         }
         if (thread_id == 0) {
@@ -228,9 +273,22 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
     if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].context.isNil() ) {
         /* first call */
-        ProbabilityTablesBase::set_quantization_table(BlockType::Y, colldata->get_quantization_tables(BlockType::Y));
-        ProbabilityTablesBase::set_quantization_table(BlockType::Cb, colldata->get_quantization_tables(BlockType::Cb));
-        ProbabilityTablesBase::set_quantization_table(BlockType::Cr, colldata->get_quantization_tables(BlockType::Cr));
+        if (colldata->get_num_components() > (int)BlockType::Y) {
+            ProbabilityTablesBase::set_quantization_table(BlockType::Y,
+                                                          colldata->get_quantization_tables(BlockType::Y));
+        }
+        if (colldata->get_num_components() > (int)BlockType::Cb) {
+            ProbabilityTablesBase::set_quantization_table(BlockType::Cb,
+                                                          colldata->get_quantization_tables(BlockType::Cb));
+        }
+        if (colldata->get_num_components() > (int)BlockType::Cr) {
+            ProbabilityTablesBase::set_quantization_table(BlockType::Cr,
+                                                          colldata->get_quantization_tables(BlockType::Cr));
+        }
+        if (colldata->get_num_components() > (int)BlockType::Ck) {
+            ProbabilityTablesBase::set_quantization_table(BlockType::Ck,
+                                                          colldata->get_quantization_tables(BlockType::Ck));
+        }
         /* read and verify "x" mark */
         unsigned char mark {};
         const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();

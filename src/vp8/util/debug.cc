@@ -104,6 +104,6 @@ void setupDebugData(int lumaWidth, int lumaHeight,
 int raw_decoded_fp_Y = load_raw_fd_output("/tmp/raw_Y.pgm");
 int raw_decoded_fp_Cb = load_raw_fd_output("/tmp/raw_Cb.pgm");
 int raw_decoded_fp_Cr = load_raw_fd_output("/tmp/raw_Cr.pgm");
-unsigned char *raw_YCbCr[3] = {nullptr, nullptr, nullptr};
+unsigned char *raw_YCbCr[4] = {nullptr, nullptr, nullptr, nullptr};
 
 }

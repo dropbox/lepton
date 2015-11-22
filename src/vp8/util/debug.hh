@@ -10,7 +10,7 @@ extern int amd_err;
 extern int avg_err;
 extern int ori_err;
 extern int loc_err;
-extern unsigned char *raw_YCbCr[3];
+extern unsigned char *raw_YCbCr[4];
 int getDebugWidth(int color);
 int getDebugHeight(int color);
 void dumpDebugData();

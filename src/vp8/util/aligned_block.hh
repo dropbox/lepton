@@ -90,7 +90,7 @@ class BoolDecoder;
 struct BlockColorContext;
 
 
-enum class ColorChannel { Y, Cb, Cr, NumBlockTypes };
+enum class ColorChannel { Y, Cb, Cr, Ck, NumBlockTypes };
 
 class AlignedBlock
 {

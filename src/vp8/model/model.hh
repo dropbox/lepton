@@ -165,15 +165,22 @@ void load_model(Model &model, const char* filename);
 class ProbabilityTablesBase {
 protected:
     Model model_;
-    static int32_t icos_idct_edge_8192_dequantized_x_[3][64] __attribute__ ((aligned (16)));
+    static int32_t icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__ ((aligned (16)));
     
-    static int32_t icos_idct_edge_8192_dequantized_y_[3][64] __attribute__ ((aligned (16)));
+    static int32_t icos_idct_edge_8192_dequantized_y_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__ ((aligned (16)));
     
-    static int32_t icos_idct_linear_8192_dequantized_[3][64] __attribute__ ((aligned (16)));
-    static uint16_t quantization_table_[3][64] __attribute__ ((aligned(16)));
-    static uint16_t freqmax_[3][64] __attribute__ ((aligned (16)));
-    static uint8_t bitlen_freqmax_[3][64] __attribute__ ((aligned (16)));
-    static uint8_t min_noise_threshold_[3][64] __attribute__((aligned(16)));
+    static int32_t icos_idct_linear_8192_dequantized_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__ ((aligned (16)));
+    static uint16_t quantization_table_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__ ((aligned(16)));
+    static uint16_t freqmax_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__ ((aligned (16)));
+    static uint8_t bitlen_freqmax_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__ ((aligned (16)));
+    static uint8_t min_noise_threshold_[(int)ColorChannel::NumBlockTypes][64]
+        __attribute__((aligned(16)));
 public:
     Model &model() {return model_;}
     void load_probability_tables();
@@ -250,11 +257,13 @@ public:
 #define TEMPLATE_ARG_COLOR0 BlockType::Y
 #define TEMPLATE_ARG_COLOR1 BlockType::Cb
 #define TEMPLATE_ARG_COLOR2 BlockType::Cr
+#define TEMPLATE_ARG_COLOR3 BlockType::Ck
 
 #else
 #define TEMPLATE_ARG_COLOR0 BlockType::Y
 #define TEMPLATE_ARG_COLOR1 BlockType::Y
 #define TEMPLATE_ARG_COLOR2 BlockType::Y
+#define TEMPLATE_ARG_COLOR3 BlockType::Y
 #endif
 template <bool left_present, bool above_present, bool above_right_present, BlockType
 #ifdef USE_TEMPLATIZED_COLOR
@@ -288,10 +297,14 @@ public:
         load_model(base.model(), filename);
     }
     int color_index() {
-        if ((int)COLOR == BLOCK_TYPES || ((int)BLOCK_TYPES == 1 && (int)COLOR > (int)BLOCK_TYPES)) {
-            return BLOCK_TYPES - 1;
+        if (BLOCK_TYPES == 2) {
+            if (0 == (int)COLOR) {
+                return 0;
+            }
+            return 1;
+        } else {
+            return std::min((int)(BLOCK_TYPES - 1), (int)COLOR);
         }
-        return (int)COLOR;
     }
     ProbabilityTablesBase::CoefficientContext update_coefficient_context7x7(int coord,
                                        int aligned_zz,
