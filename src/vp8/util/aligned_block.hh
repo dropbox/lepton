@@ -90,7 +90,11 @@ class BoolDecoder;
 struct BlockColorContext;
 
 
-enum class ColorChannel { Y, Cb, Cr, Ck, NumBlockTypes };
+enum class ColorChannel { Y, Cb, Cr,
+#ifdef ALLOW_FOUR_COLORS
+    Ck,
+#endif
+    NumBlockTypes };
 
 class AlignedBlock
 {

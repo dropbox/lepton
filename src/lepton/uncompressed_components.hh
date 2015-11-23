@@ -6,6 +6,7 @@
 #include <string.h>
 #include <assert.h>
 #include <thread>
+#include <unistd.h>
 #include "base_coders.hh"
 #include "component_info.hh"
 #include "../vp8/model/color_context.hh"
@@ -168,6 +169,9 @@ public:
         if (cmpc > (int)ColorChannel::NumBlockTypes) {
             cmpc = (int)ColorChannel::NumBlockTypes;
             //abort here: we probably can't support this kind of image
+            const char * errmsg = "We only support 3 color channels or fewer\n";
+            int err = write(2, errmsg, strlen(errmsg));
+            (void)err;
             assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
             custom_exit(2);
         }
