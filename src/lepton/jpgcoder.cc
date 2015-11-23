@@ -337,6 +337,8 @@ std::unique_ptr<BaseEncoder> g_encoder;
 std::unique_ptr<BaseDecoder> g_decoder;
 bool g_threaded = true;
 uint64_t g_time_bound_ms = 0;
+bool g_force_zlib0_out = false;
+unsigned char g_executable_md5[16];
 
 Sirikata::DecoderReader* str_in  = NULL;    // input stream
 bounded_iostream* str_out = NULL;    // output stream
@@ -478,8 +480,6 @@ void timing_operation_complete( char operation ) {
     memset(&current_operation_first_byte, 0, sizeof(current_operation_first_byte));
 #endif
 }
-
-unsigned char g_executable_md5[16];
 
 /* -----------------------------------------------
     main-function
@@ -642,6 +642,9 @@ int initialize_options( int argc, char** argv )
                     exit(1);
                 }
             }
+        }
+        else if ( strcmp((*argv), "-zlib0" ) == 0)  {
+            g_force_zlib0_out = true;
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
@@ -1148,6 +1151,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
               || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
               || ( ( fileid[0] == zlepton_header[0] ) && ( fileid[1] == zlepton_header[1] ) ) ){
         bool compressed_output = (fileid[0] == zlepton_header[0]) && (fileid[1] == zlepton_header[1]);
+        compressed_output = compressed_output || g_force_zlib0_out;
         // file is UJG
         filetype = (( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) ) ? UJG : LEPTON;
         // create filenames
