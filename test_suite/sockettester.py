@@ -4,6 +4,7 @@ import sys
 import threading
 import socket
 import os
+import uuid
 base_dir = os.path.dirname(sys.argv[0])
 if len(sys.argv) > 1:
     jpg_name = sys.argv[1]
@@ -22,13 +23,24 @@ def read_all_fd(fd):
     return ''.join(datas)
 
 
-def test_compression(binary_name):
+def test_compression(binary_name, socket_name = None):
     global jpg_name
-    proc = subprocess.Popen([binary_name,'-socket','-timebound=5000ms','-unjailed', '-recode','-decode'],
+    custom_name = socket_name is not None
+    xargs = [binary_name,'-socket','-timebound=5000ms','-unjailed', '-recode','-decode']
+    if socket_name is not None:
+        xargs[1]+= '=' + socket_name
+    proc = subprocess.Popen(xargs,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE)
     socket_name = proc.stdout.readline().strip()
-
+    if custom_name:
+        # test that we are unable to connect to the subprocess
+        dup_proc = subprocess.Popen(xargs,
+                            stdout=subprocess.PIPE,
+                            stdin=subprocess.PIPE)
+        duplicate_socket_name = ''
+        duplicate_socket_name = dup_proc.stdout.readline().strip()
+        assert not duplicate_socket_name
     valid_fds = []
     valid_socks = []
     def add2():
@@ -68,8 +80,13 @@ def test_compression(binary_name):
 
     print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg))
     u.join()
+    proc.stdin.write('x')
+    proc.stdin.flush()
+    proc.wait()
+    assert not os.path.exists(socket_name)
 
 test_compression('./lepton')
+test_compression('./lepton', '/tmp/' + str(uuid.uuid4()))
 has_avx2 = False
 try:
     cpuinfo = open('/proc/cpuinfo')

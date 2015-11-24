@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
@@ -31,6 +32,8 @@ static void always_assert(bool expr) {
 static const char last_prefix[] = "/tmp/";
 static const char last_postfix[]=".uport";
 static char socket_name[sizeof((struct sockaddr_un*)0)->sun_path] = {};
+static const char lock_ext[]=".lock";
+static char socket_lock[sizeof((struct sockaddr_un*)0)->sun_path + sizeof(lock_ext)];
 
 bool is_parent_process = true;
 
@@ -58,6 +61,9 @@ static void name_socket(FILE * dev_random) {
 static void cleanup_socket(int) {
     if (is_parent_process) {
         unlink(socket_name);
+        if (socket_lock[0]) {
+            unlink(socket_lock);
+        }
         return;
     }
     custom_exit(0);
@@ -87,7 +93,8 @@ pollfd make_pollfd(int fd) {
 
 ProcessInfo accept_new_connection(int active_connection,
                                   const SocketServeWorkFunction& work,
-                                  uint32_t global_max_length) {
+                                  uint32_t global_max_length,
+                                  int lock_fd) {
     int timer_pipe[2] = {-1, -1};
     while(pipe(timer_pipe) < 0 && errno == EINTR) {
     }
@@ -98,6 +105,11 @@ ProcessInfo accept_new_connection(int active_connection,
         }
         while (close(timer_pipe[0]) < 0 && errno == EINTR){
             // close timer pipe read end (will close write end on data recv)
+        }
+        if (lock_fd >= 0) {
+            while (close(lock_fd) < 0 && errno == EINTR){
+                // close socket lock so future servers may reacquire the lock
+            }
         }
         IOUtil::FileReader reader(active_connection, global_max_length);
         IOUtil::FileWriter writer(active_connection, false);
@@ -127,7 +139,9 @@ ProcessInfo accept_new_connection(int active_connection,
 void serving_loop(int unix_domain_socket_server,
                   const SocketServeWorkFunction& work,
                   uint64_t time_bound_ms,
-                  uint32_t global_max_length) {
+                  uint32_t global_max_length,
+                  bool do_cleanup_socket,
+                  int lock_fd) {
     std::vector<ProcessInfo> process_map;
     std::vector<pid_t> terminated_processes;
     std::vector<pollfd> fd_of_interest;
@@ -141,7 +155,9 @@ void serving_loop(int unix_domain_socket_server,
                       fd_of_interest.size(),
                       sleep_for);
         if (fd_of_interest[0].revents) {
-            cleanup_socket(0);
+            if (do_cleanup_socket) {
+                cleanup_socket(0);
+            }
             return; // exit
         } else if (fd_of_interest[1].revents) { // new_socket
             struct sockaddr_un client;
@@ -150,7 +166,8 @@ void serving_loop(int unix_domain_socket_server,
                                            (sockaddr*)&client, &len);
             process_map.push_back(accept_new_connection(active_connection,
                                                         work,
-                                                        global_max_length));
+                                                        global_max_length,
+                                                        lock_fd));
             assert(num_fd > 0);
             --num_fd;
         }
@@ -226,16 +243,54 @@ void serving_loop(int unix_domain_socket_server,
 
 void socket_serve(const SocketServeWorkFunction &work_fn,
                   uint64_t time_bound_ms,
-                  uint32_t global_max_length) {
-    FILE* dev_random = fopen("/dev/urandom", "rb");
-    name_socket(dev_random);
-    fclose(dev_random);
+                  uint32_t global_max_length,
+                  const char * optional_socket_file_name) {
+    bool do_cleanup_socket = true;
+    int lock_fd = -1;
+    if (optional_socket_file_name != NULL) {
+        do_cleanup_socket = false;
+        size_t len = strlen(optional_socket_file_name);
+        if (len + 1 < sizeof(socket_name)) {
+            memcpy(socket_name, optional_socket_file_name, len);
+            socket_name[len] = '\0';
+        } else {
+            fprintf(stderr, "Path too long for %s\n", optional_socket_file_name);
+            always_assert(false && "input file name too long\n");
+        }
+        memcpy(socket_lock, socket_name, sizeof(socket_name));
+        memcpy(socket_lock + strlen(socket_lock), lock_ext, sizeof(lock_ext));
+        int lock_file = -1;
+        do {
+            lock_file = open(socket_lock, O_CREAT|O_APPEND, S_IRUSR | S_IWUSR);
+        } while(lock_file < 0 && errno == EINTR);
+        if (lock_file >= 0) {
+            lock_fd = lock_file;
+            int err = 0;
+            do {
+                err = ::flock(lock_file, LOCK_EX|LOCK_NB);
+            } while(err < 0 && errno == EINTR);
+            if (err == 0) {
+                do {
+                    err = remove(socket_name);
+                }while (err < 0 && errno == EINTR);
+                signal(SIGINT, &cleanup_socket);
+                // if we have the lock we can clean it up
+                signal(SIGQUIT, &cleanup_socket);
+                signal(SIGTERM, &cleanup_socket);
+                do_cleanup_socket = true;
+            }
+        }
+    } else {
+        FILE* dev_random = fopen("/dev/urandom", "rb");
+        name_socket(dev_random);
+        fclose(dev_random);
+        signal(SIGINT, &cleanup_socket);
+        signal(SIGQUIT, &cleanup_socket);
+        signal(SIGTERM, &cleanup_socket);
+    }
     int new_process_pipe[2];
     while(pipe(new_process_pipe) < 0 && errno == EINTR) {
     }
-    signal(SIGINT, &cleanup_socket);
-    signal(SIGQUIT, &cleanup_socket);
-    signal(SIGTERM, &cleanup_socket);
     // listen
     struct sockaddr_un address;
     memset(&address, 0, sizeof(struct sockaddr_un));
@@ -251,5 +306,5 @@ void socket_serve(const SocketServeWorkFunction &work_fn,
     always_assert(err == 0);
     fprintf(stdout, "%s\n", socket_name);
     fflush(stdout);
-    serving_loop(socket_fd, work_fn, time_bound_ms, global_max_length);
+    serving_loop(socket_fd, work_fn, time_bound_ms, global_max_length, do_cleanup_socket, lock_fd);
 }

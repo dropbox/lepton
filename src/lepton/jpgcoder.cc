@@ -335,6 +335,7 @@ F_TYPE ofiletype = LEPTON;            // desired type of output file
 
 std::unique_ptr<BaseEncoder> g_encoder;
 std::unique_ptr<BaseDecoder> g_decoder;
+const char * g_socket_name = NULL;
 bool g_threaded = true;
 uint64_t g_time_bound_ms = 0;
 bool g_force_zlib0_out = false;
@@ -541,11 +542,9 @@ int main( int argc, char** argv )
     begin = clock();
     assert(file_cnt <= 2);
     if (action == forkserve) {
-        g_use_seccomp = true; // do not allow forked mode without security in place
         fork_serve();
     } else if (action == socketserve) {
-        g_use_seccomp = true; // do not allow forked mode without security in place
-        socket_serve(&process_file, g_time_bound_ms, max_file_size);
+        socket_serve(&process_file, g_time_bound_ms, max_file_size, g_socket_name);
     } else {
         process_file(nullptr, nullptr, &gen_nop, max_file_size);
     }
@@ -688,12 +687,15 @@ int initialize_options( int argc, char** argv )
             msgout = stderr;
             // use "-" as placeholder for the socket
             *(tmp_flp++) = g_dash;
-        } else if ( strcmp((*argv), "-socket") == 0 ) {    
+       } else if ( strncmp((*argv), "-socket", strlen("-socket")) == 0 ) {
             action = socketserve;
             // sets it up in serving mode
             msgout = stderr;
             // use "-" as placeholder for the socket
             *(tmp_flp++) = g_dash;
+            if ((*argv)[strlen("-socket")] == '=') {
+                g_socket_name = (*argv) + strlen("-socket=");
+            }
         }
         else if ( strcmp((*argv), "-") == 0 ) {    
             msgout = stderr;
@@ -1027,25 +1029,21 @@ void execute( bool (*function)() )
 
 void show_help( void )
 {
-    fprintf( msgout, "Usage: %s [switches] [filename(s)]", appname );
-    fprintf( msgout, "\n" );
-    fprintf( msgout, "\n" );
-    fprintf( msgout, " [-ver]   verify files after processing\n" );
-    fprintf( msgout, " [-v?]    set level of verbosity (max: 2) (def: 0)\n" );
-    fprintf( msgout, " [-o]     overwrite existing files\n" );
-    fprintf( msgout, " [-p]     proceed on warnings\n" );
-    fprintf( msgout, " [-d]     discard meta-info\n" );
-    if ( developer ) {
-    fprintf( msgout, "\n" );
-    fprintf( msgout, " [-test]  test algorithms, alert if error\n" );
-    fprintf( msgout, " [-split] split jpeg (to header & image data)\n" );
-    fprintf( msgout, " [-coll?] write collections (0=std,1=dhf,2=squ,3=unc)\n" );
-    fprintf( msgout, " [-info]  write debug info to .nfo file\n" );
-    fprintf( msgout, " [-pgm]   convert and write to pgm files\n" );
-    }
-    fprintf( msgout, "\n" );
-    fprintf( msgout, "Examples: \"%s -v1 -o baboon.%s\"\n", appname, "lep");
-    fprintf( msgout, "          \"%s -p *.%s\"\n", appname, "jpg" );
+    fprintf(msgout, "Usage: %s [switches] input_file [output_file]", appname );
+    fprintf(msgout, "\n" );
+    fprintf(msgout, "\n" );
+    fprintf(msgout, " [-version]       Version of lepton codec\n" );
+    fprintf(msgout, " [-revision]      Source revision of lepton binary\n" );
+    fprintf(msgout, " [-unjailed]      Do not jail this process (use only with trusted data)\n" );
+    fprintf(msgout, " [-singlethread]  Do not clone threads to operate on the input file\n" );
+    fprintf(msgout, " [-socket]        Serve requests on a Unix Domain Socket\n" );
+    fprintf(msgout, " [-socket=<name>] Path to socket (otherwise random path used and printed)\n");
+    fprintf(msgout, " [-decode]        Preload decoding code\n" );
+    fprintf(msgout, " [-recode]        Preload recoding code\n");
+    fprintf(msgout, " [-fork]          Serve requests on a series of pipes [deprecated]\n");
+    fprintf(msgout, " [-zlib0]         Instead of a jpg, return a zlib-compressed jpeg\n");
+    fprintf(msgout, " [-timebound=<>ms]For -socket, enforce a timeout since first byte received\n");
+    fprintf(msgout, " [-trunc=<>]      Truncate input file to N bytes and do not read further\n");
 }
 
 /* ----------------------- End of main interface functions -------------------------- */
