@@ -22,10 +22,15 @@ void GenericWorker::_generic_respond_to_main(uint8_t arg) {
 }
 
 void GenericWorker::wait_for_work() {
+    bool sandbox_at_desired_level = true;
 #ifdef __linux
     if (g_use_seccomp) {
+        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+            int ret = write(2, "Cannot PR_SET_NO_NEW_PRIVS", strlen("Cannot PR_SET_NO_NEW_PRIVS"));
+            (void)ret;
+        }
         if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
-            syscall(SYS_exit, 1); // SECCOMP not allowed
+            sandbox_at_desired_level = false;
         }
     }
 #endif
@@ -36,6 +41,7 @@ void GenericWorker::wait_for_work() {
         while ((err = read(new_work_pipe[0], &data, 1)) < 0 && errno == EINTR) {
         }
         if (err <= 0) {
+            set_close_thread_handle(work_done_pipe[1]);
             custom_terminate_this_thread(0);
             return;
         }
@@ -45,11 +51,13 @@ void GenericWorker::wait_for_work() {
         _mm_pause();
     }
     if (new_work_exists_.load()) { // enforce memory ordering
-        work();
+        if (sandbox_at_desired_level) {
+            work();
+        }
     }else {
         assert(false);// invariant violated
     }
-    _generic_respond_to_main(1);
+    _generic_respond_to_main(sandbox_at_desired_level ? 1 : 2);
     reset_close_thread_handle();
     custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }

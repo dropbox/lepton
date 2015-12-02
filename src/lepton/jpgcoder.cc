@@ -777,6 +777,10 @@ void process_file(IOUtil::FileReader* reader,
     begin = clock();
 #ifdef __linux
     if (g_use_seccomp) {
+        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+            int ret = write(2, "Cannot PR_SET_NO_NEW_PRIVS", strlen("Cannot PR_SET_NO_NEW_PRIVS"));
+            (void)ret;
+        }
         if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
             custom_exit(36); // SECCOMP not allowed
         }        
