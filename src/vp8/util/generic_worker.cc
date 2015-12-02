@@ -10,7 +10,7 @@
 
 #endif
 #include "generic_worker.hh"
-
+#include "../../io/Seccomp.hh"
 
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
@@ -23,17 +23,9 @@ void GenericWorker::_generic_respond_to_main(uint8_t arg) {
 
 void GenericWorker::wait_for_work() {
     bool sandbox_at_desired_level = true;
-#ifdef __linux
     if (g_use_seccomp) {
-        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-            int ret = write(2, "Cannot PR_SET_NO_NEW_PRIVS", strlen("Cannot PR_SET_NO_NEW_PRIVS"));
-            (void)ret;
-        }
-        if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
-            sandbox_at_desired_level = false;
-        }
+        Sirikata::installStrictSyscallFilter(true);
     }
-#endif
     _generic_respond_to_main(0); // startup
     char data = 0;
     if (use_pipes) {

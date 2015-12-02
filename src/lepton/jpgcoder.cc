@@ -39,6 +39,7 @@
 #include "../io/MemReadWriter.hh"
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
+#include "../io/Seccomp.hh"
 #include <immintrin.h>
 #ifndef GIT_REVISION
 #include "version.hh"
@@ -775,18 +776,9 @@ void process_file(IOUtil::FileReader* reader,
     check_file(reader, writer, max_file_size);
     signal_data_recv();
     begin = clock();
-#ifdef __linux
     if (g_use_seccomp) {
-        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-            int ret = write(2, "Cannot PR_SET_NO_NEW_PRIVS", strlen("Cannot PR_SET_NO_NEW_PRIVS"));
-            (void)ret;
-        }
-        if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
-            custom_exit(36); // SECCOMP not allowed
-        }        
+        Sirikata::installStrictSyscallFilter(true);
     }
-#endif    
-
     // get specific action message
     if ( filetype == UNK ) {
         actionmsg = "unknown filetype";

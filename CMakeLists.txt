@@ -71,6 +71,9 @@ SET(LEPTON_SOURCES
    src/io/BufferedIO.hh
    src/io/ZlibCompression.cc
    src/io/ZlibCompression.hh
+   src/io/Seccomp.hh
+   src/io/Seccomp.cc
+   src/io/seccomp-bpf.hh
    src/io/MemReadWriter.cc
    src/io/Error.hh
    src/io/Reader.hh
