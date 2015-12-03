@@ -339,6 +339,7 @@ std::unique_ptr<BaseDecoder> g_decoder;
 const char * g_socket_name = NULL;
 bool g_threaded = true;
 uint64_t g_time_bound_ms = 0;
+int g_inject_syscall_test = 0;
 bool g_force_zlib0_out = false;
 unsigned char g_executable_md5[16];
 
@@ -655,8 +656,11 @@ int initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
             g_threaded = true;
         }
-         else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
+        else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-timing="), "a");
+        }
+        else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
+            g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
         }
         else if ( strncmp((*argv), "-trunc=", strlen("-trunc=") ) == 0 ) {
             max_file_size = atoi((*argv) + strlen("-trunc="));
@@ -738,6 +742,13 @@ void kill_workers(void * workers) {
         }
     }
 }
+void test_syscall_injection(std::atomic<int>*value) {
+    value->store(-1);
+    char buf[128 + 1];
+    buf[sizeof(buf) - 1] = 0;
+    getcwd(buf, sizeof(buf) - 1);
+    value->store(1);
+}
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
                   const std::function<void()> &signal_data_recv,
@@ -748,12 +759,26 @@ void process_file(IOUtil::FileReader* reader,
     const char* errtypemsg = NULL;
     int speed, bpms;
     float cr;
-    
+
     Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
     if (g_threaded) {
         generic_workers = new Sirikata::Array1d<GenericWorker,
                                                 NUM_THREADS - 1>;
-        custom_atexit(kill_workers, generic_workers);
+        if (g_inject_syscall_test == 2) {
+            for (size_t i = 0; i < generic_workers->size(); ++i) {
+                std::atomic<int> value;
+                value.store(0);
+                generic_workers->at(i).work = std::bind(&test_syscall_injection, &value);
+                generic_workers->at(i).activate_work();
+                generic_workers->at(i).main_wait_for_done();
+                if (value.load() != 1) {
+                   custom_exit(1);
+                }
+            }
+            g_threaded = false;
+        } else {
+            custom_atexit(kill_workers, generic_workers);
+        }
     }
     // main function routine
     errorlevel.store(0);
@@ -778,6 +803,11 @@ void process_file(IOUtil::FileReader* reader,
     begin = clock();
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
+    }
+    if (g_inject_syscall_test == 1) {
+        char buf[128 + 1];
+        buf[sizeof(buf) - 1] = 0;
+        getcwd(buf, sizeof(buf) - 1);
     }
     // get specific action message
     if ( filetype == UNK ) {

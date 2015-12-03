@@ -100,8 +100,30 @@ void check_out(int output, const unsigned char *data, size_t data_size, bool *ok
     } while (status == -1 && errno == EINTR);
 
 }
-
-int run_test(const std::vector<unsigned char> &testImage, bool use_lepton, bool expect_failure) {
+enum {
+    MAX_ARGS=32
+};
+void print_args(const char*const*const args) {
+    for (int i = 0; i < MAX_ARGS; ++i) {
+        if (args[i]) {
+            fprintf(stderr, "%s ",args[i]);
+        }else {
+            fprintf(stderr, "(NULL)\n");
+            break;
+        }
+    }
+}
+int get_last_arg(const char*const*const args) {
+    for (int i = 0; i < MAX_ARGS; ++i) {
+        if (args[i] == NULL) {
+            return i;
+        }
+    }
+    assert(false && "Args must be null termintaed");
+    return MAX_ARGS - 1;
+}
+int run_test(const std::vector<unsigned char> &testImage,
+             bool use_lepton, bool jailed, int inject_failure_level, bool expect_failure) {
 /*
     pid_t subfork;
     subfork = fork();
@@ -110,7 +132,25 @@ int run_test(const std::vector<unsigned char> &testImage, bool use_lepton, bool 
         waitpid(subfork, &status, 0);
         return WEXITSTATUS(status);
         }*/
-
+    const char * encode_args[MAX_ARGS] = {"./lepton", "-timing=test_timing", NULL};
+    const char * decode_args[MAX_ARGS] = {"./lepton", NULL};
+    if (!use_lepton) {
+        encode_args[get_last_arg(encode_args)] = "-ujg";
+    }
+    if (inject_failure_level) {
+        const char ** which_args = encode_args;
+        if ((inject_failure_level == 3 || inject_failure_level == 4) == 0) {
+            which_args = decode_args;
+        }
+        which_args[get_last_arg(which_args)]
+            = (inject_failure_level & 1) ? "-injectsyscall=1" : "-injectsyscall=2";
+    }
+    if (!jailed) {
+        encode_args[get_last_arg(encode_args)] = "-unjailed";
+        decode_args[get_last_arg(decode_args)] = "-unjailed";
+    }
+    encode_args[get_last_arg(encode_args)] = "-";
+    decode_args[get_last_arg(decode_args)] = "-";
     int encode_stdin[2];
     int encode_stdout[2];
     int status = pipe(encode_stdin);
@@ -145,11 +185,8 @@ int run_test(const std::vector<unsigned char> &testImage, bool use_lepton, bool 
         do {
             status = close(encode_stdout[0]);
         } while (status == -1 && errno == EINTR);
-        if (use_lepton) {
-            execlp("./lepton", "./lepton", "-s", "-timing=test_timing", "-", NULL);
-        } else {
-            execlp("./lepton", "./lepton", "-ujg", "-s", "-", NULL);
-        }
+        print_args(encode_args);
+        execvp("./lepton", (char *const*)encode_args);
     }
     do {
         status = close(encode_stdin[0]);
@@ -193,8 +230,8 @@ int run_test(const std::vector<unsigned char> &testImage, bool use_lepton, bool 
         do {
             status = close(encode_stdout[0]);
         } while (status == -1 && errno == EINTR);
-
-        execlp("./lepton", "./lepton", "-s", "-", NULL);
+        print_args(decode_args);
+        execvp("./lepton", (char *const*)decode_args);
     }
     do {
         status = close(decode_stdin[0]);
@@ -268,8 +305,8 @@ std::vector<unsigned char> load(const char *filename) {
     fclose(fp);
     return retval;
 }
-int test_file(int argc, char **argv, bool use_lepton, const std::vector<const char *> &filenames,
-              bool expect_failure) {
+int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level,
+              const std::vector<const char *> &filenames, bool expect_failure) {
     assert(argc > 0);
     for (int i = int(strlen(argv[0])) - 1; i > 0; --i) {
         if (argv[0][i] == '/' || argv[0][i] == '\\') {
@@ -286,12 +323,12 @@ int test_file(int argc, char **argv, bool use_lepton, const std::vector<const ch
     }
     std::vector<unsigned char> testImage(abstractJpeg, abstractJpeg+sizeof(abstractJpeg));
     if (filenames.empty()) {
-        return run_test(testImage, use_lepton, expect_failure);
+        return run_test(testImage, use_lepton, jailed, inject_syscall_level, expect_failure);
     }
     for (std::vector<const char *>::const_iterator filename = filenames.begin(); filename != filenames.end(); ++filename) {
         testImage = load(*filename);
         fprintf(stderr, "Loading iPhone %ld\n", testImage.size());
-        int retval = run_test(testImage, use_lepton, expect_failure);
+        int retval = run_test(testImage, use_lepton, jailed, inject_syscall_level, expect_failure);
         if (retval) {
             return retval;
         }

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #ifdef __linux
 #include <sys/wait.h>
 #include <linux/seccomp.h>

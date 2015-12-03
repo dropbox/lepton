@@ -136,7 +136,7 @@ test_suite_test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz
 test_suite_test_invariants_LDADD = liblocalzlib.a
 
 
-check_PROGRAMS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
+check_PROGRAMS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread
 
 
 test_suite_test_baseline_ujg_SOURCES = test_suite/test_harness.cc
@@ -145,6 +145,38 @@ test_suite_test_baseline_ujg_LDADD = libtestdriver.a -lpthread
 test_suite_test_baseline_SOURCES = test_suite/test_harness.cc
 test_suite_test_baseline_CXXFLAGS = -DUSE_LEPTON
 test_suite_test_baseline_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_baseline_unjailed_SOURCES = test_suite/test_harness.cc
+test_suite_test_baseline_unjailed_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=1
+test_suite_test_baseline_unjailed_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_baseline_unjailed_thread_SOURCES = test_suite/test_harness.cc
+test_suite_test_baseline_unjailed_thread_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=2
+test_suite_test_baseline_unjailed_thread_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_baseline_unjailed_decode_SOURCES = test_suite/test_harness.cc
+test_suite_test_baseline_unjailed_decode_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=3
+test_suite_test_baseline_unjailed_decode_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_baseline_unjailed_decode_thread_SOURCES = test_suite/test_harness.cc
+test_suite_test_baseline_unjailed_decode_thread_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=4
+test_suite_test_baseline_unjailed_decode_thread_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_seccomp_encode_main_SOURCES = test_suite/test_harness.cc
+test_suite_test_seccomp_encode_main_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=1 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_encode_main_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_seccomp_encode_thread_SOURCES = test_suite/test_harness.cc
+test_suite_test_seccomp_encode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=2 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_encode_thread_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_seccomp_decode_main_SOURCES = test_suite/test_harness.cc
+test_suite_test_seccomp_decode_main_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=3 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_decode_main_LDADD = libtestdriver.a -lpthread
+
+test_suite_test_seccomp_decode_thread_SOURCES = test_suite/test_harness.cc
+test_suite_test_seccomp_decode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=4 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_decode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_iphone_SOURCES = test_suite/test_harness.cc
 test_suite_test_iphone_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
@@ -182,6 +214,6 @@ test_suite_test_truncate_SOURCES = test_suite/test_harness.cc
 test_suite_test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
 test_suite_test_truncate_LDADD = libtestdriver.a -lpthread
 
-TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh
+TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread
 
-dist_check_SCRIPTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq
+dist_check_SCRIPTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread

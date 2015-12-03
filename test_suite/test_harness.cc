@@ -4,14 +4,23 @@
 
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
-
-extern int test_file(int argc, char ** argv, bool use_lepton,
+extern int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level,
                      const std::vector<const char *> &filenames, bool expect_failure);
-
+#ifdef UNJAILED
+#define IS_JAILED false
+#else
+#define IS_JAILED true
+#endif
+#ifndef INJECT_SYSCALL
+#define INJECT_SYSCALL 0
+#endif
 int main (int argc, char **argv) {
     bool use_lepton = false;
     bool expect_failure = false;
 #ifdef EXPECT_FAILURE
+    expect_failure = true;
+#endif
+#if defined(EXPECT_LINUX_FAILURE) && defined(__linux)
     expect_failure = true;
 #endif
 #ifdef USE_LEPTON
@@ -43,5 +52,5 @@ int main (int argc, char **argv) {
 #ifdef TEST_FILE3
     #error "We only support 4 test files in the same test atm"
 #endif
-    return test_file(argc, argv, use_lepton, filenames, expect_failure);
+    return test_file(argc, argv, use_lepton, IS_JAILED, INJECT_SYSCALL, filenames, expect_failure);
 }
