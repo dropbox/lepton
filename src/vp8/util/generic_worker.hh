@@ -28,6 +28,7 @@ struct GenericWorker {
     bool has_ever_queued_work() {
         return new_work_exists_.load() != 0;
     }
+    void join_via_syscall();
 private:
     std::thread child_; // this must come after other members, so items are initialized first
     void _wait_for_child_to_begin();

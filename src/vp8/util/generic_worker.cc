@@ -9,6 +9,7 @@
 #include <sys/syscall.h>
 
 #endif
+#include <signal.h>
 #include "generic_worker.hh"
 #include "../../io/Seccomp.hh"
 
@@ -105,7 +106,12 @@ void GenericWorker::_wait_for_child_to_begin() {
     --work_done_;
     child_begun = true;
 }
-
+void GenericWorker::join_via_syscall() {
+    signal(SIGPIPE, SIG_IGN);
+    while (close(work_done_pipe.at(0)) && errno == EINTR) {
+    }
+    child_.join();
+}
 void GenericWorker::main_wait_for_done() {
     assert(new_work_exists_.load()); // make sure this has work to do
     _generic_wait(1);

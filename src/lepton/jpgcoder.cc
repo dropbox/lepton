@@ -743,12 +743,11 @@ void kill_workers(void * workers) {
     }
 }
 void test_syscall_injection(std::atomic<int>*value) {
-    value->store(-1);
     char buf[128 + 1];
     buf[sizeof(buf) - 1] = 0;
+    value->store(-1);
     char * ret = getcwd(buf, sizeof(buf) - 1);
-    (void)ret;
-    value->store(1);
+    value->store(ret ? 1 : 2);
 }
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
@@ -771,9 +770,9 @@ void process_file(IOUtil::FileReader* reader,
                 value.store(0);
                 generic_workers->at(i).work = std::bind(&test_syscall_injection, &value);
                 generic_workers->at(i).activate_work();
-                generic_workers->at(i).main_wait_for_done();
-                if (value.load() != 1) {
-                   custom_exit(1);
+                generic_workers->at(i).join_via_syscall();
+                if (value.load() < 1) {
+                    exit(1); // this should exit_group
                 }
             }
             g_threaded = false;

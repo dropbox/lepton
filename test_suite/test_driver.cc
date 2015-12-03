@@ -133,6 +133,9 @@ int run_test(const std::vector<unsigned char> &testImage,
         waitpid(subfork, &status, 0);
         return WEXITSTATUS(status);
         }*/
+    if (expect_failure || expect_decoder_failure) {
+        signal(SIGPIPE, SIG_IGN);
+    }
     const char * encode_args[MAX_ARGS] = {"./lepton", "-timing=test_timing", NULL};
     const char * decode_args[MAX_ARGS] = {"./lepton", NULL};
     if (!use_lepton) {
@@ -264,7 +267,7 @@ int run_test(const std::vector<unsigned char> &testImage,
         }
         return encoder_exit != 0 ? 0 : 1;
     }
-    if ((size_t)ret != testImage.size()) {
+    if (expect_decoder_failure == false && (size_t)ret != testImage.size()) {
         return(2);
     }
 
