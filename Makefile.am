@@ -171,11 +171,11 @@ test_suite_test_seccomp_encode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=2
 test_suite_test_seccomp_encode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_seccomp_decode_main_SOURCES = test_suite/test_harness.cc
-test_suite_test_seccomp_decode_main_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=3 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_decode_main_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=3 -DEXPECT_LINUX_DECODE_FAILURE
 test_suite_test_seccomp_decode_main_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_seccomp_decode_thread_SOURCES = test_suite/test_harness.cc
-test_suite_test_seccomp_decode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=4 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_decode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=4 -DEXPECT_LINUX_DECODE_FAILURE
 test_suite_test_seccomp_decode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_iphone_SOURCES = test_suite/test_harness.cc

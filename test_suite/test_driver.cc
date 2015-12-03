@@ -123,7 +123,8 @@ int get_last_arg(const char*const*const args) {
     return MAX_ARGS - 1;
 }
 int run_test(const std::vector<unsigned char> &testImage,
-             bool use_lepton, bool jailed, int inject_failure_level, bool expect_failure) {
+             bool use_lepton, bool jailed, int inject_failure_level,
+             bool expect_failure, bool expect_decoder_failure) {
 /*
     pid_t subfork;
     subfork = fork();
@@ -139,9 +140,11 @@ int run_test(const std::vector<unsigned char> &testImage,
     }
     if (inject_failure_level) {
         const char ** which_args = encode_args;
-        if ((inject_failure_level == 3 || inject_failure_level == 4) == 0) {
+        if ((inject_failure_level == 3 || inject_failure_level == 4)) {
             which_args = decode_args;
         }
+        fprintf(stderr, "Inject failure level is %d so is it encode args? %d or decode_args? %d\n",
+                inject_failure_level, (which_args == encode_args), (which_args == decode_args));
         which_args[get_last_arg(which_args)]
             = (inject_failure_level & 1) ? "-injectsyscall=1" : "-injectsyscall=2";
     }
@@ -253,19 +256,20 @@ int run_test(const std::vector<unsigned char> &testImage,
     round_trip.join();
     int encoder_exit = 1;
     waitpid(encoder_pid, &encoder_exit, 0);
+    fprintf(stderr, "%d vs %d\n", expect_failure, expect_decoder_failure);
     if (expect_failure) {
-        if (WEXITSTATUS(encoder_exit)) {
+        if (encoder_exit) {
             fprintf(stderr, "But this is expected since we do not support this image type yet.\n"
                     "Failed on encode with code %d\n", WEXITSTATUS(encoder_exit));
         }
-        return WEXITSTATUS(encoder_exit) != 0 ? 0 : 1;
+        return encoder_exit != 0 ? 0 : 1;
     }
     if ((size_t)ret != testImage.size()) {
         return(2);
     }
 
     fprintf(stderr, "Uncompressed size %ld, Compressed size %ld\n", testImage.size(), size);
-    if (!fileSame) {
+    if (expect_decoder_failure == false && !fileSame) {
         return(3);
     }
     int decoder_exit = 1;
@@ -274,6 +278,13 @@ int run_test(const std::vector<unsigned char> &testImage,
         status = close(decode_stdout[0]);
     } while (status == -1 && errno == EINTR);
     fprintf(stderr, "EXIT STATUS %d %d\n", WEXITSTATUS(encoder_exit), WEXITSTATUS(encoder_exit));
+    if (expect_decoder_failure) {
+        if (decoder_exit) {
+            fprintf(stderr, "But this is expected since we were making sure the decoder did fail.\n"
+                    "Failed on decode with code %d\n", WEXITSTATUS(encoder_exit));
+        }
+        return decoder_exit != 0 ? 0 : 1;
+    }
     if (WEXITSTATUS(encoder_exit)) {
         return(WEXITSTATUS(encoder_exit));
     }
@@ -306,7 +317,7 @@ std::vector<unsigned char> load(const char *filename) {
     return retval;
 }
 int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level,
-              const std::vector<const char *> &filenames, bool expect_failure) {
+              const std::vector<const char *> &filenames, bool expect_encode_failure, bool expect_decode_failure) {
     assert(argc > 0);
     for (int i = int(strlen(argv[0])) - 1; i > 0; --i) {
         if (argv[0][i] == '/' || argv[0][i] == '\\') {
@@ -323,12 +334,13 @@ int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_sy
     }
     std::vector<unsigned char> testImage(abstractJpeg, abstractJpeg+sizeof(abstractJpeg));
     if (filenames.empty()) {
-        return run_test(testImage, use_lepton, jailed, inject_syscall_level, expect_failure);
+        return run_test(testImage, use_lepton, jailed, inject_syscall_level, expect_encode_failure, expect_decode_failure);
     }
     for (std::vector<const char *>::const_iterator filename = filenames.begin(); filename != filenames.end(); ++filename) {
         testImage = load(*filename);
         fprintf(stderr, "Loading iPhone %ld\n", testImage.size());
-        int retval = run_test(testImage, use_lepton, jailed, inject_syscall_level, expect_failure);
+        int retval = run_test(testImage, use_lepton, jailed, inject_syscall_level,
+                              expect_encode_failure, expect_decode_failure);
         if (retval) {
             return retval;
         }

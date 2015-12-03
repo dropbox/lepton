@@ -746,7 +746,8 @@ void test_syscall_injection(std::atomic<int>*value) {
     value->store(-1);
     char buf[128 + 1];
     buf[sizeof(buf) - 1] = 0;
-    getcwd(buf, sizeof(buf) - 1);
+    char * ret = getcwd(buf, sizeof(buf) - 1);
+    (void)ret;
     value->store(1);
 }
 void process_file(IOUtil::FileReader* reader,
@@ -805,9 +806,12 @@ void process_file(IOUtil::FileReader* reader,
         Sirikata::installStrictSyscallFilter(true);
     }
     if (g_inject_syscall_test == 1) {
+        g_threaded = false;
+        kill_workers(generic_workers);
         char buf[128 + 1];
         buf[sizeof(buf) - 1] = 0;
-        getcwd(buf, sizeof(buf) - 1);
+        char * ret = getcwd(buf, sizeof(buf) - 1);
+        (void)ret;
     }
     // get specific action message
     if ( filetype == UNK ) {
