@@ -1910,7 +1910,9 @@ bool decode_jpeg( void )
                 if ( jpegtype == 1 ) {
                     // ---> sequential interleaved decoding <---
                     while ( sta == 0 ) {
-                        if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
+                        if(!huffr->eof) {
+                            max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block read
+                        }
                         // decode block
                         eob = decode_block_seq( huffr,
                             &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
@@ -1925,10 +1927,12 @@ bool decode_jpeg( void )
                         block[ 0 ] += lastdc[ cmp ];
                         lastdc[ cmp ] = block[ 0 ];
 
-                        // copy to colldata
-                        for ( bpos = 0; bpos < eob; bpos++ )
-                            colldata.set( (BlockType)cmp , bpos , dpos ) = block[ bpos ];
+                        AlignedBlock&aligned_block = colldata.mutable_block((BlockType)cmp, dpos);
 
+                        // copy to colldata
+                        for ( bpos = 0; bpos < eob; bpos++ ) {
+                            aligned_block.mutable_coefficients_zigzag(bpos) = block[ bpos ];
+                        }
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
@@ -2008,8 +2012,10 @@ bool decode_jpeg( void )
                         lastdc[ cmp ] = block[ 0 ];
 
                         // copy to colldata
-                        for ( bpos = 0; bpos < eob; bpos++ )
-                            colldata.set((BlockType)cmp , bpos , dpos ) = block[ bpos ];
+                        AlignedBlock& aligned_block = colldata.mutable_block((BlockType)cmp, dpos);
+                        for ( bpos = 0; bpos < eob; bpos++ ) {
+                            aligned_block.mutable_coefficients_zigzag(bpos) = block[ bpos ];
+                        }
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
@@ -2090,11 +2096,11 @@ bool decode_jpeg( void )
                                     "reconstruction of non optimal coding not supported" );
                                 errorlevel.store(1);
                             }
-
+                            AlignedBlock &aligned_block = colldata.mutable_block((BlockType)cmp, dpos);
                             // copy to colldata
-                            for ( bpos = cs_from; bpos < eob; bpos++ )
-                                colldata.set((BlockType)cmp , bpos , dpos ) = block[ bpos ] << cs_sal;
-
+                            for ( bpos = cs_from; bpos < eob; bpos++ ) {
+                                aligned_block.mutable_coefficients_zigzag(bpos) = block[ bpos ] << cs_sal;
+                            }
                             // check for errors
                             if ( eob < 0 ) sta = -1;
                             else sta = skip_eobrun( &cmp, &dpos, &rstw, &eobrun );
@@ -2114,9 +2120,10 @@ bool decode_jpeg( void )
                         // ---> succesive approximation later stage <---
                         while ( sta == 0 ) {
                             // copy from colldata
-                            for ( bpos = cs_from; bpos <= cs_to; bpos++ )
-                                block[ bpos ] = colldata.set((BlockType)cmp , bpos , dpos );
-
+                            AlignedBlock &aligned_block = colldata.mutable_block((BlockType)cmp, dpos);
+                            for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
+                                block[ bpos ] = aligned_block.coefficients_zigzag(bpos);
+                            }
                             if ( eobrun == 0 ) {
                                 if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
                                 // decode block (long routine)
@@ -2148,9 +2155,9 @@ bool decode_jpeg( void )
                             }
 
                             // copy back to colldata
-                            for ( bpos = cs_from; bpos <= cs_to; bpos++ )
-                                colldata.set((BlockType)cmp , bpos , dpos ) += block[ bpos ] << cs_sal;
-
+                            for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
+                                aligned_block.mutable_coefficients_zigzag(bpos) += block[ bpos ] << cs_sal;
+                            }
                             // proceed only if no error encountered
                             if ( eob < 0 ) sta = -1;
                             else sta = next_mcuposn( &cmp, &dpos, &rstw );
@@ -2323,12 +2330,12 @@ bool recode_jpeg( void )
                     // ---> sequential interleaved encoding <---
                     while ( sta == 0 ) {
                         // copy from colldata
-                        int16_t dc = block [ 0 ] = colldata.at((BlockType)cmp,
-                                                               0 , dpos );
+                        const AlignedBlock &aligned_block = colldata.block((BlockType)cmp, dpos);
                         //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
-                        for ( bpos = 1; bpos < 64; bpos++ )
-                            block[ bpos ] = colldata.at_nosync((BlockType)cmp , bpos , dpos );
-
+                        for ( bpos = 0; bpos < 64; bpos++ ) {
+                            block[bpos] = aligned_block.coefficients_zigzag(bpos);
+                        }
+                        int16_t dc = block[0];
                         // diff coding for dc
                         block[ 0 ] -= lastdc[ cmp ];
                         lastdc[ cmp ] = dc;
@@ -2403,10 +2410,11 @@ bool recode_jpeg( void )
                 if ( jpegtype == 1 ) {
                     // ---> sequential non interleaved encoding <---
                     while ( sta == 0 ) {
+                        const AlignedBlock& aligned_block = colldata.block((BlockType)cmp, dpos);
                         // copy from colldata
-                        int16_t dc = block[ 0 ] = colldata.at((BlockType)cmp, 0, dpos);
-                        for ( bpos = 0; bpos < 64; bpos++ )
-                            block[ bpos ] = colldata.at_nosync((BlockType)cmp , bpos , dpos );
+                        int16_t dc = block[ 0 ] = aligned_block.dc();
+                        for ( bpos = 1; bpos < 64; bpos++ )
+                            block[ bpos ] = aligned_block.coefficients_zigzag(bpos);
 
                         // diff coding for dc
                         block[ 0 ] -= lastdc[ cmp ];
@@ -2484,11 +2492,12 @@ bool recode_jpeg( void )
                         // ---> progressive non interleaved AC encoding <---
                         // ---> succesive approximation first stage <---
                         while ( sta == 0 ) {
+                            const AlignedBlock& aligned_block = colldata.block((BlockType)cmp, dpos);
                             // copy from colldata
-                            for ( bpos = cs_from; bpos <= cs_to; bpos++ )
+                            for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
                                 block[ bpos ] =
-                                    FDIV2( colldata.at((BlockType)cmp , bpos , dpos ), cs_sal );
-
+                                    FDIV2( aligned_block.coefficients_zigzag(bpos), cs_sal );
+                            }
                             // encode block
                             eob = encode_ac_prg_fs( huffw,
                                 &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
@@ -2516,11 +2525,12 @@ bool recode_jpeg( void )
                         // ---> progressive non interleaved AC encoding <---
                         // ---> succesive approximation later stage <---
                         while ( sta == 0 ) {
+                            const AlignedBlock& aligned_block= colldata.block((BlockType)cmp, dpos);
                             // copy from colldata
-                            for ( bpos = cs_from; bpos <= cs_to; bpos++ )
+                            for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
                                 block[ bpos ] =
-                                    FDIV2( colldata.at((BlockType)cmp , bpos , dpos ), cs_sal );
-
+                                    FDIV2( aligned_block.coefficients_zigzag(bpos), cs_sal );
+                            }
                             // encode block
                             eob = encode_ac_prg_sa( huffw, storw,
                                 &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),

@@ -287,6 +287,16 @@ public:
         return header_[(int)cmp].component_.
             raster(dpos).mutable_coefficients_zigzag(bpos);
     }
+    AlignedBlock& mutable_block(BlockType cmp, int dpos) {
+        return header_[(int)cmp].component_.raster(dpos);
+    }
+    const AlignedBlock& block(BlockType cmp, int dpos) {
+        wait_for_worker_on_dpos((int)cmp, dpos);
+        return header_[(int)cmp].component_.raster(dpos);
+    }
+    const AlignedBlock& block_nosync(BlockType cmp, int dpos) const {
+        return header_[(int)cmp].component_.raster(dpos);
+    }
     signed short at(BlockType cmp, int bpos, int dpos) {
         wait_for_worker_on_dpos((int)cmp, dpos);
         return header_[(int)cmp].component_.
