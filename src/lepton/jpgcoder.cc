@@ -484,20 +484,74 @@ void timing_operation_complete( char operation ) {
 #endif
 }
 
+size_t local_atoi(const char *data) {
+    const char * odata = data;
+    size_t retval = 0;
+    int counter = 0;
+    while (*data) {
+        if (*data >= '0' && *data <='9') {
+            retval *= 10;
+            retval += *data - '0';
+            ++data;
+            ++counter;
+            if (counter > 16) {
+                fprintf(stderr, "Could not allocate so much memory %s\n", odata);
+                exit(1);
+            }
+        } else if ('M' == *data) {
+            retval *= 1000000;
+            break;
+        } else if ('K' == *data) {
+            retval *= 1000;
+            break;
+        } else {
+            fprintf(stderr, "Could not allocate alphanumeric memory %s\n", odata);
+            exit(1);
+        }
+    }
+    return retval;
+}
+bool starts_with(const char * a, const char * b) {
+    while (*b) {
+        if (*a != *b) {
+            return false;
+        }
+        ++a;
+        ++b;
+    }
+    return true;
+}
+void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem_init) {
+    const char mem_arg_name[]="-memory=";
+    const char thread_mem_arg_name[]="-threadmemory=";
+    if (starts_with(arg, mem_arg_name)) {
+        arg += strlen(mem_arg_name);
+        *mem_init = local_atoi(arg);
+    }
+    if (starts_with(arg, thread_mem_arg_name)) {
+        arg += strlen(thread_mem_arg_name);
+        *thread_mem_init = local_atoi(arg);
+    }
+}
 /* -----------------------------------------------
     main-function
     ----------------------------------------------- */
 
 int main( int argc, char** argv )
 {
+    size_t mem_limit = 384 * 1024 * 1024;
+    size_t thread_mem_limit = 16 * 1024 * 1024;
+    for (int i = 1; i < argc; ++i) {
+        compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit);
+    }
     int n_threads = NUM_THREADS - 1;
 #ifndef __linux
     n_threads += 4;
 #endif
-    Sirikata::memmgr_init(384 * 1024 * 1024,
-                16 * 1024 * 1024,
-                n_threads,
-                256);
+    Sirikata::memmgr_init(mem_limit,
+                          thread_mem_limit,
+                          n_threads,
+                          256);
     compute_md5(argv[0], g_executable_md5);
     clock_t begin = 0, end = 1;
 
@@ -656,7 +710,11 @@ int initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
             g_threaded = true;
         }
-        else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
+        else if ( strstr((*argv), "-memory=") == *argv ) {
+
+        } else if ( strstr((*argv), "-threadmemory=") == *argv ) {
+
+        } else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-timing="), "a");
         }
         else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
