@@ -2,6 +2,7 @@
 
 #include "base_coders.hh"
 #include "model.hh"
+class BoolEncoder;
 class VP8ComponentEncoder : public BaseEncoder {
     Sirikata::Array1d<ProbabilityTablesBase*, NUM_THREADS> model_;
     template<class Left, class Middle, class Right>
@@ -18,7 +19,10 @@ class VP8ComponentEncoder : public BaseEncoder {
                            const UncompressedComponents * const colldata,
                            int min_y,
                            int max_y,
-                           std::vector<uint8_t> *stream);
+                           std::vector<uint8_t> *stream,
+                           BoolEncoder *bool_encoder,
+                           Sirikata::Array1d<std::vector<NeighborSummary>,
+                                             (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
     bool do_threading_ = false;
     Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice spin_workers_;
 public:

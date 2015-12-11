@@ -187,7 +187,7 @@ test_suite_test_SLR_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=s
 test_suite_test_SLR_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_hq_SOURCES = test_suite/test_harness.cc
-test_suite_test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq
+test_suite_test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq -DTHREAD_MEMORY=\"16M\"
 test_suite_test_hq_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_misc_SOURCES = test_suite/test_harness.cc

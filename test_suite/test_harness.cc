@@ -6,7 +6,8 @@
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 extern int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level,
                      const std::vector<const char *> &filenames,
-                     bool expect_encoder_failure, bool expect_decoder_failure);
+                     bool expect_encoder_failure, bool expect_decoder_failure,
+                     const char* memory, const char* thread_memory);
 #ifdef UNJAILED
 #define IS_JAILED false
 #else
@@ -57,6 +58,14 @@ int main (int argc, char **argv) {
 #ifdef TEST_FILE3
     #error "We only support 4 test files in the same test atm"
 #endif
+    char * memory = NULL;
+    char * thread_memory = NULL;
+#ifdef MORE_MEMORY
+    memory = "-memory=" MORE_MEMORY;
+#endif
+#ifdef THREAD_MEMORY
+    thread_memory = "-threadmemory=" THREAD_MEMORY;
+#endif
     return test_file(argc, argv, use_lepton, IS_JAILED, INJECT_SYSCALL, filenames,
-                     expect_failure, expect_decode_failure);
+                     expect_failure, expect_decode_failure, memory, thread_memory);
 }
