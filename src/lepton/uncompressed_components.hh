@@ -149,12 +149,12 @@ public:
         }
         uint64_t total_req_blocks = 0;
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
-            total_req_blocks += cmpinfo[cmp].bc;
+            total_req_blocks += cmpinfo[cmp].bcv * cmpinfo[cmp].bch;
         }
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
             int bc_allocated = cmpinfo[cmp].bc;
             int64_t max_cmp_bc = max_number_of_blocks;
-            max_cmp_bc *= bc_allocated;
+            max_cmp_bc *= cmpinfo[cmp].bcv * cmpinfo[cmp].bch;
             max_cmp_bc /= total_req_blocks;
             if (bc_allocated > max_cmp_bc) {
                 bc_allocated = max_cmp_bc - (max_cmp_bc % cmpinfo[cmp].bch);
