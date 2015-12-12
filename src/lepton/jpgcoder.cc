@@ -540,7 +540,7 @@ void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem
 int main( int argc, char** argv )
 {
     size_t mem_limit = 384 * 1024 * 1024;
-    size_t thread_mem_limit = 0;
+    size_t thread_mem_limit = 8192;
     for (int i = 1; i < argc; ++i) {
         compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit);
     }
