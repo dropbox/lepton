@@ -137,4 +137,5 @@ void custom_exit(uint8_t exit_code) {
 #else
     exit(exit_code);
 #endif
+    abort();
 }
