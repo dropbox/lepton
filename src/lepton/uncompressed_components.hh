@@ -147,11 +147,17 @@ public:
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
             allocated_ += cmpinfo[cmp].bc * 64;
         }
-        int max_bc = max_number_of_blocks;
+        uint64_t total_req_blocks = 0;
+        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
+            total_req_blocks += cmpinfo[cmp].bc;
+        }
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
             int bc_allocated = cmpinfo[cmp].bc;
-            if (bc_allocated > max_bc) {
-                bc_allocated = max_bc - (max_bc % cmpinfo[cmp].bch);
+            int64_t max_cmp_bc = max_number_of_blocks;
+            max_cmp_bc *= bc_allocated;
+            max_cmp_bc /= total_req_blocks;
+            if (bc_allocated > max_cmp_bc) {
+                bc_allocated = max_cmp_bc - (max_cmp_bc % cmpinfo[cmp].bch);
             }
             this->header_[cmp].component_.init(cmpinfo[cmp].bch, cmpinfo[cmp].bcv, bc_allocated);
 
@@ -172,9 +178,7 @@ public:
         }
     }
     void wait_for_worker_on_bit(int bit) {
-        bool have_data = true;
         while (bit >= (bit_progress_ += 0)) {
-            have_data = false;
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
@@ -184,9 +188,7 @@ public:
         }
     }
     void wait_for_worker_on_bpos(int bpos) {
-        bool have_data = true;
         while (bpos >= (coefficient_position_progress_ += 0)) {
-            have_data = false;
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
@@ -196,18 +198,13 @@ public:
         }
     }
     void wait_for_worker_on_dpos(int cmp, int dpos) {
-        bool have_data = true;
         dpos = std::min(dpos, header_[cmp].trunc_bc_ - 1);
         while (dpos >= (header_[cmp].dpos_block_progress_ += 0)) {
-            have_data = false;
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
                 custom_exit(EXIT_CODE_CODING_ERROR);
             }
-        }
-        if (!have_data) {
-            // DEBUG ONLY fprintf(stderr, "Was waiting for dpos[%d] %d > %d\n", cmp, dpos, (header_[cmp].dpos_block_progress_ += 0));
         }
     }
     void signal_worker_should_begin() {
