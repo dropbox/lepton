@@ -22,8 +22,6 @@ void SimpleComponentDecoder::initialize(Sirikata::DecoderReader *i) {
 
 void SimpleComponentDecoder::simple_continuous_decoder(UncompressedComponents* colldata,
                                                        Sirikata::DecoderReader *i) {
-    colldata->worker_wait_for_begin_signal();
-
     SimpleComponentDecoder scd;
     scd.initialize(i);
     while(scd.decode_chunk(colldata) == CODING_PARTIAL) {

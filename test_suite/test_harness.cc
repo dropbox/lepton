@@ -58,8 +58,8 @@ int main (int argc, char **argv) {
 #ifdef TEST_FILE3
     #error "We only support 4 test files in the same test atm"
 #endif
-    char * memory = NULL;
-    char * thread_memory = NULL;
+    const char * memory = NULL;
+    const char * thread_memory = NULL;
 #ifdef MORE_MEMORY
     memory = "-memory=" MORE_MEMORY;
 #endif

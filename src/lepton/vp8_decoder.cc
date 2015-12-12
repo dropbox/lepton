@@ -25,7 +25,6 @@ void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
 void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const colldata,
                                                  Sirikata::DecoderReader *str_in )
 {
-    colldata->worker_wait_for_begin_signal();
 
     VP8ComponentDecoder scd;
     scd.initialize(str_in);

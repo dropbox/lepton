@@ -4,3 +4,4 @@
 #include "uncompressed_components.hh"
 #include "component_info.hh"
 
+int UncompressedComponents::max_number_of_blocks = 0;

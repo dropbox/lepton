@@ -9,7 +9,11 @@
 #include "../../io/DecoderPlatform.hh"
 #include "../../io/MemMgrAllocator.hh"
 extern bool g_use_seccomp;
+#if __cplusplus > 199711L
+[[noreturn]]
+#endif
 void custom_exit(uint8_t exit_code);
+
 void custom_terminate_this_thread(uint8_t exit_code);
 void custom_atexit(void (*atexit)(void*) , void *arg);
 extern "C" {

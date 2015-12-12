@@ -18,13 +18,14 @@ class Block;
 
 
 
-template <bool use_threading, typename counter_type> class BaseUncompressedComponents {
+class UncompressedComponents {
+    typedef int CounterType;
     class ExtendedComponentInfo {
         ExtendedComponentInfo(const ExtendedComponentInfo&); // not implemented
         ExtendedComponentInfo operator=(const ExtendedComponentInfo&); // not implemented
     public:
         BlockBasedImage component_;
-        counter_type dpos_block_progress_;
+        CounterType dpos_block_progress_;
         componentInfo info_;
         int trunc_bcv_; // the number of vertical components in this (truncated) image
         int trunc_bc_;
@@ -32,46 +33,29 @@ template <bool use_threading, typename counter_type> class BaseUncompressedCompo
                                  trunc_bcv_(0), trunc_bc_(0) {
         }
     };
-
     int cmpc_; // the number of components
     ExtendedComponentInfo header_[4];
 
-    counter_type coefficient_position_progress_;
-    counter_type bit_progress_;
-    counter_type worker_start_read_signal_;
+    CounterType coefficient_position_progress_;
+    CounterType bit_progress_;
+    CounterType worker_start_read_signal_;
     int allocated_;
     BaseDecoder *decoder_;
-    BaseUncompressedComponents(const BaseUncompressedComponents&);// not implemented
-    BaseUncompressedComponents&operator=(const BaseUncompressedComponents&);// not implemented
+    UncompressedComponents(const UncompressedComponents&);// not implemented
+    UncompressedComponents&operator=(const UncompressedComponents&);// not implemented
     int bch_(int component) const {
         return header_[component].info_.bch;
     }
     int bcv_(int component) const {
         return header_[component].trunc_bcv_;
     }
-    static void decoder_worker_thread_function(BaseUncompressedComponents*thus){
-        thus->worker_wait_for_begin_signal();
-        CodingReturnValue ret;
-        while ((ret = thus->decoder_->decode_chunk(thus)) != CODING_ERROR) {   
-        }
-    }
 public:
-    BaseUncompressedComponents() : coefficient_position_progress_(0), bit_progress_(0), worker_start_read_signal_(0) {
+    UncompressedComponents() : coefficient_position_progress_(0), bit_progress_(0), worker_start_read_signal_(0) {
         decoder_ = NULL;
         allocated_ = 0;
     }
     unsigned short *get_quantization_tables(BlockType component) const {
         return header_[(int)component].info_.qtable;
-    }
-    void worker_wait_for_begin_signal() {
-        assert(!use_threading);
-#if 0
-        if (use_threading) {
-            while ((worker_start_read_signal_ += 0) == 0) {
-            }
-            std::atomic_thread_fence(std::memory_order_acquire);
-        }
-#endif
     }
     BlockColorContextIndices get_color_context(int curr_x,
                                                const Sirikata::Array1d<VContext, 3>&curr_y,
@@ -125,45 +109,25 @@ public:
     int get_num_components() const{
         return cmpc_;
     }
-    void copy_data_to_main_thread() {
-        assert(!use_threading);
-#if 0
-        if (use_threading) {
-            std::atomic_thread_fence(std::memory_order_release);
-        }
-#endif
-    }
-    void copy_data_from_worker_thread() {
-        assert(!use_threading);
-#if 0
-        if (use_threading) {
-            std::atomic_thread_fence(std::memory_order_acquire);
-        }
-#endif
-    }
+
     void worker_update_bit_progress(int add_bit_progress) {
-        copy_data_to_main_thread();
         bit_progress_ += add_bit_progress;
     }
     void worker_update_coefficient_position_progress(int add_coefficient_position_progress) {
-        copy_data_to_main_thread();
         coefficient_position_progress_ += add_coefficient_position_progress;
     }
     void worker_update_cmp_progress(BlockType cmp, int add_bit_progress) {
-        copy_data_to_main_thread();
         header_[(int)cmp].dpos_block_progress_ += add_bit_progress;
     }
     void worker_mark_cmp_finished(BlockType cmp) {
-        copy_data_to_main_thread();
-        counter_type dpos_block_progress_ = header_[(int)cmp].trunc_bc_;
+        CounterType dpos_block_progress_ = header_[(int)cmp].trunc_bc_;
         header_[(int)cmp].dpos_block_progress_ = dpos_block_progress_;
     }
+    void start_decoder(BaseDecoder *decoder) {
+        decoder_ = decoder;
+    }
     CodingReturnValue do_more_work() {
-        if (use_threading) {
-            return CODING_DONE;
-        } else {
-            return decoder_->decode_chunk(this);
-        }
+        return decoder_->decode_chunk(this);
     }
     void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc) {
         if (cmpc > (int)ColorChannel::NumBlockTypes) {
@@ -183,8 +147,13 @@ public:
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
             allocated_ += cmpinfo[cmp].bc * 64;
         }
+        int max_bc = max_number_of_blocks;
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
-            this->header_[cmp].component_.init(cmpinfo[cmp].bch, cmpinfo[cmp].bcv, cmpinfo[cmp].bc);
+            int bc_allocated = cmpinfo[cmp].bc;
+            if (bc_allocated > max_bc) {
+                bc_allocated = max_bc - (max_bc % cmpinfo[cmp].bch);
+            }
+            this->header_[cmp].component_.init(cmpinfo[cmp].bch, cmpinfo[cmp].bcv, bc_allocated);
 
         }
     }
@@ -202,14 +171,6 @@ public:
             set_block_count_dpos(&header_[i], max_dpos[i] + 1);
         }
     }
-    void start_decoder_worker_thread(BaseDecoder *decoder) {
-        decoder_ = decoder;
-        if (use_threading) {
-            std::function<void()> f(std::bind(&BaseUncompressedComponents::decoder_worker_thread_function, this));
-            std::thread thread(f);
-            thread.detach();
-        }
-    }
     void wait_for_worker_on_bit(int bit) {
         bool have_data = true;
         while (bit >= (bit_progress_ += 0)) {
@@ -220,9 +181,6 @@ public:
                 custom_exit(EXIT_CODE_CODING_ERROR);
             }
             //fprintf(stderr, "Waiting for bit %d > %d\n", bit, bit_progress_ += 0);
-        }
-        if (!have_data) {
-            copy_data_from_worker_thread();
         }
     }
     void wait_for_worker_on_bpos(int bpos) {
@@ -236,9 +194,6 @@ public:
             }
             //fprintf(stderr, "Waiting for coefficient_position %d > %d\n", bpos, coefficient_position_progress_ += 0);
         }
-        if (!have_data) {
-            copy_data_from_worker_thread();
-        }
     }
     void wait_for_worker_on_dpos(int cmp, int dpos) {
         bool have_data = true;
@@ -250,9 +205,6 @@ public:
                 assert(false && "Incorrectly coded item");
                 custom_exit(EXIT_CODE_CODING_ERROR);
             }
-        }
-        if (!have_data) {
-            copy_data_from_worker_thread();
         }
         if (!have_data) {
             // DEBUG ONLY fprintf(stderr, "Was waiting for dpos[%d] %d > %d\n", cmp, dpos, (header_[cmp].dpos_block_progress_ += 0));
@@ -277,11 +229,6 @@ public:
     const BlockBasedImage& full_component_nosync(int cmp) const{
         return header_[cmp].component_;
 
-    }
-    signed short at(BlockType cmp, int bpos, int x, int y) {
-        int dpos = header_[cmp].info.bch * y + x;
-        wait_for_worker_on_dpos(cmp, dpos);
-        return header_[cmp].component_[64 * dpos + unzigzag[bpos]]; // fixme: do we care bout nch?
     }
     signed short&set(BlockType cmp, int bpos, int dpos) {
         return header_[(int)cmp].component_.
@@ -325,9 +272,10 @@ public:
     void reset() {
         bit_progress_ -= bit_progress_;
     }
-    ~BaseUncompressedComponents() {
+    ~UncompressedComponents() {
         reset();
     }
+    static int max_number_of_blocks;
 };
-typedef BaseUncompressedComponents<false, int> UncompressedComponents;
+
 

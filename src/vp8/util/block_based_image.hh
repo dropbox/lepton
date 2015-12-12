@@ -73,17 +73,31 @@ public:
         return it;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
-        return image_[width_ * y + x];
+        uint32_t index = width_ * y + x;
+        if (__builtin_expect(index >= nblocks_, 0)) {
+            custom_exit(37);
+        }
+        return image_[index];
     }
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
+        uint32_t index = width_ * y + x;
+        if (__builtin_expect(index >= nblocks_, 0)) {
+            custom_exit(37);
+        }
         return image_[width_ * y + x];
     }
 
 
     AlignedBlock& raster(uint32_t offset) {
+        if (offset >= nblocks_) {
+            custom_exit(37);
+        }
         return image_[offset];
     }
     const AlignedBlock& raster(uint32_t offset) const {
+        if (__builtin_expect(offset >= nblocks_, 0)) {
+            custom_exit(37);
+        }
         return image_[offset];
     }
 };

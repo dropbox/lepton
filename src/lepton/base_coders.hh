@@ -9,8 +9,7 @@ enum CodingReturnValue {
     CODING_DONE,
     CODING_PARTIAL // run it again
 };
-template<bool, typename> class BaseUncompressedComponents;
-typedef BaseUncompressedComponents<false, int> UncompressedComponents;
+class UncompressedComponents;
 
 namespace Sirikata {
 class SwitchableXZBase;

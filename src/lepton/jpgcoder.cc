@@ -539,11 +539,23 @@ void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem
 
 int main( int argc, char** argv )
 {
-    size_t mem_limit = 384 * 1024 * 1024;
+    size_t mem_limit = 136 * 1024 * 1024;
     size_t thread_mem_limit = 8192;
     for (int i = 1; i < argc; ++i) {
         compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit);
     }
+    int max_num_components =
+#ifdef ALLOW_FOUR_COLORS
+      4
+#else
+      3
+#endif
+    ;
+    // the system needs 33 megs of ram ontop of the uncompressed image buffer.
+    // This adds a few extra megs just to keep things real
+    UncompressedComponents::max_number_of_blocks =
+        (mem_limit - 36 * 1024 * 1024)
+         / (max_num_components * sizeof(uint16_t) * 64);
     int n_threads = NUM_THREADS - 1;
 #ifndef __linux
     n_threads += 4;
@@ -2948,9 +2960,7 @@ bool read_ujpg( void )
     }
     colldata.signal_worker_should_begin();
     g_decoder->initialize(str_in);
-    colldata.start_decoder_worker_thread(g_decoder.get());
-
-
+    colldata.start_decoder(g_decoder.get());
     return true;
 }
 
