@@ -41,7 +41,8 @@ namespace Sirikata {
 // Initialize the memory manager. This function should be called
 // exactly once per thread that wishes to allocate memory
 //
-SIRIKATA_FUNCTION_EXPORT void memmgr_init(size_t main_thread_size, size_t worker_thread_size, size_t num_workers, size_t min_pool_alloc_quantas = 256);
+SIRIKATA_FUNCTION_EXPORT void memmgr_init(size_t main_thread_size, size_t worker_thread_size, size_t num_workers, size_t min_pool_alloc_quantas = 256,
+    bool needs_huge_pages=false);
 
 // Uninitialize the memory manager. This function should be called
 // exactly once per thread that exits

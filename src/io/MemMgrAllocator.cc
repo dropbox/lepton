@@ -34,6 +34,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include <sys/mman.h>
+#include <unistd.h>
 #include "DecoderPlatform.hh"
 #include "MemMgrAllocator.hh"
 #if defined(__APPLE__) || __cplusplus <= 199711L
@@ -77,6 +78,7 @@ struct MemMgrState {
 //
     uint8_t *pool;
     size_t pool_size;
+    bool used_calloc;
 };
 size_t  memmgr_num_memmgrs = 0;
 MemMgrState *memmgrs = NULL;
@@ -104,7 +106,14 @@ MemMgrState& get_local_memmgr(){
 void memmgr_destroy() {
     memmgr_thread_id_plus_one = 0; // only clears this thread
     if (memmgrs) {
-        munmap(memmgrs, memmgr_bytes_allocated);
+#if defined(USE_MMAP) && defined(__linux) // only linux guarantees all zeros
+        if (!memmgrs->used_calloc) {
+            munmap(memmgrs, memmgr_bytes_allocated);
+        } else 
+#endif
+        {
+            free(memmgrs);
+        }
     }
     memmgr_bytes_allocated = 0;
     memmgr_num_memmgrs = 0;
@@ -127,7 +136,7 @@ void setup_memmgr(MemMgrState& memmgr, uint8_t *data, size_t size) {
     memmgr.pool = data;
     memmgr.pool_size = size;
 }
-void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, size_t num_workers, size_t x_min_pool_alloc_quantas)
+void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, size_t num_workers, size_t x_min_pool_alloc_quantas, bool needs_huge_pages)
 {
     min_pool_alloc_quantas = x_min_pool_alloc_quantas;
     memmgr_num_memmgrs = num_workers + 1;
@@ -135,12 +144,35 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
     size_t pool_overhead_size = sizeof(MemMgrState) * (1 + num_workers);
     size_t total_size = pool_overhead_size + main_thread_pool_size + worker_thread_pool_size * num_workers;
     uint8_t * data = NULL;
+    bool used_calloc = false;
 #if defined(USE_MMAP) && defined(__linux) // only linux guarantees all zeros
-    data = (uint8_t*)mmap(NULL, total_size, PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-#else // lets favor the standard calloc for now
-    data = (uint8_t*)calloc(total_size, 1);
+    if (needs_huge_pages) {
+        data = (uint8_t*)mmap(NULL, total_size, PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB, -1, 0);
+        if (data == MAP_FAILED) {
+            const char * error = "Huge pages unsupported: falling back to ordinary pages\n";
+            int ret = write(2, error, strlen(error));
+            (void)ret;
+        }
+    }
+    if (data == MAP_FAILED || !needs_huge_pages) {
+        data = (uint8_t*)mmap(NULL, total_size, PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+        if (data == MAP_FAILED) {
+            perror("mmap");
+            data = NULL;
+        }
+    }
 #endif
+    if (!data) {
+        used_calloc = true;
+        data = (uint8_t*)calloc(total_size, 1);
+    }
+    if (!data) {
+        fprintf(stderr, "Insufficient memory: unable to mmap or calloc %ld bytes\n", total_size);
+        fflush(stderr);
+        exit(37);
+    }
     memmgrs = (MemMgrState*)data;
+    memmgrs->used_calloc = used_calloc;
     memmgr_bytes_allocated = pool_overhead_size + main_thread_pool_size + worker_thread_pool_size * num_workers;
     data += pool_overhead_size;
     setup_memmgr(memmgrs[0], data, main_thread_pool_size);

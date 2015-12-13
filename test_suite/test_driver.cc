@@ -136,8 +136,8 @@ int run_test(const std::vector<unsigned char> &testImage,
     if (expect_failure || expect_decoder_failure) {
         signal(SIGPIPE, SIG_IGN);
     }
-    const char * encode_args[MAX_ARGS] = {"./lepton", "-timing=test_timing", NULL};
-    const char * decode_args[MAX_ARGS] = {"./lepton", NULL};
+    const char * encode_args[MAX_ARGS] = {"./lepton", "-hugepages", "-timing=test_timing", NULL};
+    const char * decode_args[MAX_ARGS] = {"./lepton", "-hugepages", NULL};
     if (!use_lepton) {
         encode_args[get_last_arg(encode_args)] = "-ujg";
     }

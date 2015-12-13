@@ -521,7 +521,10 @@ bool starts_with(const char * a, const char * b) {
     }
     return true;
 }
-void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem_init) {
+void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem_init, bool *needs_huge_pages) {
+    if (strcmp(arg, "-hugepages") == 0) {
+        *needs_huge_pages = true;
+    }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
     if (starts_with(arg, mem_arg_name)) {
@@ -539,10 +542,11 @@ void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem
 
 int main( int argc, char** argv )
 {
-    size_t mem_limit = 136 * 1024 * 1024;
     size_t thread_mem_limit = 8192;
+    size_t mem_limit = 188 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
+    bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
-        compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit);
+        compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit, &needs_huge_pages);
     }
     // the system needs 33 megs of ram ontop of the uncompressed image buffer.
     // This adds a few extra megs just to keep things real
@@ -556,7 +560,8 @@ int main( int argc, char** argv )
     Sirikata::memmgr_init(mem_limit,
                           thread_mem_limit,
                           n_threads,
-                          256);
+                          256,
+                          needs_huge_pages);
     compute_md5(argv[0], g_executable_md5);
     clock_t begin = 0, end = 1;
 
@@ -714,8 +719,9 @@ int initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
             g_threaded = true;
-        }
-        else if ( strstr((*argv), "-memory=") == *argv ) {
+        } else if ( strstr((*argv), "-memory=") == *argv ) {
+
+        } else if ( strstr((*argv), "-hugepages") == *argv ) {
 
         } else if ( strstr((*argv), "-threadmemory=") == *argv ) {
 

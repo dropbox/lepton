@@ -39,6 +39,7 @@
 #include <stddef.h>
 #include <string>
 #include <vector>
+#define USE_MMAP
 namespace Sirikata{
 
 typedef int64_t int64;
