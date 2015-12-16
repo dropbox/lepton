@@ -543,7 +543,7 @@ void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem
 int main( int argc, char** argv )
 {
     size_t thread_mem_limit = 8192;
-    size_t mem_limit = 188 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
+    size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
         compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit, &needs_huge_pages);
