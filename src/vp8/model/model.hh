@@ -435,17 +435,22 @@ public:
             context.bsr_best_prior,
             context.num_nonzeros_bin);
     }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
-                                                                     int16_t mxm
-                                                                     , int16_t offset_to_closest_edge) {
-        return pt.model().exponent_counts_dc_.at(uint16bit_length(abs(mxm)),
-                                                 uint16bit_length(abs(offset_to_closest_edge)));
+    Sirikata::Array1d<Branch,
+                      MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
+							     uint16_t len_abs_mxm,
+							     uint16_t len_abs_offset_to_closest_edge) {
+        return pt.model().exponent_counts_dc_.
+	  at(std::min(len_abs_mxm,
+		      (uint16_t)(Model::ExponentCountsDC::size0 - 1)),
+	     std::min(len_abs_offset_to_closest_edge,
+		      (uint16_t)(Model::ExponentCountsDC::size1 - 1)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
-                                                                     int16_t mxm
-                                                                  , int16_t offset_to_closest_edge) {
+                                                                     uint16_t len_abs_mxm
+                                                                  , uint16_t len_abs_offset_to_closest_edge) {
         return pt.model().residual_noise_counts_dc_
-            .at(uint16bit_length(abs(mxm)));
+	  .at(std::min((uint16_t)(Model::ResidualNoiseCountsDc::size0 - 1),
+		       len_abs_mxm));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
                                                           const unsigned int band,

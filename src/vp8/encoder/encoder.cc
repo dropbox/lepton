@@ -283,7 +283,12 @@ void serialize_tokens(ConstBlockContext context,
 #endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-        auto exp_prob = probability_tables.exponent_array_dc(pt, uncertainty, uncertainty2);
+	uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
+	uint16_t len_abs_offset_to_closest_edge
+	  = uint16bit_length(abs(uncertainty2));
+        auto exp_prob = probability_tables.exponent_array_dc(pt,
+							     len_abs_mxm,
+							     len_abs_offset_to_closest_edge);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
             encoder.put(cur_bit, exp_prob.at(i));
@@ -292,11 +297,17 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
         if (length != 0) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, uncertainty, uncertainty2);
+            auto &sign_prob = probability_tables.sign_array_dc(pt,
+							       uncertainty,
+							       //nb: needs mxm
+							       //value, not abs
+							       uncertainty2);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
-            auto res_prob = probability_tables.residual_array_dc(pt, uncertainty, uncertainty2);
+            auto res_prob = probability_tables.residual_array_dc(pt,
+								 len_abs_mxm,
+								 len_abs_offset_to_closest_edge);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {
