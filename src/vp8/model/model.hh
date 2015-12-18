@@ -22,6 +22,7 @@ class Slice;
 constexpr unsigned int MAX_EXPONENT = 12;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
+constexpr unsigned int BSR_BEST_PRIOR_MAX = 11; // 1023 requires 11 bits to describe
 constexpr unsigned int band_divisor = 1;
 constexpr unsigned int COEF_BANDS         = 64 / band_divisor;
 constexpr unsigned int ENTROPY_NODES      = 15;
@@ -64,15 +65,15 @@ struct Model
 
     typedef Sirikata::Array5d<Branch,
                     BLOCK_TYPES,
-                    15,
                     NUM_NONZEROS_BINS,
+                    15,
                     NUMERIC_LENGTH_MAX,
                     MAX_EXPONENT> ExponentCounts8;
 
     typedef Sirikata::Array5d<Branch,
                               BLOCK_TYPES,
-                              49,
                               NUM_NONZEROS_BINS,
+                              49,
                               NUMERIC_LENGTH_MAX,
                               MAX_EXPONENT> ExponentCounts7x7;
 
@@ -85,7 +86,7 @@ typedef Sirikata::Array3d<Branch,
   ExponentCounts8 exponent_counts_x_;
   ExponentCountsDC exponent_counts_dc_;
 
-  typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, (COEF_BITS + 2 > 9 ? COEF_BITS + 2 : 9)> SignCounts;
+  typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, NUMERIC_LENGTH_MAX> SignCounts;
   SignCounts sign_counts_;
   
   template <typename lambda>
@@ -312,7 +313,7 @@ public:
         ProbabilityTablesBase::CoefficientContext retval;
         retval.best_prior = compute_aavrg(coord, aligned_zz, block);
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
-        retval.bsr_best_prior = bit_length(retval.best_prior);
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         return retval;
     }
     ProbabilityTablesBase::CoefficientContext update_coefficient_context7x7_precomp(int aligned_zz,
@@ -323,7 +324,7 @@ public:
         //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
         retval.best_prior = aavrg;
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
-        retval.bsr_best_prior = bit_length(retval.best_prior);
+        retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         return retval;
     }
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8(uint8_t coefficient,
@@ -420,8 +421,8 @@ public:
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
         return pt.model().exponent_counts_x_.at(color_index(),
-                                             zig15,
                                              context.num_nonzeros_bin,
+                                             zig15,
                                              context.bsr_best_prior);
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(ProbabilityTablesBase &pt,
@@ -431,9 +432,9 @@ public:
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
         return pt.model().exponent_counts_.at(color_index(),
+            context.num_nonzeros_bin,
             zig49,
-            context.bsr_best_prior,
-            context.num_nonzeros_bin);
+            context.bsr_best_prior);
     }
     Sirikata::Array1d<Branch,
                       MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
