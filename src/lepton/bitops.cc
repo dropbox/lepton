@@ -58,23 +58,21 @@ abitreader::~abitreader( void )
 
 abitwriter::abitwriter( int size )
 {
-	fillbit = 1;
-	adds    = 65536;
+    fillbit = 1;
+    adds    = 65536;
     cbyte2   = 0;
     cbit2    = 64;
     buf = 0;
-	
-	error = false;
-	fmem  = true;
-	
-	dsize = ( size > 0 ) ? size : adds;
+
+    error = false;
+    fmem  = true;
+    dsize = ( size > 0 ) ? size : adds;
     data2 = ( unsigned char* ) custom_calloc (dsize);
-	if ( data2 == NULL ) {
-		error = true;
-        custom_exit(1);
-		return;
-	}
-	
+    if ( data2 == NULL ) {
+        error = true;
+        custom_exit(36);
+        return;
+    }
 	// for ( int i = 0; i < dsize; i++ ) data[i] = 0;
 }
 
@@ -124,7 +122,7 @@ abytewriter::abytewriter( int size )
     data = aligned_alloc(dsize);
 	if ( data == NULL ) {
 		error = true;
-        custom_exit(1);
+        custom_exit(36);
 		return;
 	}
 }
@@ -159,7 +157,7 @@ void abytewriter::write( unsigned char byte )
         }
 		if ( data == NULL ) {
 			error = true;
-            custom_exit(1);
+            custom_exit(36);
 			return;
 		}
 	}
@@ -171,12 +169,12 @@ void abytewriter::write( unsigned char byte )
 /* -----------------------------------------------
 	writes n byte to abytewriter
 	----------------------------------------------- */
-	
+
 void abytewriter::write_n( unsigned char* byte, int n )
 {
 	// safety check for error
 	if ( error ) return;
-	
+
 	// make sure that pointer doesn't get beyond flush threshold
 	while ( ( cbyte + n ) >= ( dsize - 2 ) ) {
         unsigned char * newData = aligned_alloc(dsize *  2);
@@ -185,12 +183,12 @@ void abytewriter::write_n( unsigned char* byte, int n )
         aligned_dealloc(data);
         data = newData;
 		if ( data == NULL ) {
-			error = true;
-            custom_exit(1);
+            error = true;
+            custom_exit(36);
 			return;
 		}
 	}
-	
+
 	// copy data from array
 	while ( n-- > 0 )
 		data[ cbyte++ ] = *(byte++);

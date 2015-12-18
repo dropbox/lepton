@@ -841,7 +841,7 @@ void process_file(IOUtil::FileReader* reader,
                 generic_workers->at(i).activate_work();
                 generic_workers->at(i).join_via_syscall();
                 if (value.load() < 1) {
-                    exit(1); // this should exit_group
+                    exit(35); // this should exit_group
                 }
             }
             g_threaded = false;
@@ -1194,13 +1194,14 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
         while (write(2, errormessage, strlen(errormessage)) < 0 && errno == EINTR) {
 
         }
-        custom_exit(1);
+        custom_exit(2);
     }
     // open input stream, check for errors
     str_in = reader;
     if ( str_in == NULL ) {
         fprintf( stderr, FRD_ERRMSG, filelist[ file_no ] );
         errorlevel.store(2);
+        custom_exit(2);
         return false;
     }
 
@@ -1209,6 +1210,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
         filetype = UNK;
         errormessage = "file doesn't contain enough data";
         errorlevel.store(2);
+        custom_exit(3);
         return false;
     }
 
@@ -1234,7 +1236,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
                 while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {
 
                 }
-                custom_exit(1);
+                custom_exit(2);
             }
         }
         if ( !ujg_out ) {

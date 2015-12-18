@@ -137,7 +137,7 @@ public:
             int err = write(2, errmsg, strlen(errmsg));
             (void)err;
             assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
-            custom_exit(2);
+            custom_exit(4);
         }
         cmpc_ = cmpc;
         allocated_ = 0;
