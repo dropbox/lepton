@@ -782,7 +782,7 @@ public:
             constexpr unsigned int log_weight = 5;
             total *= 13;
             total += 6 * abs(context.above_left_unchecked().coefficients_raster(coord));
-            return total >> log_weight;
+            return ((uint16_t)total) >> log_weight;
         } else {
             return total;
         }
