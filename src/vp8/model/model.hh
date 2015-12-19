@@ -985,15 +985,14 @@ public:
                               int min_threshold,
                               int max_value) {
         uint16_t ctx_abs = abs(context.best_prior);
-        if (ctx_abs >= max_value) {
-            ctx_abs = max_value - 1;
-        }
         ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
         ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
-
-        return pt.model().residual_threshold_counts_.at(color_index(),
-                                                     ctx_abs >> min_threshold,
-                                                     cur_exponent - min_threshold);
+        return pt.model(
+            ).residual_threshold_counts_.at(color_index(),
+                                            std::min(ctx_abs >> min_threshold,
+                                                     (uint16_t)Model::ResidualThresholdCounts::size1 - 1),
+                                            std::min(cur_exponent - min_threshold,
+                                                     Model::ResidualThresholdCounts::size2 - 1));
     }
     void residual_thresh_array_annot_update(const unsigned int band,
                                             uint16_t cur_serialized_thresh_value) {
