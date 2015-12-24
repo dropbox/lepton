@@ -210,11 +210,6 @@ inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split) {
     r->count = count;
     r->range = range;
 
-#ifdef DEBUG_ARICODER
-    //if (r_bitcount < 1000) {
-    fprintf(stderr, "R %d %d %d\n", r_bitcount++, prob, bit);
-    //}
-#endif
     return bit;
 }
 __attribute__((always_inline))
@@ -232,7 +227,11 @@ inline bool vpx_read(vpx_reader *r, int prob) {
     range = split;
   }
   if (__builtin_expect(r->count < 0, 0)) {
-      return vpx_reader_fill_and_read(r, split);
+      bit = vpx_reader_fill_and_read(r, split);
+#ifdef DEBUG_ARICODER
+      fprintf(stderr, "R %d %d %d\n", r_bitcount++, prob, bit);
+#endif
+      return bit;
   }
   //unsigned int shift = vpx_norm[range];
   unsigned int shift = count_leading_zeros_uint8(range);
@@ -243,11 +242,9 @@ inline bool vpx_read(vpx_reader *r, int prob) {
   r->count = count;
   r->range = range;
 
-  #ifdef DEBUG_ARICODER
-    //if (r_bitcount < 1000) {
-      fprintf(stderr, "R %d %d %d\n", r_bitcount++, prob, bit);
-    //}
-  #endif
+#ifdef DEBUG_ARICODER
+  fprintf(stderr, "R %d %d %d\n", r_bitcount++, prob, bit);
+#endif
 
   return bit;
 }
