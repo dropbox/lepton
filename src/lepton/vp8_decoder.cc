@@ -59,7 +59,10 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        context_.at((int)middle_model.COLOR).context = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
+        uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
+        if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
+            return;
+        }
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
@@ -67,8 +70,10 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
-        context_.at((int)middle_model.COLOR).context
-            = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
+        uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
+        if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
+            return;
+        }
     }
     if (block_width > 1) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
@@ -76,8 +81,7 @@ void VP8ComponentDecoder::ThreadState::process_row(Left & left_model,
                      bool_decoder_,
                      right_model,
                      model_);
-        context_.at((int)middle_model.COLOR).context
-            = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
+        colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
     }
 }
 const bool dospin = true;

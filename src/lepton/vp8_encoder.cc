@@ -91,7 +91,13 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          left_model,
                          pt);
-        context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, true);
+        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context,
+                                                                                        true);
+        context.at((int)middle_model.COLOR).context = block_context;
+        if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
+            return;
+        }
+        
     }
     for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
         ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
@@ -106,7 +112,12 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          middle_model,
                          pt);
-        context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, true);
+        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context,
+                                                                                        true);
+        context.at((int)middle_model.COLOR).context = block_context;
+        if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
+            return;
+        }
     }
     if (block_width > 1) {
         ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
@@ -121,7 +132,8 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          right_model,
                          pt);
-        context.at((int)middle_model.COLOR).context = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
+        colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
+        context.at((int)middle_model.COLOR).context = block_context;
     }
 }
 uint32_t aligned_block_cost(const AlignedBlock &block) {
@@ -457,15 +469,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         }
     }
 
-    if(!do_threading_) { // single threading
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            process_row_range(thread_id,
-                              colldata, luma_splits[thread_id - 1], luma_splits[thread_id],
-                              stream[thread_id],
-                              &bool_encoder[thread_id],
-                              &num_nonzeros[thread_id]);
-        }
-    } else {
+    if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             if (dospin) {
                 spin_workers_.at(thread_id - 1).work
@@ -490,7 +494,15 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         }
     }
     process_row_range(0, colldata, 0, luma_splits[0], stream[0], &bool_encoder[0], &num_nonzeros[0]);
-
+    if(!do_threading_) { // single threading
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            process_row_range(thread_id,
+                              colldata, luma_splits[thread_id - 1], luma_splits[thread_id],
+                              stream[thread_id],
+                              &bool_encoder[thread_id],
+                              &num_nonzeros[thread_id]);
+        }
+    }
 
     static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
                   "Need to have enough mux streams for all threads and simd width");

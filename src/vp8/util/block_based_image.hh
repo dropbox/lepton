@@ -50,7 +50,7 @@ public:
             (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
             (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
-    template <class BlockContext> BlockContext next(BlockContext it, bool has_left) const {
+    template <class BlockContext> uint32_t next(BlockContext& it, bool has_left) const {
         it.cur += 1;
         ptrdiff_t offset = it.cur - image_;
         if (offset >= width_) {
@@ -70,7 +70,7 @@ public:
                 it.num_nonzeros_here -= width_;
             }
         }
-        return it;
+        return offset;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
         uint32_t index = width_ * y + x;
