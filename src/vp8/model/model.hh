@@ -579,7 +579,7 @@ public:
         }
     }
     int predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original) {
-        int max_value = 8192;
+        int max_value = (1 << (1 + MAX_EXPONENT)) - 1;
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
         int retval = //predict_locoi_dc_deprecated(block);
@@ -739,7 +739,7 @@ public:
         fprintf(stderr, "DC : %d\n", actual_dc);
     }
     int adv_predict_or_unpredict_dc(int16_t saved_dc, bool recover_original, int predicted_val) {
-        int max_value = 16384; //get_max_value(0);
+        int max_value = (1 << (MAX_EXPONENT - 1));
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
         int retval = predicted_val;
