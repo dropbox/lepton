@@ -134,6 +134,7 @@ CodingReturnValue VP8ComponentDecoder::ThreadState::vp8_decode_thread(int thread
         }
         context_.at((int)component).context = colldata->full_component_write(component).off_y(curr_y, num_nonzeros_.at((int)component).begin());
         int block_width = colldata->block_width((int)component);
+
         if (is_top_row_.at((int)component)) {
             is_top_row_.at((int)component) = false;
             switch(component) {

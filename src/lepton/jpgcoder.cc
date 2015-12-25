@@ -921,7 +921,7 @@ void process_file(IOUtil::FileReader* reader,
                 timing_operation_start( 'c' );
                 execute( read_jpeg );
                 execute( decode_jpeg );
-                execute( check_value_range );
+                //execute( check_value_range );
                 execute( write_ujpg ); // replace with compression function!
                 timing_operation_complete( 'c' );
                 break;
@@ -2644,7 +2644,7 @@ bool check_value_range( void )
         for (int bpos = 0; bpos < 64; bpos++ ) {
             absmax[zigzag_to_aligned.at(bpos)] = MAX_V( cmp, bpos );
         }
-        for (int dpos = 0; dpos < cmpnfo[cmp].bc && dpos < max_dpos[cmp] ; dpos++ ) {
+        for (int dpos = 0; dpos < cmpnfo[cmp].bc && dpos <= max_dpos[cmp] ; dpos++ ) {
             const int16_t * raw_data = colldata.block_nosync((BlockType)cmp, dpos).raw_data();
             for (int aligned_pos = 0; aligned_pos < 64; ++aligned_pos, ++raw_data) {
                 if ((*raw_data) > absmax[aligned_pos] ||

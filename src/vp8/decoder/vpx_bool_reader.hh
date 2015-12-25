@@ -33,6 +33,7 @@ public:
                any_read = true;
                static int count=0;
                r_bitcount = count * 500000000;
+	       count++;
         }
 #endif
         bool retval = vpx_read(&bit_reader, branch.prob());

@@ -21,6 +21,7 @@ public:
                any_written = true;
                static int count=0;
                w_bitcount = count * 500000000;
+	       ++count;
         }
 #endif
         vpx_write(&boolwriter, value, branch.prob());

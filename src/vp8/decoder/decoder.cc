@@ -95,8 +95,7 @@ void decode_one_edge(BlockContext mcontext,
                                                                                 coord,
                                                                                 length,
                                                                                 prior,
-                                                                                min_threshold,
-                                                                                probability_tables.get_max_value(coord));
+                                                                                min_threshold);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (decoder.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
@@ -235,13 +234,13 @@ void parse_tokens(BlockContext context,
     { // dc
         uint8_t length;
         bool nonzero = false;
-	uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
-	uint16_t len_abs_offset_to_closest_edge
-	  = uint16bit_length(abs(uncertainty2));
+        uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
+        uint16_t len_abs_offset_to_closest_edge
+          = uint16bit_length(abs(uncertainty2));
 
         auto exp_prob = probability_tables.exponent_array_dc(pt,
-							     len_abs_mxm,
-							     len_abs_offset_to_closest_edge);
+                                                             len_abs_mxm,
+                                                             len_abs_offset_to_closest_edge);
         auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
             bool cur_bit = decoder.get(*exp_branch++);
@@ -257,8 +256,8 @@ void parse_tokens(BlockContext context,
             coef = (1 << (length - 1));
             if (length > 1){
                 auto res_prob = probability_tables.residual_array_dc(pt,
-								     len_abs_mxm,
-								     len_abs_offset_to_closest_edge);
+                                                                     len_abs_mxm,
+                                                                     len_abs_offset_to_closest_edge);
                 for (int i = length - 2; i >= 0; --i) {
                     coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
                 }
@@ -269,7 +268,7 @@ void parse_tokens(BlockContext context,
         }
         context.here().dc() = coef;
     }
-    context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.copy(),
+    context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                          true,
                                                                          predicted_dc);
 

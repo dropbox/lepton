@@ -126,8 +126,7 @@ void encode_one_edge(ConstBlockContext context,
                                                                                 coord,
                                                                                 length,
                                                                                 prior,
-                                                                                min_threshold,
-                                                                                probability_tables.get_max_value(coord));
+                                                                                min_threshold);
                     uint16_t encoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
@@ -268,13 +267,19 @@ void serialize_tokens(ConstBlockContext context,
     Sirikata::AlignedArray1d<int16_t, 64> outp_sans_dc;
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
     int uncertainty2 = 0;
-    int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context,
+    int predicted_val = probability_tables.adv_predict_dc_pix(context,
+                                                              outp_sans_dc.begin(),
+                                                              &uncertainty,
+                                                              &uncertainty2);
+   int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                           false,
-                                                                          probability_tables.adv_predict_dc_pix(context,
-                                                                                                                outp_sans_dc.begin(),
-                                                                                                                &uncertainty,
-                                                                              &uncertainty2));
-    (void)adv_predicted_dc;
+                                                                          predicted_val);
+    
+    if (context.here().dc() != probability_tables.adv_predict_or_unpredict_dc(adv_predicted_dc,
+                                                                              true,
+                                                                              predicted_val)) {
+          custom_exit(6); // value out of range
+    }
     {
         // do DC
         int16_t coef = adv_predicted_dc;
@@ -283,12 +288,12 @@ void serialize_tokens(ConstBlockContext context,
 #endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
-	uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
-	uint16_t len_abs_offset_to_closest_edge
-	  = uint16bit_length(abs(uncertainty2));
+        uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
+        uint16_t len_abs_offset_to_closest_edge
+          = uint16bit_length(abs(uncertainty2));
         auto exp_prob = probability_tables.exponent_array_dc(pt,
-							     len_abs_mxm,
-							     len_abs_offset_to_closest_edge);
+                                                             len_abs_mxm,
+                                                             len_abs_offset_to_closest_edge);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
             encoder.put(cur_bit, exp_prob.at(i));
@@ -298,16 +303,16 @@ void serialize_tokens(ConstBlockContext context,
         }
         if (length != 0) {
             auto &sign_prob = probability_tables.sign_array_dc(pt,
-							       uncertainty,
-							       //nb: needs mxm
-							       //value, not abs
-							       uncertainty2);
+                                                               uncertainty,
+                                                               //nb: needs mxm
+                                                               //value, not abs
+                                                               uncertainty2);
             encoder.put(coef >= 0 ? 1 : 0, sign_prob);
         }
         if (length > 1){
             auto res_prob = probability_tables.residual_array_dc(pt,
-								 len_abs_mxm,
-								 len_abs_offset_to_closest_edge);
+                                                                 len_abs_mxm,
+                                                                 len_abs_offset_to_closest_edge);
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {

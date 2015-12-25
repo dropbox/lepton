@@ -579,10 +579,7 @@ public:
         }
     }
     int predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original) {
-        int max_value = 0;
-        if (ProbabilityTablesBase::quantization_table((int)COLOR, 0)){
-            max_value = (1024 + ProbabilityTablesBase::quantization_table((int)COLOR,0) - 1) / ProbabilityTablesBase::quantization_table((int)COLOR, 0);
-        }
+        int max_value = 8192;
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
         int retval = //predict_locoi_dc_deprecated(block);
@@ -603,23 +600,25 @@ public:
         if(left_present || above_present) {
             if ((VECTORIZE || MICROVECTORIZE)) {
                 if (above_present) { //above goes first to prime the cache
-                    __m128i neighbor_above = _mm_loadu_si128((const __m128i*)context
+		  __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
                                                              .neighbor_context_above_unchecked()
                                                              .horizontal_ptr());
-                    __m128i pixels_sans_dc_reg = _mm_loadu_si128((const __m128i*)pixels_sans_dc);
+                    __m128i pixels_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)pixels_sans_dc);
+                    __m128i pixels2_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)(pixels_sans_dc + 8));
                     __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
-                                                          _mm_loadu_si128((const __m128i*)(pixels_sans_dc + 8)));
+                                                         pixels2_sans_dc_reg);
                     __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
                     __m128i pixels_sans_dc_recentered = _mm_add_epi16(pixels_sans_dc_reg,
                                                                       _mm_set1_epi16(1024));
                     __m128i above_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_above, pixels_delta_div2),
                                                               pixels_sans_dc_recentered);
 
-                    _mm_store_si128((__m128i*)(dc_estimates.begin() + (left_present ? 8 : 0)), above_dc_estimate);
+                    _mm_store_si128((__m128i*)(char*)(dc_estimates.begin() + (left_present ? 8 : 0)),
+                                    above_dc_estimate);
                 }
                 if (left_present) {
                     const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
-                    __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)horiz_data);
+                    __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)(const char*)horiz_data);
                     //neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
                     __m128i pixels_sans_dc_reg = _mm_set_epi16(pixels_sans_dc[56],
                                                                pixels_sans_dc[48],
@@ -644,7 +643,7 @@ public:
                                                               _mm_add_epi16(pixels_sans_dc_reg,
                                                                             _mm_set1_epi16(1024)));
                     
-                    _mm_store_si128((__m128i*)dc_estimates.begin(), left_dc_estimate);
+                    _mm_store_si128((__m128i*)(char*)dc_estimates.begin(), left_dc_estimate);
                 }
             } else {
                 if (left_present) {
@@ -739,15 +738,12 @@ public:
         fprintf(stderr, "LOC: %d (%d)\n", locoi_pred, loc_err);
         fprintf(stderr, "DC : %d\n", actual_dc);
     }
-    int adv_predict_or_unpredict_dc(const ConstBlockContext&context, bool recover_original, int predicted_val) {
-        int max_value = 0;
-        if (ProbabilityTablesBase::quantization_table((int)COLOR, 0)){
-            max_value = (1024 + ProbabilityTablesBase::quantization_table((int)COLOR,0) - 1) / ProbabilityTablesBase::quantization_table((int)COLOR, 0);
-        }
+    int adv_predict_or_unpredict_dc(int16_t saved_dc, bool recover_original, int predicted_val) {
+        int max_value = 16384; //get_max_value(0);
         int min_value = -max_value;
         int adjustment_factor = 2 * max_value + 1;
         int retval = predicted_val;
-        retval = context.here().dc() + (recover_original ? retval : -retval);
+        retval = saved_dc + (recover_original ? retval : -retval);
         if (retval < min_value) retval += adjustment_factor;
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
@@ -982,8 +978,7 @@ public:
                               const unsigned int band,
                               const uint8_t cur_exponent,
                               const CoefficientContext context,
-                              int min_threshold,
-                              int max_value) {
+                              int min_threshold) {
         uint16_t ctx_abs = abs(context.best_prior);
         ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
         ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
@@ -1028,9 +1023,7 @@ public:
         ANNOTATE_CTX(band, SIGN8, 1, ctx1);
         return pt.model().sign_counts_.at(color_index(), ctx1, ctx0);
     }
-    int get_max_value(int coord) {
-        return ProbabilityTablesBase::freqmax((int)COLOR, coord);
-    }
+  
     uint8_t get_noise_threshold(int coord) {
         return ProbabilityTablesBase::min_noise_threshold((int)COLOR, coord);
     }
