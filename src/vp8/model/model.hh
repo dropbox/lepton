@@ -16,10 +16,7 @@
 #include <emmintrin.h>
 
 class BoolEncoder;
-class Slice;
-
-
-constexpr unsigned int MAX_EXPONENT = 12;
+constexpr unsigned int MAX_EXPONENT = 11;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
 constexpr unsigned int BSR_BEST_PRIOR_MAX = 11; // 1023 requires 11 bits to describe
@@ -29,7 +26,7 @@ constexpr unsigned int ENTROPY_NODES      = 15;
 constexpr unsigned int NUM_NONZEROS_EOB_PRIORS = 66;
 constexpr unsigned int ZERO_OR_EOB = 3;
 constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
-constexpr unsigned int COEF_BITS = 10;
+constexpr unsigned int COEF_BITS = MAX_EXPONENT - 1; // the last item of the length is always 1
 
 int get_sum_median_8(int16_t*data16i);
 struct Model

@@ -138,6 +138,10 @@ void encode_one_edge(ConstBlockContext context,
                         if (cur_bit) {
                             encoded_so_far |=1;
                         }
+                        // since we are not strict about rejecting jpegs with out of range coefs
+                        // we just make those less efficient by reusing the same probability bucket
+                        encoded_so_far = std::min(encoded_so_far,
+                                                  (uint16_t)(thresh_prob.size() - 1));
                     }
 #ifdef ANNOTATION_ENABLED
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
@@ -307,9 +311,9 @@ void serialize_tokens(ConstBlockContext context,
                 break;
             }
         }
-	if (length > MAX_EXPONENT) {
+        if (length > MAX_EXPONENT) {
             custom_exit(6);
-	}
+        }
         if (length != 0) {
             auto &sign_prob = probability_tables.sign_array_dc(pt,
                                                                uncertainty,

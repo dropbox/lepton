@@ -104,6 +104,11 @@ void decode_one_edge(BlockContext mcontext,
                         if (cur_bit) {
                             decoded_so_far |= 1;
                         }
+                        // since we are not strict about rejecting jpegs with out of range coefs
+                        // we just make those less efficient by reusing the same probability bucket
+                        decoded_so_far = std::min(decoded_so_far,
+                                                  (uint16_t)(thresh_prob.size() - 1));
+
                     }
 #ifdef ANNOTATION_ENABLED
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
