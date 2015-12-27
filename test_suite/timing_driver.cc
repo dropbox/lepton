@@ -139,21 +139,28 @@ ssize_t write_close_read_until(int input_fd,
         return -1;
     }
     ssize_t out_size = 0;
-    fd_set rfds = {};
-    fd_set wfds = {};
-    fd_set efds = {};
-    while(out_size < outdata_max_size) {
+    fd_set rfds;
+    fd_set wfds;
+    fd_set efds;
+    while(outdata_max_size) {
+        if (!indata_size) { // all input consumed, simply read()
+            ssize_t data_read = read_until(output_fd, outdata, outdata_max_size);
+            if (data_read >= 0) {
+                return out_size + data_read;
+            }
+            return out_size;
+        }
         FD_ZERO(&rfds);
         FD_ZERO(&efds);
         FD_ZERO(&wfds);
         FD_SET(output_fd, &rfds);
         FD_SET(output_fd, &efds);
-        if (indata_size) {
-            FD_SET(input_fd, &wfds);
-            FD_SET(input_fd, &efds);
-        }
+        FD_SET(input_fd, &wfds);
+        FD_SET(input_fd, &efds);
+
         int err = select(std::max(input_fd, output_fd) + 1, &rfds, &wfds, &efds, NULL);
         if (err < 0) {
+            perror("Select");
             return out_size;
         }
         if (indata_size && FD_ISSET(input_fd, &wfds)) {
@@ -191,7 +198,7 @@ ssize_t write_close_read_until(int input_fd,
     return out_size;
 }
 double get_cur_time_double() {
-    struct timeval tv = {};
+    struct timeval tv;
     gettimeofday(&tv, NULL);
     double retval = tv.tv_usec;
     retval *= 0.000001;
@@ -205,7 +212,7 @@ int run_test(const std::vector<unsigned char> &testImage,
              bool use_lepton, bool jailed, int inject_failure_level,
              bool expect_failure, bool expect_decoder_failure, const char* memory, const char* thread_memory) {
     std::vector<unsigned char> leptonBuffer(use_lepton ? testImage.size()
-                                           : testImage.size() * 40);
+                                           : testImage.size() * 40 + 4096 * 1024);
     std::vector<unsigned char> roundtripBuffer(testImage.size());
 
     if (expect_failure || expect_decoder_failure) {
@@ -329,12 +336,14 @@ int run_test(const std::vector<unsigned char> &testImage,
         status = close(decode_stdout[1]);
     } while (status == -1 && errno == EINTR);
     bool presend_header = true;
-    if (presend_header) {
+    if (!presend_header) {
         sleep_a_bit();
     }
     double startEncode = get_cur_time_double();
     ssize_t ret = write_until(encode_stdin[1], testImage.data(), 2);
-    always_assert(ret == 2 && "Input program must at least accept the 2 byte header before block");
+    if (!expect_failure) {
+        always_assert(ret == 2 && "Input program must at least accept the 2 byte header before block");
+    }
     if (presend_header) {
         sleep_a_bit();
         startEncode = get_cur_time_double();
@@ -348,6 +357,8 @@ int run_test(const std::vector<unsigned char> &testImage,
     int encoder_exit = 1;
     waitpid(encoder_pid, &encoder_exit, 0);
     double encodeShutdown = get_cur_time_double();
+    fprintf(stderr, "Timing encode: %f encode process exit: %f\n",
+            stopEncode - startEncode, encodeShutdown - startEncode);
     if (expect_failure) {
         if (encoder_exit) {
             fprintf(stderr, "But this is expected since we were making sure the encoder did fail.\n"
@@ -356,17 +367,24 @@ int run_test(const std::vector<unsigned char> &testImage,
         return encoder_exit != 0 ? 0 : 1;
     }
     always_assert(ret > 0);
-    leptonBuffer.resize(ret + 2);
+    leptonBuffer.resize(ret);
     if (use_lepton) {
         always_assert(get_uncompressed_image_size(leptonBuffer.data(),
-                                                  leptonBuffer.size()) == testImage.size() &&
+                                                  leptonBuffer.size()) == (ssize_t)testImage.size() &&
                       "Lepton representation must have encoded proper size");
     }
     always_assert(roundtripBuffer.size() == testImage.size());
     always_assert(leptonBuffer.size() > 2);
+    {
+        FILE * lfp = fopen("/tmp/X.lep","w");
+        fwrite(leptonBuffer.data(), leptonBuffer.size(), 1, lfp);
+        fclose(lfp);
+    }
     double startDecode = get_cur_time_double();
     ret = write_until(decode_stdin[1], leptonBuffer.data(), 2);
-    always_assert(ret == 2 && "Input program must at least accept the 2 byte header before block");
+    if (!expect_decoder_failure) {
+        always_assert(ret == 2 && "Input program must at least accept the 2 byte header before block");
+    }
     if (presend_header) {
         sleep_a_bit();
         startDecode = get_cur_time_double();
@@ -379,19 +397,39 @@ int run_test(const std::vector<unsigned char> &testImage,
     int decoder_exit = 1;
     waitpid(decoder_pid, &decoder_exit, 0);
     double decodeShutdown = get_cur_time_double();
-    fprintf(stderr, "EXIT STATUS %d %d\n", WEXITSTATUS(encoder_exit), WEXITSTATUS(decoder_exit));
+    fprintf(stderr, "Timing decode: %f decode process exit: %f\n",
+            stopDecode - startDecode, decodeShutdown - startDecode);
+    fprintf(stderr, "EXIT STATUS %d (%d) %d (%d)\n",
+            WEXITSTATUS(encoder_exit), encoder_exit,
+            WEXITSTATUS(decoder_exit), decoder_exit);
     if (expect_decoder_failure) {
         if (decoder_exit) {
             fprintf(stderr, "But this is expected since we were making sure the decoder did fail.\n"
-                    "Failed on decode with code %d\n", WEXITSTATUS(decoder_exit));
+                    "Failed on decode with code %d: %d\n", WEXITSTATUS(decoder_exit), decoder_exit);
         }
         return decoder_exit != 0 ? 0 : 1;
     }
     if (WEXITSTATUS(encoder_exit)) {
         return(WEXITSTATUS(encoder_exit));
     }
-    return(WEXITSTATUS(decoder_exit));
-
+    if(WEXITSTATUS(decoder_exit)) {
+        return WEXITSTATUS(decoder_exit);
+    }
+    if (encoder_exit) {
+        return encoder_exit;
+    }
+    if(decoder_exit) {
+        return decoder_exit;
+    }
+    if (roundtripBuffer.size() != testImage.size()) {
+        fprintf(stderr, "Size mismatch");
+        return 1;
+    }
+    if (memcmp(roundtripBuffer.data(), testImage.data(), testImage.size()) != 0) {
+        fprintf(stderr, "Size mismatch");
+        return 1;
+    }
+    return 0;
 }
 std::vector<unsigned char> load(const char *filename) {
     /* check if srcdir is defined, in which case prepend */

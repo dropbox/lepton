@@ -29,35 +29,52 @@ int main (int argc, char **argv) {
 #if defined(EXPECT_LINUX_DECODE_FAILURE) && defined(__linux)
     expect_decode_failure = true;
 #endif
+    bool enable_jailing = IS_JAILED;
 #ifdef USE_LEPTON
     use_lepton = true;
 #endif
+    for (int i = 1; i < argc; ++i) {
+        if (strstr(argv[i], "-unjailed")) {
+            enable_jailing = false;
+            for (int j = i; j + 1 < argc; ++j) {
+                argv[j] = argv[j + 1];
+            }
+            --argc;
+            break;
+        }
+    }
     std::vector<const char *> filenames;
+    if (argc > 1) {
+        for (int i = 1; i < argc; ++i) {
+            filenames.push_back(argv[i]);
+        }
+    } else {
 #ifdef TEST_FILE
     // we can only test one failure at a time
-    filenames.push_back("images/" STRINGIFY(TEST_FILE) ".jpg");
+        filenames.push_back("images/" STRINGIFY(TEST_FILE) ".jpg");
 #endif
 #ifdef TEST_FILE0
-    if (expect_failure != false) {
-        return 1;
-    }
-    filenames.push_back("images/" STRINGIFY(TEST_FILE0) ".jpg");
+        if (expect_failure != false) {
+            return 1;
+        }
+        filenames.push_back("images/" STRINGIFY(TEST_FILE0) ".jpg");
 #endif
 #ifdef TEST_FILE1
-    if (expect_failure != false) {
-        return 1;
-    }
-    filenames.push_back("images/" STRINGIFY(TEST_FILE1) ".jpg");
+        if (expect_failure != false) {
+            return 1;
+        }
+        filenames.push_back("images/" STRINGIFY(TEST_FILE1) ".jpg");
 #endif
 #ifdef TEST_FILE2
-    if (expect_failure != false) {
-        return 1;
-    }
-    filenames.push_back("images/" STRINGIFY(TEST_FILE2) ".jpg");
+        if (expect_failure != false) {
+            return 1;
+        }
+        filenames.push_back("images/" STRINGIFY(TEST_FILE2) ".jpg");
 #endif
 #ifdef TEST_FILE3
     #error "We only support 4 test files in the same test atm"
 #endif
+    }
     const char * memory = NULL;
     const char * thread_memory = NULL;
 #ifdef MORE_MEMORY
@@ -66,6 +83,6 @@ int main (int argc, char **argv) {
 #ifdef THREAD_MEMORY
     thread_memory = "-threadmemory=" THREAD_MEMORY;
 #endif
-    return test_file(argc, argv, use_lepton, IS_JAILED, INJECT_SYSCALL, filenames,
+    return test_file(argc, argv, use_lepton, enable_jailing, INJECT_SYSCALL, filenames,
                      expect_failure, expect_decode_failure, memory, thread_memory);
 }
