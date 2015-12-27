@@ -116,7 +116,7 @@ DEFAULT_INCLUDES=-I$(srcdir)/src
 
 
 #noinst_LIBRARIES = libtestdriver.a
-libtestdriver_a_SOURCES = test_suite/test_driver.cc
+libtestdriver_a_SOURCES = test_suite/timing_driver.cc
 
 test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/Allocator.hh \
    src/vp8/util/memory.cc \
