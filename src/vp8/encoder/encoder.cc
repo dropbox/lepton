@@ -109,14 +109,16 @@ void encode_one_edge(ConstBlockContext context,
 #endif
         uint16_t abs_coef = abs(coef);
         uint8_t length = bit_length(abs_coef);
+        for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
+            bool cur_bit = (length != i);
+            encoder.put(cur_bit, exp_array.at(i));
+            if (!cur_bit) {
+                break;
+            }
+        }
         if (length > MAX_EXPONENT) {
             custom_exit(6);
         }
-        auto * exp_branch = exp_array.begin();
-        for (unsigned int i = 0; i < length; ++i) {
-            encoder.put(1, *exp_branch++);
-        }
-        encoder.put(0, exp_array.at(length));
         if (coef) {
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
@@ -242,13 +244,16 @@ void serialize_tokens(ConstBlockContext context,
 #endif
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length = bit_length(abs_coef);
+            for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
+                bool cur_bit = (length != i);
+                encoder.put(cur_bit, exp_prob.at(i));
+                if (!cur_bit) {
+                    break;
+                }
+            }
             if (length > MAX_EXPONENT) {
                 custom_exit(6);
             }
-            for (unsigned int i = 0; i < length; ++i) {
-                encoder.put(1, exp_prob.at(i));
-            }
-            encoder.put(0, exp_prob.at(length));
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob);

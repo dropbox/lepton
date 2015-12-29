@@ -50,7 +50,9 @@ void decode_one_edge(BlockContext mcontext,
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
     }
-
+    if (num_nonzeros_edge > 7) {
+        custom_exit(7);
+    }
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
         ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
@@ -165,6 +167,9 @@ void parse_tokens(BlockContext context,
         num_nonzeros_7x7 |= (cur_bit << index);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
+    }
+    if (num_nonzeros_7x7 > 49) {
+        custom_exit(7); // this would be a corrupt file: do not decode further
     }
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
