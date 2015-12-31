@@ -60,6 +60,8 @@ SET(LEPTON_SOURCES
    src/lepton/uncompressed_components.cc
    src/lepton/jpgcoder.hh
    src/lepton/uncompressed_components.hh
+   src/lepton/lepton_codec.cc
+   src/lepton/lepton_codec.hh
    src/lepton/vp8_decoder.cc
    src/lepton/simple_decoder.cc
    src/lepton/vp8_decoder.hh

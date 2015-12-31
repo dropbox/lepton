@@ -1,10 +1,10 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 #include "base_coders.hh"
+#include "lepton_codec.hh"
 #include "model.hh"
 class BoolEncoder;
-class VP8ComponentEncoder : public BaseEncoder {
-    Sirikata::Array1d<ProbabilityTablesBase*, NUM_THREADS> model_;
+class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
     template<class Left, class Middle, class Right>
     static void process_row(ProbabilityTablesBase&pt,
                             Left & left_model,
@@ -23,22 +23,17 @@ class VP8ComponentEncoder : public BaseEncoder {
                            BoolEncoder *bool_encoder,
                            Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
-    bool do_threading_ = false;
-    Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice spin_workers_;
 public:
     VP8ComponentEncoder();
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                         IOUtil::FileWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    IOUtil::FileWriter *);
-    virtual void enable_threading(Sirikata::Array1d<GenericWorker,
-                                                    (NUM_THREADS
-                                                     - 1)>::Slice workers) {
-        do_threading_ = true;
-        spin_workers_ = workers;
+    void enable_threading(Sirikata::Array1d<GenericWorker,
+                                            (NUM_THREADS - 1)>::Slice workers){
+        LeptonCodec::enable_threading(workers);
     }
     void disable_threading() {
-        do_threading_ = false;
+        LeptonCodec::disable_threading();
     }
-
 };

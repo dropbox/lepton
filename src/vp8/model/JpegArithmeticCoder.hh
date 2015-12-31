@@ -45,7 +45,11 @@
  *
  * Suspension is not currently supported in this module.
  */
+#ifndef _JPEG_ARITHMETIC_CODER_HH_
+#define _JPEG_ARITHMETIC_CODER_HH_
+
 #include "../../io/Reader.hh"
+
 namespace Sirikata {
 class DecoderWriter;
 class DecoderReader;
@@ -103,3 +107,5 @@ public:
     }
 };
 }
+#endif
+
