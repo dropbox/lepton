@@ -26,10 +26,6 @@ class BaseDecoder {
  public:
     virtual ~BaseDecoder(){}
     virtual void initialize(Sirikata::DecoderReader *input) = 0;
-    virtual void enable_threading(Sirikata::Array1d<GenericWorker,
-                                                    (NUM_THREADS
-                                                     - 1)>::Slice)=0;
-    virtual void disable_threading() = 0;
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst) = 0;
     static CodingReturnValue generic_continuous_decoder(BaseDecoder *d,
                                                         UncompressedComponents* colldata){
@@ -44,10 +40,6 @@ class BaseDecoder {
 
 class BaseEncoder {
  public:
-    virtual void enable_threading(Sirikata::Array1d<GenericWorker,
-                                                    (NUM_THREADS
-                                                     - 1)>::Slice)=0;
-    virtual void disable_threading() = 0;
     virtual ~BaseEncoder(){}
     virtual CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                            IOUtil::FileWriter *) = 0;

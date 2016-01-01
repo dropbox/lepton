@@ -1,5 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-
+#ifndef _VP8_COMPONENT_ENCODER_HH_
+#define _VP8_COMPONENT_ENCODER_HH_
 #include "base_coders.hh"
 #include "lepton_codec.hh"
 #include "model.hh"
@@ -24,16 +25,11 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                            Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
 public:
+    VP8ComponentEncoder(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers);
     VP8ComponentEncoder();
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                         IOUtil::FileWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    IOUtil::FileWriter *);
-    void enable_threading(Sirikata::Array1d<GenericWorker,
-                                            (NUM_THREADS - 1)>::Slice workers){
-        LeptonCodec::enable_threading(workers);
-    }
-    void disable_threading() {
-        LeptonCodec::disable_threading();
-    }
 };
+#endif

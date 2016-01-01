@@ -31,13 +31,26 @@ protected:
                       (NUM_THREADS - 1)>::Slice spin_workers_;
     std::thread *workers[NUM_THREADS];
     ThreadState *thread_state_[NUM_THREADS];
-    void enable_threading(Sirikata::Array1d<GenericWorker,
-                                            (NUM_THREADS - 1)>::Slice workers){
-        spin_workers_ = workers;
+
+    LeptonCodec(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         do_threading_ = true;
+        spin_workers_ = workers;
+        for (int i = 0; i < NUM_THREADS; ++i) {
+            thread_state_[i] = new ThreadState;
+            thread_state_[i]->model_.load_probability_tables();
+        }
     }
-    void disable_threading() {
+    LeptonCodec() {
         do_threading_ = false;
+        thread_state_[0] = new ThreadState;
+        thread_state_[0]->model_.load_probability_tables();
+    }
+    ~LeptonCodec() {
+        for (int i = 0; i < NUM_THREADS; ++i) {
+            if (thread_state_[i]) {
+                delete thread_state_[i];
+            }
+        }
     }
 
 };

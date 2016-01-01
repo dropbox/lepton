@@ -322,9 +322,31 @@ int cs_from      =   0  ; // begin - band of current scan ( inclusive )
 int cs_to        =   0  ; // end - band of current scan ( inclusive )
 int cs_sah       =   0  ; // successive approximation bit pos high
 int cs_sal       =   0  ; // successive approximation bit pos low
+void kill_workers(void * workers);
 
+VP8ComponentDecoder *makeBoth(bool threaded) {
 
+    if (threaded) {
+        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
+        generic_workers = new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
+        custom_atexit(kill_workers, generic_workers);
+        return new VP8ComponentDecoder(generic_workers->slice<0,NUM_THREADS-1>());
+    }
+    return new VP8ComponentDecoder;
+}
 
+BaseEncoder *makeEncoder() {
+    if (g_threaded) {
+        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
+        generic_workers = new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
+        custom_atexit(kill_workers, generic_workers);
+        return new VP8ComponentEncoder(generic_workers->slice<0,NUM_THREADS-1>());
+    }
+    return new VP8ComponentEncoder;
+}
+BaseDecoder *makeDecoder() {
+    return makeBoth(g_threaded);
+}
 /* -----------------------------------------------
     global variables: info about files
     ----------------------------------------------- */
@@ -338,6 +360,7 @@ std::unique_ptr<BaseEncoder> g_encoder;
 std::unique_ptr<BaseDecoder> g_decoder;
 const char * g_socket_name = NULL;
 bool g_threaded = true;
+bool g_allow_progressive = false;
 uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
 bool g_force_zlib0_out = false;
@@ -380,6 +403,7 @@ ACTION action   = comp;        // what to do with JPEG/UJG files
 
 FILE*  msgout   = stderr;    // stream for output of messages
 bool   pipe_on  = false;    // use stdin/stdout instead of filelist
+
 
 void gen_nop(){}
 /* -----------------------------------------------
@@ -521,9 +545,18 @@ bool starts_with(const char * a, const char * b) {
     }
     return true;
 }
-void compute_thread_mem(const char * arg, size_t * mem_init, size_t * thread_mem_init, bool *needs_huge_pages) {
+void compute_thread_mem_and_threading(const char * arg,
+                                      size_t * mem_init,
+                                      size_t * thread_mem_init,
+                                      bool *needs_huge_pages) {
     if (strcmp(arg, "-hugepages") == 0) {
         *needs_huge_pages = true;
+    }
+    if (strcmp(arg, "-singlethread") == 0) {
+        g_threaded = false;
+    }
+    if ( strcmp(arg, "-allowprogressive" ) == 0)  {
+        assert(g_allow_progressive == true); // already set from the initial
     }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
@@ -546,7 +579,10 @@ int main( int argc, char** argv )
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
-        compute_thread_mem(argv[i], &mem_limit, &thread_mem_limit, &needs_huge_pages);
+        compute_thread_mem_and_threading(argv[i],
+                           &mem_limit,
+                           &thread_mem_limit,
+                           &needs_huge_pages);
     }
     // the system needs 33 megs of ram ontop of the uncompressed image buffer.
     // This adds a few extra megs just to keep things real
@@ -562,6 +598,7 @@ int main( int argc, char** argv )
                           n_threads,
                           256,
                           needs_huge_pages);
+
     compute_md5(argv[0], g_executable_md5);
     clock_t begin = 0, end = 1;
 
@@ -663,7 +700,8 @@ int initialize_options( int argc, char** argv )
 
     // preset temporary fiolelist pointer
     tmp_flp = filelist;
-
+    bool make_early_encoder = false;
+    bool make_early_decoder = false;
     // read in arguments
     while ( --argc > 0 ) {
         argv++;
@@ -685,9 +723,9 @@ int initialize_options( int argc, char** argv )
             exit(0);
         }
         else if ( strcmp((*argv), "-decode" ) == 0 ) {
-            g_encoder.reset(new VP8ComponentEncoder);
+            make_early_encoder = true;
         } else if ( strcmp((*argv), "-recode" ) == 0 ) {
-            g_decoder.reset(new VP8ComponentDecoder);
+            make_early_decoder = true;
         } else if ( strcmp((*argv), "-p" ) == 0 ) {
             err_tresh = 2;
         }
@@ -712,7 +750,10 @@ int initialize_options( int argc, char** argv )
             g_force_zlib0_out = true;
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
-            g_threaded = false;
+            assert(g_threaded == false); // already set from the initial
+        }
+        else if ( strcmp((*argv), "-allowprogressive" ) == 0)  {
+            assert(g_allow_progressive == true); // already set from the initial
         }
         else if ( strcmp((*argv), "-unjailed" ) == 0)  {
             g_use_seccomp = false;
@@ -792,6 +833,13 @@ int initialize_options( int argc, char** argv )
         fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
         exit(1);
     }
+    if (make_early_decoder) {
+        VP8ComponentDecoder *d = makeBoth(g_threaded);
+        g_encoder.reset(d);
+        g_decoder.reset(d);
+    } else if(make_early_encoder) {
+        g_encoder.reset(makeEncoder());
+    }
     return max_file_size;
 }
 
@@ -829,10 +877,10 @@ void process_file(IOUtil::FileReader* reader,
     int speed, bpms;
     float cr;
 
-    Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
-    if (g_threaded) {
-        generic_workers = new Sirikata::Array1d<GenericWorker,
-                                                NUM_THREADS - 1>;
+
+    if (g_inject_syscall_test == 2) {
+        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers =
+            new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
         if (g_inject_syscall_test == 2) {
             for (size_t i = 0; i < generic_workers->size(); ++i) {
                 std::atomic<int> value;
@@ -845,8 +893,6 @@ void process_file(IOUtil::FileReader* reader,
                 }
             }
             g_threaded = false;
-        } else {
-            custom_atexit(kill_workers, generic_workers);
         }
     }
     // main function routine
@@ -874,8 +920,6 @@ void process_file(IOUtil::FileReader* reader,
         Sirikata::installStrictSyscallFilter(true);
     }
     if (g_inject_syscall_test == 1) {
-        g_threaded = false;
-        kill_workers(generic_workers);
         char buf[128 + 1];
         buf[sizeof(buf) - 1] = 0;
         char * ret = getcwd(buf, sizeof(buf) - 1);
@@ -902,14 +946,8 @@ void process_file(IOUtil::FileReader* reader,
     {
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
-                g_encoder.reset(new VP8ComponentEncoder);
+                g_encoder.reset(makeEncoder());
             }
-            if (g_threaded) {//FIXME
-                g_encoder->enable_threading(generic_workers->slice<0,NUM_THREADS - 1>());
-            } else {
-                g_encoder->disable_threading();
-            }
-
         }else if (ofiletype == UJG) {
             g_encoder.reset(new SimpleComponentEncoder);
         }
@@ -936,14 +974,8 @@ void process_file(IOUtil::FileReader* reader,
     {
         if (filetype == LEPTON) {
             if (!g_decoder) {
-                g_decoder.reset(new VP8ComponentDecoder);
+                g_decoder.reset(makeDecoder());
             }
-            if (g_threaded) {//FIXME
-                g_decoder->enable_threading(generic_workers->slice<0,NUM_THREADS - 1>());
-            } else {
-                g_decoder->disable_threading();
-            }
-
         }else if (filetype == UJG) {
             g_decoder.reset(new SimpleComponentDecoder);
         }

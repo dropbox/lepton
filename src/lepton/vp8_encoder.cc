@@ -62,6 +62,11 @@ void printContext(FILE * fp) {
         }
     }
 }
+VP8ComponentEncoder::VP8ComponentEncoder(){}
+VP8ComponentEncoder::VP8ComponentEncoder(Sirikata::Array1d<GenericWorker,
+                                                           (NUM_THREADS - 1)>::Slice workers)
+    : LeptonCodec(workers){
+}
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,
                                                     IOUtil::FileWriter *output) {
@@ -407,15 +412,8 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
 #endif
             }
         }
-        
     }
     bool_encoder->finish(*stream);
-}
-VP8ComponentEncoder::VP8ComponentEncoder() {
-    for (int i = 0; i < NUM_THREADS; ++i) {
-        thread_state_[i] = new ThreadState;
-        thread_state_[i]->model_.load_probability_tables();
-    }
 }
 
 int load_model_file_fd_output() {

@@ -7,9 +7,5 @@ public:
     SimpleComponentEncoder();
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    IOUtil::FileWriter *);
-    virtual void enable_threading(Sirikata::Array1d<GenericWorker,
-                                                    (NUM_THREADS
-                                                     - 1)>::Slice){}
-    void disable_threading() {}
     ~SimpleComponentEncoder();
 };

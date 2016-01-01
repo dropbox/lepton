@@ -22,29 +22,17 @@ void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
 }
 
 
-void VP8ComponentDecoder::vp8_continuous_decoder( UncompressedComponents * const colldata,
-                                                 Sirikata::DecoderReader *str_in )
-{
-
-    VP8ComponentDecoder scd;
-    scd.initialize(str_in);
-    while(scd.decode_chunk(colldata) == CODING_PARTIAL) {
-    }
-}
 
 VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                                                          4,
                                                          1024 * 1024 + 262144) {
-    do_threading_ = false;
-    for (int i = 0; i < NUM_THREADS; ++i) {
-        thread_state_[i] = new ThreadState;
-        thread_state_[i]->model_.load_probability_tables();
-    }
 }
-VP8ComponentDecoder::~VP8ComponentDecoder() {
-    for (int i = 0; i < NUM_THREADS; ++i) {
-        delete thread_state_[i];
-    }
+VP8ComponentDecoder::VP8ComponentDecoder(Sirikata::Array1d<GenericWorker,
+                                                           (NUM_THREADS - 1)>::Slice workers)
+    : VP8ComponentEncoder(workers),
+      mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
+                  4,
+                  1024 * 1024 + 262144) {
 }
 
 const bool dospin = true;
