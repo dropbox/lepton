@@ -12,18 +12,19 @@ class BlockBasedImage {
     uint32_t nblocks_;
     uint8_t *storage_;
     // if true, this image only contains 2 rows during decode
-    bool memory_optimized_image;
+    bool memory_optimized_image_;
     BlockBasedImage(const BlockBasedImage&) = delete;
     BlockBasedImage& operator=(const BlockBasedImage&) = delete;
 public:
-    BlockBasedImage() : memory_optimized_image(false){
+    BlockBasedImage() : memory_optimized_image_(false){
         image_ = nullptr;
         storage_ = nullptr;
         width_ = 0;
         nblocks_ = 0;
     }
 
-    void init (uint32_t width, uint32_t height, uint32_t nblocks) {
+    void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
+        memory_optimized_image_ = memory_optimized_image;
         assert(nblocks <= width * height);
         width_ = width;
         nblocks_ = nblocks;
@@ -43,7 +44,7 @@ public:
     }
     BlockContext off_y(int y,
                        std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
-        if (memory_optimized_image) {
+        if (memory_optimized_image_) {
             return {(y & 1) ? image_ + width_ : image_,
                     (y & 1) ? image_ : image_ + width_,
                     (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
@@ -56,7 +57,7 @@ public:
     }
     ConstBlockContext off_y(int y,
                             std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
-        if (memory_optimized_image) {
+        if (memory_optimized_image_) {
             return {(y & 1) ? image_ + width_ : image_,
                     (y & 1) ? image_ : image_ + width_,
                     (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
@@ -70,7 +71,7 @@ public:
     template <class BlockContext> uint32_t next(BlockContext& it, bool has_left) const {
         it.cur += 1;
         ptrdiff_t offset = it.cur - image_;
-        if (memory_optimized_image && offset == (width_ << 1)) {
+        if (memory_optimized_image_ && offset == (width_ << 1)) {
             offset = 0;
             it.cur = image_;
         }
@@ -95,7 +96,7 @@ public:
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
         uint32_t index = (y & 1) ? width_  + x : x;
-        if (!memory_optimized_image) {
+        if (!memory_optimized_image_) {
             index = y * width_ + x;
         }
         if (__builtin_expect(index >= nblocks_, 0)) {
@@ -105,7 +106,7 @@ public:
     }
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
         uint32_t index = (y & 1) ? width_  + x : x;
-        if (!memory_optimized_image) {
+        if (!memory_optimized_image_) {
             index = y * width_ + x;
         }
         if (__builtin_expect(index >= nblocks_, 0)) {
@@ -116,7 +117,7 @@ public:
 
 
     AlignedBlock& raster(uint32_t offset) {
-        if (memory_optimized_image) {
+        if (memory_optimized_image_) {
             offset = offset % (width_ << 1);
         }
         if (offset >= nblocks_) {
@@ -125,7 +126,7 @@ public:
         return image_[offset];
     }
     const AlignedBlock& raster(uint32_t offset) const {
-        if (memory_optimized_image) {
+        if (memory_optimized_image_) {
             offset = offset % (width_ << 1);
         }
         if (__builtin_expect(offset >= nblocks_, 0)) {

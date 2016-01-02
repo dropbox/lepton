@@ -5,6 +5,7 @@
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 extern int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level,
+                     bool allow_progressive_files, bool multithread,
                      const std::vector<const char *> &filenames,
                      bool expect_encoder_failure, bool expect_decoder_failure,
                      const char* memory, const char* thread_memory);
@@ -20,6 +21,14 @@ int main (int argc, char **argv) {
     bool use_lepton = false;
     bool expect_failure = false;
     bool expect_decode_failure = false;
+    bool allow_progressive_files = false;
+    bool multithread = true;
+#ifdef SINGLETHREAD
+    multithread = false;
+#endif
+#ifdef ALLOW_PROGRESSIVE
+    allow_progressive_files = true;
+#endif
 #ifdef EXPECT_FAILURE
     expect_failure = true;
 #endif
@@ -83,6 +92,8 @@ int main (int argc, char **argv) {
 #ifdef THREAD_MEMORY
     thread_memory = "-threadmemory=" THREAD_MEMORY;
 #endif
-    return test_file(argc, argv, use_lepton, enable_jailing, INJECT_SYSCALL, filenames,
+    return test_file(argc, argv,
+                     use_lepton, enable_jailing, INJECT_SYSCALL, allow_progressive_files, multithread,
+                     filenames,
                      expect_failure, expect_decode_failure, memory, thread_memory);
 }

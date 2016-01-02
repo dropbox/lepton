@@ -129,7 +129,7 @@ public:
     CodingReturnValue do_more_work() {
         return decoder_->decode_chunk(this);
     }
-    void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc) {
+    void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc, bool memory_optimized_image) {
         if (cmpc > (int)ColorChannel::NumBlockTypes) {
             cmpc = (int)ColorChannel::NumBlockTypes;
             //abort here: we probably can't support this kind of image
@@ -159,7 +159,10 @@ public:
             if (bc_allocated > max_cmp_bc) {
                 bc_allocated = max_cmp_bc - (max_cmp_bc % cmpinfo[cmp].bch);
             }
-            this->header_[cmp].component_.init(cmpinfo[cmp].bch, cmpinfo[cmp].bcv, bc_allocated);
+            this->header_[cmp].component_.init(cmpinfo[cmp].bch,
+                                               cmpinfo[cmp].bcv,
+                                               bc_allocated,
+                                               memory_optimized_image);
 
         }
     }

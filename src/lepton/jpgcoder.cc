@@ -155,7 +155,8 @@ bool reset_buffers( void );
     function declarations: jpeg-specific
     ----------------------------------------------- */
 
-bool setup_imginfo_jpg( void );
+// baseline single threaded decoding need only two rows of the image in memory
+bool setup_imginfo_jpg(bool only_allocate_two_image_rows);
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
 bool rebuild_header_jpg( void );
 
@@ -556,7 +557,7 @@ void compute_thread_mem_and_threading(const char * arg,
         g_threaded = false;
     }
     if ( strcmp(arg, "-allowprogressive" ) == 0)  {
-        assert(g_allow_progressive == true); // already set from the initial
+        g_allow_progressive = true;
     }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
@@ -577,6 +578,9 @@ int main( int argc, char** argv )
 {
     size_t thread_mem_limit = 8192;
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
+    if (g_threaded == false && !g_allow_progressive) {
+        //mem_limit = 20 * 1024 * 1024;
+    }
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
         compute_thread_mem_and_threading(argv[i],
@@ -700,8 +704,7 @@ int initialize_options( int argc, char** argv )
 
     // preset temporary fiolelist pointer
     tmp_flp = filelist;
-    bool make_early_encoder = false;
-    bool make_early_decoder = false;
+    bool preload = false;
     // read in arguments
     while ( --argc > 0 ) {
         argv++;
@@ -721,11 +724,12 @@ int initialize_options( int argc, char** argv )
         else if (strcmp((*argv), "-version" ) == 0 || strcmp((*argv), "--version") == 0) {
             printf("%02x\n", ujgversion);
             exit(0);
-        }
-        else if ( strcmp((*argv), "-decode" ) == 0 ) {
-            make_early_encoder = true;
+        } else if ( strcmp((*argv), "-preload" ) == 0 ) {
+            preload = true;
+        } else if ( strcmp((*argv), "-decode" ) == 0 ) { // deprecated commands to preload it all
+            preload = true;
         } else if ( strcmp((*argv), "-recode" ) == 0 ) {
-            make_early_decoder = true;
+            preload = true;
         } else if ( strcmp((*argv), "-p" ) == 0 ) {
             err_tresh = 2;
         }
@@ -833,12 +837,10 @@ int initialize_options( int argc, char** argv )
         fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
         exit(1);
     }
-    if (make_early_decoder) {
+    if (preload) {
         VP8ComponentDecoder *d = makeBoth(g_threaded);
         g_encoder.reset(d);
         g_decoder.reset(d);
-    } else if(make_early_encoder) {
-        g_encoder.reset(makeEncoder());
     }
     return max_file_size;
 }
@@ -1507,7 +1509,7 @@ bool read_jpeg( void )
     jpgfilesize = jpg_in->getsize();
 
     // parse header for image info
-    if ( !setup_imginfo_jpg() ) {
+    if ( !setup_imginfo_jpg(false) ) {
         return false;
     }
 
@@ -1950,7 +1952,9 @@ bool decode_jpeg( void )
 
             // (re)set rst wait counter
             rstw = rsti;
-
+            if (jpegtype != 1 && !g_allow_progressive) {
+                custom_exit(8);
+            }
             // decoding for interleaved data
             if ( cs_cmpc > 1 )
             {
@@ -2369,6 +2373,9 @@ bool recode_jpeg( void )
 
             // (re)set rst wait counter
             rstw = rsti;
+            if (jpegtype != 1 && !g_allow_progressive) {
+                custom_exit(8);
+            }
 
             // encoding for interleaved data
             if ( cs_cmpc > 1 )
@@ -2916,9 +2923,9 @@ bool read_ujpg( void )
         errorlevel.store(2);
         return false;
     }
-
+    bool memory_optimized_image = jpegtype == 1 && !g_threaded;
     // parse header for image-info
-    if ( !setup_imginfo_jpg() )
+    if ( !setup_imginfo_jpg(memory_optimized_image) )
         return false;
 
     // beginning here: recovery information (needed for exact JPEG recovery)
@@ -3086,7 +3093,7 @@ bool reset_buffers( void )
 /* -----------------------------------------------
     Parses header for imageinfo
     ----------------------------------------------- */
-bool setup_imginfo_jpg( void )
+bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
 {
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
@@ -3170,7 +3177,7 @@ bool setup_imginfo_jpg( void )
     }
 
     // alloc memory for further operations
-    colldata.init(cmpnfo, cmpc);
+    colldata.init(cmpnfo, cmpc, only_allocate_two_image_rows);
 
     return true;
 }
