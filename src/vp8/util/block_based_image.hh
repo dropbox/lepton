@@ -3,6 +3,7 @@
 #include "memory.hh"
 #include "aligned_block.hh"
 #include "block_context.hh"
+#include <map>
 
 class BlockBasedImage {
     typedef AlignedBlock Block;
@@ -40,23 +41,29 @@ public:
     }
     BlockContext off_y(int y,
                        std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
-        return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
-            (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
-            (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
+        return {(y & 1) ? image_ + width_ : image_,
+                (y & 1) ? image_ : image_ + width_,
+                (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
+                (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
     ConstBlockContext off_y(int y,
                             std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
-        return {image_ + width_ * y, y != 0 ?  image_ + width_ * (y - 1): nullptr,
-            (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
-            (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
+        return {(y & 1) ? image_ + width_ : image_,
+                (y & 1) ? image_ : image_ + width_,
+                (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
+                (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
     template <class BlockContext> uint32_t next(BlockContext& it, bool has_left) const {
         it.cur += 1;
         ptrdiff_t offset = it.cur - image_;
+        if (offset == (width_ << 1)) {
+            offset = 0;
+            it.cur = image_;
+        }
         if (offset >= width_) {
             it.above = it.cur - width_;
         } else {
-            it.above = nullptr;
+            it.above = it.cur + width_;
         }
         ++it.num_nonzeros_here;
         ++it.num_nonzeros_above;
@@ -73,28 +80,30 @@ public:
         return offset;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
-        uint32_t index = width_ * y + x;
+        uint32_t index = (y & 1) ? width_  + x : x;
         if (__builtin_expect(index >= nblocks_, 0)) {
             custom_exit(37);
         }
         return image_[index];
     }
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
-        uint32_t index = width_ * y + x;
+        uint32_t index = (y & 1) ? width_  + x : x;
         if (__builtin_expect(index >= nblocks_, 0)) {
             custom_exit(37);
         }
-        return image_[width_ * y + x];
+        return image_[index];
     }
 
 
     AlignedBlock& raster(uint32_t offset) {
+        offset = offset % (width_ << 1);
         if (offset >= nblocks_) {
             custom_exit(37);
         }
         return image_[offset];
     }
     const AlignedBlock& raster(uint32_t offset) const {
+        offset = offset % (width_ << 1);
         if (__builtin_expect(offset >= nblocks_, 0)) {
             custom_exit(37);
         }

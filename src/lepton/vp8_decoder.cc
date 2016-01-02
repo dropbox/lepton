@@ -26,9 +26,9 @@ void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
 VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                                                          4,
                                                          1024 * 1024 + 262144) {
+    virtual_thread_id_ = 0;
 }
 VP8ComponentDecoder::~VP8ComponentDecoder() {
-
 }
 VP8ComponentDecoder::VP8ComponentDecoder(Sirikata::Array1d<GenericWorker,
                                                            (NUM_THREADS - 1)>::Slice workers)
@@ -36,6 +36,7 @@ VP8ComponentDecoder::VP8ComponentDecoder(Sirikata::Array1d<GenericWorker,
       mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                   4,
                   1024 * 1024 + 262144) {
+    virtual_thread_id_ = -1; // only using real threads here
 }
 
 const bool dospin = true;
@@ -170,11 +171,11 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         // join on all threads
     } else {
         // wait for "threads"
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+        virtual_thread_id_ += 1;
+        for (int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
             initialize_thread_id(thread_id, 0, colldata);
-            while (thread_state_[0]->vp8_decode_thread(thread_id,
-                                                       colldata) == CODING_PARTIAL) {
-
+            if ((ret = thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
+                return ret;
             }
         }
     }

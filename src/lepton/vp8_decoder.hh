@@ -21,6 +21,7 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
     static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata);
     void initialize_thread_id(int thread_id, int target_thread_state,
                               UncompressedComponents * const colldata);
+    int virtual_thread_id_;
 public:
     VP8ComponentDecoder(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers);
     VP8ComponentDecoder();
