@@ -2923,7 +2923,7 @@ bool read_ujpg( void )
         errorlevel.store(2);
         return false;
     }
-    bool memory_optimized_image = jpegtype == 1 && !g_threaded;
+    bool memory_optimized_image = !g_threaded;
     // parse header for image-info
     if ( !setup_imginfo_jpg(memory_optimized_image) )
         return false;
@@ -3177,7 +3177,7 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
     }
 
     // alloc memory for further operations
-    colldata.init(cmpnfo, cmpc, only_allocate_two_image_rows);
+    colldata.init(cmpnfo, cmpc, jpegtype == 1 && only_allocate_two_image_rows);
 
     return true;
 }

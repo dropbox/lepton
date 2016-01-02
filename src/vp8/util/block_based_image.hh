@@ -27,6 +27,9 @@ public:
         memory_optimized_image_ = memory_optimized_image;
         assert(nblocks <= width * height);
         width_ = width;
+        if (memory_optimized_image_) {
+            nblocks = width * 2;
+        }
         nblocks_ = nblocks;
         storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
         size_t offset = storage_ - (uint8_t*)nullptr;
