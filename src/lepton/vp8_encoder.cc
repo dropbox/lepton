@@ -237,10 +237,7 @@ tuple<ProbabilityTablesTuple(false, true, true)> midleft(EACH_BLOCK_TYPE);
 tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE);
 tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE);
 tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE);
-void VP8ComponentEncoder::reset_thread_model_state(int thread_id) {
-    (&thread_state_[thread_id]->model_)->~ProbabilityTablesBase();
-    new (&thread_state_[thread_id]->model_) ProbabilityTablesBase();
-}
+
 void VP8ComponentEncoder::process_row_range(int thread_id,
                                             const UncompressedComponents * const colldata,
                                             int min_y,

@@ -32,6 +32,11 @@ protected:
     std::thread *workers[NUM_THREADS];
     ThreadState *thread_state_[NUM_THREADS];
 
+    void reset_thread_model_state(int thread_id) {
+        (&thread_state_[thread_id]->model_)->~ProbabilityTablesBase();
+        new (&thread_state_[thread_id]->model_) ProbabilityTablesBase();
+    }
+
     LeptonCodec(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         do_threading_ = true;
         spin_workers_ = workers;
