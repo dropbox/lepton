@@ -110,6 +110,8 @@ BlockColorContext get_color_context_blocks(
                                            uint8_t component) {
     BlockColorContext retval = {(uint8_t)component};
     retval.color = component;
+    (void)indices;
+    (void)jpeg;
 #ifdef USE_COLOR_VALUES
     for (size_t i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {
         for (size_t j = 0; j < sizeof(indices.luminanceIndex[0])/sizeof(indices.luminanceIndex[0][0]); ++j) {

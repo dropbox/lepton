@@ -24,6 +24,8 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                            BoolEncoder *bool_encoder,
                            Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
+protected:
+    void reset_thread_model_state(int thread_id);
 public:
     VP8ComponentEncoder(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers);
     VP8ComponentEncoder();

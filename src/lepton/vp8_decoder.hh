@@ -12,9 +12,15 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
     //const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     Sirikata::MuxReader mux_reader_;
     std::vector<int> file_luma_splits_;
+    Sirikata::Array1d<std::pair <Sirikata::MuxReader::ResizableByteBuffer::const_iterator,
+                                 Sirikata::MuxReader::ResizableByteBuffer::const_iterator>,
+                      Sirikata::MuxReader::MAX_STREAM_ID> streams_;
+
     VP8ComponentDecoder(const VP8ComponentDecoder&) = delete;
     VP8ComponentDecoder& operator=(const VP8ComponentDecoder&) = delete;
     static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata);
+    void initialize_thread_id(int thread_id, int target_thread_state,
+                              UncompressedComponents * const colldata);
 public:
     VP8ComponentDecoder(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers);
     VP8ComponentDecoder();

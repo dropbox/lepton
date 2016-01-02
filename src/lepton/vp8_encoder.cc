@@ -237,7 +237,10 @@ tuple<ProbabilityTablesTuple(false, true, true)> midleft(EACH_BLOCK_TYPE);
 tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE);
 tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE);
 tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE);
-
+void VP8ComponentEncoder::reset_thread_model_state(int thread_id) {
+    (&thread_state_[thread_id]->model_)->~ProbabilityTablesBase();
+    new (&thread_state_[thread_id]->model_) ProbabilityTablesBase();
+}
 void VP8ComponentEncoder::process_row_range(int thread_id,
                                             const UncompressedComponents * const colldata,
                                             int min_y,
@@ -258,6 +261,12 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     memset(is_top_row, true, sizeof(is_top_row));
     bool valid_range = false;
     int luma_y = 0;
+    ProbabilityTablesBase *model = &thread_state_[0]->model_;
+    if (do_threading_) {
+        model = &thread_state_[thread_id]->model_;
+    } else {
+        reset_thread_model_state(0);
+    }
     for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y) {
         int curr_y = context.at((int)component).y;
         context[(int)component].context
@@ -278,7 +287,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
             is_top_row[(int)component] = false;
             switch(component) {
                 case BlockType::Y:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Y>(corner),
                             std::get<(int)BlockType::Y>(top),
                             std::get<(int)BlockType::Y>(top),
@@ -288,7 +297,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             *bool_encoder);
                     break;
                 case BlockType::Cb:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Cb>(corner),
                             std::get<(int)BlockType::Cb>(top),
                             std::get<(int)BlockType::Cb>(top),
@@ -298,7 +307,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             *bool_encoder);
                     break;
                 case BlockType::Cr:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Cr>(corner),
                             std::get<(int)BlockType::Cr>(top),
                             std::get<(int)BlockType::Cr>(top),
@@ -309,7 +318,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                     break;
 #ifdef ALLOW_FOUR_COLORS
                 case BlockType::Ck:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Ck>(corner),
                             std::get<(int)BlockType::Ck>(top),
                             std::get<(int)BlockType::Ck>(top),
@@ -323,7 +332,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         } else if (block_width > 1) {
             switch(component) {
                 case BlockType::Y:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Y>(midleft),
                             std::get<(int)BlockType::Y>(middle),
                             std::get<(int)BlockType::Y>(midright),
@@ -333,7 +342,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             *bool_encoder);
                     break;
                 case BlockType::Cb:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Cb>(midleft),
                             std::get<(int)BlockType::Cb>(middle),
                             std::get<(int)BlockType::Cb>(midright),
@@ -343,7 +352,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             *bool_encoder);
                     break;
                 case BlockType::Cr:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Cr>(midleft),
                             std::get<(int)BlockType::Cr>(middle),
                             std::get<(int)BlockType::Cr>(midright),
@@ -354,7 +363,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                     break;
 #ifdef ALLOW_FOUR_COLORS
                 case BlockType::Ck:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Ck>(midleft),
                             std::get<(int)BlockType::Ck>(middle),
                             std::get<(int)BlockType::Ck>(midright),
@@ -369,7 +378,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
             assert(block_width == 1);
             switch(component) {
                 case BlockType::Y:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
@@ -379,7 +388,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             *bool_encoder);
                     break;
                 case BlockType::Cb:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
@@ -389,7 +398,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             *bool_encoder);
                 break;
                 case BlockType::Cr:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
@@ -400,7 +409,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                     break;
 #ifdef ALLOW_FOUR_COLORS
                 case BlockType::Ck:
-                    process_row(thread_state_[thread_id]->model_,
+                    process_row(*model,
                             std::get<(int)BlockType::Ck>(width_one),
                             std::get<(int)BlockType::Ck>(width_one),
                             std::get<(int)BlockType::Ck>(width_one),

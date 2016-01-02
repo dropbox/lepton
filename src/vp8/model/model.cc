@@ -77,7 +77,8 @@ void serialize_model(const Model & model, int output_fp )
 
 void optimize_model(Model &model)
 {
-  //model.forall( [&] ( Branch & x ) { x.optimize(); } );
+    (void)model;
+    //model.forall( [&] ( Branch & x ) { x.optimize(); } );
 }
 
 

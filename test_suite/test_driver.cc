@@ -150,6 +150,7 @@ int run_test(const std::vector<unsigned char> &testImage,
                 inject_failure_level, (which_args == encode_args), (which_args == decode_args));
         which_args[get_last_arg(which_args)]
             = (inject_failure_level & 1) ? "-injectsyscall=1" : "-injectsyscall=2";
+        encode_args[get_last_arg(encode_args)] = "-unjailed";
     }
     if (!jailed) {
         encode_args[get_last_arg(encode_args)] = "-unjailed";

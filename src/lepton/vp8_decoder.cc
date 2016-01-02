@@ -27,6 +27,9 @@ VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator
                                                          4,
                                                          1024 * 1024 + 262144) {
 }
+VP8ComponentDecoder::~VP8ComponentDecoder() {
+
+}
 VP8ComponentDecoder::VP8ComponentDecoder(Sirikata::Array1d<GenericWorker,
                                                            (NUM_THREADS - 1)>::Slice workers)
     : VP8ComponentEncoder(workers),
@@ -59,6 +62,31 @@ const bool dospin = true;
 void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata) {
     while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
     }
+}
+void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
+                                               UncompressedComponents * const colldata) {
+    if (thread_id != target_thread_state) {
+        reset_thread_model_state(target_thread_state);
+    }
+    for (int i = 0; i < colldata->get_num_components(); ++i) {
+        thread_state_[target_thread_state]->context_.at(i).context
+            = colldata->full_component_write((BlockType)i).begin(thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
+        thread_state_[target_thread_state]->context_.at(i).y = 0;
+    }
+    /* initialize the bool decoder */
+    int index = thread_id;
+    thread_state_[target_thread_state]->bool_decoder_.init(streams_[index].first != streams_
+[index].second
+                                                 ? &*streams_[index].first : nullptr,
+                                                 streams_[index].second - streams_[index].first );
+    for (int j   = 0 ; j < (int)ColorChannel::NumBlockTypes; ++j) {
+        thread_state_[target_thread_state]->is_top_row_.at(j) = true;
+        thread_state_[target_thread_state]->num_nonzeros_.at(j).resize(colldata->block_width(j) << 1);
+    }
+    thread_state_[target_thread_state]->is_valid_range_ = false;
+    thread_state_[target_thread_state]->luma_splits_.resize(2);
+    thread_state_[target_thread_state]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
+    thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
 }
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
@@ -103,37 +131,12 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (int i = 0; i + 1 < mark; ++i) {
             file_luma_splits_[i] = htole16(luma_splits_tmp[i]);
         }
-        for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-            fprintf(stderr,"Luma splits %d\n", (int)file_luma_splits_[thread_id]);
-            for (int i = 0; i < colldata->get_num_components(); ++i) {
-                thread_state_[thread_id]->context_.at(i).context
-                    = colldata->full_component_write((BlockType)i).begin(thread_state_[thread_id]->num_nonzeros_.at(i).begin());
-                thread_state_[thread_id]->context_.at(i).y = 0;
-            }
-        }
-        std::pair <Sirikata::MuxReader::ResizableByteBuffer::const_iterator,
-        Sirikata::MuxReader::ResizableByteBuffer::const_iterator> streams[Sirikata::MuxReader::MAX_STREAM_ID];
         /* read entire chunk into memory */
-        mux_reader_.fillBufferEntirely(streams);
-        /* initialize the bool decoder */
-        for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-            int index = thread_id;
-            thread_state_[thread_id]->bool_decoder_.init(streams[index].first != streams[index].second
-                                                         ? &*streams[index].first : nullptr,
-                                                         streams[index].second - streams[index].first );
-        }
-        for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-            for (int j   = 0 ; j < (int)ColorChannel::NumBlockTypes; ++j) {
-                thread_state_[thread_id]->is_top_row_.at(j) = true;
-                thread_state_[thread_id]->num_nonzeros_.at(j).resize(colldata->block_width(j) << 1);
-            }
-            thread_state_[thread_id]->is_valid_range_ = false;
-            thread_state_[thread_id]->luma_splits_.resize(2);
-            thread_state_[thread_id]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
-            thread_state_[thread_id]->luma_splits_[1] = file_luma_splits_[thread_id];
-        }
+        mux_reader_.fillBufferEntirely(streams_.begin());
+            initialize_thread_id(0, 0, colldata);
         if (do_threading_) {
             for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+                initialize_thread_id(thread_id, thread_id, colldata);
                 if (dospin) {
                     spin_workers_.at(thread_id - 1).work
                         = std::bind(worker_thread,
@@ -168,8 +171,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     } else {
         // wait for "threads"
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            while (thread_state_[thread_id]->vp8_decode_thread(thread_id,
-                                                               colldata) == CODING_PARTIAL) {
+            initialize_thread_id(thread_id, 0, colldata);
+            while (thread_state_[0]->vp8_decode_thread(thread_id,
+                                                       colldata) == CODING_PARTIAL) {
 
             }
         }

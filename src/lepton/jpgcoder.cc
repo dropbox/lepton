@@ -916,6 +916,23 @@ void process_file(IOUtil::FileReader* reader,
     check_file(reader, writer, max_file_size);
     signal_data_recv();
     begin = clock();
+    if ( filetype == JPEG )
+    {
+        if (ofiletype == LEPTON) {
+            if (!g_encoder) {
+                g_encoder.reset(makeEncoder());
+            }
+        }else if (ofiletype == UJG) {
+            g_encoder.reset(new SimpleComponentEncoder);
+        }
+    } else if (filetype == LEPTON) {
+        if (!g_decoder) {
+            g_decoder.reset(makeDecoder());
+        }
+    }else if (filetype == UJG) {
+        g_decoder.reset(new SimpleComponentDecoder);
+    }
+
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
@@ -944,13 +961,6 @@ void process_file(IOUtil::FileReader* reader,
 
     if ( filetype == JPEG )
     {
-        if (ofiletype == LEPTON) {
-            if (!g_encoder) {
-                g_encoder.reset(makeEncoder());
-            }
-        }else if (ofiletype == UJG) {
-            g_encoder.reset(new SimpleComponentEncoder);
-        }
         switch ( action )
         {
             case comp:
@@ -972,14 +982,6 @@ void process_file(IOUtil::FileReader* reader,
     }
     else if ( filetype == UJG || filetype == LEPTON)
     {
-        if (filetype == LEPTON) {
-            if (!g_decoder) {
-                g_decoder.reset(makeDecoder());
-            }
-        }else if (filetype == UJG) {
-            g_decoder.reset(new SimpleComponentDecoder);
-        }
-
         switch ( action )
         {
             case comp:
