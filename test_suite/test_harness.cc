@@ -8,7 +8,7 @@ extern int test_file(int argc, char **argv, bool use_lepton, bool jailed, int in
                      bool allow_progressive_files, bool multithread,
                      const std::vector<const char *> &filenames,
                      bool expect_encoder_failure, bool expect_decoder_failure,
-                     const char* memory, const char* thread_memory);
+                     const char* encode_memory, const char * decode_memory, const char* thread_memory);
 #ifdef UNJAILED
 #define IS_JAILED false
 #else
@@ -84,16 +84,22 @@ int main (int argc, char **argv) {
     #error "We only support 4 test files in the same test atm"
 #endif
     }
-    const char * memory = NULL;
+    const char * encode_memory = NULL;
+    const char * decode_memory = NULL;
     const char * thread_memory = NULL;
 #ifdef MORE_MEMORY
-    memory = "-memory=" MORE_MEMORY;
+    encode_memory = "-memory=" MORE_MEMORY;
+    decode_memory = "-memory=" MORE_MEMORY;
+#endif
+#ifdef DECODE_MEMORY
+    decode_memory = "-memory=" DECODE_MEMORY;
 #endif
 #ifdef THREAD_MEMORY
     thread_memory = "-threadmemory=" THREAD_MEMORY;
 #endif
     return test_file(argc, argv,
-                     use_lepton, enable_jailing, INJECT_SYSCALL, allow_progressive_files, multithread,
-                     filenames,
-                     expect_failure, expect_decode_failure, memory, thread_memory);
+                     use_lepton, enable_jailing, INJECT_SYSCALL, allow_progressive_files,
+                     multithread, filenames,
+                     expect_failure,
+                     expect_decode_failure, encode_memory, decode_memory, thread_memory);
 }

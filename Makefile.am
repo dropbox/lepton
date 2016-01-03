@@ -221,11 +221,11 @@ test_suite_test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
 test_suite_test_truncate_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_lowmem_SOURCES = test_suite/test_harness.cc
-test_suite_test_truncate_lowmem_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc -DSINGLETHREAD
+test_suite_test_truncate_lowmem_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
 test_suite_test_truncate_lowmem_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_android_lowmem_SOURCES = test_suite/test_harness.cc
-test_suite_test_android_lowmem_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=android -DSINGLETHREAD
+test_suite_test_android_lowmem_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=android -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
 test_suite_test_android_lowmem_LDADD = libtestdriver.a -lpthread
 
 TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem

@@ -546,18 +546,12 @@ bool starts_with(const char * a, const char * b) {
     }
     return true;
 }
-void compute_thread_mem_and_threading(const char * arg,
-                                      size_t * mem_init,
-                                      size_t * thread_mem_init,
-                                      bool *needs_huge_pages) {
+void compute_thread_mem(const char * arg,
+                        size_t * mem_init,
+                        size_t * thread_mem_init,
+                        bool *needs_huge_pages) {
     if (strcmp(arg, "-hugepages") == 0) {
         *needs_huge_pages = true;
-    }
-    if (strcmp(arg, "-singlethread") == 0) {
-        g_threaded = false;
-    }
-    if ( strcmp(arg, "-allowprogressive" ) == 0)  {
-        g_allow_progressive = true;
     }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
@@ -578,12 +572,9 @@ int main( int argc, char** argv )
 {
     size_t thread_mem_limit = 8192;
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
-    if (g_threaded == false && !g_allow_progressive) {
-        //mem_limit = 20 * 1024 * 1024;
-    }
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
-        compute_thread_mem_and_threading(argv[i],
+        compute_thread_mem(argv[i],
                            &mem_limit,
                            &thread_mem_limit,
                            &needs_huge_pages);
@@ -754,10 +745,10 @@ int initialize_options( int argc, char** argv )
             g_force_zlib0_out = true;
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
-            assert(g_threaded == false); // already set from the initial
+            g_threaded = false;
         }
         else if ( strcmp((*argv), "-allowprogressive" ) == 0)  {
-            assert(g_allow_progressive == true); // already set from the initial
+            g_allow_progressive = true;
         }
         else if ( strcmp((*argv), "-unjailed" ) == 0)  {
             g_use_seccomp = false;

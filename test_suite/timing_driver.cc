@@ -209,8 +209,10 @@ void sleep_a_bit() {
     usleep(250000); // sleep 1/4 second
 }
 int run_test(const std::vector<unsigned char> &testImage,
-             bool use_lepton, bool jailed, int inject_failure_level, bool allow_progressive_files, bool multithread,
-             bool expect_failure, bool expect_decoder_failure, const char* memory, const char* thread_memory) {
+             bool use_lepton, bool jailed, int inject_failure_level, bool allow_progressive_files,
+             bool multithread,
+             bool expect_failure, bool expect_decoder_failure,
+             const char* encode_memory, const char *decode_memory, const char* thread_memory) {
     std::vector<unsigned char> leptonBuffer(use_lepton ? testImage.size()
                                            : testImage.size() * 40 + 4096 * 1024);
     std::vector<unsigned char> roundtripBuffer(testImage.size());
@@ -246,9 +248,11 @@ int run_test(const std::vector<unsigned char> &testImage,
         encode_args[get_last_arg(encode_args)] = "-allowprogressive";
         decode_args[get_last_arg(decode_args)] = "-allowprogressive";
     }
-    if (memory) {
-        encode_args[get_last_arg(encode_args)] = memory;
-        decode_args[get_last_arg(decode_args)] = memory;
+    if (encode_memory) {
+        encode_args[get_last_arg(encode_args)] = encode_memory;
+    }
+    if (decode_memory) {
+        decode_args[get_last_arg(decode_args)] = decode_memory;
     }
     if (thread_memory) {
         encode_args[get_last_arg(encode_args)] = thread_memory;
@@ -467,7 +471,7 @@ std::vector<unsigned char> load(const char *filename) {
 }
 int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level, bool allow_progressive_files, bool multithread,
               const std::vector<const char *> &filenames, bool expect_encode_failure, bool expect_decode_failure,
-              const char* memory, const char* thread_memory) {
+              const char* encode_memory, const char * decode_memory, const char* thread_memory) {
     always_assert(argc > 0);
     for (int i = int(strlen(argv[0])) - 1; i > 0; --i) {
         if (argv[0][i] == '/' || argv[0][i] == '\\') {
@@ -485,14 +489,14 @@ int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_sy
     std::vector<unsigned char> testImage(abstractJpeg, abstractJpeg+sizeof(abstractJpeg));
     if (filenames.empty()) {
         return run_test(testImage, use_lepton, jailed, inject_syscall_level, allow_progressive_files, multithread,
-                        expect_encode_failure, expect_decode_failure, memory, thread_memory);
+                        expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, thread_memory);
     }
     for (std::vector<const char *>::const_iterator filename = filenames.begin(); filename != filenames.end(); ++filename) {
         testImage = load(*filename);
         fprintf(stderr, "Loading iPhone %ld\n", testImage.size());
         int retval = run_test(testImage,
                               use_lepton, jailed, inject_syscall_level, allow_progressive_files, multithread,
-                              expect_encode_failure, expect_decode_failure, memory, thread_memory);
+                              expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, thread_memory);
         if (retval) {
             return retval;
         }

@@ -25,9 +25,6 @@ public:
 
     void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
         memory_optimized_image_ = memory_optimized_image;
-        if (g_allow_progressive) {
-            memory_optimized_image_ = false;
-        }
         assert(nblocks <= width * height);
         width_ = width;
         if (memory_optimized_image_) {
