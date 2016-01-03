@@ -13,7 +13,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
+        uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR), true);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
@@ -24,7 +24,9 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
-        uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, true);
+        BlockBasedImage * channel_image = &colldata->full_component_write((BlockType)middle_model.COLOR);
+        uint32_t offset = channel_image->next(context_.at((int)middle_model.COLOR),
+                                              true);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
@@ -35,7 +37,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      right_model,
                      model_);
-        colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR).context, false);
+        colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR), false);
     }
 }
 

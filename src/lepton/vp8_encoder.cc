@@ -84,61 +84,61 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                               (uint32_t)ColorChannel::NumBlockTypes> &context,
                                       BoolEncoder &bool_encoder) {
     if (block_width > 0) {
-        ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
-        const AlignedBlock &block = block_context.here();
+        KVContext state = context.at((int)middle_model.COLOR);
+        const AlignedBlock &block = state.context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = 0;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        block_context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
-        serialize_tokens(block_context,
+        state.context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
+        serialize_tokens(state.context,
                          bool_encoder,
                          left_model,
                          pt);
-        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context,
+        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
                                                                                         true);
-        context.at((int)middle_model.COLOR).context = block_context;
+        context.at((int)middle_model.COLOR).context = state.context;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
         
     }
     for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
-        const AlignedBlock &block = block_context.here();
+        KVContext state = context.at((int)middle_model.COLOR);
+        const AlignedBlock &block = state.context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = jpeg_x;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        block_context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
-        serialize_tokens(block_context,
+        state.context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
+        serialize_tokens(state.context,
                          bool_encoder,
                          middle_model,
                          pt);
-        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(block_context,
+        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
                                                                                         true);
-        context.at((int)middle_model.COLOR).context = block_context;
+        context.at((int)middle_model.COLOR).context = state.context;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
     }
     if (block_width > 1) {
-        ConstBlockContext block_context = context.at((int)middle_model.COLOR).context;
-        const AlignedBlock &block = block_context.here();
+        KVContext state = context.at((int)middle_model.COLOR);
+        const AlignedBlock &block = state.context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = middle_model.COLOR; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = block_width - 1;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        block_context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
-        serialize_tokens(block_context,
+        state.context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
+        serialize_tokens(state.context,
                          bool_encoder,
                          right_model,
                          pt);
-        colldata->full_component_nosync((int)middle_model.COLOR).next(block_context, false);
-        context.at((int)middle_model.COLOR).context = block_context;
+        colldata->full_component_nosync((int)middle_model.COLOR).next(state, false);
+        context.at((int)middle_model.COLOR).context = state.context;
     }
 }
 uint32_t aligned_block_cost(const AlignedBlock &block) {

@@ -4,7 +4,7 @@
 #include "aligned_block.hh"
 #include "block_context.hh"
 #include <map>
-
+extern bool g_allow_progressive;
 class BlockBasedImage {
     typedef AlignedBlock Block;
     Block *image_;
@@ -25,6 +25,9 @@ public:
 
     void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
         memory_optimized_image_ = memory_optimized_image;
+        if (g_allow_progressive) {
+            memory_optimized_image_ = false;
+        }
         assert(nblocks <= width * height);
         width_ = width;
         if (memory_optimized_image_) {
@@ -72,30 +75,37 @@ public:
                 (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
     template <class BlockContext> uint32_t next(BlockContext& it, bool has_left) const {
-        it.cur += 1;
-        ptrdiff_t offset = it.cur - image_;
-        if (memory_optimized_image_ && offset == (width_ << 1)) {
-            offset = 0;
-            it.cur = image_;
+        it.context.cur += 1;
+        ptrdiff_t offset = it.context.cur - image_;
+        uint32_t retval = offset;
+        if (memory_optimized_image_) {
+            if (__builtin_expect(offset == (width_ << 1), 0)) {
+                retval = offset = 0;
+                it.context.cur = image_;
+            }
+            if (retval >= width_) {
+                retval -= width_;
+            }
+            retval += width_ * it.y;
         }
         if (offset >= width_) {
-            it.above = it.cur - width_;
+            it.context.above = it.context.cur - width_;
         } else {
-            it.above = it.cur + width_;
+            it.context.above = it.context.cur + width_;
         }
-        ++it.num_nonzeros_here;
-        ++it.num_nonzeros_above;
+        ++it.context.num_nonzeros_here;
+        ++it.context.num_nonzeros_above;
         if (!has_left) {
-            bool cur_row_first = (it.num_nonzeros_here < it.num_nonzeros_above);
+            bool cur_row_first = (it.context.num_nonzeros_here < it.context.num_nonzeros_above);
             if (cur_row_first) {
-                it.num_nonzeros_above -= width_;
-                it.num_nonzeros_above -= width_;
+                it.context.num_nonzeros_above -= width_;
+                it.context.num_nonzeros_above -= width_;
             } else {
-                it.num_nonzeros_here -= width_;
-                it.num_nonzeros_here -= width_;
+                it.context.num_nonzeros_here -= width_;
+                it.context.num_nonzeros_here -= width_;
             }
         }
-        return offset;
+        return retval;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
         uint32_t index = (y & 1) ? width_  + x : x;
