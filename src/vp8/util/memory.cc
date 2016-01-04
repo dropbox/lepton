@@ -9,7 +9,7 @@
 #endif
 extern "C" {
 void* custom_malloc (size_t size) {
-#if 0
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
     return malloc(size);
 #else
     void * retval = Sirikata::memmgr_alloc(size);
@@ -24,7 +24,7 @@ void* custom_malloc (size_t size) {
 }
 
 void* custom_realloc (void * old, size_t size) {
-#if 0
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
     return realloc(old, size);
 #else
     size_t actual_size = 0;
@@ -39,7 +39,7 @@ void* custom_realloc (void * old, size_t size) {
 #endif
 }
 void custom_free(void* ptr) {
-#if 0
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
     free(ptr);
 #else
     Sirikata::memmgr_free(ptr);
@@ -47,7 +47,7 @@ void custom_free(void* ptr) {
 }
 
 void * custom_calloc(size_t size) {
-#if 0
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
     return calloc(size, 1);
 #else
     void * retval = Sirikata::memmgr_alloc(size); // guaranteed to return 0'd memory

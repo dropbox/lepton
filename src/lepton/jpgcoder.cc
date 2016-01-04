@@ -358,7 +358,8 @@ F_TYPE filetype;            // type of current file
 F_TYPE ofiletype = LEPTON;            // desired type of output file
 
 std::unique_ptr<BaseEncoder> g_encoder;
-std::unique_ptr<BaseDecoder> g_decoder;
+BaseDecoder* g_decoder = NULL;
+std::unique_ptr<BaseDecoder> g_reference_to_free;
 const char * g_socket_name = NULL;
 bool g_threaded = true;
 bool g_allow_progressive = false;
@@ -831,7 +832,7 @@ int initialize_options( int argc, char** argv )
     if (preload) {
         VP8ComponentDecoder *d = makeBoth(g_threaded);
         g_encoder.reset(d);
-        g_decoder.reset(d);
+        g_decoder = d;
     }
     return max_file_size;
 }
@@ -882,7 +883,7 @@ void process_file(IOUtil::FileReader* reader,
                 generic_workers->at(i).activate_work();
                 generic_workers->at(i).join_via_syscall();
                 if (value.load() < 1) {
-                    exit(35); // this should exit_group
+                    abort(); // this should exit_group
                 }
             }
             g_threaded = false;
@@ -914,16 +915,20 @@ void process_file(IOUtil::FileReader* reader,
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
                 g_encoder.reset(makeEncoder());
+                g_decoder = NULL;
             }
         }else if (ofiletype == UJG) {
             g_encoder.reset(new SimpleComponentEncoder);
+            g_decoder = NULL;
         }
     } else if (filetype == LEPTON) {
         if (!g_decoder) {
-            g_decoder.reset(makeDecoder());
+            g_decoder = makeDecoder();
+            g_reference_to_free.reset(g_decoder);
         }
     }else if (filetype == UJG) {
-        g_decoder.reset(new SimpleComponentDecoder);
+        g_decoder = new SimpleComponentDecoder;
+        g_reference_to_free.reset(g_decoder);
     }
 
     if (g_use_seccomp) {
@@ -2993,7 +2998,7 @@ bool read_ujpg( void )
     }
     colldata.signal_worker_should_begin();
     g_decoder->initialize(str_in);
-    colldata.start_decoder(g_decoder.get());
+    colldata.start_decoder(g_decoder);
     return true;
 }
 
