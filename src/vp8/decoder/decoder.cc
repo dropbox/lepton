@@ -239,15 +239,26 @@ void parse_tokens(BlockContext context,
     Sirikata::AlignedArray1d<int16_t, 64> outp_sans_dc;
     int uncertainty = 0;
     int uncertainty2 = 0;
-    int predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc.begin(), &uncertainty, &uncertainty2);
-
+    int predicted_dc;
+    if (advanced_dc_prediction) {
+        predicted_dc = probability_tables.adv_predict_dc_pix(context.copy(), outp_sans_dc.begin(),
+                                                             &uncertainty, &uncertainty2);
+    } else {
+        predicted_dc = probability_tables.predict_dc_dct(context.copy());
+    }
     { // dc
         uint8_t length;
         bool nonzero = false;
         uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
         uint16_t len_abs_offset_to_closest_edge
           = uint16bit_length(abs(uncertainty2));
+        if (!advanced_dc_prediction) {
+            ProbabilityTablesBase::CoefficientContext prior;
 
+            prior = probability_tables.update_coefficient_context7x7(0, raster_to_aligned.at(0), context.copy(), num_nonzeros_7x7);
+            len_abs_mxm = prior.bsr_best_prior;
+            len_abs_offset_to_closest_edge = prior.num_nonzeros_bin;
+        }
         auto exp_prob = probability_tables.exponent_array_dc(pt,
                                                              len_abs_mxm,
                                                              len_abs_offset_to_closest_edge);

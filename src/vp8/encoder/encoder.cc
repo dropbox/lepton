@@ -282,10 +282,15 @@ void serialize_tokens(ConstBlockContext context,
     Sirikata::AlignedArray1d<int16_t, 64> outp_sans_dc;
     int uncertainty = 0; // this is how far off our max estimate vs min estimate is
     int uncertainty2 = 0;
-    int predicted_val = probability_tables.adv_predict_dc_pix(context,
+    int predicted_val;
+    if (advanced_dc_prediction) {
+        predicted_val = probability_tables.adv_predict_dc_pix(context,
                                                               outp_sans_dc.begin(),
                                                               &uncertainty,
                                                               &uncertainty2);
+    } else {
+        predicted_val = probability_tables.predict_dc_dct(context);
+    }
    int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                           false,
                                                                           predicted_val);
@@ -306,6 +311,14 @@ void serialize_tokens(ConstBlockContext context,
         uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
         uint16_t len_abs_offset_to_closest_edge
           = uint16bit_length(abs(uncertainty2));
+        if (!advanced_dc_prediction) {
+            ProbabilityTablesBase::CoefficientContext prior;
+            
+            prior = probability_tables.update_coefficient_context7x7(0, raster_to_aligned.at(0), context.copy(), num_nonzeros_7x7);
+            len_abs_mxm = prior.bsr_best_prior;
+            len_abs_offset_to_closest_edge = prior.num_nonzeros_bin;
+        }
+
         auto exp_prob = probability_tables.exponent_array_dc(pt,
                                                              len_abs_mxm,
                                                              len_abs_offset_to_closest_edge);
