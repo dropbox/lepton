@@ -17,11 +17,11 @@ enum {
     log_delta_y_edge = LogTable256[raster_to_aligned.kat<16>() - raster_to_aligned.kat<8>()]
 };
 
-template<bool has_left, bool has_above, bool has_above_right, BlockType color,
+template<bool all_neighbors_present, BlockType color,
          bool horizontal>
 void decode_one_edge(BlockContext mcontext,
                  BoolDecoder& decoder,
-                 ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
+                 ProbabilityTables<all_neighbors_present, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t est_eob,
                  ProbabilityTablesBase& pt) {
 
@@ -129,19 +129,19 @@ void decode_one_edge(BlockContext mcontext,
     }
 }
 
-template<bool has_left, bool has_above, bool has_above_right, BlockType color>
+template<bool all_neighbors_present, BlockType color>
 void decode_edge(BlockContext mcontext,
                  BoolDecoder& decoder,
-                 ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
+                 ProbabilityTables<all_neighbors_present, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
                  ProbabilityTablesBase& pt) {
-    decode_one_edge<has_left, has_above, has_above_right, color, true>(mcontext,
+    decode_one_edge<all_neighbors_present, color, true>(mcontext,
                                                                         decoder,
                                                                         probability_tables,
                                                                         num_nonzeros_7x7,
                                                                         eob_x,
                                                                         pt);
-    decode_one_edge<has_left, has_above, has_above_right, color, false>(mcontext,
+    decode_one_edge<all_neighbors_present, color, false>(mcontext,
                                                                         decoder,
                                                                         probability_tables,
                                                                         num_nonzeros_7x7,
@@ -153,10 +153,10 @@ void decode_edge(BlockContext mcontext,
 
 
 
-template<bool has_left, bool has_above, bool has_above_right, BlockType color>
+template<bool all_neighbors_present, BlockType color>
 void parse_tokens(BlockContext context,
                   BoolDecoder& decoder,
-                  ProbabilityTables<has_left, has_above, has_above_right, color> & probability_tables,
+                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
                   ProbabilityTablesBase &pt) {
     context.here().bzero();
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context.copy());
@@ -292,34 +292,13 @@ void parse_tokens(BlockContext context,
                                             context.here().dc());
 }
 #ifdef ALLOW_FOUR_COLORS
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Ck>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
 #endif
 
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
-
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
-
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
-
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, true, BlockType::Cr>&, ProbabilityTablesBase&);
-
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, true, false, BlockType::Cr>&, ProbabilityTablesBase&);
-
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, false, false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);

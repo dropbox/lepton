@@ -43,22 +43,43 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
 
 #ifdef ALLOW_FOUR_COLORS
 #define ProbabilityTablesTuple(left, above, right) \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR0>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR1>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR2>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR3>
-#define EACH_BLOCK_TYPE BlockType::Y, \
-                        BlockType::Cb, \
-                        BlockType::Cr, \
-                        BlockType::Ck
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR0>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR1>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR2>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR3>
+#define EACH_BLOCK_TYPE ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR0>(BlockType::Y, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR1>(BlockType::Cb, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR2>(BlockType::Cr, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR3>(BlockType::Ck, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right)
 #else
 #define ProbabilityTablesTuple(left, above, right) \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR0>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR1>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR2>
-#define EACH_BLOCK_TYPE BlockType::Y, \
-                        BlockType::Cb, \
-                        BlockType::Cr
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR0>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR1>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR2>
+#define EACH_BLOCK_TYPE(left, above, right) ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR0>(BlockType::Y, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR1>(BlockType::Cb, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR2>(BlockType::Cr, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right)
 #endif
 
 CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
@@ -66,13 +87,12 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
     /* deserialize each block in planar order */
     using namespace std;
     BlockType component = BlockType::Y;
-    tuple<ProbabilityTablesTuple(false, false, false)> corner(EACH_BLOCK_TYPE);
-    tuple<ProbabilityTablesTuple(true, false, false)> top(EACH_BLOCK_TYPE);
-    tuple<ProbabilityTablesTuple(false, true, true)> midleft(EACH_BLOCK_TYPE);
-    tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE);
-    tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE);
-    tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE);
-
+    tuple<ProbabilityTablesTuple(false, false, false)> corner(EACH_BLOCK_TYPE(false,false,false));
+    tuple<ProbabilityTablesTuple(true, false, false)> top(EACH_BLOCK_TYPE(true,false,false));
+    tuple<ProbabilityTablesTuple(false, true, true)> midleft(EACH_BLOCK_TYPE(false, true, true));
+    tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true,true,true));
+    tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
+    tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
     assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];

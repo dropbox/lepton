@@ -213,30 +213,51 @@ void pick_luma_splits(const UncompressedComponents *colldata,
 }
 #ifdef ALLOW_FOUR_COLORS
 #define ProbabilityTablesTuple(left, above, right) \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR0>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR1>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR2>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR3>
-#define EACH_BLOCK_TYPE BlockType::Y, \
-                        BlockType::Cb, \
-                        BlockType::Cr, \
-                        BlockType::Ck
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR0>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR1>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR2>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR3>
+#define EACH_BLOCK_TYPE ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR0>(BlockType::Y, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR1>(BlockType::Cb, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR2>(BlockType::Cr, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR3>(BlockType::Ck, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right)
 #else
 #define ProbabilityTablesTuple(left, above, right) \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR0>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR1>, \
-    ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR2>
-#define EACH_BLOCK_TYPE BlockType::Y, \
-                        BlockType::Cb, \
-                        BlockType::Cr
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR0>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR1>, \
+    ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR2>
+#define EACH_BLOCK_TYPE(left, above, right) ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR0>(BlockType::Y, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR1>(BlockType::Cb, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right), \
+                        ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR2>(BlockType::Cr, \
+                                                                                   left, \
+                                                                                   above, \
+                                                                                   right)
 #endif
 
-tuple<ProbabilityTablesTuple(false, false, false)> corner(EACH_BLOCK_TYPE);
-tuple<ProbabilityTablesTuple(true, false, false)> top(EACH_BLOCK_TYPE);
-tuple<ProbabilityTablesTuple(false, true, true)> midleft(EACH_BLOCK_TYPE);
-tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE);
-tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE);
-tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE);
+tuple<ProbabilityTablesTuple(false, false, false)> corner(EACH_BLOCK_TYPE(false,false,false));
+tuple<ProbabilityTablesTuple(true, false, false)> top(EACH_BLOCK_TYPE(true, false, false));
+tuple<ProbabilityTablesTuple(false, true, true)> midleft(EACH_BLOCK_TYPE(false, true, true));
+tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true, true, true));
+tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
+tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
 
 void VP8ComponentEncoder::process_row_range(int thread_id,
                                             const UncompressedComponents * const colldata,

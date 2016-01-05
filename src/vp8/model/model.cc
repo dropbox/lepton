@@ -241,7 +241,7 @@ void ProbabilityTablesBase::load_probability_tables()
         const char * msg = "Using good probability tables!\n";
         while(write(2, msg, strlen(msg))< 0 && errno == EINTR) {
         }
-        ProbabilityTables<false, false, false, BlockType::Y> model_tables(BlockType::Y);
+        ProbabilityTables<true, BlockType::Y> model_tables(BlockType::Y, true, true, true);
         model_tables.load(*this, model_name);
         model_tables.normalize(*this);
     }

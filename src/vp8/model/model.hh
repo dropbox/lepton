@@ -263,7 +263,7 @@ public:
 #define TEMPLATE_ARG_COLOR2 BlockType::Y
 #define TEMPLATE_ARG_COLOR3 BlockType::Y
 #endif
-template <bool left_present, bool above_present, bool above_right_present, BlockType
+template <bool all_present, BlockType
 #ifdef USE_TEMPLATIZED_COLOR
               color
 #else
@@ -274,17 +274,35 @@ class ProbabilityTables
 {
 private:
     typedef ProbabilityTablesBase::CoefficientContext CoefficientContext;
+    const bool left_present;
+    const bool above_present;
+    const bool above_right_present;
 public:
 #ifdef USE_TEMPLATIZED_COLOR
     enum {
         COLOR = (int)color
     };
-    ProbabilityTables(BlockType kcolor) {
-        assert(kcolor == color);
+    ProbabilityTables(BlockType kcolor,
+                      bool in_left_present,
+                      bool in_above_present,
+                      bool in_above_right_present)
+        : left_present(in_left_present),
+          above_present(in_above_present),
+          above_right_present(in_above_right_present) {
+       assert((left_present && above_present && above_right_present) == all_present);
+       assert(kcolor == color);
     }
 #else
     const BlockType COLOR;
-    ProbabilityTables(BlockType color) : COLOR(color){
+    ProbabilityTables(BlockType color,
+                      bool in_left_present,
+                      bool in_above_present,
+                      bool in_above_right_present)
+        : left_present(in_left_present),
+          above_present(in_above_present),
+          above_right_present(in_above_right_present),
+          COLOR(color) {
+        assert((left_present && right_present && above_right_present) == all_present);
         static_assert((int)deprecated_color == 0, "Using dynamic color");
     }
 #endif
@@ -380,19 +398,19 @@ public:
                                                                const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
-        if (above_present) {
+        if (all_present || above_present) {
             num_nonzeros_above = block.nonzeros_above_7x7_unchecked();
         }
-        if (left_present) {
+        if (all_present || left_present) {
             num_nonzeros_left = block.nonzeros_left_7x7_unchecked();
         }
 
         uint8_t num_nonzeros_context = 0;
-        if (above_present && !left_present) {
+        if ((!all_present) && above_present && !left_present) {
             num_nonzeros_context = (num_nonzeros_above + 1) / 2;
-        } else if (left_present && !above_present) {
+        } else if ((!all_present) && left_present && !above_present) {
             num_nonzeros_context = (num_nonzeros_left + 1) / 2;
-        } else if (left_present && above_present) {
+        } else if (all_present || (left_present && above_present)) {
             num_nonzeros_context = (num_nonzeros_above + num_nonzeros_left + 2) / 4;
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
@@ -528,16 +546,16 @@ public:
         int left_edge = 0;
         int above_block = 0;
         int above_edge = 0;
-        if (left_present) {
+        if (all_present || left_present) {
             left_block = idct_2d_8x1(context.left_unchecked(), 0, 7);
             left_edge = idct_2d_8x1(context.here(), 1, 0);
         }
-        if (above_present) {
+        if (all_present || above_present) {
             above_block = idct_2d_1x8(context.above_unchecked(), 0, 7);
             above_edge = idct_2d_1x8(context.here(), 1, 0);
         }
-        if (left_present) {
-            if (above_present) {
+        if (all_present || left_present) {
+            if (all_present || above_present) {
                 prediction = ( ( left_block - left_edge ) + (above_block - above_edge) ) * 4;
             } else {
                 prediction = ( left_block - left_edge ) * 8;
@@ -545,7 +563,7 @@ public:
         } else if (above_present) {
             prediction = ( above_block - above_edge ) * 8;
         }
-        int DCT_RSC = 8192; 
+        int DCT_RSC = 8192;
         prediction = std::max(-1024 * DCT_RSC, std::min(1016 * DCT_RSC, prediction));
         prediction /= ProbabilityTablesBase::quantization_table((int)COLOR, 0);
         int round = DCT_RSC/2;
@@ -555,9 +573,9 @@ public:
         return (prediction + round) / DCT_RSC;
     }
     int predict_locoi_dc_deprecated(const ConstBlockContext&context) {
-        if (left_present) {
+        if (all_present || left_present) {
             int a = context.left_unchecked().dc();
-            if (above_present) {
+            if (all_present || above_present) {
                 int b = context.above_unchecked().dc();
                 int c = context.above_left_unchecked().dc();
                 if (c >= std::max(a,b)) {
@@ -591,12 +609,12 @@ public:
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         idct(context.here(), q, pixels_sans_dc, true);
 
-        Sirikata::AlignedArray1d<int16_t, (left_present ? 8 : 0) + (above_present ? 8 : 0)> dc_estimates;
+        Sirikata::AlignedArray1d<int16_t, 16> dc_estimates;
         dc_estimates.memset(0);
         int32_t avgmed = 0;
-        if(left_present || above_present) {
+        if(all_present || left_present || above_present) {
             if ((VECTORIZE || MICROVECTORIZE)) {
-                if (above_present) { //above goes first to prime the cache
+                if (all_present || above_present) { //above goes first to prime the cache
 		  __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
                                                              .neighbor_context_above_unchecked()
                                                              .horizontal_ptr());
@@ -610,10 +628,11 @@ public:
                     __m128i above_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_above, pixels_delta_div2),
                                                               pixels_sans_dc_recentered);
 
-                    _mm_store_si128((__m128i*)(char*)(dc_estimates.begin() + (left_present ? 8 : 0)),
+                    _mm_store_si128((__m128i*)(char*)(dc_estimates.begin()
+                                                      + ((all_present || left_present) ? 8 : 0)),
                                     above_dc_estimate);
                 }
-                if (left_present) {
+                if (all_present || left_present) {
                     const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
                     __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)(const char*)horiz_data);
                     //neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
@@ -643,7 +662,7 @@ public:
                     _mm_store_si128((__m128i*)(char*)dc_estimates.begin(), left_dc_estimate);
                 }
             } else {
-                if (left_present) {
+                if (all_present || left_present) {
                     for (int i = 0; i < 8;++i) {
                         int a = pixels_sans_dc[i << 3] + 1024;
                         int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
@@ -651,12 +670,12 @@ public:
                         dc_estimates[i] = b - a;
                     }
                 }
-                if (above_present) {
+                if (all_present || above_present) {
                     for (int i = 0; i < 8;++i) {
                         int a = pixels_sans_dc[i] + 1024;
                         int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
                         int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
-                        dc_estimates[i + (left_present ? 8 : 0)] = b - a;
+                        dc_estimates[i + ((all_present || left_present) ? 8 : 0)] = b - a;
                     }
                 }
             }
@@ -675,7 +694,7 @@ public:
                         max_dc = cur_est;
                     }
                 }
-                if (above_present == false || left_present == false) {
+                if ((!all_present) && (above_present == false || left_present == false)) {
                     avg_h_v[1] = avg_h_v[0];
                     break;
                 }
@@ -700,14 +719,14 @@ public:
     void debug_print_deltas(const ConstBlockContext&context, int16_t *dc_estimates, int avgmed) {
         int actual_dc = context.here().dc();
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
-        int len_est = (left_present && above_present ? 16 : 8);
+        int len_est = ((all_present || (left_present && above_present)) ? 16 : 8);
         int avg_estimated_dc = 0;
         int dc_sum = 0;
         for (int i = 0 ;i < len_est; ++i) {
             dc_sum += dc_estimates[i];
         }
         avg_estimated_dc = dc_sum;
-        if (left_present && above_present) {
+        if (all_present || (left_present && above_present)) {
             avg_estimated_dc >>= 1;
         }
         
@@ -749,13 +768,13 @@ public:
         return compute_aavrg(0, raster_to_aligned.at(0), context);
         
         uint32_t total = 0;
-        if (left_present) {
+        if (all_present || left_present) {
             total += abs(context.left_unchecked().dc());
         }
-        if (above_present) {
+        if (all_present || above_present) {
             total += abs(context.above_unchecked().dc());
         }
-        if (left_present && above_present) {
+        if (all_present || (left_present && above_present)) {
             constexpr unsigned int log_weight = 5;
             total *= 13;
             total += 6 * abs(context.above_left_unchecked().dc());
@@ -766,13 +785,13 @@ public:
     }
     int16_t compute_aavrg(unsigned int coord, unsigned int aligned_zz, ConstBlockContext context) {
         int16_t total = 0;
-        if (left_present) {
+        if (all_present || left_present) {
             total += abs(context.left_unchecked().coefficients_raster(coord));
         }
-        if (above_present) {
+        if (all_present || above_present) {
             total += abs(context.above_unchecked().coefficients_raster(coord));
         }
-        if (left_present && above_present) {
+        if (all_present || (left_present && above_present)) {
             constexpr unsigned int log_weight = 5;
             total *= 13;
             total += 6 * abs(context.above_left_unchecked().coefficients_raster(coord));
@@ -807,20 +826,20 @@ public:
 #define x_mm_loadu_si64 _mm_loadu_si64
 #endif
     __m128i compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context) {
-        if (left_present == false && above_present == false) {
+        if (all_present == false && left_present == false && above_present == false) {
             return _mm_setzero_si128();
         }
         __m128i left;
-        if (left_present) {
+        if (all_present || left_present) {
             left = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)&context.left_unchecked().coef.at(aligned_zz)));
-            if (!above_present) {
+            if ((!all_present) && !above_present) {
                 return left;
             }
         }
-        __m128i above;
-        if (above_present) {
+        __m128i above = _mm_setzero_si128();
+        if (all_present || above_present) {
             above = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)&context.above_unchecked().coef.at(aligned_zz)));
-            if (!left_present) {
+            if (all_present == false && !left_present) {
                 return above;
             }
         }
@@ -883,7 +902,7 @@ public:
         const int32_t * icos = nullptr;
         static_assert((band & 7) == 0 || (band >> 3) == 0, "This function only works on edges");
         if ((band >> 3) == 0) {
-            if(!above_present) {
+            if(all_present == false && !above_present) {
                 return 0;
             }
             const auto &neighbor = context.above_unchecked();
@@ -891,7 +910,7 @@ public:
             ITER(coeffs_x_high, coeffs_a_high, 4, 8);
             icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
         } else {
-            if (!left_present) {
+            if (all_present == false && !left_present) {
                 return 0;
             }
             const auto &neighbor = context.left_unchecked();
@@ -902,7 +921,7 @@ public:
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
     }
     int32_t compute_lak_horizontal(const ConstBlockContext&context, unsigned int band) {
-        if (!above_present) {
+        if (all_present == false && !above_present) {
             return 0;
         }
         __m128i coeffs_x_low;
@@ -918,7 +937,7 @@ public:
     }
     int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band) {
         assert((band & 7) == 0 && "Must be used for veritcal");
-        if (!left_present) {
+        if (all_present == false && !left_present) {
             return 0;
         }
         __m128i coeffs_x_low;
@@ -937,7 +956,7 @@ public:
         int coeffs_x[8];
         int coeffs_a[8];
         const int32_t *coef_idct = nullptr;
-        if ((band & 7) && above_present) {
+        if ((band & 7) && (all_present || above_present)) {
             // y == 0: we're the x
             assert(band/8 == 0); //this function only works for the edge
             const auto &above = context.above_unchecked();
