@@ -325,28 +325,31 @@ int cs_sah       =   0  ; // successive approximation bit pos high
 int cs_sal       =   0  ; // successive approximation bit pos low
 void kill_workers(void * workers);
 
-VP8ComponentDecoder *makeBoth(bool threaded) {
-
-    if (threaded) {
-        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
-        generic_workers = new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
-        custom_atexit(kill_workers, generic_workers);
-        return new VP8ComponentDecoder(generic_workers->slice<0,NUM_THREADS-1>());
-    }
-    return new VP8ComponentDecoder;
+Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice get_worker_threads() {
+    Sirikata::Array1d<GenericWorker,
+                      NUM_THREADS - 1>*generic_workers = new Sirikata::Array1d<GenericWorker,
+                                                                               NUM_THREADS - 1>;
+    custom_atexit(kill_workers, generic_workers);
+    return generic_workers->slice<0, NUM_THREADS - 1>();
 }
 
-BaseEncoder *makeEncoder() {
-    if (g_threaded) {
-        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = nullptr;
-        generic_workers = new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
-        custom_atexit(kill_workers, generic_workers);
-        return new VP8ComponentEncoder(generic_workers->slice<0,NUM_THREADS-1>());
+VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
+    VP8ComponentDecoder *retval = new VP8ComponentDecoder(threaded);
+    if (start_workers) {
+        retval->registerWorkers(get_worker_threads());
     }
-    return new VP8ComponentEncoder;
+    return retval;
 }
-BaseDecoder *makeDecoder() {
-    return makeBoth(g_threaded);
+
+BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
+    VP8ComponentEncoder * retval = new VP8ComponentEncoder(threaded);
+    if (start_workers) {
+        retval->registerWorkers(get_worker_threads());
+    }
+    return retval;
+}
+BaseDecoder *makeDecoder(bool threaded, bool start_workers) {
+    return makeBoth(threaded, start_workers);
 }
 /* -----------------------------------------------
     global variables: info about files
@@ -830,7 +833,7 @@ int initialize_options( int argc, char** argv )
         exit(1);
     }
     if (preload) {
-        VP8ComponentDecoder *d = makeBoth(g_threaded);
+        VP8ComponentDecoder *d = makeBoth(g_threaded, g_threaded && action != forkserve && action != socketserve);
         g_encoder.reset(d);
         g_decoder = d;
     }
@@ -914,8 +917,10 @@ void process_file(IOUtil::FileReader* reader,
     {
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
-                g_encoder.reset(makeEncoder());
+                g_encoder.reset(makeEncoder(g_threaded, g_threaded));
                 g_decoder = NULL;
+            } else if (g_threaded && (action == socketserve || action == forkserve)) {
+                g_encoder->registerWorkers(get_worker_threads());
             }
         }else if (ofiletype == UJG) {
             g_encoder.reset(new SimpleComponentEncoder);
@@ -923,8 +928,10 @@ void process_file(IOUtil::FileReader* reader,
         }
     } else if (filetype == LEPTON) {
         if (!g_decoder) {
-            g_decoder = makeDecoder();
+            g_decoder = makeDecoder(g_threaded, g_threaded);
             g_reference_to_free.reset(g_decoder);
+        } else if (g_threaded && (action == socketserve || action == forkserve)) {
+            g_decoder->registerWorkers(get_worker_threads());
         }
     }else if (filetype == UJG) {
         g_decoder = new SimpleComponentDecoder;

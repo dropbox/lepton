@@ -25,8 +25,11 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                            Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
 public:
-    VP8ComponentEncoder(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers);
-    VP8ComponentEncoder();
+    VP8ComponentEncoder(bool do_threading);
+    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
+        this->LeptonCodec::registerWorkers(workers);
+    }
+
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                         IOUtil::FileWriter *);
     CodingReturnValue encode_chunk(const UncompressedComponents *input,

@@ -9,7 +9,7 @@ if len(sys.argv) > 1:
 else:
     jpg_name = os.path.join(base_dir, "..", "images", "iphone.jpg")
 
-proc = subprocess.Popen(['./lepton','-fork'],
+proc = subprocess.Popen(['./lepton','-fork', '-preload'],
                         stdout=subprocess.PIPE,
                         stdin=subprocess.PIPE)
 valid_fds = []

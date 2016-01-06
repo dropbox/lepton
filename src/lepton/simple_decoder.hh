@@ -18,4 +18,5 @@ public:
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
     static void simple_continuous_decoder(UncompressedComponents* colldata,
                                           Sirikata::DecoderReader *);
+    virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {}
 };

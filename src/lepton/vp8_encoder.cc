@@ -62,10 +62,9 @@ void printContext(FILE * fp) {
         }
     }
 }
-VP8ComponentEncoder::VP8ComponentEncoder(){}
-VP8ComponentEncoder::VP8ComponentEncoder(Sirikata::Array1d<GenericWorker,
-                                                           (NUM_THREADS - 1)>::Slice workers)
-    : LeptonCodec(workers){
+
+VP8ComponentEncoder::VP8ComponentEncoder(bool do_threading)
+    : LeptonCodec(do_threading){
 }
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,

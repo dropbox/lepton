@@ -23,8 +23,10 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
                               UncompressedComponents * const colldata);
     int virtual_thread_id_;
 public:
-    VP8ComponentDecoder(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers);
-    VP8ComponentDecoder();
+    VP8ComponentDecoder(bool do_threading);
+    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
+        this->VP8ComponentEncoder::registerWorkers(workers);
+    }
     ~VP8ComponentDecoder();
     void initialize(Sirikata::DecoderReader *input);
     //necessary to implement the BaseDecoder interface. Thin wrapper around vp8_decoder

@@ -23,20 +23,19 @@ void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
 
 
 
-VP8ComponentDecoder::VP8ComponentDecoder() : mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
-                                                         4,
-                                                         1024 * 1024 + 262144) {
-    virtual_thread_id_ = 0;
-}
-VP8ComponentDecoder::~VP8ComponentDecoder() {
-}
-VP8ComponentDecoder::VP8ComponentDecoder(Sirikata::Array1d<GenericWorker,
-                                                           (NUM_THREADS - 1)>::Slice workers)
-    : VP8ComponentEncoder(workers),
+VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
+    : VP8ComponentEncoder(do_threading),
       mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                   4,
                   1024 * 1024 + 262144) {
-    virtual_thread_id_ = -1; // only using real threads here
+    if (do_threading) {
+        virtual_thread_id_ = -1; // only using real threads here
+    } else {
+        virtual_thread_id_ = 0;
+    }
+}
+
+VP8ComponentDecoder::~VP8ComponentDecoder() {
 }
 
 const bool dospin = true;

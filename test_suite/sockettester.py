@@ -26,7 +26,7 @@ def read_all_fd(fd):
 def test_compression(binary_name, socket_name = None):
     global jpg_name
     custom_name = socket_name is not None
-    xargs = [binary_name,'-socket','-timebound=5000ms','-unjailed']
+    xargs = [binary_name,'-socket','-timebound=5000ms', "-preload"]
     if socket_name is not None:
         xargs[1]+= '=' + socket_name
     proc = subprocess.Popen(xargs,

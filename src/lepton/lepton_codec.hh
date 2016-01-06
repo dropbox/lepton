@@ -36,19 +36,19 @@ protected:
         (&thread_state_[thread_id]->model_)->~ProbabilityTablesBase();
         new (&thread_state_[thread_id]->model_) ProbabilityTablesBase();
     }
-
-    LeptonCodec(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
-        do_threading_ = true;
+    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         spin_workers_ = workers;
-        for (int i = 0; i < NUM_THREADS; ++i) {
+    }
+    LeptonCodec(bool do_threading) {
+        do_threading_ = do_threading;
+        int num_threads = 1;
+        if (do_threading) {
+            num_threads = NUM_THREADS;
+        }
+        for (int i = 0; i < num_threads; ++i) {
             thread_state_[i] = new ThreadState;
             thread_state_[i]->model_.load_probability_tables();
         }
-    }
-    LeptonCodec() {
-        do_threading_ = false;
-        thread_state_[0] = new ThreadState;
-        thread_state_[0]->model_.load_probability_tables();
     }
     ~LeptonCodec() {
         for (int i = 0; i < NUM_THREADS; ++i) {
