@@ -16,6 +16,7 @@
 #include <emmintrin.h>
 
 class BoolEncoder;
+constexpr bool advanced_dc_prediction = true;
 constexpr unsigned int MAX_EXPONENT = 11;
 constexpr unsigned int BLOCK_TYPES        = 2; // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
 constexpr unsigned int NUM_NONZEROS_BINS     =  10;
@@ -75,7 +76,8 @@ struct Model
                               MAX_EXPONENT> ExponentCounts7x7;
 
 typedef Sirikata::Array3d<Branch,
-                          NUMERIC_LENGTH_MAX,
+                          (NUM_NONZEROS_BINS <= NUMERIC_LENGTH_MAX
+                           ? NUMERIC_LENGTH_MAX : NUM_NONZEROS_BINS),
                           17/*any 16 bit number should fit*/,
                           MAX_EXPONENT> ExponentCountsDC;
 

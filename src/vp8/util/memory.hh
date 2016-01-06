@@ -31,6 +31,6 @@ void set_close_thread_handle(int handle);
 void reset_close_thread_handle();
 #if defined(__cplusplus) || defined(c_plusplus)
 }
-#define advanced_dc_prediction false
+
 #endif
 #endif
