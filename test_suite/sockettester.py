@@ -3,6 +3,7 @@ import subprocess
 import sys
 import threading
 import socket
+import time
 import os
 import uuid
 base_dir = os.path.dirname(sys.argv[0])
@@ -65,19 +66,24 @@ def test_compression(binary_name, socket_name = None):
     u.start()
     u.join()
     t=threading.Thread(target=fn)
+    encode_start = time.time()
     t.start()
     dat = read_all_fd(valid_fds[0])
+    encode_end = time.time()
     valid_socks[0].close()
     t.join()
     print len(jpg),len(dat)
     v=threading.Thread(target=fn1)
+    decode_start = time.time()
     v.start()
     ojpg = read_all_fd(valid_fds[1])
+    decode_end = time.time()
     valid_socks[1].close()
     t.join()
 
     assert ojpg == jpg
-
+    print 'encode time ',encode_end - encode_start
+    print 'decode time ',decode_end - decode_start
     print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg))
     u.join()
     proc.stdin.write('x')
