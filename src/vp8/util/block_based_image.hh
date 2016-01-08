@@ -110,7 +110,7 @@ public:
             index = y * width_ + x;
         }
         if (__builtin_expect(index >= nblocks_, 0)) {
-            custom_exit(37);
+            custom_exit(ExitCode::OOM);
         }
         return image_[index];
     }
@@ -120,7 +120,7 @@ public:
             index = y * width_ + x;
         }
         if (__builtin_expect(index >= nblocks_, 0)) {
-            custom_exit(37);
+            custom_exit(ExitCode::OOM);
         }
         return image_[index];
     }
@@ -131,7 +131,7 @@ public:
             offset = offset % (width_ << 1);
         }
         if (offset >= nblocks_) {
-            custom_exit(37);
+            custom_exit(ExitCode::OOM);
         }
         return image_[offset];
     }
@@ -140,7 +140,7 @@ public:
             offset = offset % (width_ << 1);
         }
         if (__builtin_expect(offset >= nblocks_, 0)) {
-            custom_exit(37);
+            custom_exit(ExitCode::OOM);
         }
         return image_[offset];
     }

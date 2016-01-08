@@ -22,7 +22,7 @@ static char hex_nibble(uint8_t val) {
 }
 
 static void always_assert(bool expr) {
-    if (!expr) custom_exit(1);
+    if (!expr) custom_exit(ExitCode::ASSERTION_FAILURE);
 }
 
 static const char last_prefix[] = "/tmp/";
@@ -62,7 +62,7 @@ static void exit_on_stdin(pid_t child) {
     sleep(1); // 1 second to clean up its temp pipes
     kill(child, SIGKILL);
     fclose(stderr);
-    custom_exit(0);
+    custom_exit(ExitCode::SUCCESS);
 }
 
 static void cleanup_pipes(int) {
@@ -71,7 +71,7 @@ static void cleanup_pipes(int) {
             unlink(last_pipes[i]);
         }
     }
-    custom_exit(3);
+    custom_exit(ExitCode::EARLY_EXIT);
 }
 void fork_serve() {
     exit_on_stdin(fork());
@@ -111,7 +111,7 @@ void fork_serve() {
             IOUtil::FileReader reader(reader_pipe);
             IOUtil::FileWriter writer(writer_pipe, false);
             process_file(&reader, &writer);
-            custom_exit(0);
+            custom_exit(ExitCode::SUCCESS);
         } else {
             int err = -1;
             do {

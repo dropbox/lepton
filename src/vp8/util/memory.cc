@@ -17,7 +17,7 @@ void* custom_malloc (size_t size) {
         if (!g_use_seccomp) {
             assert(false && "Out of memory error");
         }
-        custom_exit(37); // ran out of memory
+        custom_exit(ExitCode::OOM); // ran out of memory
     }
     return retval;
 #endif
@@ -33,7 +33,7 @@ void* custom_realloc (void * old, size_t size) {
         if (!g_use_seccomp) {
             assert(false && "Out of memory error");
         }
-        custom_exit(37); // ran out of memory
+        custom_exit(ExitCode::OOM); // ran out of memory
     }
     return retval;
 #endif
@@ -55,7 +55,7 @@ void * custom_calloc(size_t size) {
         if (!g_use_seccomp) {
             assert(false && "Out of memory error");
         }
-        custom_exit(37); // ran out of memory
+        custom_exit(ExitCode::OOM); // ran out of memory
     }
     return retval;
 #endif
@@ -74,7 +74,7 @@ void* operator new (size_t size) throw(std::bad_alloc){
      if (!g_use_seccomp) {
          assert(false && "Out of memory error");
      }
-     custom_exit(37); // ran out of memory
+     custom_exit(ExitCode::OOM); // ran out of memory
  }
  return ptr;
 }
@@ -85,7 +85,7 @@ void* operator new[] (size_t size) throw(std::bad_alloc){
      if (!g_use_seccomp) {
          assert(false && "Out of memory error");
      }
-     custom_exit(37); // ran out of memory
+     custom_exit(ExitCode::OOM); // ran out of memory
  }
  return ptr;
 }
@@ -126,16 +126,16 @@ void custom_terminate_this_thread(uint8_t exit_code) {
     syscall(SYS_exit, exit_code);
 #endif
 }
-void custom_exit(uint8_t exit_code) {
+void custom_exit(ExitCode exit_code) {
     close_thread_handle();
     if (atexit_f) {
         (*atexit_f)(atexit_arg);
         atexit_f = nullptr;
     }
 #ifdef __linux
-    syscall(SYS_exit, exit_code);
+    syscall(SYS_exit, (int)exit_code);
 #else
-    exit(exit_code);
+    exit((int)exit_code);
 #endif
     abort();
 }

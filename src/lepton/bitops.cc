@@ -70,7 +70,7 @@ abitwriter::abitwriter( int size )
     data2 = ( unsigned char* ) custom_calloc (dsize);
     if ( data2 == NULL ) {
         error = true;
-        custom_exit(36);
+        custom_exit(ExitCode::MALLOCED_NULL);
         return;
     }
 	// for ( int i = 0; i < dsize; i++ ) data[i] = 0;
@@ -122,7 +122,7 @@ abytewriter::abytewriter( int size )
     data = aligned_alloc(dsize);
 	if ( data == NULL ) {
 		error = true;
-        custom_exit(36);
+        custom_exit(ExitCode::MALLOCED_NULL);
 		return;
 	}
 }
@@ -157,7 +157,7 @@ void abytewriter::write( unsigned char byte )
         }
 		if ( data == NULL ) {
 			error = true;
-            custom_exit(36);
+            custom_exit(ExitCode::MALLOCED_NULL);
 			return;
 		}
 	}
@@ -184,7 +184,7 @@ void abytewriter::write_n( unsigned char* byte, int n )
         data = newData;
 		if ( data == NULL ) {
             error = true;
-            custom_exit(36);
+            custom_exit(ExitCode::MALLOCED_NULL);
 			return;
 		}
 	}

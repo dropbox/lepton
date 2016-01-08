@@ -97,7 +97,7 @@ MemMgrState& get_local_memmgr(){
         if (id > (int)memmgr_num_memmgrs) {
             assert(false && "Too many threads have requested access to memory-managers:"
                    "init with higher thread count");
-            custom_exit(1);
+            custom_exit(ExitCode::ASSERTION_FAILURE);
         }
     }
     return memmgrs[id - 1];
@@ -357,7 +357,7 @@ void* memmgr_alloc(size_t nuint8_ts)
                 printf("!! Memory allocation failed !!\n");
                 #endif
 #ifdef MEMMGR_EXIT_OOM
-                custom_exit(38);
+                custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
 #endif
 
                 return 0;

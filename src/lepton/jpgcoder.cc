@@ -1108,8 +1108,11 @@ void process_file(IOUtil::FileReader* reader,
     if ( ( verbosity > 1 ) && ( action == comp ) )
         fprintf( msgout,  "\n" );
     LeptonDebug::dumpDebugData();
-
-    custom_exit(errorlevel.load()); // custom exit will delete generic_workers
+    if (errorlevel.load()) {
+        custom_exit(ExitCode::ASSERTION_FAILURE); // custom exit will delete generic_workers
+    } else {
+        custom_exit(ExitCode::SUCCESS);
+    }
     // reset buffers
     reset_buffers();
 }
@@ -1233,14 +1236,14 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
         while (write(2, errormessage, strlen(errormessage)) < 0 && errno == EINTR) {
 
         }
-        custom_exit(2);
+        custom_exit(ExitCode::FILE_NOT_FOUND);
     }
     // open input stream, check for errors
     str_in = reader;
     if ( str_in == NULL ) {
         fprintf( stderr, FRD_ERRMSG, filelist[ file_no ] );
         errorlevel.store(2);
-        custom_exit(2);
+        custom_exit(ExitCode::FILE_NOT_FOUND);
         return false;
     }
 
@@ -1249,7 +1252,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
         filetype = UNK;
         errormessage = "file doesn't contain enough data";
         errorlevel.store(2);
-        custom_exit(3);
+        custom_exit(ExitCode::SHORT_READ);
         return false;
     }
 
@@ -1275,7 +1278,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
                 while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {
 
                 }
-                custom_exit(2);
+                custom_exit(ExitCode::FILE_NOT_FOUND);
             }
         }
         if ( !ujg_out ) {
@@ -1956,7 +1959,7 @@ bool decode_jpeg( void )
             // (re)set rst wait counter
             rstw = rsti;
             if (jpegtype != 1 && !g_allow_progressive) {
-                custom_exit(8);
+                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
             }
             // decoding for interleaved data
             if ( cs_cmpc > 1 )
@@ -2377,7 +2380,7 @@ bool recode_jpeg( void )
             // (re)set rst wait counter
             rstw = rsti;
             if (jpegtype != 1 && !g_allow_progressive) {
-                custom_exit(8);
+                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
             }
 
             // encoding for interleaved data

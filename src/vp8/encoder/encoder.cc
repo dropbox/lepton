@@ -117,7 +117,7 @@ void encode_one_edge(ConstBlockContext context,
             }
         }
         if (length > MAX_EXPONENT) {
-            custom_exit(6);
+            custom_exit(ExitCode::COEFFICIENT_OUT_OF_RANGE);
         }
         if (coef) {
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
@@ -252,7 +252,7 @@ void serialize_tokens(ConstBlockContext context,
                 }
             }
             if (length > MAX_EXPONENT) {
-                custom_exit(6);
+                custom_exit(ExitCode::COEFFICIENT_OUT_OF_RANGE);
             }
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
@@ -298,7 +298,7 @@ void serialize_tokens(ConstBlockContext context,
     if (context.here().dc() != probability_tables.adv_predict_or_unpredict_dc(adv_predicted_dc,
                                                                               true,
                                                                               predicted_val)) {
-          custom_exit(6); // value out of range
+          custom_exit(ExitCode::COEFFICIENT_OUT_OF_RANGE); // value out of range
     }
     {
         // do DC
@@ -330,7 +330,7 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
         if (length > MAX_EXPONENT) {
-            custom_exit(6);
+            custom_exit(ExitCode::COEFFICIENT_OUT_OF_RANGE);
         }
         if (length != 0) {
             auto &sign_prob = probability_tables.sign_array_dc(pt,

@@ -91,7 +91,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
             while (write(2, err, strlen(err)) <0 && errno == EINTR) {
 
             }
-            custom_exit(5); //protocol error;
+            custom_exit(ExitCode::THREAD_PROTOCOL_ERROR);
         }
     }
     

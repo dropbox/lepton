@@ -51,7 +51,7 @@ void decode_one_edge(BlockContext mcontext,
         decoded_so_far |= cur_bit;
     }
     if (num_nonzeros_edge > 7) {
-        custom_exit(7);
+        custom_exit(ExitCode::STREAM_INCONSISTENT);
     }
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
@@ -169,7 +169,7 @@ void parse_tokens(BlockContext context,
         decoded_so_far |= cur_bit;
     }
     if (num_nonzeros_7x7 > 49) {
-        custom_exit(7); // this would be a corrupt file: do not decode further
+        custom_exit(ExitCode::STREAM_INCONSISTENT); // this is a corrupt file: dont decode further
     }
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;

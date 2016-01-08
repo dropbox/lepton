@@ -150,7 +150,7 @@ public:
             unsigned char * tmp = (unsigned char*)custom_malloc(new_size);
             if ( tmp == NULL ) {
                 error = true;
-                custom_exit(1);
+                custom_exit(ExitCode::MALLOCED_NULL);
                 return;
             }
             memset(tmp + dsize, 0, adds);

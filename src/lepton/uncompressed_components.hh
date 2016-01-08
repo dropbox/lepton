@@ -12,7 +12,6 @@
 #include "../vp8/model/color_context.hh"
 #include "../vp8/util/block_based_image.hh"
 struct componentInfo;
-#define EXIT_CODE_CODING_ERROR 2
 
 class Block;
 
@@ -137,7 +136,7 @@ public:
             int err = write(2, errmsg, strlen(errmsg));
             (void)err;
             assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
-            custom_exit(4);
+            custom_exit(ExitCode::UNSUPPORTED_4_COLORS);
         }
         cmpc_ = cmpc;
         allocated_ = 0;
@@ -185,7 +184,7 @@ public:
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
-                custom_exit(EXIT_CODE_CODING_ERROR);
+                custom_exit(ExitCode::CODING_ERROR);
             }
             //fprintf(stderr, "Waiting for bit %d > %d\n", bit, bit_progress_ += 0);
         }
@@ -195,7 +194,7 @@ public:
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
-                custom_exit(EXIT_CODE_CODING_ERROR);
+                custom_exit(ExitCode::CODING_ERROR);
             }
             //fprintf(stderr, "Waiting for coefficient_position %d > %d\n", bpos, coefficient_position_progress_ += 0);
         }
@@ -206,7 +205,7 @@ public:
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
                 assert(false && "Incorrectly coded item");
-                custom_exit(EXIT_CODE_CODING_ERROR);
+                custom_exit(ExitCode::CODING_ERROR);
             }
         }
     }

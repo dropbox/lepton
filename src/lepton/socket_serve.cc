@@ -26,7 +26,7 @@ static char hex_nibble(uint8_t val) {
 }
 
 static void always_assert(bool expr) {
-    if (!expr) custom_exit(1);
+    if (!expr) custom_exit(ExitCode::ASSERTION_FAILURE);
 }
 
 static const char last_prefix[] = "/tmp/";
@@ -66,7 +66,7 @@ static void cleanup_socket(int) {
         }
         return;
     }
-    custom_exit(0);
+    custom_exit(ExitCode::SUCCESS);
 }
 /**
  * This closes the timer_pipe which will signal the main thread to start the clock for this pid
@@ -119,7 +119,7 @@ ProcessInfo accept_new_connection(int active_connection,
                        timer_pipe[1]
                  ),
              global_max_length);
-        custom_exit(0);
+        custom_exit(ExitCode::SUCCESS);
     } else {
         while (close(active_connection) < 0 && errno == EINTR){
             // close the Unix Domain Socket

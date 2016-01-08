@@ -44,13 +44,6 @@ def test_compression(binary_name, socket_name = None):
         assert not duplicate_socket_name
     valid_fds = []
     valid_socks = []
-    def add2():
-        for i in range(2):
-            print 'connecting to', socket_name
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(socket_name)
-            valid_socks.append(sock)
-            valid_fds.append(valid_socks[-1].fileno())
 
     with open(jpg_name) as f:
         jpg = f.read()
@@ -62,11 +55,12 @@ def test_compression(binary_name, socket_name = None):
         valid_socks[1].shutdown(socket.SHUT_WR)
 
 
-    u=threading.Thread(target=add2)
-    u.start()
-    u.join()
     t=threading.Thread(target=fn)
     encode_start = time.time()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(socket_name)
+    valid_socks.append(sock)
+    valid_fds.append(valid_socks[-1].fileno())
     t.start()
     dat = read_all_fd(valid_fds[0])
     encode_end = time.time()
@@ -75,7 +69,12 @@ def test_compression(binary_name, socket_name = None):
     print len(jpg),len(dat)
     v=threading.Thread(target=fn1)
     decode_start = time.time()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(socket_name)
+    valid_socks.append(sock)
+    valid_fds.append(valid_socks[-1].fileno())
     v.start()
+    decode_mid = time.time()
     ojpg = read_all_fd(valid_fds[1])
     decode_end = time.time()
     valid_socks[1].close()
@@ -83,9 +82,9 @@ def test_compression(binary_name, socket_name = None):
 
     assert ojpg == jpg
     print 'encode time ',encode_end - encode_start
-    print 'decode time ',decode_end - decode_start
+    print 'decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')'
     print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg))
-    u.join()
+
     proc.stdin.write('x')
     proc.stdin.flush()
     proc.wait()
