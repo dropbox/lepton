@@ -116,11 +116,15 @@ class abitwriter
     int cbyte2;
     int cbit2;
     bool fmem;
+    int size_bound;
 public:
-	abitwriter( int size );
+	abitwriter( int size, int size_bound=0 );
 	~abitwriter( void );
     
     void flush_no_pad() {
+        if (__builtin_expect(cbyte2 >= size_bound, 0)) {
+            return;
+        }
         assert(((64 - cbit2) & 7) == 0);
         buf = htobe64(buf);
         uint32_t bytes_to_write = (64 - cbit2) / 8;
@@ -143,6 +147,9 @@ public:
         unsigned int val2 = val;
         assert(nbits <= 64);
         if ( __builtin_expect(cbyte2 > ( dsize - 16 ), false) ) {
+            if (size_bound && cbyte2 >= size_bound) {
+                return;
+            }
             if (adds < 4096 * 1024) {
                 adds <<= 1;
             }
@@ -202,7 +209,7 @@ public:
 
     }
     void pad ( unsigned char fillbit ) {
-        while ( cbit2 & 7 ) {
+        while ((cbit2 & 7) && cbyte2 < size_bound) {
             write( fillbit, 1 );
         }
         flush_no_pad();
@@ -224,7 +231,7 @@ public:
         return cbyte2;
     }
     bool no_remainder() const {
-        return cbit2 == 64;
+        return cbit2 == 64 || cbyte2 >= size_bound;
     }
 	bool error;	
 	unsigned char fillbit;

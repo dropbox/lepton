@@ -56,8 +56,12 @@ abitreader::~abitreader( void )
 	constructor for abitwriter class
 	----------------------------------------------- */	
 
-abitwriter::abitwriter( int size )
+abitwriter::abitwriter( int size , int max_file_size)
 {
+    size_bound = max_file_size;
+    if (size_bound) {
+        size_bound += 8; // 64 bits of padding on the end
+    }
     fillbit = 1;
     adds    = 65536;
     cbyte2   = 0;

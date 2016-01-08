@@ -2297,7 +2297,7 @@ bool recode_jpeg( void )
     int tmp;
 
     // open huffman coded image data in abitwriter
-    huffw = new abitwriter( 4096 * 1024 + 1024 );
+    huffw = new abitwriter( 4096 * 1024 + 1024, max_file_size);
     huffw->fillbit = padbit;
 
     // init storage writer
