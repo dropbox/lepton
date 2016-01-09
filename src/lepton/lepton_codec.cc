@@ -7,6 +7,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                                    Right& right_model,
                                                    int block_width,
                                                    UncompressedComponents * const colldata) {
+    uint32_t component_size_in_block = colldata->component_size_in_blocks(middle_model.COLOR);
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
@@ -14,7 +15,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      left_model,
                      model_); //FIXME
         uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR), true);
-        if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
+        if (offset >= component_size_in_block) {
             return;
         }
     }
@@ -27,7 +28,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
         BlockBasedImage * channel_image = &colldata->full_component_write((BlockType)middle_model.COLOR);
         uint32_t offset = channel_image->next(context_.at((int)middle_model.COLOR),
                                               true);
-        if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
+        if (offset >= component_size_in_block) {
             return;
         }
     }

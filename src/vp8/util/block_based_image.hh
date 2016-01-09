@@ -28,7 +28,7 @@ public:
         assert(nblocks <= width * height);
         width_ = width;
         if (memory_optimized_image_) {
-            nblocks = width * 2;
+            nblocks = width * 4;
         }
         nblocks_ = nblocks;
         storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
@@ -48,8 +48,8 @@ public:
     BlockContext off_y(int y,
                        std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
         if (memory_optimized_image_) {
-            return {(y & 1) ? image_ + width_ : image_,
-                    (y & 1) ? image_ : image_ + width_,
+            return {image_ + width_ * (y & 3),
+                    image_ + ((y + 3) & 3) * width_,
                     (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
                     (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
         }
@@ -61,8 +61,8 @@ public:
     ConstBlockContext off_y(int y,
                             std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
         if (memory_optimized_image_) {
-            return {(y & 1) ? image_ + width_ : image_,
-                    (y & 1) ? image_ : image_ + width_,
+            return {image_ + width_ * (y & 3),
+                    image_ + ((y + 3) & 3) * width_,
                     (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
                     (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
         }
@@ -76,19 +76,22 @@ public:
         ptrdiff_t offset = it.context.cur - image_;
         uint32_t retval = offset;
         if (memory_optimized_image_) {
-            if (__builtin_expect(offset == (width_ << 1), 0)) {
+            if (__builtin_expect(offset == (width_ << 2), 0)) {
                 retval = offset = 0;
                 it.context.cur = image_;
+            }
+            if (retval >= (width_ << 1)) {
+                retval -= (width_ << 1);
             }
             if (retval >= width_) {
                 retval -= width_;
             }
             retval += width_ * it.y;
         }
-        if (offset >= width_) {
+        if (__builtin_expect(offset < width_, 0)) {
+            it.context.above = it.context.cur + 3 * width_;
+	} else {
             it.context.above = it.context.cur - width_;
-        } else {
-            it.context.above = it.context.cur + width_;
         }
         ++it.context.num_nonzeros_here;
         ++it.context.num_nonzeros_above;
@@ -105,7 +108,7 @@ public:
         return retval;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
-        uint32_t index = (y & 1) ? width_  + x : x;
+        uint32_t index = x + (y & 3) * width_;
         if (!memory_optimized_image_) {
             index = y * width_ + x;
         }
@@ -115,7 +118,7 @@ public:
         return image_[index];
     }
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
-        uint32_t index = (y & 1) ? width_  + x : x;
+        uint32_t index = x + (y & 3) * width_;
         if (!memory_optimized_image_) {
             index = y * width_ + x;
         }
@@ -128,7 +131,7 @@ public:
 
     AlignedBlock& raster(uint32_t offset) {
         if (memory_optimized_image_) {
-            offset = offset % (width_ << 1);
+            offset = offset % (width_ << 2);
         }
         if (offset >= nblocks_) {
             custom_exit(ExitCode::OOM);
@@ -137,7 +140,7 @@ public:
     }
     const AlignedBlock& raster(uint32_t offset) const {
         if (memory_optimized_image_) {
-            offset = offset % (width_ << 1);
+            offset = offset % (width_ << 2);
         }
         if (__builtin_expect(offset >= nblocks_, 0)) {
             custom_exit(ExitCode::OOM);

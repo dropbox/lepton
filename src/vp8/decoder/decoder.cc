@@ -292,7 +292,6 @@ void parse_tokens(BlockContext context,
     context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                          true,
                                                                          predicted_dc);
-
     context.num_nonzeros_here->set_num_nonzeros(num_nonzeros_7x7);
 
     context.num_nonzeros_here->set_horizontal(outp_sans_dc.begin(),

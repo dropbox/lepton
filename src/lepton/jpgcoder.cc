@@ -1545,7 +1545,6 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
 MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress, const unsigned char * local_huff_data, unsigned int max_byte_coded,
                                               bool flush) {
     if (!do_streaming) return STREAMING_DISABLED;
-    //fprintf(stderr, "Running straming data until byte %d\n", max_byte_coded);
     MergeJpegProgress progress(stored_progress);
     unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
     //unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
@@ -3353,6 +3352,10 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                 cmpnfo[ cmp ].jid = segment[ hpos ];
                 cmpnfo[ cmp ].sfv = LBITS( segment[ hpos + 1 ], 4 );
                 cmpnfo[ cmp ].sfh = RBITS( segment[ hpos + 1 ], 4 );
+                if (cmpnfo[ cmp ].sfv > 4
+                    || cmpnfo[ cmp ].sfh > 4) {
+                    custom_exit(ExitCode::SAMPLING_BEYOND_FOUR_UNSUPPORTED);
+                }
                 cmpnfo[ cmp ].qtable = qtables[ segment[ hpos + 2 ] ];
                 hpos += 3;
             }
@@ -4180,7 +4183,6 @@ int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw )
         // no calculations needed without subsampling
         (*dpos) = (*mcu);
     }
-
 
     return sta;
 }
