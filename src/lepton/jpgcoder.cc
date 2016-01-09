@@ -1957,6 +1957,10 @@ bool decode_jpeg( void )
 
             // (re)set rst wait counter
             rstw = rsti;
+            if (cs_cmpc != colldata.get_num_components() && !g_allow_progressive) {
+                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+            }
+
             if (jpegtype != 1 && !g_allow_progressive) {
                 custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
             }
@@ -2378,6 +2382,10 @@ bool recode_jpeg( void )
 
             // (re)set rst wait counter
             rstw = rsti;
+            if (cs_cmpc != colldata.get_num_components() && !g_allow_progressive) {
+                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+            }
+
             if (jpegtype != 1 && !g_allow_progressive) {
                 custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
             }
