@@ -10,6 +10,7 @@
 #include <ctime>
 #include <memory>
 #include <atomic>
+#include <signal.h>
 #ifndef _WIN32
 #include <sys/time.h>
 #include <sys/types.h>
@@ -366,6 +367,7 @@ std::unique_ptr<BaseDecoder> g_reference_to_free;
 const char * g_socket_name = NULL;
 bool g_threaded = true;
 bool g_allow_progressive = false;
+bool g_unkillable = false;
 uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
 bool g_force_zlib0_out = false;
@@ -411,6 +413,7 @@ bool   pipe_on  = false;    // use stdin/stdout instead of filelist
 
 
 void gen_nop(){}
+void sig_nop(int){}
 /* -----------------------------------------------
     global variables: info about program
     ----------------------------------------------- */
@@ -748,6 +751,9 @@ int initialize_options( int argc, char** argv )
         else if ( strcmp((*argv), "-zlib0" ) == 0)  {
             g_force_zlib0_out = true;
         }
+        else if ( strcmp((*argv), "-unkillable" ) == 0)  {
+            g_unkillable = true;
+        }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
         }
@@ -943,6 +949,14 @@ void process_file(IOUtil::FileReader* reader,
         bound.it_interval.tv_usec = 0;
         int ret = setitimer(ITIMER_REAL, &bound, NULL);
         assert(ret == 0 && "Timer must be able to be set");
+    }
+    if (g_unkillable) { // only set this after the time bound has been set
+        if (!g_time_bound_ms) {
+            fprintf(stderr, "Only allowed to set unkillable for items with a time bound\n");
+            exit(1);
+        }
+        signal(SIGTERM, &sig_nop);
+        signal(SIGQUIT, &sig_nop);
     }
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
