@@ -828,7 +828,7 @@ int initialize_options( int argc, char** argv )
     }
     for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
     }
-    if (g_time_bound_ms && action != socketserve) {
+    if (g_time_bound_ms && action == forkserve) {
         fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
         exit(1);
     }
@@ -937,7 +937,15 @@ void process_file(IOUtil::FileReader* reader,
         g_decoder = new SimpleComponentDecoder;
         g_reference_to_free.reset(g_decoder);
     }
-
+    if (g_time_bound_ms && action != socketserve) {
+        struct itimerval bound;
+        bound.it_value.tv_sec = g_time_bound_ms / 1000;
+        bound.it_value.tv_usec = (g_time_bound_ms % 1000) * 1000;
+        bound.it_interval.tv_sec = 0;
+        bound.it_interval.tv_usec = 0;
+        int ret = setitimer(ITIMER_REAL, &bound, NULL);
+        assert(ret == 0 && "Timer must be able to be set");
+    }
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
