@@ -23,11 +23,13 @@ def read_all_fd(fd):
             pass
     return ''.join(datas)
 
-
-def test_compression(binary_name, socket_name = None):
+def test_compression(binary_name, socket_name = None, too_short_time_bound=False):
     global jpg_name
     custom_name = socket_name is not None
-    xargs = [binary_name,'-socket','-timebound=5000ms', "-preload"]
+    xargs = [binary_name,
+             '-socket',
+             '-timebound=10ms' if too_short_time_bound else '-timebound=5000ms',
+             '-preload']
     if socket_name is not None:
         xargs[1]+= '=' + socket_name
     proc = subprocess.Popen(xargs,
@@ -48,11 +50,17 @@ def test_compression(binary_name, socket_name = None):
     with open(jpg_name) as f:
         jpg = f.read()
     def fn():
-        valid_socks[0].sendall(jpg)
-        valid_socks[0].shutdown(socket.SHUT_WR)
+        try:
+            valid_socks[0].sendall(jpg)
+            valid_socks[0].shutdown(socket.SHUT_WR)
+        except EnvironmentError:
+            pass
     def fn1():
-        valid_socks[1].sendall(dat)
-        valid_socks[1].shutdown(socket.SHUT_WR)
+        try:
+            valid_socks[1].sendall(dat)
+            valid_socks[1].shutdown(socket.SHUT_WR)
+        except EnvironmentError:
+            pass
 
 
     t=threading.Thread(target=fn)
@@ -83,10 +91,9 @@ def test_compression(binary_name, socket_name = None):
     assert ojpg == jpg
     print 'encode time ',encode_end - encode_start
     print 'decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')'
-    print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg))
+    print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg)), 'parent pid is ',proc.pid
 
-    proc.stdin.write('x')
-    proc.stdin.flush()
+    proc.terminate()
     proc.wait()
     assert not os.path.exists(socket_name)
 
@@ -100,4 +107,11 @@ except Exception:
     pass
 if has_avx2 and os.path.exists('lepton-avx'):
     test_compression('./lepton-avx')
-
+ok = False
+try:
+    test_compression('./lepton', '/tmp/' + str(uuid.uuid4()), True)
+except (AssertionError, EnvironmentError):
+    ok = True
+finally:
+    assert ok and "the time bound must stop the process"
+print "SUCCESS DONE"

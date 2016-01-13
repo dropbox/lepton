@@ -646,9 +646,9 @@ int main( int argc, char** argv )
     if (action == forkserve) {
         fork_serve();
     } else if (action == socketserve) {
-        socket_serve(&process_file, g_time_bound_ms, max_file_size, g_socket_name);
+        socket_serve(&process_file, max_file_size, g_socket_name);
     } else {
-        process_file(nullptr, nullptr, &gen_nop, max_file_size);
+        process_file(nullptr, nullptr, max_file_size);
     }
     if (errorlevel.load() >= err_tresh) error_cnt++;
     if (errorlevel.load() == 1 ) warn_cnt++;
@@ -865,7 +865,6 @@ void test_syscall_injection(std::atomic<int>*value) {
 }
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
-                  const std::function<void()> &signal_data_recv,
                   int max_file_size)
 {
     clock_t begin = 0, end = 1;
@@ -911,7 +910,6 @@ void process_file(IOUtil::FileReader* reader,
     }
     // check input file and determine filetype
     check_file(reader, writer, max_file_size);
-    signal_data_recv();
     begin = clock();
     if ( filetype == JPEG )
     {
@@ -937,7 +935,7 @@ void process_file(IOUtil::FileReader* reader,
         g_decoder = new SimpleComponentDecoder;
         g_reference_to_free.reset(g_decoder);
     }
-    if (g_time_bound_ms && action != socketserve) {
+    if (g_time_bound_ms) {
         struct itimerval bound;
         bound.it_value.tv_sec = g_time_bound_ms / 1000;
         bound.it_value.tv_usec = (g_time_bound_ms % 1000) * 1000;

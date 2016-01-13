@@ -14,5 +14,4 @@ class FileWriter;
 void gen_nop();
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
-                  const std::function<void()> &signal_data_recv = &gen_nop,
                   int file_input_length = 0);
