@@ -244,6 +244,9 @@ int run_test(const std::vector<unsigned char> &testImage,
         encode_args[get_last_arg(encode_args)] = "-unjailed";
         decode_args[get_last_arg(decode_args)] = "-unjailed";
     }
+    if (rand() < RAND_MAX / 2) {
+        encode_args[get_last_arg(encode_args)] = "-defermd5";
+    }
     if (allow_progressive_files) {
         encode_args[get_last_arg(encode_args)] = "-allowprogressive";
         decode_args[get_last_arg(decode_args)] = "-allowprogressive";

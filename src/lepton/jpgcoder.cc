@@ -371,6 +371,7 @@ bool g_unkillable = false;
 uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
 bool g_force_zlib0_out = false;
+char *g_defer_md5 = NULL;
 unsigned char g_executable_md5[16];
 
 Sirikata::DecoderReader* str_in  = NULL;    // input stream
@@ -556,9 +557,13 @@ bool starts_with(const char * a, const char * b) {
 void compute_thread_mem(const char * arg,
                         size_t * mem_init,
                         size_t * thread_mem_init,
-                        bool *needs_huge_pages) {
+                        bool *needs_huge_pages,
+                        bool *defer_md5) {
     if (strcmp(arg, "-hugepages") == 0) {
         *needs_huge_pages = true;
+    }
+    if (strcmp(arg, "-defermd5") == 0) {
+        *defer_md5 = true;
     }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
@@ -580,11 +585,13 @@ int main( int argc, char** argv )
     size_t thread_mem_limit = 8192;
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
     bool needs_huge_pages = false;
+    bool defer_md5 = false;
     for (int i = 1; i < argc; ++i) {
         compute_thread_mem(argv[i],
                            &mem_limit,
                            &thread_mem_limit,
-                           &needs_huge_pages);
+                           &needs_huge_pages,
+                           &defer_md5);
     }
     // the system needs 33 megs of ram ontop of the uncompressed image buffer.
     // This adds a few extra megs just to keep things real
@@ -600,8 +607,11 @@ int main( int argc, char** argv )
                           n_threads,
                           256,
                           needs_huge_pages);
-
-    compute_md5(argv[0], g_executable_md5);
+    if (!defer_md5) {
+        compute_md5(argv[0], g_executable_md5);
+    } else {
+        g_defer_md5 = argv[0];
+    }
     clock_t begin = 0, end = 1;
 
     int error_cnt = 0;
@@ -768,6 +778,8 @@ int initialize_options( int argc, char** argv )
         } else if ( strstr((*argv), "-memory=") == *argv ) {
 
         } else if ( strstr((*argv), "-hugepages") == *argv ) {
+
+        } else if ( strstr((*argv), "-defermd5") == *argv ) {
 
         } else if ( strstr((*argv), "-threadmemory=") == *argv ) {
 
@@ -958,6 +970,11 @@ void process_file(IOUtil::FileReader* reader,
         signal(SIGTERM, &sig_nop);
         signal(SIGQUIT, &sig_nop);
     }
+    if (filetype == JPEG && g_defer_md5) {
+        compute_md5(g_defer_md5, g_executable_md5);
+        g_defer_md5 = NULL;
+    }
+
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
@@ -2830,6 +2847,7 @@ bool write_ujpg( )
                                                              Sirikata::JpegAllocator<uint8_t>());
     unsigned char siz_mrk[] = {'Z'};
     err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
+    assert(!g_defer_md5); // make sure we have computed this
     err = ujg_out->Write( g_executable_md5, sizeof(g_executable_md5) ).second;
     uint32toLE(jpgfilesize, ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
