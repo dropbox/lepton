@@ -2840,6 +2840,9 @@ bool write_ujpg( )
         // data: garbage data
         err = mrw.Write( grbgdata, grbs ).second;
     }
+    if (mrw.buffer().size() > 1024 * 1024) {
+        custom_exit(ExitCode::HEADER_TOO_LARGE);
+    }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
     compressed_header =
             Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
@@ -3385,6 +3388,9 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
             // image size, height & component count
             imgheight = B_SHORT( segment[ hpos + 1 ], segment[ hpos + 2 ] );
             imgwidth  = B_SHORT( segment[ hpos + 3 ], segment[ hpos + 4 ] );
+            if (imgwidth >= 32768) { // would take too much memory on decode
+                custom_exit(ExitCode::DIMENSIONS_TOO_LARGE);
+            }
             cmpc      = segment[ hpos + 5 ];
             if ( cmpc > 4 ) {
                 cmpc = 4;
