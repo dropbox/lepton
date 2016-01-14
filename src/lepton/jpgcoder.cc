@@ -600,7 +600,10 @@ int main( int argc, char** argv )
                            &defer_md5,
                            &avx2upgrade);
 #ifndef USE_AVX2
-        if (avx2upgrade) {
+#ifndef __clang__
+        if (avx2upgrade &&
+            __builtin_cpu_supports("avx2")
+) {
             for (int j = i + 1; j < argc; ++j) {
                 argv[j - 1] = argv[j];
             }
@@ -615,7 +618,9 @@ int main( int argc, char** argv )
             argv[0] = command;
             execvp(command, argv);
             argv[0] = old_command; // exec failed
+            }
         }
+#endif
 #endif
     }
 
