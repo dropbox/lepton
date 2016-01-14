@@ -7,4 +7,5 @@ typedef std::function<void(IOUtil::FileReader*,// data to work upon
 
 void socket_serve(const SocketServeWorkFunction& work_fn,
                   uint32_t max_file_length,
-                  const char * optional_socket_file_name = NULL);
+                  const char * optional_socket_file_name = NULL,
+                  uint32_t max_children=0);

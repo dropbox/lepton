@@ -19,7 +19,7 @@
 #include "../io/Reader.hh"
 #include "socket_serve.hh"
 #include "../../vp8/util/memory.hh"
-
+#include <set>
 static char hex_nibble(uint8_t val) {
     if (val < 10) return val + '0';
     return val - 10 + 'a';
@@ -98,39 +98,57 @@ pid_t accept_new_connection(int active_connection,
     }
     return serve_file;
 }
-
+int should_wait_bitmask(size_t children_size,
+                        uint32_t max_children) {
+    if (max_children && children_size >= max_children) {
+        return WNOHANG;
+    }
+    return 0;
+}
 void serving_loop(int unix_domain_socket_server,
                   const SocketServeWorkFunction& work,
                   uint32_t global_max_length,
+                  uint32_t max_children,
                   bool do_cleanup_socket,
                   int lock_fd) {
+    std::set<pid_t> children;
+    int status;
     while(true) {
+        for (pid_t term_pid = 0;
+             (term_pid = waitpid(-1,
+                                 &status,
+                                 should_wait_bitmask(children.size(), max_children))) > 0;) {
+            std::set<pid_t>::iterator where = children.find(term_pid);
+            if (where != children.end()) {
+                children.erase(where);
+            } else {
+                fprintf(stderr, "Pid %d not found as child of this\n", term_pid);
+                assert(false && "pid msut be in child\n");
+            }
+            fprintf(stderr, "Child %d exited with code %d\n", term_pid, status);
+            fflush(stderr);
+        }
         struct sockaddr_un client;
         socklen_t len = sizeof(client);
         int active_connection = accept(unix_domain_socket_server,
                                        (sockaddr*)&client, &len);
         if (active_connection >= 0) {
-            accept_new_connection(active_connection,
-                                  work,
-                                  global_max_length,
-                                  lock_fd);
+            children.insert(accept_new_connection(active_connection,
+                                                  work,
+                                                  global_max_length,
+                                                  lock_fd));
         } else {
             if (errno != EINTR) {
                 cleanup_socket(0);
             }
-        }
-        int status;
-        pid_t term_pid = 0;
-        while ((term_pid = waitpid(-1, &status, WNOHANG)) > 0) {
-            fprintf(stderr, "Child %d exited with code %d\n", term_pid, status);
-            fflush(stderr);
         }
     }
 }
 
 void socket_serve(const SocketServeWorkFunction &work_fn,
                   uint32_t global_max_length,
-                  const char * optional_socket_file_name) {
+                  const char * optional_socket_file_name,
+                  uint32_t max_children) {
     bool do_cleanup_socket = true;
     int lock_fd = -1;
     if (optional_socket_file_name != NULL) {
@@ -190,5 +208,5 @@ void socket_serve(const SocketServeWorkFunction &work_fn,
     always_assert(err == 0);
     fprintf(stdout, "%s\n", socket_name);
     fflush(stdout);
-    serving_loop(socket_fd, work_fn, global_max_length, do_cleanup_socket, lock_fd);
+    serving_loop(socket_fd, work_fn, global_max_length, max_children, do_cleanup_socket, lock_fd);
 }

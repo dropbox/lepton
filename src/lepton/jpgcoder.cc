@@ -370,6 +370,7 @@ bool g_allow_progressive = false;
 bool g_unkillable = false;
 uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
+uint32_t g_max_children = 0;
 bool g_force_zlib0_out = false;
 char *g_defer_md5 = NULL;
 unsigned char g_executable_md5[16];
@@ -659,7 +660,7 @@ int main( int argc, char** argv )
     if (action == forkserve) {
         fork_serve();
     } else if (action == socketserve) {
-        socket_serve(&process_file, max_file_size, g_socket_name);
+        socket_serve(&process_file, max_file_size, g_socket_name, g_max_children);
     } else {
         process_file(nullptr, nullptr, max_file_size);
     }
@@ -788,6 +789,9 @@ int initialize_options( int argc, char** argv )
         }
         else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
             g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
+        }
+        else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
+            g_max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
         }
         else if ( strncmp((*argv), "-trunc=", strlen("-trunc=") ) == 0 ) {
             max_file_size = atoi((*argv) + strlen("-trunc="));
