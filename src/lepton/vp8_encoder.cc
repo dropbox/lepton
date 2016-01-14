@@ -559,7 +559,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             if (stream[i]->size() > stream_data_offset[i]) {
                 any_written = true;
                 size_t max_written = 65536;
-                if (stream_data_offset == 0) {
+                if (stream_data_offset[i] == 0) {
                     max_written = 256;
                 } else if (stream_data_offset[i] == 256) {
                     max_written = 4096;
