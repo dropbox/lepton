@@ -559,12 +559,16 @@ void compute_thread_mem(const char * arg,
                         size_t * mem_init,
                         size_t * thread_mem_init,
                         bool *needs_huge_pages,
-                        bool *defer_md5) {
+                        bool *defer_md5,
+                        bool *avx2upgrade) {
     if (strcmp(arg, "-hugepages") == 0) {
         *needs_huge_pages = true;
     }
     if (strcmp(arg, "-defermd5") == 0) {
         *defer_md5 = true;
+    }
+    if ( strcmp(arg, "-avx2upgrade") == 0) {
+        *avx2upgrade = true;
     }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
@@ -588,12 +592,33 @@ int main( int argc, char** argv )
     bool needs_huge_pages = false;
     bool defer_md5 = false;
     for (int i = 1; i < argc; ++i) {
+        bool avx2upgrade = false;
         compute_thread_mem(argv[i],
                            &mem_limit,
                            &thread_mem_limit,
                            &needs_huge_pages,
-                           &defer_md5);
+                           &defer_md5,
+                           &avx2upgrade);
+#ifndef USE_AVX2
+        if (avx2upgrade) {
+            for (int j = i + 1; j < argc; ++j) {
+                argv[j - 1] = argv[j];
+            }
+            --argc;
+            argv[argc] = NULL; // since we have eliminated the upgrade arg...
+            size_t command_len = strlen(argv[0]);
+            size_t postfix_len = strlen("-avx") + 1;
+            char * command = (char*)malloc(postfix_len + command_len);
+            memcpy(command, argv[0], command_len);
+            memcpy(command + command_len, "-avx", postfix_len);
+            char * old_command = argv[0];
+            argv[0] = command;
+            execvp(command, argv);
+            argv[0] = old_command; // exec failed
+        }
+#endif
     }
+
     // the system needs 33 megs of ram ontop of the uncompressed image buffer.
     // This adds a few extra megs just to keep things real
     UncompressedComponents::max_number_of_blocks =
@@ -781,6 +806,8 @@ int initialize_options( int argc, char** argv )
         } else if ( strstr((*argv), "-hugepages") == *argv ) {
 
         } else if ( strstr((*argv), "-defermd5") == *argv ) {
+
+        } else if ( strstr((*argv), "-avx2upgrade") == *argv ) {
 
         } else if ( strstr((*argv), "-threadmemory=") == *argv ) {
 
