@@ -618,7 +618,6 @@ int main( int argc, char** argv )
             argv[0] = command;
             execvp(command, argv);
             argv[0] = old_command; // exec failed
-            }
         }
 #endif
 #endif
