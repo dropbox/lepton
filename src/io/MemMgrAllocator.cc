@@ -188,7 +188,14 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
     (void)main_thread_state;
     assert(main_thread_state.pool_size == main_thread_pool_size);
 }
-
+size_t memmgr_size_allocated() {
+    MemMgrState& memmgr = get_local_memmgr();
+    return memmgr.pool_free_pos;
+}
+size_t memmgr_size_left() {
+  MemMgrState& memmgr = get_local_memmgr();
+  return memmgr.pool_size - memmgr.pool_free_pos;
+}
 
 void memmgr_print_stats()
 {
@@ -293,6 +300,27 @@ bool is_zero(const void * data, size_t size) {
 //
 void* memmgr_alloc(size_t nuint8_ts)
 {
+    /*
+    int y;
+    char xsize[16];
+    xsize[0] = (nuint8_ts / 10000000) % 10 + '0';
+    xsize[1] = (nuint8_ts / 1000000) % 10 + '0';
+    xsize[2] = (nuint8_ts / 100000) % 10 + '0';
+    xsize[3] = (nuint8_ts / 10000) % 10 + '0';
+    xsize[4] = (nuint8_ts / 1000) % 10 + '0';
+    xsize[5] = (nuint8_ts / 100) % 10 + '0';
+    xsize[6] = (nuint8_ts / 10) % 10 + '0';
+    xsize[7] = (nuint8_ts / 1) % 10 + '0';
+    xsize[8] = ' ';
+    xsize[9] = '0' + y;
+    xsize[10] = '\n';
+    (void)write(2, xsize, 11);
+    */
+    /*
+    fprintf(stderr, "xxx XXX ALLOC XXX xxx %ld\n",nuint8_ts);
+    if(y) {
+      ++global_var;
+      }*/
     MemMgrState& memmgr = get_local_memmgr();
     mem_header_t* blessed_zero = NULL;
     mem_header_t* p;

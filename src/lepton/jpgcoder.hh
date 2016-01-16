@@ -15,3 +15,4 @@ void gen_nop();
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
                   int file_input_length = 0);
+void check_decompression_memory_bound_ok();

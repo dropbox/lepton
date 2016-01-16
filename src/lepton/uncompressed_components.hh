@@ -105,6 +105,9 @@ public:
         }
         return false;
     }
+    bool is_memory_optimized(int cmp) const {
+        return header_[cmp].component_.is_memory_optimized();
+    }
     int get_num_components() const{
         return cmpc_;
     }
@@ -213,11 +216,8 @@ public:
         //std::atomic_thread_fence(std::memory_order_release);
         worker_start_read_signal_++;
     }
-    unsigned int component_size_in_bytes(int cmp) const {
-        return sizeof(short) * header_[cmp].trunc_bc_ * 64;
-    }
-    unsigned int component_size_in_shorts(int cmp) const {
-        return header_[cmp].trunc_bc_ * 64;
+    unsigned int component_size_allocated(int cmp) const {
+        return header_[cmp].component_.bytes_allocated();
     }
     unsigned int component_size_in_blocks(int cmp) const {
         return header_[cmp].trunc_bc_;

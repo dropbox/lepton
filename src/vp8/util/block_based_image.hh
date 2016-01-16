@@ -22,7 +22,15 @@ public:
         width_ = 0;
         nblocks_ = 0;
     }
-
+    bool is_memory_optimized() const {
+        return memory_optimized_image_;
+    }
+    size_t bytes_allocated() const {
+        return 32 + nblocks_ * sizeof(Block);
+    }
+    size_t blocks_allocated() const {
+        return nblocks_;
+    }
     void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
         memory_optimized_image_ = memory_optimized_image;
         assert(nblocks <= width * height);

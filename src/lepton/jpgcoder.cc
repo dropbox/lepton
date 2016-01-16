@@ -77,7 +77,8 @@ bool fast_exit = true;
     struct & enum declarations
     ----------------------------------------------- */
 enum {
-    JPG_READ_BUFFER_SIZE = 1024 * 256
+    JPG_READ_BUFFER_SIZE = 1024 * 256,
+    ABIT_WRITER_PRELOAD = 4096 * 1024 + 1024
 };
 
 enum ACTION {
@@ -249,7 +250,7 @@ private:
     ----------------------------------------------- */
 
 bool do_streaming = true;
-
+size_t g_decompression_memory_bound = 0;
 unsigned short qtables[4][64];                // quantization tables
 huffCodes      hcodes[2][4];                // huffman codes
 huffTree       htrees[2][4];                // huffman decoding trees
@@ -805,6 +806,9 @@ int initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
             g_threaded = true;
+        } else if ( strstr((*argv), "-recodememory=") == *argv ) {
+            g_decompression_memory_bound
+                = local_atoi(*argv + strlen("-recodememory="));
         } else if ( strstr((*argv), "-memory=") == *argv ) {
 
         } else if ( strstr((*argv), "-hugepages") == *argv ) {
@@ -892,7 +896,54 @@ int initialize_options( int argc, char** argv )
     }
     return max_file_size;
 }
+size_t decompression_memory_bound() {
+    size_t cumulative_buffer_size = 0;
+    size_t streaming_buffer_size = 0;
+    size_t current_run_size = 0;
+    for (int i = 0; i < colldata.get_num_components(); ++i) {
+        size_t frame_buffer_size = colldata.component_size_allocated(i);
+        size_t streaming_size = 
+            colldata.block_width(i)
+            * std::min(4, colldata.block_height(i)) * 64 * sizeof(uint16_t);
+        
+        cumulative_buffer_size += frame_buffer_size;
+        streaming_buffer_size += streaming_size;
+        current_run_size += colldata.is_memory_optimized(i)
+            ? streaming_size : frame_buffer_size;
+    }
+    size_t bit_writer_augmentation = 0;
+    for (size_t cur_size = jpgfilesize - 1; cur_size; cur_size >>=1) {
+        bit_writer_augmentation |= cur_size;
+    }
+    bit_writer_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
+    size_t garbage_augmentation = 0;
+    for (size_t cur_size = hdrs - 1; cur_size; cur_size >>=1) {
+        garbage_augmentation |= cur_size;
+    }
+    garbage_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
+    size_t decom_memory_bound = Sirikata::memmgr_size_allocated()
+            - current_run_size
+            + streaming_buffer_size
+            - (filetype == JPEG
+               ? (NUM_THREADS - 1) * 4096 * 1024 //VP8BoolEncoder
+                 + bit_writer_augmentation * 2
+                 + garbage_augmentation * 2: 0) 
+            + (filetype == JPEG
+               ? NUM_THREADS * (1024 * 1024 + 262144) //MuxReader
+                 + ABIT_WRITER_PRELOAD * 2 + 64 /*alignment*/
+                 + grbs * 3 : 0) //garbage + 2x compression bound
+            - (g_threaded
+                ? (NUM_THREADS - 1) * sizeof(ProbabilityTablesBase) : 0);
+    return decom_memory_bound;
+}
 
+void check_decompression_memory_bound_ok() {
+    if (g_decompression_memory_bound) {
+        if (decompression_memory_bound() > g_decompression_memory_bound) {
+            custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
+        }
+    }
+}
 /* -----------------------------------------------
     processes one file
     ----------------------------------------------- */
@@ -1099,7 +1150,8 @@ void process_file(IOUtil::FileReader* reader,
     if (!g_use_seccomp) {
         end = clock();
     }
-
+    size_t bound = decompression_memory_bound();
+    fprintf(stderr, "Decompression bound %ld\n", bound);
     // speed and compression ratio calculation
     speed = (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC );
     bpms  = ( speed > 0 ) ? ( jpgfilesize / speed ) : jpgfilesize;
@@ -1769,16 +1821,21 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         // proceed with next scan
         progress.scan++;
         if(str_out->has_reached_bound()) {
+            check_decompression_memory_bound_ok();
             break;
         }
     }
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)
+    // this guarantees that we can stop the write in time.
+    // if it used too much memory
     // str_out->write( EOI, 1, 2 );
     str_out->set_bound(max_file_size);
+    check_decompression_memory_bound_ok();
     // write garbage if needed
     if ( grbs > 0 )
         str_out->write( grbgdata, grbs );
+    check_decompression_memory_bound_ok();
     str_out->flush();
 
     // errormessage if write error
@@ -2372,11 +2429,11 @@ bool recode_jpeg( void )
     int tmp;
 
     // open huffman coded image data in abitwriter
-    huffw = new abitwriter( 4096 * 1024 + 1024, max_file_size);
+    huffw = new abitwriter( ABIT_WRITER_PRELOAD, max_file_size);
     huffw->fillbit = padbit;
 
     // init storage writer
-    storw = new abytewriter( 4096 * 1024 + 1024);
+    storw = new abytewriter( ABIT_WRITER_PRELOAD);
 
     // preset count of scans and restarts
     scnc = 0;

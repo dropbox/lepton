@@ -574,6 +574,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
         delete stream[i]; // allocate streams as pointers so threads don't modify them inline
     }
+    check_decompression_memory_bound_ok(); // this has to happen before last
+    // bytes are written
     /* possibly write out new probability model */
     {
         uint32_t out_file_size = str_out->getsize() + 4; // gotta include the final uint32_t

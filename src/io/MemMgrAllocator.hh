@@ -60,6 +60,8 @@ SIRIKATA_FUNCTION_EXPORT void memmgr_free(void* ap);
 // manager
 //
 SIRIKATA_FUNCTION_EXPORT void memmgr_print_stats();
+SIRIKATA_FUNCTION_EXPORT size_t memmgr_size_allocated();
+SIRIKATA_FUNCTION_EXPORT size_t memmgr_size_left();
 
 }
 namespace Sirikata {
