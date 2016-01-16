@@ -361,7 +361,7 @@ int    ujgfilesize;            // size of UJG file
 int    jpegtype = 0;        // type of JPEG coding: 0->unknown, 1->sequential, 2->progressive
 F_TYPE filetype;            // type of current file
 F_TYPE ofiletype = LEPTON;            // desired type of output file
-
+bool g_do_preload = false;
 std::unique_ptr<BaseEncoder> g_encoder;
 BaseDecoder* g_decoder = NULL;
 std::unique_ptr<BaseDecoder> g_reference_to_free;
@@ -743,7 +743,6 @@ int initialize_options( int argc, char** argv )
 
     // preset temporary fiolelist pointer
     tmp_flp = filelist;
-    bool preload = false;
     // read in arguments
     while ( --argc > 0 ) {
         argv++;
@@ -764,11 +763,11 @@ int initialize_options( int argc, char** argv )
             printf("%02x\n", ujgversion);
             exit(0);
         } else if ( strcmp((*argv), "-preload" ) == 0 ) {
-            preload = true;
+            g_do_preload = true;
         } else if ( strcmp((*argv), "-decode" ) == 0 ) { // deprecated commands to preload it all
-            preload = true;
+            g_do_preload = true;
         } else if ( strcmp((*argv), "-recode" ) == 0 ) {
-            preload = true;
+            g_do_preload = true;
         } else if ( strcmp((*argv), "-p" ) == 0 ) {
             err_tresh = 2;
         }
@@ -889,7 +888,7 @@ int initialize_options( int argc, char** argv )
         fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
         exit(1);
     }
-    if (preload) {
+    if (g_do_preload) {
         VP8ComponentDecoder *d = makeBoth(g_threaded, g_threaded && action != forkserve && action != socketserve);
         g_encoder.reset(d);
         g_decoder = d;
@@ -927,10 +926,11 @@ size_t decompression_memory_bound() {
             - (filetype == JPEG
                ? (NUM_THREADS - 1) * 4096 * 1024 //VP8BoolEncoder
                  + bit_writer_augmentation * 2
-                 + garbage_augmentation * 2: 0) 
+                 + garbage_augmentation * 2: 0)
+            + (filetype == JPEG && g_do_preload == false
+               ? NUM_THREADS * (1024 * 1024 + 262144) : 0)//MuxReader
             + (filetype == JPEG
-               ? NUM_THREADS * (1024 * 1024 + 262144) //MuxReader
-                 + ABIT_WRITER_PRELOAD * 2 + 64 /*alignment*/
+               ? ABIT_WRITER_PRELOAD * 2 + 64 /*alignment*/
                  + grbs * 3 : 0) //garbage + 2x compression bound
             - (g_threaded
                 ? (NUM_THREADS - 1) * sizeof(ProbabilityTablesBase) : 0);
