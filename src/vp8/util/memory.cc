@@ -7,6 +7,46 @@
 #if defined(__APPLE__) || __cplusplus <= 199711L
 #define thread_local __thread
 #endif
+const char *ExitString(ExitCode ec) {
+  switch (ec) {
+  case ExitCode::SUCCESS:
+    return "";
+  case ExitCode::ASSERTION_FAILURE:
+    return "ASSERTION_FAILURE";
+  case ExitCode::CODING_ERROR:
+    return "CODING_ERROR";
+  case ExitCode::SHORT_READ:
+    return "SHORT_READ";
+  case ExitCode::UNSUPPORTED_4_COLORS:
+    return "UNSUPPORTED_4_COLORS";
+  case ExitCode::THREAD_PROTOCOL_ERROR:
+    return "THREAD_PROTOCOL_ERROR";
+  case ExitCode::COEFFICIENT_OUT_OF_RANGE:
+    return "COEFFICIENT_OUT_OF_RANGE";
+  case ExitCode::STREAM_INCONSISTENT:
+    return "STREAM_INCONSISTENT";
+  case ExitCode::PROGRESSIVE_UNSUPPORTED:
+    return "PROGRESSIVE_UNSUPPORTED";
+  case ExitCode::FILE_NOT_FOUND:
+    return "FILE_NOT_FOUND";
+  case ExitCode::SAMPLING_BEYOND_FOUR_UNSUPPORTED:
+    return "SAMPLING_BEYOND_FOUR_UNSUPPORTED";
+  case ExitCode::HEADER_TOO_LARGE:
+    return "HEADER_TOO_LARGE";
+  case ExitCode::DIMENSIONS_TOO_LARGE:
+    return "DIMENSIONS_TOO_LARGE";
+  case ExitCode::MALLOCED_NULL:
+    return "MALLOCED_NULL";
+
+  case ExitCode::OOM:
+    return "OOM";
+  case ExitCode::TOO_MUCH_MEMORY_NEEDED:
+    return "TOO_MUCH_MEMORY_NEEDED";
+  case ExitCode::EARLY_EXIT:
+    return "EARLY_EXIT";
+  }
+  return "UNREACHABLE";
+}
 extern "C" {
 void* custom_malloc (size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
@@ -131,6 +171,10 @@ void custom_exit(ExitCode exit_code) {
     if (atexit_f) {
         (*atexit_f)(atexit_arg);
         atexit_f = nullptr;
+    }
+    if (exit_code != ExitCode::SUCCESS) {
+        (void)write(2, ExitString(exit_code), strlen(ExitString(exit_code)));
+        (void)write(2, "\n", 1);
     }
 #ifdef __linux
     syscall(SYS_exit, (int)exit_code);
