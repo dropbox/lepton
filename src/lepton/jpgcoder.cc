@@ -3678,7 +3678,7 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
     else s = ( unsigned char ) hc;
     n = huffr->read( s );
     block[ 0 ] = DEVLI( s, n );
-
+    bool eof_fixup = false;
     // decode ac
     for ( bpos = 1; bpos < 64; )
     {
@@ -3689,8 +3689,10 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
             z = LBITS( hc, 4 );
             s = RBITS( hc, 4 );
             n = huffr->read( s );
-            if ( ( z + bpos ) >= 64 )
-                return -1; // run is to long
+            if ( ( z + bpos ) >= 64 ) {
+                eof_fixup = true;
+                break;
+            }
             while ( z > 0 ) { // write zeroes
                 block[ bpos++ ] = 0;
                 z--;
@@ -3707,8 +3709,14 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
             return -1; // return error
         }
     }
-
-
+    if (eof_fixup) {
+        for(;bpos < eob; ++bpos) {
+            block[bpos] = 0;
+        }
+        if (eob) {
+            block[eob - 1] = 1; // set the value to something matching the EOB
+        }
+    }
     // return position of eob
     return eob;
 }
