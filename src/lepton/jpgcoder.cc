@@ -2894,8 +2894,8 @@ bool write_ujpg( )
     // beginning here: recovery information (needed for exact JPEG recovery)
 
     // write huffman coded data padbit
-    // marker: "PAD"
-    unsigned char pad_mrk[] = {'P', 'A', 'D'};
+    // marker: P0D"
+    unsigned char pad_mrk[] = {'P', '0', 'D'};
     err = mrw.Write( pad_mrk, sizeof(pad_mrk) ).second;
     // data: padbit
     err = mrw.Write( (unsigned char*) &padbit, 1 ).second;
@@ -3079,9 +3079,22 @@ bool read_ujpg( void )
     // read padbit information from file
     ReadFull(&header_reader, ujpg_mrk, 3 );
     // check marker
-    if ( memcmp( ujpg_mrk, "PAD", 3 ) == 0 ) {
-        // read size of header, alloc memory
+    if ( memcmp( ujpg_mrk, "P0D", 3 ) == 0 ) {
+        // This is a more nuanced pad byte that can have different values per bit
         header_reader.Read( reinterpret_cast<unsigned char*>(&padbit), 1 );
+    }
+    else if ( memcmp( ujpg_mrk, "PAD", 3 ) == 0 ) {
+        // this is a single pad bit that is implied to have all the same values
+        header_reader.Read( reinterpret_cast<unsigned char*>(&padbit), 1 );
+        if (!(padbit == 0 || padbit == 1 ||padbit == -1)) {
+            (void)write(2,
+                        "Legacy Padbit must be 0, 1 or -1\n",
+                        strlen("Legacy Padbit must be 0, 1 or -1\n"));
+            custom_exit(ExitCode::STREAM_INCONSISTENT);
+        }
+        if (padbit == 1) {
+            padbit = 0x7f; // all 6 bits set
+        }
     }
     else {
         fprintf( stderr, "PAD marker not found" );

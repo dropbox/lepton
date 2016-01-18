@@ -85,8 +85,18 @@ public:
 	unsigned char unpad( unsigned char fillbit ) {
         if ((cbit2 & 7) == 0 || eof) return fillbit;
         else {
-            fillbit = read( 1 );
-            while (cbit2 & 7) read( 1 );
+            char last_bit = read( 1 );
+            fillbit = last_bit;
+            int offset = 1;
+            while (cbit2 & 7) {
+                last_bit = read( 1 );
+                fillbit |= (last_bit << offset);
+                ++offset;
+            }
+            while(offset < 7) {
+                fillbit |= (last_bit << offset);
+                ++offset;
+            }
         }
         return fillbit;
     }
@@ -209,8 +219,10 @@ public:
 
     }
     void pad ( unsigned char fillbit ) {
+        int offset = 1;
         while ((cbit2 & 7) && cbyte2 < size_bound) {
-            write( fillbit, 1 );
+            write( (fillbit & offset) ? 1 : 0, 1 );
+            offset <<= 1;
         }
         flush_no_pad();
     }
