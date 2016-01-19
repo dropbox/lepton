@@ -61,6 +61,7 @@ SIRIKATA_FUNCTION_EXPORT void memmgr_free(void* ap);
 //
 SIRIKATA_FUNCTION_EXPORT void memmgr_print_stats();
 SIRIKATA_FUNCTION_EXPORT size_t memmgr_size_allocated();
+SIRIKATA_FUNCTION_EXPORT size_t memmgr_total_size_ever_allocated();
 SIRIKATA_FUNCTION_EXPORT size_t memmgr_size_left();
 
 }

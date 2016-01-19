@@ -78,6 +78,7 @@ struct MemMgrState {
 //
     uint8_t *pool;
     size_t pool_size;
+    size_t total_ever_allocated;
     bool used_calloc;
 };
 size_t  memmgr_num_memmgrs = 0;
@@ -196,6 +197,10 @@ size_t memmgr_size_left() {
   MemMgrState& memmgr = get_local_memmgr();
   return memmgr.pool_size - memmgr.pool_free_pos;
 }
+size_t memmgr_total_size_ever_allocated() {
+  MemMgrState& memmgr = get_local_memmgr();
+  return memmgr.total_ever_allocated;
+}
 
 void memmgr_print_stats()
 {
@@ -300,27 +305,6 @@ bool is_zero(const void * data, size_t size) {
 //
 void* memmgr_alloc(size_t nuint8_ts)
 {
-    /*
-    int y;
-    char xsize[16];
-    xsize[0] = (nuint8_ts / 10000000) % 10 + '0';
-    xsize[1] = (nuint8_ts / 1000000) % 10 + '0';
-    xsize[2] = (nuint8_ts / 100000) % 10 + '0';
-    xsize[3] = (nuint8_ts / 10000) % 10 + '0';
-    xsize[4] = (nuint8_ts / 1000) % 10 + '0';
-    xsize[5] = (nuint8_ts / 100) % 10 + '0';
-    xsize[6] = (nuint8_ts / 10) % 10 + '0';
-    xsize[7] = (nuint8_ts / 1) % 10 + '0';
-    xsize[8] = ' ';
-    xsize[9] = '0' + y;
-    xsize[10] = '\n';
-    (void)write(2, xsize, 11);
-    */
-    /*
-    fprintf(stderr, "xxx XXX ALLOC XXX xxx %ld\n",nuint8_ts);
-    if(y) {
-      ++global_var;
-      }*/
     MemMgrState& memmgr = get_local_memmgr();
     mem_header_t* blessed_zero = NULL;
     mem_header_t* p;
@@ -331,7 +315,8 @@ void* memmgr_alloc(size_t nuint8_ts)
     // that if nuint8_ts is a multiple of nquantas, we don't allocate too much
     //
     size_t nquantas = (nuint8_ts + sizeof(mem_header_t) - 1) / sizeof(mem_header_t) + 1;
-
+    memmgr.total_ever_allocated += std::max(nquantas, min_pool_alloc_quantas)
+      * sizeof(mem_header_t);
     // First alloc call, and no free list yet ? Use 'base' for an initial
     // degenerate block of size 0, which points to itself
     //

@@ -260,6 +260,8 @@ unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
 int            hufs             =    0  ;   // size of huffman data
 int            hdrs             =    0  ;   // size of header
+int            zlib_hdrs        =    0  ;   // size of compressed header
+size_t         total_framebuffer_allocated = 0; // framebuffer allocated
 int            grbs             =    0  ;   // size of garbage
 
 std::vector<unsigned int>  rstp;   // restart markers positions in huffdata
@@ -910,6 +912,7 @@ size_t decompression_memory_bound() {
         current_run_size += colldata.is_memory_optimized(i)
             ? streaming_size : frame_buffer_size;
     }
+    current_run_size = total_framebuffer_allocated;
     size_t bit_writer_augmentation = 0;
     for (size_t cur_size = jpgfilesize - 1; cur_size; cur_size >>=1) {
         bit_writer_augmentation |= cur_size;
@@ -920,18 +923,43 @@ size_t decompression_memory_bound() {
         garbage_augmentation |= cur_size;
     }
     garbage_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
-    size_t decom_memory_bound = Sirikata::memmgr_size_allocated()
+    size_t vp8_bool_excess = NUM_THREADS * 4096 * 1024
+        ;//- ujgfilesize - zlib_hdrs; //VP8BoolEncoder
+    int non_preloaded_mux = NUM_THREADS * (1024 * 1024 + 262144);
+    size_t decode_header_needed_size = hdrs * 2 + zlib_hdrs * 3;
+    if (zlib_hdrs * 2 < hdrs) {
+        size_t doubled = zlib_hdrs * 2;
+        do {
+            decode_header_needed_size += doubled;
+            doubled *= 2;
+        } while (doubled < (size_t)hdrs);
+    }
+    /*
+    fprintf(stderr,
+            "Original Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
+            Sirikata::memmgr_total_size_ever_allocated()
+            - current_run_size + streaming_buffer_size,
+            Sirikata::memmgr_size_allocated()
+            - current_run_size + streaming_buffer_size,
+            garbage_augmentation * 2,
+            decode_header_needed_size,
+            bit_writer_augmentation,
+            non_preloaded_mux);
+    */
+    size_t total = Sirikata::memmgr_size_allocated();
+    size_t decom_memory_bound = total
             - current_run_size
             + streaming_buffer_size
             - (filetype == JPEG
-               ? (NUM_THREADS - 1) * 4096 * 1024 //VP8BoolEncoder
+               ? vp8_bool_excess
                  + bit_writer_augmentation * 2
                  + garbage_augmentation * 2: 0)
             + (filetype == JPEG && g_do_preload == false
-               ? NUM_THREADS * (1024 * 1024 + 262144) : 0)//MuxReader
+               ? non_preloaded_mux : 0)//MuxReader
             + (filetype == JPEG
                ? ABIT_WRITER_PRELOAD * 2 + 64 /*alignment*/
-                 + grbs * 3 : 0) //garbage + 2x compression bound
+                 + 100 * 1024 // padding
+                 + decode_header_needed_size : 0)
             - (g_threaded
                 ? (NUM_THREADS - 1) * sizeof(ProbabilityTablesBase) : 0);
     return decom_memory_bound;
@@ -2933,7 +2961,7 @@ bool write_ujpg( )
         err = mrw.Write( grbgdata, grbs ).second;
     }
     if (mrw.buffer().size() > 1024 * 1024) {
-        custom_exit(ExitCode::HEADER_TOO_LARGE);
+        //custom_exit(ExitCode::HEADER_TOO_LARGE);
     }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
     compressed_header =
@@ -2950,6 +2978,7 @@ bool write_ujpg( )
     err = ujg_out->Write( ujpg_mrk, 4).second;
     auto err2 = ujg_out->Write(compressed_header.data(),
                                compressed_header.size());
+    zlib_hdrs = compressed_header.size();
     if (err != Sirikata::JpegError::nil() || err2.second != Sirikata::JpegError::nil()) {
         fprintf( stderr, "write error, possibly drive is full" );
         errorlevel.store(2);
@@ -3044,6 +3073,7 @@ bool read_ujpg( void )
             assert(false && "Data not properly zlib coded");
             return false;
         }
+        zlib_hdrs = compressed_header_buffer.size();
         header_reader.SwapIn(uncompressed_header_buffer.first, 0);
     }
     grbs = sizeof(EOI);
@@ -3334,10 +3364,11 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
     else {
         for ( cmp = 0; cmp < cmpc; cmp++ ) cmpnfo[ cmp ].sid = 0;
     }
-
+    size_t start_allocated = Sirikata::memmgr_size_allocated();
     // alloc memory for further operations
     colldata.init(cmpnfo, cmpc, jpegtype == 1 && only_allocate_two_image_rows);
-
+    size_t end_allocated = Sirikata::memmgr_size_allocated();
+    total_framebuffer_allocated = end_allocated - start_allocated;
     return true;
 }
 
