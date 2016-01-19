@@ -927,7 +927,7 @@ size_t decompression_memory_bound() {
         ;//- ujgfilesize - zlib_hdrs; //VP8BoolEncoder
     int non_preloaded_mux = NUM_THREADS * (1024 * 1024 + 262144);
     size_t decode_header_needed_size = hdrs + zlib_hdrs * 3;
-    if (zlib_hdrs * 2 < hdrs) {
+    if (zlib_hdrs && zlib_hdrs * 2 < hdrs) {
         size_t doubled = zlib_hdrs * 2;
         do {
             decode_header_needed_size += doubled;
