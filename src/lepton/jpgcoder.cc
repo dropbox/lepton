@@ -216,6 +216,7 @@ struct MergeJpegProgress {
     unsigned int   cpos; // in scan corrected rst marker position
     unsigned int   scan; // number of current scan
     unsigned char  type; // type of current marker segment
+    unsigned int num_rst_markers_this_scan;
     bool within_scan;
     MergeJpegProgress *parent;
     MergeJpegProgress() {
@@ -224,6 +225,7 @@ struct MergeJpegProgress {
         ipos = 0; // current position in imagedata
         rpos = 0; // current restart marker position
         cpos = 0; // in scan corrected rst marker position
+        num_rst_markers_this_scan = 0;
         scan = 1; // number of current scan
         type = 0x00; // type of current marker segment
         within_scan = false;
@@ -271,7 +273,8 @@ int            scnc             =    0  ;   // count of scans
 int            rsti             =    0  ;   // restart interval
 char           padbit           =    -1 ;   // padbit (for huffman coding)
 std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
-
+std::vector<unsigned int> rst_cnt;
+bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
 
 UncompressedComponents colldata; // baseline sorted DCT coefficients
@@ -1190,8 +1193,26 @@ void process_file(IOUtil::FileReader* reader,
     if (!g_use_seccomp) {
         end = clock();
     }
-    size_t bound = decompression_memory_bound();
-    fprintf(stderr, "Decompression bound %ld\n", bound);
+    {
+        size_t bound = decompression_memory_bound();
+        char bound_out[] = "XXXXXXXXXX bytes needed to decompress this file\n";
+        bound_out[0] = '0' + (bound / 1000000000)%10;
+        bound_out[1] = '0' + (bound / 100000000)%10;
+        bound_out[2] = '0' + (bound / 10000000)%10;
+        bound_out[3] = '0' + (bound / 1000000)%10;
+        bound_out[4] = '0' + (bound / 100000)%10;
+        bound_out[5] = '0' + (bound / 10000)%10;
+        bound_out[6] = '0' + (bound / 1000)%10;
+        bound_out[7] = '0' + (bound / 100)%10;
+        bound_out[8] = '0' + (bound / 10)%10;
+        bound_out[9] = '0' + (bound / 1)%10;
+        const char * to_write = bound_out;
+        while(to_write[0] == '0') {
+            ++to_write;
+        }
+        while(write(2, to_write, strlen(to_write)) < 0 && errno == EINTR) {
+        }
+    }
     // speed and compression ratio calculation
     speed = (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC );
     bpms  = ( speed > 0 ) ? ( jpgfilesize / speed ) : jpgfilesize;
@@ -1524,7 +1545,6 @@ bool read_jpeg( void )
     ibytestream * jpg_in = &str_jpg_in;
     // preset count of scans
     scnc = 0;
-
     // start headerwriter
     hdrw = new abytewriter( 4096 );
     hdrs = 0; // size of header data, start with 0
@@ -1573,6 +1593,10 @@ bool read_jpeg( void )
                         // increment rst counters
                         cpos++;
                         crst++;
+                        while (rst_cnt.size() <= (size_t)scnc) {
+                            rst_cnt.push_back(0);
+                        }
+                        ++rst_cnt[scnc];
                     }
                     else { // in all other cases leave it to the header parser routines
                         // store number of falsely set rst markers
@@ -1706,6 +1730,15 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
 #endif
     return memchr(local_huff_data, 0xff, 16) != NULL;
 }
+bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan) {
+    if (rstp.empty()) {
+        return false;
+    }
+    if (!rst_cnt_set) {
+        return true;
+    }
+    return rst_cnt.size() > (size_t)scan - 1 && num_rst_markers_this_scan < rst_cnt[scan - 1];
+}
 MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress, const unsigned char * local_huff_data, unsigned int max_byte_coded,
                                               bool flush) {
     if (!do_streaming) return STREAMING_DISABLED;
@@ -1774,12 +1807,13 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                 str_out->write_byte(stv);
             // insert restart markers if needed
             if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
-                if (!rstp.empty()) {
+                if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan)) {
                     const unsigned char rst = 0xD0 + ( progress.cpos & 7);
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
                     progress.rpos++; progress.cpos++;
                     rstp_progress_rpos = rstp[ progress.rpos ];
+                    ++progress.num_rst_markers_this_scan;
                 }
             }
         }
@@ -1800,12 +1834,13 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                         if (__builtin_expect(byte_to_write == 0xFF, 0)) {
                             str_out->write_byte(stv);
                         }
-                        if (!rstp.empty()) {
-                            const unsigned char rst = 0xD0 + ( progress.cpos & 7);
-                            str_out->write_byte(mrk);
-                            str_out->write_byte(rst);
-                            progress.rpos++; progress.cpos++;
-                            rstp_progress_rpos = rstp[ progress.rpos ];
+                        if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan)) {
+                                const unsigned char rst = 0xD0 + ( progress.cpos & 7);
+                                str_out->write_byte(mrk);
+                                str_out->write_byte(rst);
+                                progress.rpos++; progress.cpos++;
+                                rstp_progress_rpos = rstp[ progress.rpos ];
+                                ++progress.num_rst_markers_this_scan;
                         }
                     } else {
                         uint8_t byte_to_write = local_huff_data[progress_ipos];
@@ -1832,12 +1867,13 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                 str_out->write_byte(stv);
             // insert restart markers if needed
             if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
-                if (!rstp.empty()) {
+                if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan )) {
                     const unsigned char rst = 0xD0 + ( progress.cpos & 7);
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
                     progress.rpos++; progress.cpos++;
                     rstp_progress_rpos = rstp[ progress.rpos ];
+                    ++progress.num_rst_markers_this_scan;
                 }
             }
         }
@@ -1857,6 +1893,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                 progress.cpos++;    rst_err[ progress.scan - 1 ]--;
             }
         }
+        progress.num_rst_markers_this_scan = 0;
         progress.within_scan = false;
         // proceed with next scan
         progress.scan++;
@@ -1947,6 +1984,7 @@ bool merge_jpeg( void )
     unsigned int   cpos = 0; // in scan corrected rst marker position
     unsigned int   scan = 1; // number of current scan
     unsigned int   tmp  = 0;
+    unsigned int   num_rst_markers_this_scan = 0;
     str_out->set_bound(max_file_size);
     // write SOI
     str_out->write( SOI, 2 );
@@ -1984,12 +2022,13 @@ bool merge_jpeg( void )
             if ( huffdata[ ipos ] == 0xFF )
                 str_out->write_byte(stv);
             // insert restart markers if needed
-            if ( !rstp.empty() ) {
+            if (rst_cnt_ok(scan,  num_rst_markers_this_scan)) {
                 if ( ipos == rstp[ rpos ] ) {
                     rst = 0xD0 + ( cpos & 7 );
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
                     rpos++; cpos++;
+                    ++num_rst_markers_this_scan;
                 }
             }
         }
@@ -2005,6 +2044,7 @@ bool merge_jpeg( void )
 
         // proceed with next scan
         scan++;
+        num_rst_markers_this_scan = 0;
     }
 
     // write EOI
@@ -2939,7 +2979,16 @@ bool write_ujpg( )
     err = mrw.Write( pad_mrk, sizeof(pad_mrk) ).second;
     // data: padbit
     err = mrw.Write( (unsigned char*) &padbit, 1 ).second;
-
+    if (!rst_cnt.empty()) {
+        unsigned char frs_mrk[] = {'C', 'R', 'S'};
+        err = mrw.Write( frs_mrk, 3 ).second;
+        uint32toLE((uint32_t)rst_cnt.size(), ujpg_mrk);
+        err = mrw.Write( ujpg_mrk, 4).second;
+        for (size_t i = 0; i < rst_cnt.size(); ++i) {
+            uint32toLE((uint32_t)rst_cnt[i], ujpg_mrk);
+            err = mrw.Write( ujpg_mrk, 4).second;
+        }
+    }
     // write number of false set RST markers per scan (if available) to file
     if (!rst_err.empty()) {
         // marker: "FRS" + [number of scans]
@@ -3147,7 +3196,15 @@ bool read_ujpg( void )
     // read further recovery information if any
     while ( ReadFull(&header_reader, ujpg_mrk, 3 ) == 3 ) {
         // check marker
-        if ( memcmp( ujpg_mrk, "FRS", 3 ) == 0 ) {
+        if ( memcmp( ujpg_mrk, "CRS", 3 ) == 0 ) {
+            rst_cnt_set = true;
+            ReadFull(&header_reader, ujpg_mrk, 4);
+            rst_cnt.resize(LEtoUint32(ujpg_mrk));
+            for (size_t i = 0; i < rst_cnt.size(); ++i) {
+                ReadFull(&header_reader, ujpg_mrk, 4);
+                rst_cnt[i] = LEtoUint32(ujpg_mrk);
+            }
+        } else if ( memcmp( ujpg_mrk, "FRS", 3 ) == 0 ) {
             // read number of false set RST markers per scan from file
             ReadFull(&header_reader, ujpg_mrk, 4);
             scnc = LEtoUint32(ujpg_mrk);
