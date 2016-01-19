@@ -128,10 +128,14 @@ public:
         if (0 == s)
             return NULL;
         pointer temp = (pointer)(*custom_allocate)(opaque, 1, s * sizeof(T)); 
+        if (temp == NULL) {
 #ifdef __EXCEPTIONS
-        if (temp == NULL)
+
             throw std::bad_alloc();
+#else
+	    custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
 #endif
+	}
         return temp;
     }
 

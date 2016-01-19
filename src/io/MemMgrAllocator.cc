@@ -260,7 +260,7 @@ static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas, mem
             nquantas = min_pool_alloc_quantas;
 
     total_req_size = nquantas * sizeof(mem_header_t);
-
+    //fprintf(stderr, "+%ld\n", total_req_size);
     if (memmgr.pool_free_pos + total_req_size <= memmgr.pool_size)
     {
         h = (mem_header_t*) (memmgr.pool + memmgr.pool_free_pos);
@@ -317,6 +317,7 @@ void* memmgr_alloc(size_t nuint8_ts)
     size_t nquantas = (nuint8_ts + sizeof(mem_header_t) - 1) / sizeof(mem_header_t) + 1;
     memmgr.total_ever_allocated += std::max(nquantas, min_pool_alloc_quantas)
       * sizeof(mem_header_t);
+    //fprintf(stderr, "A %ld\n", std::max(nquantas, min_pool_alloc_quantas) * sizeof(mem_header_t));
     // First alloc call, and no free list yet ? Use 'base' for an initial
     // degenerate block of size 0, which points to itself
     //

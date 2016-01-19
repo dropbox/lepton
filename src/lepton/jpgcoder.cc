@@ -926,7 +926,7 @@ size_t decompression_memory_bound() {
     size_t vp8_bool_excess = NUM_THREADS * 4096 * 1024
         ;//- ujgfilesize - zlib_hdrs; //VP8BoolEncoder
     int non_preloaded_mux = NUM_THREADS * (1024 * 1024 + 262144);
-    size_t decode_header_needed_size = hdrs * 2 + zlib_hdrs * 3;
+    size_t decode_header_needed_size = hdrs + zlib_hdrs * 3;
     if (zlib_hdrs * 2 < hdrs) {
         size_t doubled = zlib_hdrs * 2;
         do {
@@ -946,6 +946,18 @@ size_t decompression_memory_bound() {
             bit_writer_augmentation,
             non_preloaded_mux);
     */
+    size_t abit_writer = 0;
+    if (zlib_hdrs * 3 < ABIT_WRITER_PRELOAD * 2 + 64) {
+        if (zlib_hdrs * 3 < ABIT_WRITER_PRELOAD + 64) {
+            abit_writer += ABIT_WRITER_PRELOAD * 2 + 64;// these can't be reused memory
+        } else {
+            abit_writer += ABIT_WRITER_PRELOAD + 64;// these can't be reused
+        }
+    }
+    if (jpgfilesize > ABIT_WRITER_PRELOAD) {
+        // we currently buffer the whole jpeg in memory while streaming out
+        abit_writer += 3 * jpgfilesize;
+    }
     size_t total = Sirikata::memmgr_size_allocated();
     size_t decom_memory_bound = total
             - current_run_size
@@ -957,7 +969,7 @@ size_t decompression_memory_bound() {
             + (filetype == JPEG && g_do_preload == false
                ? non_preloaded_mux : 0)//MuxReader
             + (filetype == JPEG
-               ? ABIT_WRITER_PRELOAD * 2 + 64 /*alignment*/
+               ? abit_writer
                  + 100 * 1024 // padding
                  + decode_header_needed_size : 0)
             - (g_threaded
@@ -3063,12 +3075,12 @@ bool read_ujpg( void )
                                                  &mem_nop,
                                                  &mem_realloc_nop,
                                                  &MemMgrAllocatorMsize);
-        std::pair<std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >,
-                  JpegError> uncompressed_header_buffer;
-        uncompressed_header_buffer
-                = ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
+        std::pair<std::vector<uint8_t,
+                              Sirikata::JpegAllocator<uint8_t> >,
+                  JpegError> uncompressed_header_buffer(
+                ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
                                                          compressed_header_buffer.size(),
-                                                         no_free_allocator);
+                                                           no_free_allocator));
         if (uncompressed_header_buffer.second) {
             assert(false && "Data not properly zlib coded");
             return false;
