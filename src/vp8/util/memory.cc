@@ -173,8 +173,12 @@ void custom_exit(ExitCode exit_code) {
         atexit_f = nullptr;
     }
     if (exit_code != ExitCode::SUCCESS) {
-        (void)write(2, ExitString(exit_code), strlen(ExitString(exit_code)));
-        (void)write(2, "\n", 1);
+        while(write(2, ExitString(exit_code), strlen(ExitString(exit_code))) < 0
+            && errno == EINTR) {
+        }
+        while(write(2, "\n", 1) < 0
+              && errno == EINTR) {
+        }
     }
 #ifdef __linux
     syscall(SYS_exit, (int)exit_code);

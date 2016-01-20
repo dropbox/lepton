@@ -3178,9 +3178,11 @@ bool read_ujpg( void )
         // this is a single pad bit that is implied to have all the same values
         header_reader.Read( reinterpret_cast<unsigned char*>(&padbit), 1 );
         if (!(padbit == 0 || padbit == 1 ||padbit == -1)) {
-            (void)write(2,
+            while (write(2,
                         "Legacy Padbit must be 0, 1 or -1\n",
-                        strlen("Legacy Padbit must be 0, 1 or -1\n"));
+                         strlen("Legacy Padbit must be 0, 1 or -1\n")) < 0
+                   && errno == EINTR) {
+            }
             custom_exit(ExitCode::STREAM_INCONSISTENT);
         }
         if (padbit == 1) {
