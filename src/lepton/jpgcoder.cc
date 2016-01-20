@@ -2199,7 +2199,7 @@ bool decode_jpeg( void )
                         // decode block
                         eob = decode_block_seq( huffr,
                             &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
-                            &(htrees[ 1 ][ cmpnfo[cmp].huffdc ]),
+                            &(htrees[ 1 ][ cmpnfo[cmp].huffac ]),
                             block.begin() );
                         if ( eob > 1 && !block[ eob - 1 ] ) {
                             fprintf( stderr, "cannot encode image with eob after last 0" );
@@ -2284,7 +2284,7 @@ bool decode_jpeg( void )
                         // decode block
                         eob = decode_block_seq( huffr,
                             &(htrees[ 0 ][ cmpnfo[cmp].huffdc ]),
-                            &(htrees[ 1 ][ cmpnfo[cmp].huffdc ]),
+                            &(htrees[ 1 ][ cmpnfo[cmp].huffac ]),
                             block.begin() );
                         if ( eob > 1 && !block[ eob - 1 ] ) {
                             fprintf( stderr, "cannot encode image with eob after last 0" );
