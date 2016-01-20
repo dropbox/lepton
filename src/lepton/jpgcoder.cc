@@ -142,7 +142,6 @@ void show_help( void );
 bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
 bool read_jpeg( void );
 struct MergeJpegProgress;
-bool merge_jpeg_streaming( MergeJpegProgress * prog, int num_scans);
 bool merge_jpeg( void );
 bool decode_jpeg( void );
 bool recode_jpeg( void );
@@ -576,6 +575,10 @@ void compute_thread_mem(const char * arg,
     if ( strcmp(arg, "-avx2upgrade") == 0) {
         *avx2upgrade = true;
     }
+    if (strstr(arg, "-help")) {
+        show_help();
+        exit(0);
+    }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
     if (starts_with(arg, mem_arg_name)) {
@@ -909,13 +912,16 @@ size_t decompression_memory_bound() {
         size_t streaming_size = 
             colldata.block_width(i)
             * std::min(4, colldata.block_height(i)) * 64 * sizeof(uint16_t);
-        
+
         cumulative_buffer_size += frame_buffer_size;
         streaming_buffer_size += streaming_size;
         current_run_size += colldata.is_memory_optimized(i)
             ? streaming_size : frame_buffer_size;
     }
     current_run_size = total_framebuffer_allocated;
+    if (cs_cmpc != colldata.get_num_components() || jpegtype != 1) {
+        streaming_buffer_size = current_run_size;
+    }
     size_t bit_writer_augmentation = 0;
     for (size_t cur_size = jpgfilesize - 1; cur_size; cur_size >>=1) {
         bit_writer_augmentation |= cur_size;
@@ -1363,12 +1369,20 @@ void show_help( void )
     fprintf(msgout, " [-singlethread]  Do not clone threads to operate on the input file\n" );
     fprintf(msgout, " [-socket]        Serve requests on a Unix Domain Socket\n" );
     fprintf(msgout, " [-socket=<name>] Path to socket (otherwise random path used and printed)\n");
-    fprintf(msgout, " [-decode]        Preload decoding code\n" );
-    fprintf(msgout, " [-recode]        Preload recoding code\n");
+    fprintf(msgout, " [-maxchildren]   Max codes to ever spawn at the same time in socket mode\n");
+    fprintf(msgout, " [-preload]       Preload decoding code\n" );
+    fprintf(msgout, " [-unkillable]    Ignore SIGTERM and SIGQUIT after alarm timer is set\n");
+    fprintf(msgout, " [-allowprogressive] Allow progressive jpegs through the compressor\n");
     fprintf(msgout, " [-fork]          Serve requests on a series of pipes [deprecated]\n");
     fprintf(msgout, " [-zlib0]         Instead of a jpg, return a zlib-compressed jpeg\n");
     fprintf(msgout, " [-timebound=<>ms]For -socket, enforce a timeout since first byte received\n");
     fprintf(msgout, " [-trunc=<>]      Truncate input file to N bytes and do not read further\n");
+    fprintf(msgout, " [-memory=<>M]    Upper bound on the amount of memory allocated by main\n");
+    fprintf(msgout, " [-threadmemory=<>M] Bound on the amount of memory allocated by threads\n");
+    fprintf(msgout, " [-hugepages]     Allocate from the hugepages on the system\n");
+    fprintf(msgout, " [-avx2upgrade]   Try to exec <binaryname>-avx if avx is available\n");
+    fprintf(msgout, " [-injectsyscall={1..4}]  Inject a \"chdir\" syscall & check SECCOMP crashes\n");
+    fprintf(msgout, " [-recodememory=<>M] Check that a singlethreaded recode only uses <>M mem\n");
 }
 
 /* ----------------------- End of main interface functions -------------------------- */
@@ -2574,6 +2588,7 @@ bool recode_jpeg( void )
         // store scan position
         scnp[ scnc ] = huffw->getpos();
         scnp[ scnc + 1 ] = 0; // danielrh@ avoid uninitialized memory when doing progressive writeout
+        bool first_pass = true;
         // JPEG imagedata encoding routines
         while ( true )
         {
@@ -2594,11 +2609,15 @@ bool recode_jpeg( void )
             if (cs_cmpc != colldata.get_num_components() && !g_allow_progressive) {
                 custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
             }
-
             if (jpegtype != 1 && !g_allow_progressive) {
                 custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
             }
-
+            if ((jpegtype != 1 || cs_cmpc != colldata.get_num_components())
+                && colldata.is_memory_optimized(0)
+                && first_pass) {
+                colldata.init(cmpnfo, cmpc, false);
+            }
+            first_pass = false;
             // encoding for interleaved data
             if ( cs_cmpc > 1 )
             {
