@@ -101,9 +101,9 @@ pid_t accept_new_connection(int active_connection,
 int should_wait_bitmask(size_t children_size,
                         uint32_t max_children) {
     if (max_children && children_size >= max_children) {
-        return WNOHANG;
+        return 0;
     }
-    return 0;
+    return WNOHANG;
 }
 void serving_loop(int unix_domain_socket_server,
                   const SocketServeWorkFunction& work,
