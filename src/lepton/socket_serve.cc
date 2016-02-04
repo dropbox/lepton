@@ -205,6 +205,8 @@ void socket_serve(const SocketServeWorkFunction &work_fn,
     err = bind(socket_fd, (struct sockaddr*)&address, sizeof(address));
     always_assert(err == 0);
     err = listen(socket_fd, 16);
+    int ret = chmod(socket_name, 0666);
+    (void)ret;
     always_assert(err == 0);
     fprintf(stdout, "%s\n", socket_name);
     fflush(stdout);
