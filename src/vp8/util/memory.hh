@@ -9,7 +9,11 @@
 #include "../../io/DecoderPlatform.hh"
 #include "../../io/MemMgrAllocator.hh"
 extern bool g_use_seccomp;
+#if __cplusplus <= 199711L
+namespace ExitCode { enum ExitCode_ {
+#else
 enum class ExitCode {
+#endif
     SUCCESS=0,
     ASSERTION_FAILURE=1,
     CODING_ERROR=2,
@@ -21,18 +25,26 @@ enum class ExitCode {
     PROGRESSIVE_UNSUPPORTED=8,
     FILE_NOT_FOUND=9,
     SAMPLING_BEYOND_FOUR_UNSUPPORTED=10,
+    OS_ERROR=33,
     HEADER_TOO_LARGE=34,
     DIMENSIONS_TOO_LARGE=35,
     MALLOCED_NULL=36,
     OOM=37,
     TOO_MUCH_MEMORY_NEEDED=38,
     EARLY_EXIT=40,
+#if __cplusplus > 199711L
+    };
+#else
 };
+}
+#endif
 
 #if __cplusplus > 199711L
 [[noreturn]]
-#endif
 void custom_exit(ExitCode exit_code);
+#else
+void custom_exit(ExitCode::ExitCode_ exit_code);
+#endif
 
 void custom_terminate_this_thread(uint8_t exit_code);
 void custom_atexit(void (*atexit)(void*) , void *arg);

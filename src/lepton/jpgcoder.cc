@@ -377,8 +377,6 @@ uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
 uint32_t g_max_children = 0;
 bool g_force_zlib0_out = false;
-char *g_defer_md5 = NULL;
-unsigned char g_executable_md5[16];
 
 Sirikata::DecoderReader* str_in  = NULL;    // input stream
 bounded_iostream* str_out = NULL;    // output stream
@@ -564,13 +562,9 @@ void compute_thread_mem(const char * arg,
                         size_t * mem_init,
                         size_t * thread_mem_init,
                         bool *needs_huge_pages,
-                        bool *defer_md5,
                         bool *avx2upgrade) {
     if (strcmp(arg, "-hugepages") == 0) {
         *needs_huge_pages = true;
-    }
-    if (strcmp(arg, "-defermd5") == 0) {
-        *defer_md5 = true;
     }
     if ( strcmp(arg, "-avx2upgrade") == 0) {
         *avx2upgrade = true;
@@ -599,14 +593,12 @@ int main( int argc, char** argv )
     size_t thread_mem_limit = 8192;
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
     bool needs_huge_pages = false;
-    bool defer_md5 = false;
     for (int i = 1; i < argc; ++i) {
         bool avx2upgrade = false;
         compute_thread_mem(argv[i],
                            &mem_limit,
                            &thread_mem_limit,
                            &needs_huge_pages,
-                           &defer_md5,
                            &avx2upgrade);
 #ifndef USE_AVX2
 #ifndef __clang__
@@ -646,11 +638,6 @@ int main( int argc, char** argv )
                           n_threads,
                           256,
                           needs_huge_pages);
-    if (!defer_md5) {
-        compute_md5(argv[0], g_executable_md5);
-    } else {
-        g_defer_md5 = argv[0];
-    }
     clock_t begin = 0, end = 1;
 
     int error_cnt = 0;
@@ -1095,7 +1082,11 @@ void process_file(IOUtil::FileReader* reader,
         bound.it_interval.tv_sec = 0;
         bound.it_interval.tv_usec = 0;
         int ret = setitimer(ITIMER_REAL, &bound, NULL);
+
         assert(ret == 0 && "Timer must be able to be set");
+        if (ret != 0) {
+            exit((int)ExitCode::OS_ERROR);
+        }
     }
     if (g_unkillable) { // only set this after the time bound has been set
         if (!g_time_bound_ms) {
@@ -1104,10 +1095,6 @@ void process_file(IOUtil::FileReader* reader,
         }
         signal(SIGTERM, &sig_nop);
         signal(SIGQUIT, &sig_nop);
-    }
-    if (filetype == JPEG && g_defer_md5) {
-        compute_md5(g_defer_md5, g_executable_md5);
-        g_defer_md5 = NULL;
     }
 
     if (g_use_seccomp) {
@@ -1743,6 +1730,25 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     return retval;
 #endif
     return memchr(local_huff_data, 0xff, 16) != NULL;
+}
+unsigned char hex_to_nibble(char val) {
+    if (val > 'A' && val <= 'F') {
+        return val - 'A' + 10;
+    }
+    if (val > 'a' && val <= 'f') {
+        return val - 'a' + 10;
+    }
+    return val - '0';
+}
+unsigned char hex_pair_to_byte(char big, char little) {
+    return hex_to_nibble(big) * 16 + hex_to_nibble(little);
+}
+bool hex_to_bin(unsigned char *output, const char *input, size_t output_size) {
+    size_t i = 0;
+    for (; i < output_size && input[i * 2] && input[i * 2 + 1]; ++i) {
+        output[i] = hex_pair_to_byte(input[i * 2], input[i * 2 + 1]);
+    }
+    return i == output_size;
 }
 bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan) {
     if (rstp.empty()) {
@@ -3050,8 +3056,9 @@ bool write_ujpg( )
                                                              Sirikata::JpegAllocator<uint8_t>());
     unsigned char siz_mrk[] = {'Z'};
     err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
-    assert(!g_defer_md5); // make sure we have computed this
-    err = ujg_out->Write( g_executable_md5, sizeof(g_executable_md5) ).second;
+    unsigned char git_revision[16] = {0}; // we only have 16 chars in the header for this
+    hex_to_bin(git_revision, GIT_REVISION, sizeof(git_revision));
+    err = ujg_out->Write(git_revision, sizeof(git_revision) ).second;
     uint32toLE(jpgfilesize, ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
     uint32toLE((uint32_t)compressed_header.size(), ujpg_mrk);

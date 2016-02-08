@@ -37,7 +37,8 @@ const char *ExitString(ExitCode ec) {
     return "DIMENSIONS_TOO_LARGE";
   case ExitCode::MALLOCED_NULL:
     return "MALLOCED_NULL";
-
+  case ExitCode::OS_ERROR:
+    return "OS_ERROR";
   case ExitCode::OOM:
     return "OOM";
   case ExitCode::TOO_MUCH_MEMORY_NEEDED:
