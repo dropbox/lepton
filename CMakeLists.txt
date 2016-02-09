@@ -125,8 +125,8 @@ ENDIF()
 target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
 target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
 set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-include unistd.h")
-set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
-set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 -DUSE_SSE42=1 -DUSE_AVX2=1")
+set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2")
+set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 -DUSE_AVX2=1")
 
 #add_executable(print-model
 #   src/vp8/util/debug.cc
@@ -152,8 +152,8 @@ add_executable(test_invariants
    test_suite/test_invariants.cc
  )
 target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})
-#set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
-set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "-msse4.2 -DUSE_SSE42")
+#set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2")
+set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "-msse4.2")
 
 FILE(WRITE ${CMAKE_BINARY_DIR}/version.hh.in
 "\#define GIT_REVISION \"@VERSION@\"\n"
