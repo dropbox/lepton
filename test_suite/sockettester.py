@@ -6,11 +6,21 @@ import socket
 import time
 import os
 import uuid
+import argparse
 base_dir = os.path.dirname(sys.argv[0])
-if len(sys.argv) > 1:
-    jpg_name = sys.argv[1]
-else:
-    jpg_name = os.path.join(base_dir, "..", "images", "iphone.jpg")
+parser = argparse.ArgumentParser(description='Benchmark and test socket server for compression')
+parser.add_argument('files', metavar='N', type=str, nargs='*', default=[os.path.join(base_dir,
+                                                                                     "..", "images", "iphone.jpg")])
+parser.add_argument('--benchmark', dest='benchmark', action='store_true')
+parser.add_argument('--bench', dest='benchmark', action='store_true')
+parser.add_argument('-benchmark', dest='benchmark', action='store_true')
+parser.add_argument('-bench', dest='benchmark', action='store_true')
+parser.add_argument('--singlethread', dest='singlethread', action='store_true')
+parser.add_argument('-singlethread', dest='singlethread', action='store_true')
+parser.set_defaults(benchmark=False)
+parser.set_defaults(singlethread=False)
+parsed_args = parser.parse_args()
+jpg_name = parsed_args.files[0]
 
 def read_all_fd(fd):
     datas = []
@@ -32,6 +42,8 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
              '-preload']
     if socket_name is not None:
         xargs[1]+= '=' + socket_name
+    if parsed_args.singlethread:
+        xargs.append('-singlethread')
     proc = subprocess.Popen(xargs,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE)
@@ -97,21 +109,26 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
     proc.wait()
     assert not os.path.exists(socket_name)
 
-test_compression('./lepton')
-test_compression('./lepton', '/tmp/' + str(uuid.uuid4()))
 has_avx2 = False
 try:
     cpuinfo = open('/proc/cpuinfo')
     has_avx2 = 'avx2' in cpuinfo.read()
 except Exception:
     pass
+
 if has_avx2 and os.path.exists('lepton-avx'):
     test_compression('./lepton-avx')
-ok = False
-try:
-    test_compression('./lepton', '/tmp/' + str(uuid.uuid4()), True)
-except (AssertionError, EnvironmentError):
-    ok = True
-finally:
-    assert ok and "the time bound must stop the process"
-print "SUCCESS DONE"
+elif parsed_args.benchmark:
+    test_compression('./lepton')
+if not parsed_args.benchmark:
+    test_compression('./lepton')
+    test_compression('./lepton', '/tmp/' + str(uuid.uuid4()))
+
+    ok = False
+    try:
+        test_compression('./lepton', '/tmp/' + str(uuid.uuid4()), True)
+    except (AssertionError, EnvironmentError):
+        ok = True
+    finally:
+        assert ok and "the time bound must stop the process"
+    print "SUCCESS DONE"
