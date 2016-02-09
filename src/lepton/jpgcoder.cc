@@ -600,7 +600,7 @@ int main( int argc, char** argv )
                            &thread_mem_limit,
                            &needs_huge_pages,
                            &avx2upgrade);
-#ifndef USE_AVX2
+#ifndef __AVX2__
 #ifndef __clang__
         if (avx2upgrade &&
             __builtin_cpu_supports("avx2")
@@ -3890,7 +3890,7 @@ int find_aligned_end_64_sse41(const int16_t *block) {
     assert(retval == find_aligned_end_64_scalar(block));
     return retval;
 }
-#ifdef USE_AVX2
+#ifdef __AVX2__
 int find_aligned_end_64(const int16_t *block) {
     uint32_t mask = 0;
     int iter;

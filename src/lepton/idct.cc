@@ -377,7 +377,7 @@ __m128i m256_to_epi16(__m256i vec) {
     return _mm_or_si128(lopacked, hipacked);
 
     }*/
-#if USE_AVX2
+#if __AVX2__
 void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
     // align intermediate storage to 16 bytes
     using namespace idct_local;
