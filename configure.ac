@@ -24,6 +24,14 @@ AC_SUBST([PICKY_CXXFLAGS])
 : ${CXXFLAGS="-march=native -O2 -g"}
 : ${CFLAGS="-march=native -O2 -g"}
 
+# Add -DNDEBUG by default
+AC_ARG_ENABLE([debug],
+  [AS_HELP_STRING([--enable-debug],
+    [Enable assertions @<:@no@:>@])],
+  [NODEBUG_CXXFLAGS=""],
+  [NODEBUG_CXXFLAGS="-DNDEBUG"])
+AC_SUBST(NODEBUG_CXXFLAGS)
+
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
