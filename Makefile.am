@@ -1,8 +1,15 @@
+includes = -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder -I$(srcdir)/dependencies -I$(srcdir)/dependencies -I$(srcdir)/dependencies/xz/src/liblzma/common -I$(srcdir)/dependencies/xz/src/common -I$(srcdir)/dependencies/xz/src/liblzma/lzma -I$(srcdir)/dependencies/xz/src/liblzma/lz -I$(srcdir)/dependencies/xz/src/liblzma/check -I$(srcdir)/dependencies/xz/src/liblzma/rangecoder -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/dependencies/xz/src/liblzma/simple -I$(srcdir)/dependencies/xz/src/liblzma/delta -I$(srcdir)/dependencies/xz/src/liblzma
+
+AM_CXXFLAGS = $(CXX11_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always)\" $(includes)
+
+AM_CFLAGS = $(C99_FLAGS) $(PICKY_CFLAGS) $(NODEBUG_CXXFLAGS)
+
 noinst_LIBRARIES = liblocalzlib.a libtestdriver.a liblocalmd5.a
-#libio.a libdecoder.a libencoder.a libmodel.a libutil.a
+
 bin_PROGRAMS = lepton test_suite/test_invariants
-lepton_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS) -I$(srcdir)/dependencies -I$(srcdir)/dependencies -DGIT_REVISION=\"$(shell git rev-parse HEAD)\"
-lepton_LDADD = -lpthread liblocalmd5.a liblocalzlib.a 
+
+lepton_LDADD = liblocalmd5.a liblocalzlib.a 
+
 lepton_SOURCES = \
    src/io/MemReadWriter.cc \
    src/lepton/base_coders.hh \
@@ -78,15 +85,8 @@ lepton_SOURCES = \
    src/vp8/encoder/vpx_bool_writer.hh \
    src/vp8/decoder/vpx_bool_reader.hh
 
-AM_CXXFLAGS = $(CXX11_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
-AM_CFLAGS = $(C99_FLAGS) $(PICKY_CXXFLAGS) $(NODEBUG_CXXFLAGS)
-
-
-liblocalxz_a_CFLAGS = -std=c99 -msse4.2 -DHAVE_CONFIG_H -I$(srcdir)/dependencies/xz/src/liblzma/common -I$(srcdir)/dependencies/xz/src/common -I$(srcdir)/dependencies -I$(srcdir)/dependencies/xz/src/liblzma/lzma -I$(srcdir)/dependencies/xz/src/liblzma/lz -I$(srcdir)/dependencies/xz/src/liblzma/check -I$(srcdir)/dependencies/xz/src/liblzma/rangecoder -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/dependencies/xz/src/liblzma/simple -I$(srcdir)/dependencies/xz/src/liblzma/delta -I$(srcdir)/dependencies/xz/src/liblzma
-
-liblocalmd5_a_CFLAGS = -std=c99 -msse4.2
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
-liblocalzlib_a_CFLAGS = -msse4.2 -include unistd.h
+
 liblocalzlib_a_SOURCES = dependencies/zlib/inflate.c \
 dependencies/zlib/inflate.h \
 dependencies/zlib/gzguts.h \
@@ -114,10 +114,6 @@ dependencies/zlib/gzread.c \
 dependencies/zlib/deflate.h \
 dependencies/zlib/gzlib.c
 
-DEFAULT_INCLUDES=-I$(srcdir)/src
-
-
-#noinst_LIBRARIES = libtestdriver.a
 libtestdriver_a_SOURCES = test_suite/timing_driver.cc
 
 test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/Allocator.hh \
@@ -134,101 +130,99 @@ test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/All
    src/io/MemMgrAllocator.cc \
    src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
-test_suite_test_invariants_CXXFLAGS = $(CXX11_FLAGS) -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder $(PICKY_CXXFLAGS)
+
 test_suite_test_invariants_LDADD = liblocalzlib.a
 
-
 check_PROGRAMS = test_suite/test_truncate_lowmem test_suite/test_android_lowmem test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread
-
 
 test_suite_test_baseline_ujg_SOURCES = test_suite/test_harness.cc
 test_suite_test_baseline_ujg_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_baseline_SOURCES = test_suite/test_harness.cc
-test_suite_test_baseline_CXXFLAGS = -DUSE_LEPTON
+test_suite_test_baseline_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON
 test_suite_test_baseline_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_baseline_unjailed_SOURCES = test_suite/test_harness.cc
-test_suite_test_baseline_unjailed_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=1
+test_suite_test_baseline_unjailed_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=1
 test_suite_test_baseline_unjailed_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_baseline_unjailed_thread_SOURCES = test_suite/test_harness.cc
-test_suite_test_baseline_unjailed_thread_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=2
+test_suite_test_baseline_unjailed_thread_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=2
 test_suite_test_baseline_unjailed_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_baseline_unjailed_decode_SOURCES = test_suite/test_harness.cc
-test_suite_test_baseline_unjailed_decode_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=3
+test_suite_test_baseline_unjailed_decode_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=3
 test_suite_test_baseline_unjailed_decode_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_baseline_unjailed_decode_thread_SOURCES = test_suite/test_harness.cc
-test_suite_test_baseline_unjailed_decode_thread_CXXFLAGS = -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=4
+test_suite_test_baseline_unjailed_decode_thread_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DUNJAILED -DINJECT_SYSCALL=4
 test_suite_test_baseline_unjailed_decode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_seccomp_encode_main_SOURCES = test_suite/test_harness.cc
-test_suite_test_seccomp_encode_main_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=1 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_encode_main_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DINJECT_SYSCALL=1 -DEXPECT_LINUX_FAILURE
 test_suite_test_seccomp_encode_main_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_seccomp_encode_thread_SOURCES = test_suite/test_harness.cc
-test_suite_test_seccomp_encode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=2 -DEXPECT_LINUX_FAILURE
+test_suite_test_seccomp_encode_thread_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DINJECT_SYSCALL=2 -DEXPECT_LINUX_FAILURE
 test_suite_test_seccomp_encode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_seccomp_decode_main_SOURCES = test_suite/test_harness.cc
-test_suite_test_seccomp_decode_main_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=3 -DEXPECT_LINUX_DECODE_FAILURE
+test_suite_test_seccomp_decode_main_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DINJECT_SYSCALL=3 -DEXPECT_LINUX_DECODE_FAILURE
 test_suite_test_seccomp_decode_main_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_seccomp_decode_thread_SOURCES = test_suite/test_harness.cc
-test_suite_test_seccomp_decode_thread_CXXFLAGS = -DUSE_LEPTON -DINJECT_SYSCALL=4 -DEXPECT_LINUX_DECODE_FAILURE
+test_suite_test_seccomp_decode_thread_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DINJECT_SYSCALL=4 -DEXPECT_LINUX_DECODE_FAILURE
 test_suite_test_seccomp_decode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_iphone_SOURCES = test_suite/test_harness.cc
-test_suite_test_iphone_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
+test_suite_test_iphone_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphone -DTEST_FILE0=iphonecity -DTEST_FILE1=android
 test_suite_test_iphone_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_SLR_SOURCES = test_suite/test_harness.cc
-test_suite_test_SLR_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity -DMORE_MEMORY=\"256M\"
+test_suite_test_SLR_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity -DMORE_MEMORY=\"256M\"
 test_suite_test_SLR_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_hq_SOURCES = test_suite/test_harness.cc
-test_suite_test_hq_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=hq -DMORE_MEMORY=\"360M\" -DTHREAD_MEMORY=\"16M\"
+test_suite_test_hq_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=hq -DMORE_MEMORY=\"360M\" -DTHREAD_MEMORY=\"16M\"
 test_suite_test_hq_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_misc_SOURCES = test_suite/test_harness.cc
-test_suite_test_misc_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
+test_suite_test_misc_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
 test_suite_test_misc_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_arithmetic_failfast_SOURCES = test_suite/test_harness.cc
-test_suite_test_arithmetic_failfast_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=arithmetic -DEXPECT_FAILURE
+test_suite_test_arithmetic_failfast_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=arithmetic -DEXPECT_FAILURE
 test_suite_test_arithmetic_failfast_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_ujg_SOURCES = test_suite/test_harness.cc
-test_suite_test_progressive_ujg_CXXFLAGS = -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE
+test_suite_test_progressive_ujg_CXXFLAGS = $(AM_CXXFLAGS) -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE
 test_suite_test_progressive_ujg_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_SOURCES = test_suite/test_harness.cc
-test_suite_test_progressive_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE
+test_suite_test_progressive_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE
 test_suite_test_progressive_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_disallowed_SOURCES = test_suite/test_harness.cc
-test_suite_test_progressive_disallowed_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DEXPECT_FAILURE
+test_suite_test_progressive_disallowed_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DEXPECT_FAILURE
 test_suite_test_progressive_disallowed_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_ujg_SOURCES = test_suite/test_harness.cc
-test_suite_test_truncate_ujg_CXXFLAGS = -DTEST_FILE=trunc
+test_suite_test_truncate_ujg_CXXFLAGS = $(AM_CXXFLAGS) -DTEST_FILE=trunc
 test_suite_test_truncate_ujg_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_SOURCES = test_suite/test_harness.cc
-test_suite_test_truncate_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc
+test_suite_test_truncate_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trunc
 test_suite_test_truncate_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_lowmem_SOURCES = test_suite/test_harness.cc
-test_suite_test_truncate_lowmem_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=trunc -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
+test_suite_test_truncate_lowmem_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trunc -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
 test_suite_test_truncate_lowmem_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_android_lowmem_SOURCES = test_suite/test_harness.cc
-test_suite_test_android_lowmem_CXXFLAGS = -DUSE_LEPTON -DTEST_FILE=android -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
+test_suite_test_android_lowmem_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=android -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
 test_suite_test_android_lowmem_LDADD = libtestdriver.a -lpthread
 
 TESTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem
-# - DISABLED UNTIL DIAGNOSIS
+
 dist_check_SCRIPTS = test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem
-# - DISABLED UNTIL DIAGNOSIS
+

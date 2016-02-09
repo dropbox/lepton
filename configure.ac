@@ -7,19 +7,27 @@ AM_INIT_AUTOMAKE([subdir-objects foreign])
 AC_CONFIG_SRCDIR([src/lepton/vp8_encoder.hh])
 AC_CONFIG_HEADERS([config.h])
 
-# Add picky CXXFLAGS
-CXX11_FLAGS="-std=c++11 -march=native -pthread -fno-exceptions -fno-rtti"
-C99_FLAGS="-std=c99 -march=native -DHAVE_CONFIG_H"
-
-PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter" # -Weffc++
+# Add preprocessor flags
+CXX11_FLAGS="-std=c++11 -pthread"
 AC_SUBST([CXX11_FLAGS])
+C99_FLAGS="-std=c99"
+AC_SUBST([C99_FLAGS])
+
+# Add picky flags
+PICKY_CFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter"
+AC_SUBST([PICKY_CFLAGS])
+
+PICKY_CXXFLAGS="$(PICKY_CFLAGS) -Werror -fno-exceptions -fno-rtti"
 AC_SUBST([PICKY_CXXFLAGS])
+
+# Add default CXXFLAGS/CFLAGS with optimizer settings
+: ${CXXFLAGS="-march=native -O2 -g"}
+: ${CFLAGS="-march=native -O2 -g"}
 
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
 AC_PROG_RANLIB
-
 
 # Checks for libraries.
 # PKG_CHECK_MODULES([liblzma], [liblzma])
