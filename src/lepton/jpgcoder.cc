@@ -181,6 +181,7 @@ struct MergeJpegProgress;
 bool merge_jpeg( void );
 bool decode_jpeg( void );
 bool recode_jpeg( void );
+bool recode_baseline_jpeg( void );
 bool adapt_icos( void );
 bool check_value_range( void );
 bool write_ujpg( void );
@@ -1210,7 +1211,11 @@ void process_file(IOUtil::FileReader* reader,
                     read_done = clock();
                 }
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-                execute( recode_jpeg );
+                if (!g_allow_progressive) {
+                    execute(recode_baseline_jpeg);
+                } else {
+                    execute(recode_jpeg);
+                }
                 if (!do_streaming) {
                     execute( merge_jpeg );
                 }
@@ -2551,6 +2556,229 @@ bool decode_jpeg( void )
 
     // clean up
     delete( huffr );
+
+
+    return true;
+}
+
+
+
+/* -----------------------------------------------
+    JPEG encoding routine
+    ----------------------------------------------- */
+bool recode_baseline_jpeg( void )
+{
+    if (!g_use_seccomp) {
+        pre_byte = clock();
+    }
+    abitwriter*  huffw; // bitwise writer for image data
+    abytewriter* storw; // bytewise writer for storage of correction bits
+
+    unsigned char  type = 0x00; // type of current marker segment
+    unsigned int   len  = 0; // length of current marker segment
+    unsigned int   hpos = 0; // current position in header
+
+    int lastdc[ 4 ]; // last dc for each component
+    Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
+    unsigned int eobrun; // run of eobs
+    int rstw; // restart wait counter
+
+    int cmp, bpos, dpos;
+    int mcu, sub, csc;
+    int eob, sta;
+    int tmp;
+
+    // open huffman coded image data in abitwriter
+    huffw = new abitwriter( ABIT_WRITER_PRELOAD, max_file_size);
+    huffw->fillbit = padbit;
+
+    // init storage writer
+    storw = new abytewriter( ABIT_WRITER_PRELOAD);
+
+    // preset count of scans and restarts
+    scnc = 0;
+    rstc = 0;
+    MergeJpegProgress streaming_progress;
+
+    // JPEG decompression loop
+    while ( true )
+    {
+        // seek till start-of-scan, parse only DHT, DRI and SOS
+        for ( type = 0x00; type != 0xDA; ) {
+            if ( ( int ) hpos >= hdrs ) break;
+            type = hdrdata[ hpos + 1 ];
+            len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
+            if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
+                if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
+                    return false;
+                }
+                int max_scan = 0;
+                for (int i = 0; i < cmpc; ++i) {
+                    max_scan = std::max(max_scan, cmpnfo[i].bcv);
+                }
+                rstp.reserve(max_scan);
+                scnp.reserve(max_scan);
+                hpos += len;
+            }
+            else {
+                hpos += len;
+                continue;
+            }
+        }
+
+        // get out if last marker segment type was not SOS
+        if ( type != 0xDA ) break;
+
+
+        // (re)alloc scan positons array
+        while ((int)scnp.size() < scnc + 2) {
+            scnp.push_back(0);
+        }
+
+        // (re)alloc restart marker positons array if needed
+        if ( rsti > 0 ) {
+            tmp = rstc + ( ( cs_cmpc > 1 ) ?
+                ( mcuc / rsti ) : ( cmpnfo[ cs_cmp[ 0 ] ].bc / rsti ) );
+            while ((int)rstp.size() <= tmp ) {
+                rstp.push_back((unsigned int) -1 );
+            }
+        }
+
+        // intial variables set for encoding
+        cmp  = cs_cmp[ 0 ];
+        csc  = 0;
+        mcu  = 0;
+        sub  = 0;
+        dpos = 0;
+
+        // store scan position
+        scnp[ scnc ] = huffw->getpos();
+        scnp[ scnc + 1 ] = 0; // danielrh@ avoid uninitialized memory when doing progressive writeout
+        bool first_pass = true;
+        // JPEG imagedata encoding routines
+        while ( true )
+        {
+            // (re)set last DCs for diff coding
+            lastdc[ 0 ] = 0;
+            lastdc[ 1 ] = 0;
+            lastdc[ 2 ] = 0;
+            lastdc[ 3 ] = 0;
+
+            // (re)set status
+            sta = 0;
+
+            // (re)set eobrun
+            eobrun = 0;
+
+            // (re)set rst wait counter
+            rstw = rsti;
+            if (jpegtype != 1) {
+                // unreachable: we let this image through the encoder with baseline markers
+                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+            }
+            if (cs_cmpc != colldata.get_num_components()) {
+                // unreachable: we let this image through the encoder with baseline markers
+                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+            }
+            if ((jpegtype != 1 || cs_cmpc != colldata.get_num_components())
+                && colldata.is_memory_optimized(0)
+                && first_pass) {
+                colldata.init(cmpnfo, cmpc, false);
+            }
+            first_pass = false;
+            // ---> sequential interleaved encoding <---
+            while ( sta == 0 ) {
+                // copy from colldata
+                const AlignedBlock &aligned_block = colldata.block((BlockType)cmp, dpos);
+                //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
+                for ( bpos = 0; bpos < 64; bpos++ ) {
+                    block[bpos] = aligned_block.coefficients_zigzag(bpos);
+                }
+                int16_t dc = block[0];
+                // diff coding for dc
+                block[ 0 ] -= lastdc[ cmp ];
+                lastdc[ cmp ] = dc;
+                
+                // encode block
+                eob = encode_block_seq( huffw,
+                                        &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
+                                        &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
+                                        block.begin() );
+
+                // check for errors, proceed if no error encountered
+                if ( eob < 0 ) sta = -1;
+                else {
+                    int test_cmp = cmp;
+                    int test_dpos = dpos;
+                    int test_rstw = rstw;
+                    sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                    if (cmpc == 1) { // lets make sure we can use the original in the noninterleaved case
+                        int test_sta = next_mcuposn( &test_cmp, &test_dpos, &test_rstw );
+                        assert(test_sta == sta);
+                        assert(test_cmp == cmp);
+                        assert(test_dpos == dpos);
+                        assert(test_rstw == rstw);
+                    }
+                }
+                // FOR grayscale the code was:  -- I think the above may be similar else 
+                if (sta == 0 && huffw->no_remainder()) {
+                    merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                }
+                if (str_out->has_reached_bound()) {
+                    sta = 2;
+                }
+            }
+
+            // pad huffman writer
+            huffw->pad( padbit );
+
+            // evaluate status
+            if ( sta == -1 ) { // status -1 means error
+                fprintf( stderr, "encode error in scan%i / mcu%i",
+                    scnc, ( cs_cmpc > 1 ) ? mcu : dpos );
+                delete huffw;
+                errorlevel.store(2);
+                return false;
+            }
+            else if ( sta == 2 ) { // status 2 means done
+                scnc++; // increment scan counter
+                break; // leave decoding loop, everything is done here
+            }
+            else if ( sta == 1 ) { // status 1 means restart
+                if ( rsti > 0 ) // store rstp & stay in the loop
+                    rstp[ rstc++ ] = huffw->getpos() - 1;
+            }
+            huffw->flush_no_pad();
+            assert(huffw->no_remainder() && "this should have been padded");
+            if (huffw->no_remainder()) {
+                merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+            }
+        }
+    }
+
+    // safety check for error in huffwriter
+    if ( huffw->error ) {
+        delete huffw;
+        fprintf( stderr, MEM_ERRMSG );
+        errorlevel.store(2);
+        return false;
+    }
+
+    // get data into huffdata
+    huffdata = huffw->getptr();
+    hufs = huffw->getpos();
+    assert(huffw->no_remainder() && "this should have been padded");
+    merge_jpeg_streaming(&streaming_progress, huffdata, hufs, true);
+    if (!fast_exit) {
+        delete huffw;
+
+        // remove storage writer
+        delete storw;
+    }
+    // store last scan & restart positions
+    scnp[ scnc ] = hufs;
+    if ( !rstp.empty() )
+        rstp[ rstc ] = hufs;
 
 
     return true;

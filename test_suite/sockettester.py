@@ -38,7 +38,7 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
     custom_name = socket_name is not None
     xargs = [binary_name,
              '-socket',
-             '-timebound=10ms' if too_short_time_bound else '-timebound=5000ms',
+             '-timebound=10ms' if too_short_time_bound else '-timebound=50000ms',
              '-preload']
     if socket_name is not None:
         xargs[1]+= '=' + socket_name
@@ -98,6 +98,12 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         decode_end = time.time()
         lepton_socket.close()
         v.join()
+        print len(ojpg)
+        print len(jpg)
+        if ojpg != jpg:
+            print ojpg.encode('hex')
+            print 'VS'
+            print jpg.encode('hex')
         assert ojpg == jpg
         print 'decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')'
         if not parsed_args.benchmark:

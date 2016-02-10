@@ -21,15 +21,15 @@ PICKY_CXXFLAGS="$(PICKY_CFLAGS) -Werror -fno-exceptions -fno-rtti"
 AC_SUBST([PICKY_CXXFLAGS])
 
 # Add default CXXFLAGS/CFLAGS with optimizer settings
-: ${CXXFLAGS="-march=native -O2 -g"}
-: ${CFLAGS="-march=native -O2 -g"}
+: ${CXXFLAGS="-march=native -g"}
+: ${CFLAGS="-march=native -g"}
 
 # Add -DNDEBUG by default
 AC_ARG_ENABLE([debug],
   [AS_HELP_STRING([--enable-debug],
     [Enable assertions @<:@no@:>@])],
   [NODEBUG_CXXFLAGS=""],
-  [NODEBUG_CXXFLAGS="-DNDEBUG"])
+  [NODEBUG_CXXFLAGS="-O2 -DNDEBUG"])
 AC_SUBST(NODEBUG_CXXFLAGS)
 
 # Checks for programs.
