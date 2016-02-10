@@ -72,7 +72,43 @@ bool fast_exit = true;
 #define MEM_ERRMSG    "out of memory error"
 #define FRD_ERRMSG    "could not read file / file not found: %s"
 #define FWR_ERRMSG    "could not write file / file write-protected: %s"
-
+namespace TimingHarness {
+uint64_t timing[NUM_THREADS][NUM_STAGES] = {{0}};
+uint64_t get_time_us(bool force) {
+    if (force || !g_use_seccomp) {
+        struct timeval val = {0,0};
+        gettimeofday(&val,NULL);
+        uint64_t retval = val.tv_sec;
+        retval *= 1000000;
+        retval += val.tv_usec;
+        return retval;
+    }
+    return 0;
+}
+const char * stage_names[] = {FOREACH_TIMING_STAGE(GENERATE_TIMING_STRING) "EOF"};
+void print_results() {
+    if (!g_use_seccomp) {
+        uint64_t earliest_time = get_time_us();
+        for (int i = 0; i < NUM_STAGES; ++i) {
+            for (int j = 0; j < NUM_THREADS; ++j) {
+                if (timing[j][i] && timing[j][i] < earliest_time) {
+                    earliest_time = timing[j][i];
+                }
+            }
+        }        
+        for (int i = 0; i < NUM_STAGES; ++i) {
+            for (int j = 0; j < NUM_THREADS; ++j) {
+                if (timing[j][i]) {
+                    fprintf(stderr,
+                            "%s\t(%d)\t%f\n",
+                            stage_names[i], j,
+                            (timing[j][i] - earliest_time) * 0.000001);
+                }
+            }
+        }
+    }
+}
+}
 /* -----------------------------------------------
     struct & enum declarations
     ----------------------------------------------- */
@@ -335,12 +371,15 @@ Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice get_worker_threads() 
     Sirikata::Array1d<GenericWorker,
                       NUM_THREADS - 1>*generic_workers = new Sirikata::Array1d<GenericWorker,
                                                                                NUM_THREADS - 1>;
+
+    TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
     custom_atexit(kill_workers, generic_workers);
     return generic_workers->slice<0, NUM_THREADS - 1>();
 }
 
 VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
     VP8ComponentDecoder *retval = new VP8ComponentDecoder(threaded);
+    TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
         retval->registerWorkers(get_worker_threads());
     }
@@ -349,6 +388,7 @@ VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
 
 BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
     VP8ComponentEncoder * retval = new VP8ComponentEncoder(threaded);
+    TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
         retval->registerWorkers(get_worker_threads());
     }
@@ -590,6 +630,8 @@ void compute_thread_mem(const char * arg,
 
 int main( int argc, char** argv )
 {
+    TimingHarness::timing[0][TimingHarness::TS_MAIN]
+        = TimingHarness::get_time_us(true);
     size_t thread_mem_limit = 8192;
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
     bool needs_huge_pages = false;
@@ -1056,6 +1098,7 @@ void process_file(IOUtil::FileReader* reader,
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
                 g_encoder.reset(makeEncoder(g_threaded, g_threaded));
+                TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
                 g_decoder = NULL;
             } else if (g_threaded && (action == socketserve || action == forkserve)) {
                 g_encoder->registerWorkers(get_worker_threads());
@@ -1067,6 +1110,7 @@ void process_file(IOUtil::FileReader* reader,
     } else if (filetype == LEPTON) {
         if (!g_decoder) {
             g_decoder = makeDecoder(g_threaded, g_threaded);
+            TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (g_threaded && (action == socketserve || action == forkserve)) {
             g_decoder->registerWorkers(get_worker_threads());
@@ -1131,8 +1175,12 @@ void process_file(IOUtil::FileReader* reader,
             case forkserve:
             case socketserve:
                 timing_operation_start( 'c' );
+                TimingHarness::timing[0][TimingHarness::TS_READ_STARTED] = TimingHarness::get_time_us();
                 execute( read_jpeg );
+                TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
+                    TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
                 execute( decode_jpeg );
+                TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_FINISHED] = TimingHarness::get_time_us();
                 //execute( check_value_range );
                 execute( write_ujpg ); // replace with compression function!
                 timing_operation_complete( 'c' );
@@ -1155,15 +1203,20 @@ void process_file(IOUtil::FileReader* reader,
                     overall_start = clock();
                 }
                 timing_operation_start( 'd' );
+                TimingHarness::timing[0][TimingHarness::TS_READ_STARTED] = TimingHarness::get_time_us();
                 execute( read_ujpg ); // replace with decompression function!
+                TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
                 if (!g_use_seccomp) {
                     read_done = clock();
                 }
+                TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
                 execute( recode_jpeg );
                 if (!do_streaming) {
                     execute( merge_jpeg );
                 }
                 timing_operation_complete( 'd' );
+                TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
+    
                 str_out->close();
                 break;
             case info:
@@ -1183,6 +1236,8 @@ void process_file(IOUtil::FileReader* reader,
             // FIXME: can't delete broken output--it's gone already
         }
     }
+    TimingHarness::timing[0][TimingHarness::TS_DONE] = TimingHarness::get_time_us();
+    TimingHarness::print_results();
     if (!g_use_seccomp) {
         end = clock();
     }

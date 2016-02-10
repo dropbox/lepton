@@ -60,11 +60,14 @@ const bool dospin = true;
 #endif
 
 void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata) {
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
     }
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
 }
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                UncompressedComponents * const colldata) {
+    TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
     }
@@ -87,6 +90,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     thread_state_[target_thread_state]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
     thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
+    TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
@@ -154,18 +158,22 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             }
         }
     }
+    TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
     if (ret == CODING_PARTIAL) {
         return ret;
     }
+    TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
             if (dospin) {
                 spin_workers_.at(thread_id - 1).main_wait_for_done();
             } else {
                 workers[thread_id]->join();// for now maybe we want to use atomics instead
                 delete workers[thread_id];
             }
+            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
         }
         // join on all threads
     } else {
@@ -173,15 +181,17 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         virtual_thread_id_ += 1;
         for (int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
             initialize_thread_id(thread_id, 0, colldata);
+            TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
             if ((ret = thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
                 return ret;
             }
+            TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
         }
     }
+    TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
     for (int component = 0; component < colldata->get_num_components(); ++component) {
         colldata->worker_mark_cmp_finished((BlockType)component);
     }
-
     colldata->worker_update_coefficient_position_progress( 64 );
     colldata->worker_update_bit_progress( 16 );
     return CODING_DONE;

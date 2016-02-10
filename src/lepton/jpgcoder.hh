@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <functional>
+#include "../vp8/util/options.hh"
 #include "../io/Reader.hh"
 //extern int cmpc;
 extern std::atomic<int> errorlevel;
@@ -16,3 +17,34 @@ void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
                   int file_input_length = 0);
 void check_decompression_memory_bound_ok();
+namespace TimingHarness {
+#define FOREACH_TIMING_STAGE(CB) \
+    CB(TS_MAIN) \
+    CB(TS_MODEL_INIT) \
+    CB(TS_ACCEPT) \
+    CB(TS_THREAD_STARTED) \
+    CB(TS_READ_STARTED) \
+    CB(TS_READ_FINISHED) \
+    CB(TS_JPEG_DECODE_STARTED) \
+    CB(TS_JPEG_DECODE_FINISHED) \
+    CB(TS_STREAM_MULTIPLEX_STARTED) \
+    CB(TS_STREAM_MULTIPLEX_FINISHED) \
+    CB(TS_THREAD_WAIT_STARTED) \
+    CB(TS_THREAD_WAIT_FINISHED) \
+    CB(TS_ARITH_STARTED) \
+    CB(TS_ARITH_FINISHED) \
+    CB(TS_JPEG_RECODE_STARTED) \
+    CB(TS_JPEG_RECODE_FINISHED) \
+    CB(TS_STREAM_FLUSH_STARTED) \
+    CB(TS_STREAM_FLUSH_FINISHED) \
+    CB(TS_DONE)
+#define MAKE_TIMING_STAGE_ENUM(VALUE) VALUE,
+#define GENERATE_TIMING_STRING(VALUE) #VALUE,
+enum TimingStages_ {
+    FOREACH_TIMING_STAGE(MAKE_TIMING_STAGE_ENUM)
+    NUM_STAGES,
+};
+extern uint64_t timing[NUM_THREADS][NUM_STAGES];
+extern uint64_t get_time_us(bool force=false);
+void print_results();
+}

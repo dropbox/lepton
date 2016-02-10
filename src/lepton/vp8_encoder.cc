@@ -267,6 +267,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                                             Sirikata::Array1d<std::vector<NeighborSummary>,
                                                               (uint32_t)ColorChannel::NumBlockTypes
                                                               > *num_nonzeros) {
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     using namespace Sirikata;
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
     for (size_t i = 0; i < context.size(); ++i) {
@@ -440,6 +441,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         }
     }
     bool_encoder->finish(*stream);
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
 }
 
 int load_model_file_fd_output() {
@@ -541,6 +543,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     str_out->Write(thread_splits, sizeof(thread_splits));
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
             if (dospin) {
                 spin_workers_.at(thread_id - 1).main_wait_for_done();
             } else {
@@ -548,8 +551,10 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                 delete workers[thread_id];
                 workers[thread_id] = NULL;
             }
+            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
         }
     }
+    TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
     size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
     bool any_written = true;
@@ -574,6 +579,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
         delete stream[i]; // allocate streams as pointers so threads don't modify them inline
     }
+    TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] =
+        TimingHarness::timing[0][TimingHarness::TS_STREAM_FLUSH_STARTED] = TimingHarness::get_time_us();
     check_decompression_memory_bound_ok(); // this has to happen before last
     // bytes are written
     /* possibly write out new probability model */
@@ -604,5 +611,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         fclose(fp);
     }
 #endif
+    TimingHarness::timing[0][TimingHarness::TS_STREAM_FLUSH_FINISHED] = TimingHarness::get_time_us();
     return CODING_DONE;
 }
