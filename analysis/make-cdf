@@ -1,0 +1,20 @@
+#!/usr/bin/perl -w
+
+my @results;
+
+while (<>) {
+  chomp;
+  if ( m{[^0-9.]} ) {
+    die qq{Unexpected time: $_};
+  }
+
+  push @results, $_;
+}
+
+my @results_sorted = sort { $a <=> $b } @results;
+
+for ( 0 .. $#results_sorted ) {
+  my $sample = $results_sorted[ $_ ];
+  my $proportion_le_than_this_value = ($_ + 1) / (scalar @results_sorted);
+  print qq{$sample $proportion_le_than_this_value\n};
+}
