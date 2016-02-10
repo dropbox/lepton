@@ -22,11 +22,11 @@ parser.set_defaults(singlethread=False)
 parsed_args = parser.parse_args()
 jpg_name = parsed_args.files[0]
 
-def read_all_fd(fd):
+def read_all_sock(sock):
     datas = []
     while True:
         try:
-            datas.append(os.read(fd, 16384))
+            datas.append(os.read(sock.fileno(), 1048576))
             if len(datas[-1]) == 0:
                 break
         except OSError:
@@ -56,53 +56,53 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         duplicate_socket_name = ''
         duplicate_socket_name = dup_proc.stdout.readline().strip()
         assert not duplicate_socket_name
-    valid_fds = []
-    valid_socks = []
 
     with open(jpg_name) as f:
         jpg = f.read()
-    def fn():
+    def encoder():
         try:
-            valid_socks[0].sendall(jpg)
-            valid_socks[0].shutdown(socket.SHUT_WR)
+            lepton_socket.sendall(jpg)
+            lepton_socket.shutdown(socket.SHUT_WR)
         except EnvironmentError:
             pass
-    def fn1():
+    def decoder():
         try:
-            valid_socks[1].sendall(dat)
-            valid_socks[1].shutdown(socket.SHUT_WR)
+            lepton_socket.sendall(dat)
+            lepton_socket.shutdown(socket.SHUT_WR)
         except EnvironmentError:
             pass
 
+    t=threading.Thread(target=encoder)
 
-    t=threading.Thread(target=fn)
     encode_start = time.time()
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(socket_name)
-    valid_socks.append(sock)
-    valid_fds.append(valid_socks[-1].fileno())
+    lepton_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    lepton_socket.connect(socket_name)
     t.start()
-    dat = read_all_fd(valid_fds[0])
+    dat = read_all_sock(lepton_socket)
     encode_end = time.time()
-    valid_socks[0].close()
+    lepton_socket.close()
     t.join()
-    print len(jpg),len(dat)
-    v=threading.Thread(target=fn1)
-    decode_start = time.time()
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(socket_name)
-    valid_socks.append(sock)
-    valid_fds.append(valid_socks[-1].fileno())
-    v.start()
-    decode_mid = time.time()
-    ojpg = read_all_fd(valid_fds[1])
-    decode_end = time.time()
-    valid_socks[1].close()
-    t.join()
-
-    assert ojpg == jpg
+    
     print 'encode time ',encode_end - encode_start
-    print 'decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')'
+    print len(jpg),len(dat)
+
+    while True:
+        v=threading.Thread(target=decoder)
+
+        decode_start = time.time()
+        lepton_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        lepton_socket.connect(socket_name)
+        v.start()
+        decode_mid = time.time()
+        ojpg = read_all_sock(lepton_socket)
+        decode_end = time.time()
+        lepton_socket.close()
+        v.join()
+        assert ojpg == jpg
+        print 'decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')'
+        if not parsed_args.benchmark:
+            break
+        
     print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg)), 'parent pid is ',proc.pid
 
     proc.terminate()
