@@ -8,7 +8,6 @@ int start_mcupos(int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
-extern int cmpc; // component count
 extern char padbit;
 extern int grbs;   // size of garbage
 extern int            hdrs;   // size of header
@@ -20,7 +19,7 @@ extern unsigned char* grbgdata;    // garbage data
 extern unsigned char* hdrdata;   // header data
 extern int            rsti;
 extern int mcuv; // mcus per line
-extern unsigned int mcuh; // mcus per collumn
+extern unsigned int mcuh; // mcus per column
 extern int mcuc; // count of mcus
 extern std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
 extern bool rst_cnt_set;
@@ -44,18 +43,19 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     return memchr(local_huff_data, 0xff, 16) != NULL;
 }
 
-void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
-                       bounded_iostream* str_out,
-                       const unsigned char * local_huff_data,
-                       unsigned int max_byte_coded,
-                       bool flush) {
-    MergeJpegProgress progress(stored_progress);
 
+/**
+ * This function takes local byte-aligned huffman data and writes it to the file
+ * This function escapes any 0xff bytes found in the huffman data
+ */
+void escape_0xff_huffman_and_write(bounded_iostream* str_out,
+                                   const unsigned char * local_huff_data,
+                                   unsigned int max_byte_coded,
+                                   bool flush) {
+    unsigned int progress_ipos = 0;
     //write a single scan
     {
         // write & expand huffman coded image data
-        unsigned int progress_ipos = progress.ipos;
-        const unsigned char mrk = 0xFF; // marker start
         const unsigned char stv = 0x00; // 0xFF stuff value
         for ( ; progress_ipos & 0xf; progress_ipos++ ) {
             if (__builtin_expect(!(progress_ipos < max_byte_coded), 0)) {
@@ -97,7 +97,6 @@ void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
             if (__builtin_expect(byte_to_write == 0xFF, 0))
                 str_out->write_byte(stv);
         }
-        progress.ipos = progress_ipos;
     }
 }
 
@@ -111,23 +110,15 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 {
     abitwriter*  huffw; // bitwise writer for image data
 
-    unsigned char  type = 0x00; // type of current marker segment
-    unsigned int   len  = 0; // length of current marker segment
-    const unsigned char mrk = 0xFF;
 
     int lastdc[ 4 ]; // last dc for each component
     Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     unsigned int eobrun; // run of eobs
     int rstw; // restart wait counter
 
-    int cmp, bpos, dpos;
-    int mcu, sub, csc;
-    int eob, sta;
-    int ABIT_WRITER_PRELOAD = 4096 * 1024 + 1024;
     // open huffman coded image data in abitwriter
     huffw = new abitwriter( 16384, max_file_size);
     huffw->fillbit = padbit;
-
 
     // preset count of scans and restarts
     MergeJpegProgress streaming_progress;
@@ -147,29 +138,30 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     {
         uint32_t hpos_start = streaming_progress.hpos;
         // seek till start-of-scan, parse only DHT, DRI and SOS
-        for ( type = 0x00; type != 0xDA; ) {
-            if ( ( int ) streaming_progress.hpos >= hdrs ) break;
-            type = hdrdata[ streaming_progress.hpos + 1 ];
-            len = 2 + B_SHORT( hdrdata[ streaming_progress.hpos + 2 ], hdrdata[ streaming_progress.hpos + 3 ] );
-            if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
-                if ( !parse_jfif_jpg( type, len, &( hdrdata[ streaming_progress.hpos ] ) ) ) {
-                    return false;
-                }
-                int max_scan = 0;
-                for (int i = 0; i < cmpc; ++i) {
-                    max_scan = std::max(max_scan, cmpnfo[i].bcv);
-                }
-                streaming_progress.hpos += len;
-            }
-            else {
-                streaming_progress.hpos += len;
-                continue;
-            }
-        }
-        str_out->write(hdrdata + hpos_start, (streaming_progress.hpos - hpos_start));
-        // get out if last marker segment type was not SOS
-        if ( type != 0xDA ) break;
+        {
+            unsigned char  type = 0x00; // type of current marker segment
 
+            for ( type = 0x00; type != 0xDA; ) {
+                if ( ( int ) streaming_progress.hpos >= hdrs ) break;
+                type = hdrdata[ streaming_progress.hpos + 1 ];
+                unsigned int len = 2 + B_SHORT( hdrdata[ streaming_progress.hpos + 2 ], hdrdata[ streaming_progress.hpos + 3 ] );
+                if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
+                    if ( !parse_jfif_jpg( type, len, &( hdrdata[ streaming_progress.hpos ] ) ) ) {
+                        return false;
+                    }
+                    streaming_progress.hpos += len;
+                } else {
+                    streaming_progress.hpos += len;
+                    continue;
+                }
+            }
+            str_out->write(hdrdata + hpos_start, (streaming_progress.hpos - hpos_start));
+            // get out if last marker segment type was not SOS
+            if ( type != 0xDA ) break;
+        }
+        
+        int cmp = 0, bpos = 0, dpos = 0;
+        int mcu = 0, sub = 0, csc = 0;
         // intial variables set for encoding
         start_mcupos(&mcu, &cmp, &csc, &sub, &dpos, &rstw);
 
@@ -183,7 +175,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             lastdc[ 3 ] = 0;
 
             // (re)set status
-            sta = 0;
+            int sta = 0;
 
             // (re)set eobrun
             eobrun = 0;
@@ -204,10 +196,10 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                 lastdc[ cmp ] = dc;
                 
                 // encode block
-                eob = encode_block_seq( huffw,
-                                        &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
-                                        &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
-                                        block.begin() );
+                int eob = encode_block_seq(huffw,
+                                           &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
+                                           &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
+                                           block.begin() );
 
                 // check for errors, proceed if no error encountered
                 if ( eob < 0 ) sta = -1;
@@ -218,9 +210,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                     sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
                 }
                 if (sta == 0 && huffw->no_remainder()) {
-                    sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
+                    escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
                     huffw->reset();
-                    streaming_progress.ipos = 0;
                 }
                 if (str_out->has_reached_bound()) {
                     sta = 2;
@@ -230,9 +221,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             // pad huffman writer
             huffw->pad( padbit );
             if (huffw->no_remainder()) {
-                sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
+                escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
                 huffw->reset();
-                streaming_progress.ipos = 0;
             }
             // evaluate status
             if ( sta == -1 ) { // status -1 means error
@@ -247,7 +237,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                     assert(streaming_progress.scan == 1 && "Baseline jpegs have but one scan");
                     if (rst_cnt.empty() || (!rst_cnt_set) || streaming_progress.num_rst_markers_this_scan < rst_cnt[0]) {
                         const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
-                        str_out->write_byte(mrk);
+                        str_out->write_byte(0xFF);
                         str_out->write_byte(rst);
                         streaming_progress.rpos++;
                         streaming_progress.cpos++;
@@ -261,7 +251,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         if (streaming_progress.scan - 1 < rst_err.size()) {
             while ( rst_err[streaming_progress.scan - 1 ] > 0 ) {
                 const unsigned char rst = 0xD0 + (streaming_progress.cpos & 7 );
-                str_out->write_byte(mrk);
+                str_out->write_byte(0xFF);
                 str_out->write_byte(rst);
                 streaming_progress.cpos++;    rst_err[streaming_progress.scan - 1 ]--;
             }
@@ -282,9 +272,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     }
 
     assert(huffw->no_remainder() && "this should have been padded");
-    sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), true);
+    escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), true);
     huffw->reset();
-    streaming_progress.ipos = 0;
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)
     // this guarantees that we can stop the write in time.
