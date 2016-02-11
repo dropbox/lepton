@@ -100,6 +100,89 @@ void escape_0xff_huffman_and_write(bounded_iostream* str_out,
     }
 }
 
+bool recode_one_mcu_scan(abitwriter *huffw, int &mcu, int &cmp, int &csc, int &sub, int &dpos, int &rstw,
+                        bounded_iostream*str_out, int lastdc[4], MergeJpegProgress &streaming_progress) {
+    Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
+    // JPEG imagedata encoding routines
+    while ( true ) {
+        // (re)set last DCs for diff coding
+        lastdc[ 0 ] = 0;
+        lastdc[ 1 ] = 0;
+        lastdc[ 2 ] = 0;
+        lastdc[ 3 ] = 0;
+
+        // (re)set status
+        int sta = 0;
+
+        // (re)set rst wait counter
+        rstw = rsti;
+        // ---> sequential interleaved encoding <---
+        while ( sta == 0 ) {
+            // copy from colldata
+            const AlignedBlock &aligned_block = colldata.block((BlockType)cmp, dpos);
+            //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
+            for ( int bpos = 0; bpos < 64; bpos++ ) {
+                block[bpos] = aligned_block.coefficients_zigzag(bpos);
+            }
+            int16_t dc = block[0];
+            // diff coding for dc
+            block[ 0 ] -= lastdc[ cmp ];
+            lastdc[ cmp ] = dc;
+                
+            // encode block
+            int eob = encode_block_seq(huffw,
+                                       &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
+                                       &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
+                                       block.begin() );
+
+            // check for errors, proceed if no error encountered
+            if ( eob < 0 ) sta = -1;
+            else {
+                int test_cmp = cmp;
+                int test_dpos = dpos;
+                int test_rstw = rstw;
+                sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+            }
+            if (sta == 0 && huffw->no_remainder()) {
+                escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
+                huffw->reset();
+            }
+            if (str_out->has_reached_bound()) {
+                sta = 2;
+            }
+        }
+        
+        // pad huffman writer
+        huffw->pad( padbit );
+        if (huffw->no_remainder()) {
+            escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
+            huffw->reset();
+        }
+        // evaluate status
+        if ( sta == -1 ) { // status -1 means error
+            delete huffw;
+            return false;
+        }
+        else if ( sta == 2 ) { // status 2 means done
+            break; // leave decoding loop, everything is done here
+        }
+        else if ( sta == 1 ) { // status 1 means restart
+            if ( rsti > 0 ) {
+                assert(streaming_progress.scan == 1 && "Baseline jpegs have but one scan");
+                if (rst_cnt.empty() || (!rst_cnt_set) || streaming_progress.num_rst_markers_this_scan < rst_cnt[0]) {
+                    const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
+                    str_out->write_byte(0xFF);
+                    str_out->write_byte(rst);
+                    streaming_progress.rpos++;
+                    streaming_progress.cpos++;
+                    ++streaming_progress.num_rst_markers_this_scan;
+                }
+            }
+        }
+        assert(huffw->no_remainder() && "this should have been padded");
+    }
+    return true;
+}
 
 
 /* -----------------------------------------------
@@ -112,8 +195,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
 
     int lastdc[ 4 ]; // last dc for each component
-    Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
-    unsigned int eobrun; // run of eobs
     int rstw; // restart wait counter
 
     // open huffman coded image data in abitwriter
@@ -160,92 +241,13 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if ( type != 0xDA ) break;
         }
         
-        int cmp = 0, bpos = 0, dpos = 0;
+        int cmp = 0, dpos = 0;
         int mcu = 0, sub = 0, csc = 0;
         // intial variables set for encoding
         start_mcupos(&mcu, &cmp, &csc, &sub, &dpos, &rstw);
-
-        // JPEG imagedata encoding routines
-        while ( true )
-        {
-            // (re)set last DCs for diff coding
-            lastdc[ 0 ] = 0;
-            lastdc[ 1 ] = 0;
-            lastdc[ 2 ] = 0;
-            lastdc[ 3 ] = 0;
-
-            // (re)set status
-            int sta = 0;
-
-            // (re)set eobrun
-            eobrun = 0;
-
-            // (re)set rst wait counter
-            rstw = rsti;
-            // ---> sequential interleaved encoding <---
-            while ( sta == 0 ) {
-                // copy from colldata
-                const AlignedBlock &aligned_block = colldata.block((BlockType)cmp, dpos);
-                //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
-                for ( bpos = 0; bpos < 64; bpos++ ) {
-                    block[bpos] = aligned_block.coefficients_zigzag(bpos);
-                }
-                int16_t dc = block[0];
-                // diff coding for dc
-                block[ 0 ] -= lastdc[ cmp ];
-                lastdc[ cmp ] = dc;
-                
-                // encode block
-                int eob = encode_block_seq(huffw,
-                                           &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
-                                           &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
-                                           block.begin() );
-
-                // check for errors, proceed if no error encountered
-                if ( eob < 0 ) sta = -1;
-                else {
-                    int test_cmp = cmp;
-                    int test_dpos = dpos;
-                    int test_rstw = rstw;
-                    sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
-                }
-                if (sta == 0 && huffw->no_remainder()) {
-                    escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
-                    huffw->reset();
-                }
-                if (str_out->has_reached_bound()) {
-                    sta = 2;
-                }
-            }
-
-            // pad huffman writer
-            huffw->pad( padbit );
-            if (huffw->no_remainder()) {
-                escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
-                huffw->reset();
-            }
-            // evaluate status
-            if ( sta == -1 ) { // status -1 means error
-                delete huffw;
-                return false;
-            }
-            else if ( sta == 2 ) { // status 2 means done
-                break; // leave decoding loop, everything is done here
-            }
-            else if ( sta == 1 ) { // status 1 means restart
-                if ( rsti > 0 ) {
-                    assert(streaming_progress.scan == 1 && "Baseline jpegs have but one scan");
-                    if (rst_cnt.empty() || (!rst_cnt_set) || streaming_progress.num_rst_markers_this_scan < rst_cnt[0]) {
-                        const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
-                        str_out->write_byte(0xFF);
-                        str_out->write_byte(rst);
-                        streaming_progress.rpos++;
-                        streaming_progress.cpos++;
-                        ++streaming_progress.num_rst_markers_this_scan;
-                    }
-                }
-            }
-            assert(huffw->no_remainder() && "this should have been padded");
+        bool ret = recode_one_mcu_scan(huffw, mcu, cmp, csc, sub, dpos, rstw, str_out, lastdc, streaming_progress);
+        if (!ret) {
+            return false;
         }
         // insert false rst markers at end if needed
         if (streaming_progress.scan - 1 < rst_err.size()) {
