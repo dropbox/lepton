@@ -4,6 +4,7 @@
 #include "recoder.hh"
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
+int start_mcupos(int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
@@ -26,8 +27,6 @@ extern bool rst_cnt_set;
 extern std::vector<unsigned int> rst_cnt;
 void check_decompression_memory_bound_ok();
 
-
-extern int cs_cmp[ 4 ]; // component numbers  in current scan
 
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
 #define B_SHORT(v1,v2)    ( ( ((int) v1) << 8 ) + ((int) v2) )
@@ -175,11 +174,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         if ( type != 0xDA ) break;
 
         // intial variables set for encoding
-        cmp  = cs_cmp[ 0 ];
-        csc  = 0;
-        mcu  = 0;
-        sub  = 0;
-        dpos = 0;
+        start_mcupos(&mcu, &cmp, &csc, &sub, &dpos, &rstw);
 
         // JPEG imagedata encoding routines
         while ( true )
