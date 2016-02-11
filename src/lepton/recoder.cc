@@ -7,7 +7,6 @@
 #include "recoder.hh"
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
-int start_mcupos(int* mcu);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
@@ -105,8 +104,8 @@ void escape_0xff_huffman_and_write(bounded_iostream* str_out,
 
 extern int cs_cmp[ 4 ];
 
-bool recode_one_mcu_row(abitwriter *huffw, int &mcu,
-                        bounded_iostream*str_out, int lastdc[4], MergeJpegProgress &streaming_progress) {
+bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &cumulative_reset_markers,
+                        bounded_iostream*str_out, int lastdc[4] ) {
   int cmp = cs_cmp[ 0 ];
   int csc = 0, sub = 0;
   int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
@@ -178,14 +177,11 @@ bool recode_one_mcu_row(abitwriter *huffw, int &mcu,
         }
         else if ( sta == 1 ) { // status 1 means restart
             if ( rsti > 0 ) {
-                assert(streaming_progress.scan == 1 && "Baseline jpegs have but one scan");
-                if (rst_cnt.empty() || (!rst_cnt_set) || streaming_progress.num_rst_markers_this_scan < rst_cnt[0]) {
-                    const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
+                if (rst_cnt.empty() || (!rst_cnt_set) || cumulative_reset_markers < rst_cnt[0]) {
+                    const unsigned char rst = 0xD0 + ( cumulative_reset_markers & 7);
                     str_out->write_byte(0xFF);
                     str_out->write_byte(rst);
-                    streaming_progress.rpos++;
-                    streaming_progress.cpos++;
-                    ++streaming_progress.num_rst_markers_this_scan;
+                    cumulative_reset_markers++;
                 }
                 // (re)set rst wait counter
                 rstw = rsti;
@@ -258,11 +254,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if ( type != 0xDA ) break;
         }
         
-        int mcu;
-        // intial variables set for encoding
-        start_mcupos(&mcu);
+        int mcu = 0, cumulative_reset_markers = 0;
         for (int i = 0; i < mcuv; ++i) {
-            bool ret = recode_one_mcu_row(huffw, mcu, str_out, lastdc, streaming_progress);
+            bool ret = recode_one_mcu_row(huffw, mcu, cumulative_reset_markers, str_out, lastdc);
             if (!ret) {
                 return false;
             }
@@ -270,6 +264,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                 break;
             }
         }
+        streaming_progress.rpos = streaming_progress.cpos = streaming_progress.num_rst_markers_this_scan = cumulative_reset_markers;
         // insert false rst markers at end if needed
         if (streaming_progress.scan - 1 < rst_err.size()) {
             while ( rst_err[streaming_progress.scan - 1 ] > 0 ) {

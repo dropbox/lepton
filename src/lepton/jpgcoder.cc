@@ -4374,11 +4374,6 @@ int next_huffcode( abitreader *huffw, huffTree *ctree )
     return ( node - 256 );
 }
 
-int start_mcupos(int* mcu)
-{
-    *mcu = 0;
-    return 0;
-}
 /* -----------------------------------------------
     calculates next position for MCU
     ----------------------------------------------- */
