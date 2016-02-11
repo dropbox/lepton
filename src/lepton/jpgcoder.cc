@@ -2599,10 +2599,16 @@ bool recode_baseline_jpeg( void )
     scnc = 0;
     rstc = 0;
     MergeJpegProgress streaming_progress;
+    assert (progress.ipos == 0 && progress.hpos == 0 && progress.scan == 1 && progress.within_scan == false);
+    str_out->set_bound(max_file_size - grbs);
+
+    // write SOI
+    str_out->write( SOI, 2 );
 
     // JPEG decompression loop
     while ( true )
     {
+        uint32_t hpos_start = 0;
         // seek till start-of-scan, parse only DHT, DRI and SOS
         for ( type = 0x00; type != 0xDA; ) {
             if ( ( int ) hpos >= hdrs ) break;
@@ -2625,7 +2631,7 @@ bool recode_baseline_jpeg( void )
                 continue;
             }
         }
-
+        str_out->write(hdrdata + hpos_start, (progress.hpos - hpos_start));
         // get out if last marker segment type was not SOS
         if ( type != 0xDA ) break;
 
@@ -2654,7 +2660,14 @@ bool recode_baseline_jpeg( void )
         // store scan position
         scnp[ scnc ] = huffw->getpos();
         scnp[ scnc + 1 ] = 0; // danielrh@ avoid uninitialized memory when doing progressive writeout
-        bool first_pass = true;
+        if (jpegtype != 1) {
+            // unreachable: we let this image through the encoder with baseline markers
+            custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+        }
+        if (cs_cmpc != colldata.get_num_components()) {
+            // unreachable: we let this image through the encoder with baseline markers
+            custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+        }
         // JPEG imagedata encoding routines
         while ( true )
         {
@@ -2672,20 +2685,6 @@ bool recode_baseline_jpeg( void )
 
             // (re)set rst wait counter
             rstw = rsti;
-            if (jpegtype != 1) {
-                // unreachable: we let this image through the encoder with baseline markers
-                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
-            }
-            if (cs_cmpc != colldata.get_num_components()) {
-                // unreachable: we let this image through the encoder with baseline markers
-                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
-            }
-            if ((jpegtype != 1 || cs_cmpc != colldata.get_num_components())
-                && colldata.is_memory_optimized(0)
-                && first_pass) {
-                colldata.init(cmpnfo, cmpc, false);
-            }
-            first_pass = false;
             // ---> sequential interleaved encoding <---
             while ( sta == 0 ) {
                 // copy from colldata
@@ -2720,7 +2719,6 @@ bool recode_baseline_jpeg( void )
                         assert(test_rstw == rstw);
                     }
                 }
-                // FOR grayscale the code was:  -- I think the above may be similar else 
                 if (sta == 0 && huffw->no_remainder()) {
                     merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                 }
