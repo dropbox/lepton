@@ -5,6 +5,7 @@
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
+bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan);
 const bool fast_exit = true;
 extern int    jpgfilesize;            // size of JPEG file
 extern std::atomic<int> errorlevel;
@@ -30,6 +31,7 @@ extern int mcuv; // mcus per line
 extern unsigned int mcuh; // mcus per collumn
 extern int mcuc; // count of mcus
 extern std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
+extern bool rst_cnt_set;
 extern std::vector<unsigned int> rst_cnt;
 void check_decompression_memory_bound_ok();
 
@@ -288,12 +290,15 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             }
             else if ( sta == 1 ) { // status 1 means restart
                 if ( rsti > 0 ) {
-                    const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
-                    str_out->write_byte(mrk);
-                    str_out->write_byte(rst);
-                    streaming_progress.rpos++;
-                    streaming_progress.cpos++;
-                    ++streaming_progress.num_rst_markers_this_scan;
+                    assert(streaming_progress.scan == 1 && "Baseline jpegs have but one scan");
+                    if (rst_cnt.empty() || (!rst_cnt_set) || streaming_progress.num_rst_markers_this_scan < rst_cnt[0]) {
+                        const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
+                        str_out->write_byte(mrk);
+                        str_out->write_byte(rst);
+                        streaming_progress.rpos++;
+                        streaming_progress.cpos++;
+                        ++streaming_progress.num_rst_markers_this_scan;
+                    }
                 }
             }
             assert(huffw->no_remainder() && "this should have been padded");
