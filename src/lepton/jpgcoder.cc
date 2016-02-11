@@ -993,7 +993,12 @@ void test_syscall_injection(std::atomic<int>*value) {
 }
 bool recode_baseline_jpeg_wrapper() {
     bool retval = recode_baseline_jpeg(str_out, max_file_size);
+    if (!retval) {
+        errorlevel.store(2);
+        return retval;
+    }
     // get filesize
+    jpgfilesize = str_out->getsize();
     if (ujg_base_in) {
         ujgfilesize = ujg_base_in->getsize();
     } else {
@@ -1199,7 +1204,7 @@ void process_file(IOUtil::FileReader* reader,
                 }
                 timing_operation_complete( 'd' );
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
-    
+
                 str_out->close();
                 break;
             case info:

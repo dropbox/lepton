@@ -5,17 +5,11 @@
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
-const bool fast_exit = true;
-extern int    jpgfilesize;            // size of JPEG file
-extern std::atomic<int> errorlevel;
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
 extern int cmpc; // component count
 extern char padbit;
-extern int scnc;   // count of scans
-extern int rstc;
 extern int grbs;   // size of garbage
-extern int            hufs;   // size of huffman data
 extern int            hdrs;   // size of header
 extern unsigned short qtables[4][64];                // quantization tables
 extern huffCodes      hcodes[2][4];                // huffman codes
@@ -23,7 +17,6 @@ extern huffTree       htrees[2][4];                // huffman decoding trees
 extern unsigned char  htset[2][4];                    // 1 if huffman table is set
 extern unsigned char* grbgdata;    // garbage data
 extern unsigned char* hdrdata;   // header data
-extern unsigned char* huffdata;   // huffman coded data
 extern int            rsti;
 extern int mcuv; // mcus per line
 extern unsigned int mcuh; // mcus per collumn
@@ -141,8 +134,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     storw = new abytewriter( ABIT_WRITER_PRELOAD);
 
     // preset count of scans and restarts
-    scnc = 0;
-    rstc = 0;
     MergeJpegProgress streaming_progress;
     assert (streaming_progress.ipos == 0
             && streaming_progress.hpos == 0
@@ -250,11 +241,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             // evaluate status
             if ( sta == -1 ) { // status -1 means error
                 delete huffw;
-                errorlevel.store(2);
                 return false;
             }
             else if ( sta == 2 ) { // status 2 means done
-                scnc++; // increment scan counter
                 break; // leave decoding loop, everything is done here
             }
             else if ( sta == 1 ) { // status 1 means restart
@@ -296,9 +285,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         custom_exit(ExitCode::OOM);
     }
 
-    // get data into huffdata
-    huffdata = huffw->getptr();
-    hufs = huffw->getpos();
     assert(huffw->no_remainder() && "this should have been padded");
     sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), true);
 
@@ -317,17 +303,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     // errormessage if write error
     if ( str_out->chkerr() ) {
         fprintf( stderr, "write error, possibly drive is full" );
-        errorlevel.store(2);
         return false;
     }
-    // get filesize
-    if (!fast_exit) {
-        delete huffw;
-
-        // remove storage writer
-        delete storw;
-    }
-
-    jpgfilesize = str_out->getsize();
     return true;
 }
