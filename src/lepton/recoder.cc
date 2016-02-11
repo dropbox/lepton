@@ -36,10 +36,6 @@ void check_decompression_memory_bound_ok();
 
 extern int cs_cmpc; // component count in current scan
 extern int cs_cmp[ 4 ]; // component numbers  in current scan
-extern int cs_from; // begin - band of current scan ( inclusive )
-extern int cs_to; // end - band of current scan ( inclusive )
-extern int cs_sah; // successive approximation bit pos high
-extern int cs_sal; // successive approximation bit pos low
 
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
 #define B_SHORT(v1,v2)    ( ( ((int) v1) << 8 ) + ((int) v2) )
@@ -57,7 +53,6 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     return memchr(local_huff_data, 0xff, 16) != NULL;
 }
 
-static std::vector<unsigned int>  rstp;   // restart markers positions in huffdata
 void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
                        bounded_iostream* str_out,
                        const unsigned char * local_huff_data,
@@ -69,7 +64,6 @@ void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
     {
         // write & expand huffman coded image data
         unsigned int progress_ipos = progress.ipos;
-        unsigned int rstp_progress_rpos = rstp.empty() ? (1 << 30) : rstp[ progress.rpos ];
         const unsigned char mrk = 0xFF; // marker start
         const unsigned char stv = 0x00; // 0xFF stuff value
         for ( ; progress_ipos & 0xf; progress_ipos++ ) {
@@ -87,25 +81,14 @@ void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
             if (__builtin_expect(!(progress_ipos + 15 < max_byte_coded), 0)) {
                 break;
             }
-            if ( __builtin_expect(aligned_memchr16ff(local_huff_data + progress_ipos)
-                                  || (progress_ipos <= rstp_progress_rpos
-                                      && progress_ipos + 15 >= rstp_progress_rpos), 0)){
+            if ( __builtin_expect(aligned_memchr16ff(local_huff_data + progress_ipos), 0)){
                 // insert restart markers if needed
                 for (int veci = 0 ; veci < 16; ++veci, ++progress_ipos ) {
-                    if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
-                        uint8_t byte_to_write = local_huff_data[progress_ipos];
-                        str_out->write_byte(byte_to_write);
-                        // check current byte, stuff if needed
-                        if (__builtin_expect(byte_to_write == 0xFF, 0)) {
-                            str_out->write_byte(stv);
-                        }
-                    } else {
-                        uint8_t byte_to_write = local_huff_data[progress_ipos];
-                        str_out->write_byte(byte_to_write);
-                        // check current byte, stuff if needed
-                        if (__builtin_expect(byte_to_write == 0xFF, 0)) {
-                            str_out->write_byte(stv);
-                        }
+                    uint8_t byte_to_write = local_huff_data[progress_ipos];
+                    str_out->write_byte(byte_to_write);
+                    // check current byte, stuff if needed
+                    if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                        str_out->write_byte(stv);
                     }
                 }
             } else {
@@ -191,7 +174,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                 for (int i = 0; i < cmpc; ++i) {
                     max_scan = std::max(max_scan, cmpnfo[i].bcv);
                 }
-                rstp.reserve(max_scan);
                 streaming_progress.hpos += len;
             }
             else {
@@ -208,9 +190,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         if ( rsti > 0 ) {
             tmp = rstc + ( ( cs_cmpc > 1 ) ?
                 ( mcuc / rsti ) : ( cmpnfo[ cs_cmp[ 0 ] ].bc / rsti ) );
-            while ((int)rstp.size() <= tmp ) {
-                rstp.push_back((unsigned int) -1 );
-            }
         }
 
         // intial variables set for encoding
@@ -309,8 +288,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             }
             else if ( sta == 1 ) { // status 1 means restart
                 if ( rsti > 0 ) {
-                    // store rstp & stay in the loop
-                    rstp[ rstc++ ] = huffw->getpos() - 1;
                     const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
