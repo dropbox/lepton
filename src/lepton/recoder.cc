@@ -220,15 +220,15 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         // write SOI
         str_out->write( SOI, 2 );
     }
+    uint32_t hpos = 0;
 
     // JPEG decompression loop
-    do
+    while (true)
     {
-        uint32_t hpos = 0;
         // seek till start-of-scan, parse only DHT, DRI and SOS
         {
             unsigned char  type = 0x00; // type of current marker segment
-
+            uint32_t begin_hpos = hpos;
             for ( type = 0x00; type != 0xDA; ) {
                 if ( static_cast<int>( hpos ) >= hdrs ) break;
                 type = hdrdata[ hpos + 1 ];
@@ -243,7 +243,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                     continue;
                 }
             }
-            str_out->write(hdrdata, hpos);
+            str_out->write(hdrdata + begin_hpos, hpos - begin_hpos);
             // get out if last marker segment type was not SOS
             if ( type != 0xDA ) break;
         }
@@ -263,7 +263,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             check_decompression_memory_bound_ok();
             break;
         } 
-    } while ( false );
+    }
 
     // safety check for error in huffwriter
     if ( huffw->error ) {
