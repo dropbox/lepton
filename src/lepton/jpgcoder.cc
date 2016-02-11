@@ -4374,12 +4374,9 @@ int next_huffcode( abitreader *huffw, huffTree *ctree )
     return ( node - 256 );
 }
 
-int start_mcupos(int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw )
+int start_mcupos(int* mcu, int* dpos, int* rstw )
 {
     *mcu = 0;
-    *cmp=  cs_cmp[0];
-    *csc = 0;
-    *sub = 0;
     *dpos = 0;
     *rstw = rsti;
     return 0;

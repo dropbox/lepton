@@ -1,10 +1,12 @@
 #include <time.h>
 #include <stdio.h>
+#include <iostream>
+
 #include "uncompressed_components.hh"
 #include "recoder.hh"
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
-int start_mcupos(int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
+int start_mcupos(int* mcu, int* dpos, int* rstw );
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
@@ -25,7 +27,6 @@ extern std::vector<unsigned char> rst_err;   // number of wrong-set RST markers 
 extern bool rst_cnt_set;
 extern std::vector<unsigned int> rst_cnt;
 void check_decompression_memory_bound_ok();
-
 
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
 #define B_SHORT(v1,v2)    ( ( ((int) v1) << 8 ) + ((int) v2) )
@@ -100,9 +101,14 @@ void escape_0xff_huffman_and_write(bounded_iostream* str_out,
     }
 }
 
-bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &cmp, int &csc, int &sub, int &dpos, int &rstw,
+extern int cs_cmp[ 4 ];
+
+bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &dpos, int &rstw,
                         bounded_iostream*str_out, int lastdc[4], MergeJpegProgress &streaming_progress) {
-    Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
+  int cmp = cs_cmp[ 0 ];
+  int csc = 0, sub = 0;
+
+  Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     bool end_of_row = false;
     // JPEG imagedata encoding routines
     while (!end_of_row) {
@@ -248,12 +254,11 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if ( type != 0xDA ) break;
         }
         
-        int cmp = 0, dpos = 0;
-        int mcu = 0, sub = 0, csc = 0;
+	int mcu, dpos, rstw;
         // intial variables set for encoding
-        start_mcupos(&mcu, &cmp, &csc, &sub, &dpos, &rstw);
+        start_mcupos(&mcu, &dpos, &rstw);
         for (int i = 0; i < mcuh; ++i) {
-            bool ret = recode_one_mcu_row(huffw, mcu, cmp, csc, sub, dpos, rstw, str_out, lastdc, streaming_progress);
+            bool ret = recode_one_mcu_row(huffw, mcu, dpos, rstw, str_out, lastdc, streaming_progress);
             if (!ret) {
                 return false;
             }
