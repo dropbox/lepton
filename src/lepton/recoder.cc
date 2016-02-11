@@ -5,13 +5,11 @@
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
-bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan);
 const bool fast_exit = true;
 extern int    jpgfilesize;            // size of JPEG file
 extern std::atomic<int> errorlevel;
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
-extern int jpegtype;
 extern int cmpc; // component count
 extern char padbit;
 extern int scnc;   // count of scans
@@ -36,7 +34,6 @@ extern std::vector<unsigned int> rst_cnt;
 void check_decompression_memory_bound_ok();
 
 
-extern int cs_cmpc; // component count in current scan
 extern int cs_cmp[ 4 ]; // component numbers  in current scan
 
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
@@ -135,7 +132,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     int cmp, bpos, dpos;
     int mcu, sub, csc;
     int eob, sta;
-    int tmp;
     int ABIT_WRITER_PRELOAD = 4096 * 1024 + 1024;
     // open huffman coded image data in abitwriter
     huffw = new abitwriter( ABIT_WRITER_PRELOAD, max_file_size);
@@ -187,13 +183,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         // get out if last marker segment type was not SOS
         if ( type != 0xDA ) break;
 
-
-        // (re)alloc restart marker positons array if needed
-        if ( rsti > 0 ) {
-            tmp = rstc + ( ( cs_cmpc > 1 ) ?
-                ( mcuc / rsti ) : ( cmpnfo[ cs_cmp[ 0 ] ].bc / rsti ) );
-        }
-
         // intial variables set for encoding
         cmp  = cs_cmp[ 0 ];
         csc  = 0;
@@ -201,15 +190,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         sub  = 0;
         dpos = 0;
 
-        // store scan position
-        if (jpegtype != 1) {
-            // unreachable: we let this image through the encoder with baseline markers
-            custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
-        }
-        if (cs_cmpc != colldata.get_num_components()) {
-            // unreachable: we let this image through the encoder with baseline markers
-            custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
-        }
         // JPEG imagedata encoding routines
         while ( true )
         {
@@ -253,15 +233,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                     int test_dpos = dpos;
                     int test_rstw = rstw;
                     sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
-/*
-                    if (cmpc == 1) { // lets make sure we can use the original in the noninterleaved case
-                        int test_sta = next_mcuposn( &test_cmp, &test_dpos, &test_rstw );
-                        assert(test_sta == sta);
-                        assert(test_cmp == cmp);
-                        assert(test_dpos == dpos);
-                        assert(test_rstw == rstw);
-                    }
-*/
                 }
                 if (sta == 0 && huffw->no_remainder()) {
                     sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
@@ -278,8 +249,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             }
             // evaluate status
             if ( sta == -1 ) { // status -1 means error
-                fprintf( stderr, "encode error in scan%i / mcu%i",
-                    scnc, ( cs_cmpc > 1 ) ? mcu : dpos );
                 delete huffw;
                 errorlevel.store(2);
                 return false;
