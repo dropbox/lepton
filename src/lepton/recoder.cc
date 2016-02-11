@@ -150,7 +150,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &dpos, int &rstw,
             if (str_out->has_reached_bound()) {
                 sta = 2;
             }
-            if (old_mcu != mcu && mcu % mcuv == 0) {
+            if (old_mcu != mcu && mcu % mcuh == 0) {
                 end_of_row = true;
                 if (sta == 0) {
                     return true;
@@ -257,7 +257,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         int mcu, dpos, rstw;
         // intial variables set for encoding
         start_mcupos(&mcu, &dpos, &rstw);
-        for (int i = 0; i < mcuh; ++i) {
+        for (int i = 0; i < mcuv; ++i) {
             bool ret = recode_one_mcu_row(huffw, mcu, dpos, rstw, str_out, lastdc, streaming_progress);
             if (!ret) {
                 return false;
