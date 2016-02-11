@@ -7,7 +7,7 @@
 #include "recoder.hh"
 #include "bitops.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
-int start_mcupos(int* mcu, int* rstw );
+int start_mcupos(int* mcu);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
@@ -105,11 +105,12 @@ void escape_0xff_huffman_and_write(bounded_iostream* str_out,
 
 extern int cs_cmp[ 4 ];
 
-bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &rstw,
+bool recode_one_mcu_row(abitwriter *huffw, int &mcu,
                         bounded_iostream*str_out, int lastdc[4], MergeJpegProgress &streaming_progress) {
   int cmp = cs_cmp[ 0 ];
   int csc = 0, sub = 0;
   int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
+  int rstw = rsti ? rsti - mcu % rsti : 0;
 
   Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     bool end_of_row = false;
@@ -257,11 +258,11 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if ( type != 0xDA ) break;
         }
         
-        int mcu, rstw;
+        int mcu;
         // intial variables set for encoding
-        start_mcupos(&mcu, &rstw);
+        start_mcupos(&mcu);
         for (int i = 0; i < mcuv; ++i) {
-            bool ret = recode_one_mcu_row(huffw, mcu, rstw, str_out, lastdc, streaming_progress);
+            bool ret = recode_one_mcu_row(huffw, mcu, str_out, lastdc, streaming_progress);
             if (!ret) {
                 return false;
             }
