@@ -110,7 +110,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
 {
     abitwriter*  huffw; // bitwise writer for image data
-    abytewriter* storw; // bytewise writer for storage of correction bits
 
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
@@ -129,8 +128,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     huffw = new abitwriter( 16384, max_file_size);
     huffw->fillbit = padbit;
 
-    // init storage writer
-    storw = new abytewriter( ABIT_WRITER_PRELOAD);
 
     // preset count of scans and restarts
     MergeJpegProgress streaming_progress;

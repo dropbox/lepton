@@ -879,6 +879,9 @@ int initialize_options( int argc, char** argv )
     return max_file_size;
 }
 size_t decompression_memory_bound() {
+    if (ofiletype == UJG) {
+        return 0;
+    }
     size_t cumulative_buffer_size = 0;
     size_t streaming_buffer_size = 0;
     size_t current_run_size = 0;
@@ -898,10 +901,12 @@ size_t decompression_memory_bound() {
         streaming_buffer_size = current_run_size;
     }
     size_t bit_writer_augmentation = 0;
-    for (size_t cur_size = jpgfilesize - 1; cur_size; cur_size >>=1) {
-        bit_writer_augmentation |= cur_size;
+    if (g_allow_progressive) {
+        for (size_t cur_size = jpgfilesize - 1; cur_size; cur_size >>=1) {
+            bit_writer_augmentation |= cur_size;
+        }
+        bit_writer_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
     }
-    bit_writer_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
     size_t garbage_augmentation = 0;
     for (size_t cur_size = hdrs - 1; cur_size; cur_size >>=1) {
         garbage_augmentation |= cur_size;
@@ -918,7 +923,7 @@ size_t decompression_memory_bound() {
             doubled *= 2;
         } while (doubled < (size_t)hdrs);
     }
-    /*
+    
     fprintf(stderr,
             "Original Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
             Sirikata::memmgr_total_size_ever_allocated()
@@ -929,16 +934,22 @@ size_t decompression_memory_bound() {
             decode_header_needed_size,
             bit_writer_augmentation,
             non_preloaded_mux);
-    */
+    
     size_t abit_writer = 0;
-    if (zlib_hdrs * 3 < ABIT_WRITER_PRELOAD * 2 + 64) {
-        if (zlib_hdrs * 3 < ABIT_WRITER_PRELOAD + 64) {
-            abit_writer += ABIT_WRITER_PRELOAD * 2 + 64;// these can't be reused memory
-        } else {
-            abit_writer += ABIT_WRITER_PRELOAD + 64;// these can't be reused
+    if (g_allow_progressive) {
+
+        if (zlib_hdrs * 3 < ABIT_WRITER_PRELOAD * 2 + 64) {
+            if (zlib_hdrs * 3 < ABIT_WRITER_PRELOAD + 64) {
+                abit_writer += ABIT_WRITER_PRELOAD * 2 + 64;// these can't be reused memory
+            } else {
+                abit_writer += ABIT_WRITER_PRELOAD + 64;// these can't be reused
+            }
         }
+    } else {
+        abit_writer += 65536 + 64;
     }
-    if (jpgfilesize > ABIT_WRITER_PRELOAD) {
+    if (g_allow_progressive &&
+        jpgfilesize > ABIT_WRITER_PRELOAD) {
         // we currently buffer the whole jpeg in memory while streaming out
         abit_writer += 3 * jpgfilesize;
     }
