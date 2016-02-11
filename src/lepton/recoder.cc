@@ -126,7 +126,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     int eob, sta;
     int ABIT_WRITER_PRELOAD = 4096 * 1024 + 1024;
     // open huffman coded image data in abitwriter
-    huffw = new abitwriter( ABIT_WRITER_PRELOAD, max_file_size);
+    huffw = new abitwriter( 16384, max_file_size);
     huffw->fillbit = padbit;
 
     // init storage writer
@@ -222,6 +222,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                 }
                 if (sta == 0 && huffw->no_remainder()) {
                     sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
+                    huffw->reset();
+                    streaming_progress.ipos = 0;
                 }
                 if (str_out->has_reached_bound()) {
                     sta = 2;
@@ -232,6 +234,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             huffw->pad( padbit );
             if (huffw->no_remainder()) {
                 sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
+                huffw->reset();
+                streaming_progress.ipos = 0;
             }
             // evaluate status
             if ( sta == -1 ) { // status -1 means error
@@ -282,6 +286,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
     assert(huffw->no_remainder() && "this should have been padded");
     sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), true);
+    huffw->reset();
+    streaming_progress.ipos = 0;
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)
     // this guarantees that we can stop the write in time.

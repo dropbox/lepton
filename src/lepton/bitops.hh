@@ -239,6 +239,15 @@ public:
         flush_no_pad();
         return data2;
     }
+    void reset() {
+        assert(no_remainder());
+        memset(data2, 0, cbyte2);
+        if (size_bound) {
+            size_bound -=cbyte2;
+        }
+        cbyte2 = 0;
+        cbit2 = 64;
+    }
     int getpos( void ) {
         return cbyte2;
     }
