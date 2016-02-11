@@ -1,3 +1,4 @@
+/* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #include <time.h>
 #include <stdio.h>
 #include <iostream>
@@ -107,7 +108,6 @@ bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &dpos, int &rstw,
                         bounded_iostream*str_out, int lastdc[4], MergeJpegProgress &streaming_progress) {
   int cmp = cs_cmp[ 0 ];
   int csc = 0, sub = 0;
-
   Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     bool end_of_row = false;
     // JPEG imagedata encoding routines
@@ -254,13 +254,16 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if ( type != 0xDA ) break;
         }
         
-	int mcu, dpos, rstw;
+        int mcu, dpos, rstw;
         // intial variables set for encoding
         start_mcupos(&mcu, &dpos, &rstw);
         for (int i = 0; i < mcuh; ++i) {
             bool ret = recode_one_mcu_row(huffw, mcu, dpos, rstw, str_out, lastdc, streaming_progress);
             if (!ret) {
                 return false;
+            }
+            if (str_out->has_reached_bound()) {
+                break;
             }
         }
         // insert false rst markers at end if needed
