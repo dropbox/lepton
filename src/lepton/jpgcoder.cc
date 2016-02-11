@@ -178,7 +178,6 @@ void show_help( void );
 bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
 bool read_jpeg( void );
 struct MergeJpegProgress;
-bool merge_jpeg( void );
 bool decode_jpeg( void );
 bool recode_jpeg( void );
 bool recode_baseline_jpeg( void );
@@ -287,7 +286,6 @@ private:
     global variables: data storage
     ----------------------------------------------- */
 
-bool do_streaming = true;
 size_t g_decompression_memory_bound = 0;
 unsigned short qtables[4][64];                // quantization tables
 huffCodes      hcodes[2][4];                // huffman codes
@@ -809,9 +807,6 @@ int initialize_options( int argc, char** argv )
         } else if ( strcmp((*argv), "-p" ) == 0 ) {
             err_tresh = 2;
         }
-        else if ( strcmp((*argv), "-nostreaming" ) == 0)  {
-            do_streaming = false;
-        }
         else if ( strncmp((*argv), "-timebound=", strlen("-timebound=")) == 0) {
             char * endptr = NULL;
             g_time_bound_ms = strtoll((*argv) + strlen("-timebound="), &endptr, 10);
@@ -870,9 +865,6 @@ int initialize_options( int argc, char** argv )
         }
         else if ( strncmp((*argv), "-trunctiming=", strlen("-trunctiming=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-trunctiming="), "w");
-        }
-        else if ( strcmp((*argv), "-s" ) == 0)  {
-            do_streaming = true; // the default
         }
         else if ( strcmp((*argv), "-d" ) == 0 ) {
             disc_meta = true;
@@ -1215,9 +1207,6 @@ void process_file(IOUtil::FileReader* reader,
                     execute(recode_baseline_jpeg);
                 } else {
                     execute(recode_jpeg);
-                }
-                if (!do_streaming) {
-                    execute( merge_jpeg );
                 }
                 timing_operation_complete( 'd' );
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
@@ -1821,7 +1810,6 @@ bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan) {
 }
 MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress, const unsigned char * local_huff_data, unsigned int max_byte_coded,
                                               bool flush) {
-    if (!do_streaming) return STREAMING_DISABLED;
     MergeJpegProgress progress(stored_progress);
     unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
     //unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
@@ -2044,109 +2032,6 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
 }
 
 
-/* -----------------------------------------------
-    Merges header & image data to jpeg
-    ----------------------------------------------- */
-
-bool merge_jpeg( void )
-{
-    unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
-    unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
-    unsigned char mrk = 0xFF; // marker start
-    unsigned char stv = 0x00; // 0xFF stuff value
-    unsigned char rst = 0xD0; // restart marker
-
-    unsigned char  type = 0x00; // type of current marker segment
-    unsigned int   len  = 0; // length of current marker segment
-    unsigned int   hpos = 0; // current position in header
-    unsigned int   ipos = 0; // current position in imagedata
-    unsigned int   rpos = 0; // current restart marker position
-    unsigned int   cpos = 0; // in scan corrected rst marker position
-    unsigned int   scan = 1; // number of current scan
-    unsigned int   tmp  = 0;
-    unsigned int   num_rst_markers_this_scan = 0;
-    str_out->set_bound(max_file_size);
-    // write SOI
-    str_out->write( SOI, 2 );
-
-    // JPEG writing loop
-    while ( true )
-    {
-        // store current header position
-        tmp = hpos;
-
-        // seek till start-of-scan
-        for ( type = 0x00; type != 0xDA; ) {
-            if ( ( int ) hpos >= hdrs ) break;
-            type = hdrdata[ hpos + 1 ];
-            len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
-            hpos += len;
-        }
-
-        // write header data to file
-        str_out->write( hdrdata + tmp, ( hpos - tmp ) );
-
-        // get out if last marker segment type was not SOS
-        if ( type != 0xDA ) break;
-
-
-        // (re)set corrected rst pos
-        cpos = 0;
-        timing_operation_first_byte( 'd' );
-
-        // write & expand huffman coded image data
-        for ( ipos = scnp[ scan - 1 ]; ipos < scnp[ scan ]; ipos++ ) {
-            // write current byte
-            str_out->write_byte( huffdata[ipos]);
-            // check current byte, stuff if needed
-            if ( huffdata[ ipos ] == 0xFF )
-                str_out->write_byte(stv);
-            // insert restart markers if needed
-            if (rst_cnt_ok(scan,  num_rst_markers_this_scan)) {
-                if ( ipos == rstp[ rpos ] ) {
-                    rst = 0xD0 + ( cpos & 7 );
-                    str_out->write_byte(mrk);
-                    str_out->write_byte(rst);
-                    rpos++; cpos++;
-                    ++num_rst_markers_this_scan;
-                }
-            }
-        }
-        // insert false rst markers at end if needed
-        if ( !rst_err.empty() ) {
-            while ( rst_err[ scan - 1 ] > 0 ) {
-                rst = 0xD0 + ( cpos & 7 );
-                str_out->write_byte(mrk);
-                str_out->write_byte(rst);
-                cpos++;    rst_err[ scan - 1 ]--;
-            }
-        }
-
-        // proceed with next scan
-        scan++;
-        num_rst_markers_this_scan = 0;
-    }
-
-    // write EOI
-    str_out->write( EOI, 2 );
-
-    // write garbage if needed
-    if ( grbs > 0 )
-        str_out->write( grbgdata, grbs );
-
-    // errormessage if write error
-    if ( str_out->chkerr() ) {
-        fprintf( stderr, "write error, possibly drive is full" );
-        errorlevel.store(2);
-        return false;
-    }
-
-    // get filesize
-    jpgfilesize = str_out->getsize();
-
-
-    return true;
-}
 
 
 /* -----------------------------------------------
@@ -2562,6 +2447,118 @@ bool decode_jpeg( void )
 }
 
 
+void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
+                       bounded_iostream* str_out,
+                       const unsigned char * local_huff_data,
+                       unsigned int max_byte_coded,
+                       bool flush) {
+    MergeJpegProgress progress(stored_progress);
+    unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
+    //unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
+
+    unsigned char  type = 0x00; // type of current marker segment
+
+    if (progress.ipos == 0 && progress.hpos == 0 && progress.scan == 1 && progress.within_scan == false) {
+        str_out->set_bound(max_file_size - grbs);
+
+        // write SOI
+        str_out->write( SOI, 2 );
+    }
+
+    //write a single scan
+    {
+        // write & expand huffman coded image data
+        unsigned int progress_ipos = progress.ipos;
+        unsigned int progress_scan = scnp[ progress.scan ];
+        unsigned int rstp_progress_rpos = rstp.empty() ? INT_MAX : rstp[ progress.rpos ];
+        const unsigned char mrk = 0xFF; // marker start
+        const unsigned char stv = 0x00; // 0xFF stuff value
+        for ( ; progress_ipos & 0xf; progress_ipos++ ) {
+            if (__builtin_expect(!(progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan)), 0)) {
+                break;
+            }
+            uint8_t byte_to_write = local_huff_data[progress_ipos];
+            str_out->write_byte(byte_to_write);
+            // check current byte, stuff if needed
+            if (__builtin_expect(byte_to_write == 0xFF, 0))
+                str_out->write_byte(stv);
+            // insert restart markers if needed
+            if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
+                if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan)) {
+                    const unsigned char rst = 0xD0 + ( progress.cpos & 7);
+                    str_out->write_byte(mrk);
+                    str_out->write_byte(rst);
+                    progress.rpos++; progress.cpos++;
+                    rstp_progress_rpos = rstp[ progress.rpos ];
+                    ++progress.num_rst_markers_this_scan;
+                }
+            }
+        }
+
+        while(true) {
+            if (__builtin_expect(!(progress_ipos + 15 < max_byte_coded && (progress_scan == 0 || progress_ipos + 15 < progress_scan)), 0)) {
+                break;
+            }
+            if ( __builtin_expect(aligned_memchr16ff(local_huff_data + progress_ipos)
+                                  || (progress_ipos <= rstp_progress_rpos
+                                      && progress_ipos + 15 >= rstp_progress_rpos), 0)){
+                // insert restart markers if needed
+                for (int veci = 0 ; veci < 16; ++veci, ++progress_ipos ) {
+                    if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
+                        uint8_t byte_to_write = local_huff_data[progress_ipos];
+                        str_out->write_byte(byte_to_write);
+                        // check current byte, stuff if needed
+                        if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                            str_out->write_byte(stv);
+                        }
+                        if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan)) {
+                                const unsigned char rst = 0xD0 + ( progress.cpos & 7);
+                                str_out->write_byte(mrk);
+                                str_out->write_byte(rst);
+                                progress.rpos++; progress.cpos++;
+                                rstp_progress_rpos = rstp[ progress.rpos ];
+                                ++progress.num_rst_markers_this_scan;
+                        }
+                    } else {
+                        uint8_t byte_to_write = local_huff_data[progress_ipos];
+                        str_out->write_byte(byte_to_write);
+                        // check current byte, stuff if needed
+                        if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                            str_out->write_byte(stv);
+                        }
+                    }
+                }
+            } else {
+                str_out->write(local_huff_data + progress_ipos, 16);
+                progress_ipos+=16;
+            }
+        }
+        for ( ; ; progress_ipos++ ) {
+            if (__builtin_expect(!(progress_ipos < max_byte_coded && (progress_scan == 0 || progress_ipos < progress_scan)), 0)) {
+                break;
+            }
+            uint8_t byte_to_write = local_huff_data[progress_ipos];
+            str_out->write_byte(byte_to_write);
+            // check current byte, stuff if needed
+            if (__builtin_expect(byte_to_write == 0xFF, 0))
+                str_out->write_byte(stv);
+            // insert restart markers if needed
+            if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
+                if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan )) {
+                    const unsigned char rst = 0xD0 + ( progress.cpos & 7);
+                    str_out->write_byte(mrk);
+                    str_out->write_byte(rst);
+                    progress.rpos++; progress.cpos++;
+                    rstp_progress_rpos = rstp[ progress.rpos ];
+                    ++progress.num_rst_markers_this_scan;
+                }
+            }
+        }
+        progress.ipos = progress_ipos;
+    }
+}
+
+
 
 /* -----------------------------------------------
     JPEG encoding routine
@@ -2576,7 +2573,6 @@ bool recode_baseline_jpeg( void )
 
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
-    unsigned int   hpos = 0; // current position in header
 
     int lastdc[ 4 ]; // last dc for each component
     Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
@@ -2599,23 +2595,28 @@ bool recode_baseline_jpeg( void )
     scnc = 0;
     rstc = 0;
     MergeJpegProgress streaming_progress;
-    assert (progress.ipos == 0 && progress.hpos == 0 && progress.scan == 1 && progress.within_scan == false);
+    assert (streaming_progress.ipos == 0
+            && streaming_progress.hpos == 0
+            && streaming_progress.scan == 1
+            && streaming_progress.within_scan == false);
     str_out->set_bound(max_file_size - grbs);
-
-    // write SOI
-    str_out->write( SOI, 2 );
+    {
+        unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
+        // write SOI
+        str_out->write( SOI, 2 );
+    }
 
     // JPEG decompression loop
     while ( true )
     {
-        uint32_t hpos_start = 0;
+        uint32_t hpos_start = streaming_progress.hpos;
         // seek till start-of-scan, parse only DHT, DRI and SOS
         for ( type = 0x00; type != 0xDA; ) {
-            if ( ( int ) hpos >= hdrs ) break;
-            type = hdrdata[ hpos + 1 ];
-            len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
+            if ( ( int ) streaming_progress.hpos >= hdrs ) break;
+            type = hdrdata[ streaming_progress.hpos + 1 ];
+            len = 2 + B_SHORT( hdrdata[ streaming_progress.hpos + 2 ], hdrdata[ streaming_progress.hpos + 3 ] );
             if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
-                if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
+                if ( !parse_jfif_jpg( type, len, &( hdrdata[ streaming_progress.hpos ] ) ) ) {
                     return false;
                 }
                 int max_scan = 0;
@@ -2624,14 +2625,14 @@ bool recode_baseline_jpeg( void )
                 }
                 rstp.reserve(max_scan);
                 scnp.reserve(max_scan);
-                hpos += len;
+                streaming_progress.hpos += len;
             }
             else {
-                hpos += len;
+                streaming_progress.hpos += len;
                 continue;
             }
         }
-        str_out->write(hdrdata + hpos_start, (progress.hpos - hpos_start));
+        str_out->write(hdrdata + hpos_start, (streaming_progress.hpos - hpos_start));
         // get out if last marker segment type was not SOS
         if ( type != 0xDA ) break;
 
@@ -2720,7 +2721,7 @@ bool recode_baseline_jpeg( void )
                     }
                 }
                 if (sta == 0 && huffw->no_remainder()) {
-                    merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                    sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
                 }
                 if (str_out->has_reached_bound()) {
                     sta = 2;
@@ -2749,9 +2750,27 @@ bool recode_baseline_jpeg( void )
             huffw->flush_no_pad();
             assert(huffw->no_remainder() && "this should have been padded");
             if (huffw->no_remainder()) {
-                merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
+                sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
             }
         }
+        // insert false rst markers at end if needed
+        if (streaming_progress.scan - 1 < rst_err.size()) {
+            while ( rst_err[streaming_progress.scan - 1 ] > 0 ) {
+                const unsigned char mrk = 0xFF;
+                const unsigned char rst = 0xD0 + (streaming_progress.cpos & 7 );
+                str_out->write_byte(mrk);
+                str_out->write_byte(rst);
+                streaming_progress.cpos++;    rst_err[streaming_progress.scan - 1 ]--;
+            }
+        }
+        streaming_progress.num_rst_markers_this_scan = 0;
+        streaming_progress.within_scan = false;
+        // proceed with next scan
+        streaming_progress.scan++;
+        if(str_out->has_reached_bound()) {
+            check_decompression_memory_bound_ok();
+            break;
+        } 
     }
 
     // safety check for error in huffwriter
@@ -2766,7 +2785,56 @@ bool recode_baseline_jpeg( void )
     huffdata = huffw->getptr();
     hufs = huffw->getpos();
     assert(huffw->no_remainder() && "this should have been padded");
-    merge_jpeg_streaming(&streaming_progress, huffdata, hufs, true);
+    sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), true);
+
+    // write EOI (now EOI is stored in garbage of at least 2 bytes)
+    // this guarantees that we can stop the write in time.
+    // if it used too much memory
+    // str_out->write( EOI, 1, 2 );
+    str_out->set_bound(max_file_size);
+    check_decompression_memory_bound_ok();
+    // write garbage if needed
+    if ( grbs > 0 )
+        str_out->write( grbgdata, grbs );
+    check_decompression_memory_bound_ok();
+    str_out->flush();
+
+    // errormessage if write error
+    if ( str_out->chkerr() ) {
+        fprintf( stderr, "write error, possibly drive is full" );
+        errorlevel.store(2);
+        return false;
+    }
+    // get filesize
+
+    jpgfilesize = str_out->getsize();
+    // get filesize
+    if (ujg_base_in) {
+        ujgfilesize = ujg_base_in->getsize();
+    } else {
+        ujgfilesize = 4096 * 1024;
+    }
+    if (!g_use_seccomp) {
+        clock_t final = clock();
+        struct timeval fin = {0,0};
+        gettimeofday(&fin,NULL);
+        double begin = current_operation_begin.tv_sec + (double)current_operation_begin.tv_usec / 1000000.;
+        double end = fin.tv_sec + (double)fin.tv_usec / 1000000.;
+        double first_byte = current_operation_first_byte.tv_sec + (double)current_operation_first_byte.tv_usec / 1000000.;
+        double begin_to_end = end - begin;
+        double begin_to_first_byte = begin_to_end;
+        if (current_operation_first_byte.tv_sec != 0) { // if we were successful
+            begin_to_first_byte = first_byte - begin;
+        }
+
+        fprintf(stderr, "TIMING (new method): %f to first byte %f total\n",
+                begin_to_first_byte,
+                begin_to_end);
+        (void)final;
+        fprintf(stderr, "Read took: %f\n",
+                (read_done - overall_start)/(double)CLOCKS_PER_SEC);
+    }
+
     if (!fast_exit) {
         delete huffw;
 
