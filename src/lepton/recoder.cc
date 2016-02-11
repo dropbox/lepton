@@ -214,12 +214,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     huffw = new abitwriter( 16384, max_file_size);
     huffw->fillbit = padbit;
 
-    // preset count of scans and restarts
-    MergeJpegProgress streaming_progress;
-    assert (streaming_progress.ipos == 0
-            && streaming_progress.hpos == 0
-            && streaming_progress.scan == 1
-            && streaming_progress.within_scan == false);
     str_out->set_bound(max_file_size - grbs);
     {
         unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
@@ -230,26 +224,26 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     // JPEG decompression loop
     while ( true )
     {
-        uint32_t hpos_start = streaming_progress.hpos;
+        uint32_t hpos = 0;
         // seek till start-of-scan, parse only DHT, DRI and SOS
         {
             unsigned char  type = 0x00; // type of current marker segment
 
             for ( type = 0x00; type != 0xDA; ) {
-                if ( ( int ) streaming_progress.hpos >= hdrs ) break;
-                type = hdrdata[ streaming_progress.hpos + 1 ];
-                unsigned int len = 2 + B_SHORT( hdrdata[ streaming_progress.hpos + 2 ], hdrdata[ streaming_progress.hpos + 3 ] );
+                if ( static_cast<int>( hpos ) >= hdrs ) break;
+                type = hdrdata[ hpos + 1 ];
+                unsigned int len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
                 if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
-                    if ( !parse_jfif_jpg( type, len, &( hdrdata[ streaming_progress.hpos ] ) ) ) {
+                    if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
                         return false;
                     }
-                    streaming_progress.hpos += len;
+                    hpos += len;
                 } else {
-                    streaming_progress.hpos += len;
+                    hpos += len;
                     continue;
                 }
             }
-            str_out->write(hdrdata + hpos_start, (streaming_progress.hpos - hpos_start));
+            str_out->write(hdrdata, hpos);
             // get out if last marker segment type was not SOS
             if ( type != 0xDA ) break;
         }
@@ -264,20 +258,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                 break;
             }
         }
-        streaming_progress.rpos = streaming_progress.cpos = streaming_progress.num_rst_markers_this_scan = cumulative_reset_markers;
-        // insert false rst markers at end if needed
-        if (streaming_progress.scan - 1 < rst_err.size()) {
-            while ( rst_err[streaming_progress.scan - 1 ] > 0 ) {
-                const unsigned char rst = 0xD0 + (streaming_progress.cpos & 7 );
-                str_out->write_byte(0xFF);
-                str_out->write_byte(rst);
-                streaming_progress.cpos++;    rst_err[streaming_progress.scan - 1 ]--;
-            }
-        }
-        streaming_progress.num_rst_markers_this_scan = 0;
-        streaming_progress.within_scan = false;
-        // proceed with next scan
-        streaming_progress.scan++;
+
         if(str_out->has_reached_bound()) {
             check_decompression_memory_bound_ok();
             break;
