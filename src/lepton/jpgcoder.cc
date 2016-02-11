@@ -2482,17 +2482,6 @@ void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
             // check current byte, stuff if needed
             if (__builtin_expect(byte_to_write == 0xFF, 0))
                 str_out->write_byte(stv);
-            // insert restart markers if needed
-            if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
-                if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan)) {
-                    const unsigned char rst = 0xD0 + ( progress.cpos & 7);
-                    str_out->write_byte(mrk);
-                    str_out->write_byte(rst);
-                    progress.rpos++; progress.cpos++;
-                    rstp_progress_rpos = rstp[ progress.rpos ];
-                    ++progress.num_rst_markers_this_scan;
-                }
-            }
         }
 
         while(true) {
@@ -2510,14 +2499,6 @@ void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
                         // check current byte, stuff if needed
                         if (__builtin_expect(byte_to_write == 0xFF, 0)) {
                             str_out->write_byte(stv);
-                        }
-                        if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan)) {
-                                const unsigned char rst = 0xD0 + ( progress.cpos & 7);
-                                str_out->write_byte(mrk);
-                                str_out->write_byte(rst);
-                                progress.rpos++; progress.cpos++;
-                                rstp_progress_rpos = rstp[ progress.rpos ];
-                                ++progress.num_rst_markers_this_scan;
                         }
                     } else {
                         uint8_t byte_to_write = local_huff_data[progress_ipos];
@@ -2542,17 +2523,6 @@ void sync_jpeg_huffman(MergeJpegProgress *stored_progress,
             // check current byte, stuff if needed
             if (__builtin_expect(byte_to_write == 0xFF, 0))
                 str_out->write_byte(stv);
-            // insert restart markers if needed
-            if (__builtin_expect(progress_ipos == rstp_progress_rpos, 0)) {
-                if (rst_cnt_ok(progress.scan, progress.num_rst_markers_this_scan )) {
-                    const unsigned char rst = 0xD0 + ( progress.cpos & 7);
-                    str_out->write_byte(mrk);
-                    str_out->write_byte(rst);
-                    progress.rpos++; progress.cpos++;
-                    rstp_progress_rpos = rstp[ progress.rpos ];
-                    ++progress.num_rst_markers_this_scan;
-                }
-            }
         }
         progress.ipos = progress_ipos;
     }
@@ -2573,6 +2543,7 @@ bool recode_baseline_jpeg( void )
 
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
+    const unsigned char mrk = 0xFF;
 
     int lastdc[ 4 ]; // last dc for each component
     Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
@@ -2730,7 +2701,9 @@ bool recode_baseline_jpeg( void )
 
             // pad huffman writer
             huffw->pad( padbit );
-
+            if (huffw->no_remainder()) {
+                sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
+            }
             // evaluate status
             if ( sta == -1 ) { // status -1 means error
                 fprintf( stderr, "encode error in scan%i / mcu%i",
@@ -2744,19 +2717,22 @@ bool recode_baseline_jpeg( void )
                 break; // leave decoding loop, everything is done here
             }
             else if ( sta == 1 ) { // status 1 means restart
-                if ( rsti > 0 ) // store rstp & stay in the loop
+                if ( rsti > 0 ) {
+                    // store rstp & stay in the loop
                     rstp[ rstc++ ] = huffw->getpos() - 1;
+                    const unsigned char rst = 0xD0 + ( streaming_progress.cpos & 7);
+                    str_out->write_byte(mrk);
+                    str_out->write_byte(rst);
+                    streaming_progress.rpos++;
+                    streaming_progress.cpos++;
+                    ++streaming_progress.num_rst_markers_this_scan;
+                }
             }
-            huffw->flush_no_pad();
             assert(huffw->no_remainder() && "this should have been padded");
-            if (huffw->no_remainder()) {
-                sync_jpeg_huffman(&streaming_progress, str_out, huffw->peekptr(), huffw->getpos(), false);
-            }
         }
         // insert false rst markers at end if needed
         if (streaming_progress.scan - 1 < rst_err.size()) {
             while ( rst_err[streaming_progress.scan - 1 ] > 0 ) {
-                const unsigned char mrk = 0xFF;
                 const unsigned char rst = 0xD0 + (streaming_progress.cpos & 7 );
                 str_out->write_byte(mrk);
                 str_out->write_byte(rst);
