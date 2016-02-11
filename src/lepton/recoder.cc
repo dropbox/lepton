@@ -222,7 +222,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     }
 
     // JPEG decompression loop
-    while ( true )
+    do
     {
         uint32_t hpos = 0;
         // seek till start-of-scan, parse only DHT, DRI and SOS
@@ -263,7 +263,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             check_decompression_memory_bound_ok();
             break;
         } 
-    }
+    } while ( false );
 
     // safety check for error in huffwriter
     if ( huffw->error ) {
