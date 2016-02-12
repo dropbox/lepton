@@ -92,6 +92,55 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
     TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
+
+bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* input,
+                                                   UncompressedComponents * const colldata) {
+    if (colldata->get_num_components() > (int)BlockType::Y) {
+        ProbabilityTablesBase::set_quantization_table(BlockType::Y,
+                                                      colldata->get_quantization_tables(BlockType::Y));
+    }
+    if (colldata->get_num_components() > (int)BlockType::Cb) {
+        ProbabilityTablesBase::set_quantization_table(BlockType::Cb,
+                                                      colldata->get_quantization_tables(BlockType::Cb));
+    }
+    if (colldata->get_num_components() > (int)BlockType::Cr) {
+        ProbabilityTablesBase::set_quantization_table(BlockType::Cr,
+                                                      colldata->get_quantization_tables(BlockType::Cr));
+    }
+#ifdef ALLOW_FOUR_COLORS
+    if (colldata->get_num_components() > (int)BlockType::Ck) {
+        ProbabilityTablesBase::set_quantization_table(BlockType::Ck,
+                                                      colldata->get_quantization_tables(BlockType::Ck));
+    }
+#endif
+    /* read and verify "x" mark */
+    unsigned char mark {};
+    const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
+    if (!ok) {
+        return false;
+    }
+    if ( mark > NUM_THREADS || mark == 0) {
+        cerr << " unsupported NUM_THREADS " << (int)mark << endl;
+        return false;
+    }
+    file_luma_splits_.insert(file_luma_splits_.end(), NUM_THREADS, colldata->block_height(0));
+
+    std::vector<uint16_t> luma_splits_tmp(mark - 1);
+    IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
+    for (int i = 0; i + 1 < mark; ++i) {
+        file_luma_splits_[i] = htole16(luma_splits_tmp[i]);
+    }
+    /* read entire chunk into memory */
+    mux_reader_.fillBufferEntirely(streams_.begin());
+    initialize_thread_id(0, 0, colldata);
+    if (do_threading_) {
+        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            initialize_thread_id(thread_id, thread_id, colldata);
+        }
+    }
+    return true;
+}
+
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     /* cmpc is a global variable with the component count */
@@ -100,47 +149,13 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
     if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].context.isNil() ) {
         /* first call */
-        if (colldata->get_num_components() > (int)BlockType::Y) {
-            ProbabilityTablesBase::set_quantization_table(BlockType::Y,
-                                                          colldata->get_quantization_tables(BlockType::Y));
-        }
-        if (colldata->get_num_components() > (int)BlockType::Cb) {
-            ProbabilityTablesBase::set_quantization_table(BlockType::Cb,
-                                                          colldata->get_quantization_tables(BlockType::Cb));
-        }
-        if (colldata->get_num_components() > (int)BlockType::Cr) {
-            ProbabilityTablesBase::set_quantization_table(BlockType::Cr,
-                                                          colldata->get_quantization_tables(BlockType::Cr));
-        }
-#ifdef ALLOW_FOUR_COLORS
-        if (colldata->get_num_components() > (int)BlockType::Ck) {
-            ProbabilityTablesBase::set_quantization_table(BlockType::Ck,
-                                                          colldata->get_quantization_tables(BlockType::Ck));
-        }
-#endif
-        /* read and verify "x" mark */
-        unsigned char mark {};
-        const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
-        if (!ok) {
+        bool ret = initialize_decoder_state(str_in,
+                                            colldata);
+        if (!ret) {
             return CODING_ERROR;
         }
-        if ( mark > NUM_THREADS || mark == 0) {
-            cerr << " unsupported NUM_THREADS " << (int)mark << endl;
-            return CODING_ERROR;
-        }
-        file_luma_splits_.insert(file_luma_splits_.end(), NUM_THREADS, colldata->block_height(0));
-
-        std::vector<uint16_t> luma_splits_tmp(mark - 1);
-        IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
-        for (int i = 0; i + 1 < mark; ++i) {
-            file_luma_splits_[i] = htole16(luma_splits_tmp[i]);
-        }
-        /* read entire chunk into memory */
-        mux_reader_.fillBufferEntirely(streams_.begin());
-            initialize_thread_id(0, 0, colldata);
         if (do_threading_) {
             for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-                initialize_thread_id(thread_id, thread_id, colldata);
                 if (dospin) {
                     spin_workers_.at(thread_id - 1).work
                         = std::bind(worker_thread,
