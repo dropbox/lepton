@@ -36,7 +36,11 @@ public:
         assert(nblocks <= width * height);
         width_ = width;
         if (memory_optimized_image_) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             nblocks = width * 4;
+#else
+            nblocks = width * 2;
+#endif
         }
         nblocks_ = nblocks;
         storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
@@ -56,10 +60,17 @@ public:
     BlockContext off_y(int y,
                        std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
         if (memory_optimized_image_) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             return {image_ + width_ * (y & 3),
                     image_ + ((y + 3) & 3) * width_,
                     (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
                     (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
+#else
+            return {(y & 1) ? image_ + width_ : image_,
+                    (y & 1) ? image_ : image_ + width_,
+                    (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
+                    (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
+#endif
         }
         return {image_ + width_ * y,
                 (y != 0) ? image_ + width_ * (y - 1) : nullptr,
@@ -69,10 +80,17 @@ public:
     ConstBlockContext off_y(int y,
                             std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
         if (memory_optimized_image_) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             return {image_ + width_ * (y & 3),
                     image_ + ((y + 3) & 3) * width_,
                     (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
                     (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
+#else
+            return {(y & 1) ? image_ + width_ : image_,
+                    (y & 1) ? image_ : image_ + width_,
+                    (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
+                    (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
+#endif
         }
         return {image_ + width_ * y,
                 (y != 0) ? image_ + width_ * (y - 1) : nullptr,
@@ -84,6 +102,7 @@ public:
         ptrdiff_t offset = it.context.cur - image_;
         uint32_t retval = offset;
         if (memory_optimized_image_) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             if (__builtin_expect(offset == (width_ << 2), 0)) {
                 retval = offset = 0;
                 it.context.cur = image_;
@@ -95,10 +114,24 @@ public:
                 retval -= width_;
             }
             retval += width_ * it.y;
+#else
+            if (__builtin_expect(offset == (width_ << 1), 0)) {
+                retval = offset = 0;
+                it.context.cur = image_;
+            }
+            if (retval >= width_) {
+                retval -= width_;
+            }
+            retval += width_ * it.y;
+#endif
         }
         if (__builtin_expect(offset < width_, 0)) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             it.context.above = it.context.cur + 3 * width_;
-	} else {
+#else
+            it.context.above = it.context.cur + width_;
+#endif
+        } else {
             it.context.above = it.context.cur - width_;
         }
         ++it.context.num_nonzeros_here;
@@ -116,7 +149,12 @@ public:
         return retval;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
-        uint32_t index = x + (y & 3) * width_;
+        uint32_t index;
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
+        index = x + (y & 3) * width_;
+#else
+        index = (y & 1) ? width_ + x : x;
+#endif
         if (!memory_optimized_image_) {
             index = y * width_ + x;
         }
@@ -126,7 +164,12 @@ public:
         return image_[index];
     }
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
-        uint32_t index = x + (y & 3) * width_;
+        uint32_t index;
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
+        index = x + (y & 3) * width_;
+#else
+        index = (y & 1) ? width_ + x : x;
+#endif
         if (!memory_optimized_image_) {
             index = y * width_ + x;
         }
@@ -139,7 +182,11 @@ public:
 
     AlignedBlock& raster(uint32_t offset) {
         if (memory_optimized_image_) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             offset = offset % (width_ << 2);
+#else
+            offset = offset % (width_ << 1);
+#endif
         }
         if (offset >= nblocks_) {
             custom_exit(ExitCode::OOM);
@@ -148,7 +195,11 @@ public:
     }
     const AlignedBlock& raster(uint32_t offset) const {
         if (memory_optimized_image_) {
+#ifdef ALLOW_3_OR_4_SCALING_FACTOR
             offset = offset % (width_ << 2);
+#else
+            offset = offset % (width_ << 1);
+#endif            
         }
         if (__builtin_expect(offset >= nblocks_, 0)) {
             custom_exit(ExitCode::OOM);

@@ -3591,6 +3591,12 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                     || cmpnfo[ cmp ].sfh > 4) {
                     custom_exit(ExitCode::SAMPLING_BEYOND_FOUR_UNSUPPORTED);
                 }
+#ifndef ALLOW_3_OR_4_SCALING_FACTOR
+                if (cmpnfo[ cmp ].sfv > 2
+                    || cmpnfo[ cmp ].sfh > 2) {
+                    custom_exit(ExitCode::SAMPLING_BEYOND_TWO_UNSUPPORTED);
+                }
+#endif
                 cmpnfo[ cmp ].qtable = qtables[ segment[ hpos + 2 ] ];
                 hpos += 3;
             }
