@@ -197,6 +197,46 @@ bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &cumulative_reset_marke
     return true;
 }
 
+unsigned int handle_initial_segments( bounded_iostream * const str_out )
+{
+    unsigned int byte_position = 0;
+
+    while ( true ) {
+        /* step 1: have we exhausted the headers without reaching the scan? */
+        if ( static_cast<int>( byte_position + 3 ) >= hdrs ) {
+            std::cerr << "overran headers\n";
+            return -1;
+        }
+
+        /* step 2: verify we are at the start of a segment header */
+        if ( hdrdata[ byte_position ] != 0xff ) {
+            std::cerr << "not start of segment\n";
+            return -1;
+        }
+
+        /* step 3: get info about the segment */
+        const unsigned char type = hdrdata[ byte_position + 1 ];
+        const unsigned int len = 2 + B_SHORT( hdrdata[ byte_position + 2 ],
+                                              hdrdata[ byte_position + 3 ] );
+
+        /* step 4: if it's a DHT (0xC4), DRI (0xDD), or SOS (0xDA), parse to mutable globals */
+        if ( type == 0xC4 or type == 0xDD or type == 0xDA ) {
+            /* XXX make sure parse_jfif_jpg can't overrun hdrdata */
+            if ( !parse_jfif_jpg( type, len, hdrdata + byte_position ) ) { return -1; }
+        }
+
+        /* step 5: we parsed the header -- accumulate byte position */
+        byte_position += len;
+
+        /* step 6: if it's an SOS (start of scan),
+           then return the byte position -- done with initial headers */
+
+        if ( type == 0xDA ) {
+            str_out->write( hdrdata, byte_position );
+            return byte_position; /* ready for the scan */
+        }
+    }
+}
 
 /* -----------------------------------------------
     JPEG encoding routine
@@ -220,49 +260,28 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         // write SOI
         str_out->write( SOI, 2 );
     }
-    uint32_t hpos = 0;
 
-    // JPEG decompression loop
-    while (true)
-    {
-        // seek till start-of-scan, parse only DHT, DRI and SOS
-        {
-            unsigned char  type = 0x00; // type of current marker segment
-            uint32_t begin_hpos = hpos;
-            for ( type = 0x00; type != 0xDA; ) {
-                if ( static_cast<int>( hpos ) >= hdrs ) break;
-                type = hdrdata[ hpos + 1 ];
-                unsigned int len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
-                if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
-                    if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
-                        return false;
-                    }
-                    hpos += len;
-                } else {
-                    hpos += len;
-                    continue;
-                }
-            }
-            str_out->write(hdrdata + begin_hpos, hpos - begin_hpos);
-            // get out if last marker segment type was not SOS
-            if ( type != 0xDA ) break;
-        }
-        
-        int mcu = 0, cumulative_reset_markers = 0;
-        for (int i = 0; i < mcuv; ++i) {
-            bool ret = recode_one_mcu_row(huffw, mcu, cumulative_reset_markers, str_out, lastdc);
-            if (!ret) {
-                return false;
-            }
-            if (str_out->has_reached_bound()) {
-                break;
-            }
-        }
+    /* step 1: handle the initial segments */
+    unsigned int byte_position = handle_initial_segments( str_out );
+    if ( byte_position == -1 ) {
+        return false;
+    }
 
-        if(str_out->has_reached_bound()) {
-            check_decompression_memory_bound_ok();
-            break;
-        } 
+    /* step 2: decode the scan, row by row */
+    int mcu = 0, cumulative_reset_markers = 0;
+    for ( unsigned int i = 0; i < mcuv and !str_out->has_reached_bound(); i++ ) {
+        if ( !recode_one_mcu_row(huffw, mcu, cumulative_reset_markers, str_out, lastdc) ) {
+            return false;
+        }
+    }
+
+    /* step 3: blit any trailing data */
+    if ( not str_out->has_reached_bound() ) {
+        str_out->write( hdrdata + byte_position, hdrs - byte_position );
+    }
+
+    if(str_out->has_reached_bound()) {
+        check_decompression_memory_bound_ok();
     }
 
     // safety check for error in huffwriter
