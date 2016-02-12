@@ -9,30 +9,37 @@
 #include "../../io/DecoderPlatform.hh"
 #include "../../io/MemMgrAllocator.hh"
 extern bool g_use_seccomp;
+
+#define FOREACH_EXIT_CODE(CB)                   \
+    CB(SUCCESS,0)                               \
+    CB(ASSERTION_FAILURE,1)                     \
+    CB(CODING_ERROR,2)                          \
+    CB(SHORT_READ,3)                            \
+    CB(UNSUPPORTED_4_COLORS,4)                  \
+    CB(THREAD_PROTOCOL_ERROR,5)                 \
+    CB(COEFFICIENT_OUT_OF_RANGE,6)              \
+    CB(STREAM_INCONSISTENT,7)                   \
+    CB(PROGRESSIVE_UNSUPPORTED,8)               \
+    CB(FILE_NOT_FOUND,9)                        \
+    CB(SAMPLING_BEYOND_TWO_UNSUPPORTED,10)      \
+    CB(SAMPLING_BEYOND_FOUR_UNSUPPORTED,11)     \
+    CB(OS_ERROR,33)                             \
+    CB(HEADER_TOO_LARGE,34)                     \
+    CB(DIMENSIONS_TOO_LARGE,35)                 \
+    CB(MALLOCED_NULL,36)                        \
+    CB(OOM,37)                                  \
+    CB(TOO_MUCH_MEMORY_NEEDED,38)               \
+    CB(EARLY_EXIT,40)
+
+#define MAKE_EXIT_CODE_ENUM(ITEM, VALUE) ITEM=VALUE,
+#define GENERATE_EXIT_CODE_STRING(ITEM, VALUE) #ITEM,
+
 #if __cplusplus <= 199711L
 namespace ExitCode { enum ExitCode_ {
 #else
 enum class ExitCode {
 #endif
-    SUCCESS=0,
-    ASSERTION_FAILURE=1,
-    CODING_ERROR=2,
-    SHORT_READ=3,
-    UNSUPPORTED_4_COLORS=4,
-    THREAD_PROTOCOL_ERROR=5,
-    COEFFICIENT_OUT_OF_RANGE=6,
-    STREAM_INCONSISTENT=7,
-    PROGRESSIVE_UNSUPPORTED=8,
-    FILE_NOT_FOUND=9,
-    SAMPLING_BEYOND_TWO_UNSUPPORTED=10,
-    SAMPLING_BEYOND_FOUR_UNSUPPORTED=11,
-    OS_ERROR=33,
-    HEADER_TOO_LARGE=34,
-    DIMENSIONS_TOO_LARGE=35,
-    MALLOCED_NULL=36,
-    OOM=37,
-    TOO_MUCH_MEMORY_NEEDED=38,
-    EARLY_EXIT=40,
+FOREACH_EXIT_CODE(MAKE_EXIT_CODE_ENUM)
 #if __cplusplus > 199711L
     };
 #else
