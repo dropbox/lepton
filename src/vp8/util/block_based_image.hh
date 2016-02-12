@@ -5,7 +5,8 @@
 #include "block_context.hh"
 #include <map>
 extern bool g_allow_progressive;
-class BlockBasedImage {
+template<bool force_memory_optimization=false>
+class BlockBasedImageBase {
     typedef AlignedBlock Block;
     Block *image_;
     uint32_t width_;
@@ -13,17 +14,19 @@ class BlockBasedImage {
     uint8_t *storage_;
     // if true, this image only contains 2 rows during decode
     bool memory_optimized_image_;
-    BlockBasedImage(const BlockBasedImage&) = delete;
-    BlockBasedImage& operator=(const BlockBasedImage&) = delete;
+    BlockBasedImageBase(const BlockBasedImageBase&) = delete;
+    BlockBasedImageBase& operator=(const BlockBasedImageBase&) = delete;
 public:
-    BlockBasedImage() : memory_optimized_image_(false){
+    BlockBasedImageBase()
+      : memory_optimized_image_(force_memory_optimization) {
         image_ = nullptr;
         storage_ = nullptr;
         width_ = 0;
         nblocks_ = 0;
     }
     bool is_memory_optimized() const {
-        return memory_optimized_image_;
+        return force_memory_optimization
+            || memory_optimized_image_;
     }
     size_t bytes_allocated() const {
         return 32 + nblocks_ * sizeof(Block);
@@ -32,10 +35,13 @@ public:
         return nblocks_;
     }
     void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
-        memory_optimized_image_ = memory_optimized_image;
+        if (force_memory_optimization) {
+            assert(memory_optimized_image && "MemoryOptimized must match template");
+        }
+        memory_optimized_image_ = force_memory_optimization || memory_optimized_image;
         assert(nblocks <= width * height);
         width_ = width;
-        if (memory_optimized_image_) {
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             nblocks = width * 4;
 #else
@@ -59,7 +65,7 @@ public:
     }
     BlockContext off_y(int y,
                        std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
-        if (memory_optimized_image_) {
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             return {image_ + width_ * (y & 3),
                     image_ + ((y + 3) & 3) * width_,
@@ -79,7 +85,7 @@ public:
     }
     ConstBlockContext off_y(int y,
                             std::vector<NeighborSummary>::iterator num_nonzeros_begin) const {
-        if (memory_optimized_image_) {
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             return {image_ + width_ * (y & 3),
                     image_ + ((y + 3) & 3) * width_,
@@ -101,7 +107,7 @@ public:
         it.context.cur += 1;
         ptrdiff_t offset = it.context.cur - image_;
         uint32_t retval = offset;
-        if (memory_optimized_image_) {
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             if (__builtin_expect(offset == (width_ << 2), 0)) {
                 retval = offset = 0;
@@ -150,64 +156,77 @@ public:
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
         uint32_t index;
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
-        index = x + (y & 3) * width_;
+            index = x + (y & 3) * width_;
 #else
-        index = (y & 1) ? width_ + x : x;
+            index = (y & 1) ? width_ + x : x;
 #endif
-        if (!memory_optimized_image_) {
+            if (__builtin_expect(x >= width_, 0)) {
+                custom_exit(ExitCode::OOM);
+            }
+        } else {
             index = y * width_ + x;
-        }
-        if (__builtin_expect(index >= nblocks_, 0)) {
-            custom_exit(ExitCode::OOM);
+            if (__builtin_expect(index >= nblocks_, 0)) {
+                custom_exit(ExitCode::OOM);
+            }
         }
         return image_[index];
     }
     const AlignedBlock& at(uint32_t y, uint32_t x) const {
         uint32_t index;
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
-        index = x + (y & 3) * width_;
+            index = x + (y & 3) * width_;
 #else
-        index = (y & 1) ? width_ + x : x;
+            index = (y & 1) ? width_ + x : x;
 #endif
-        if (!memory_optimized_image_) {
+            if (__builtin_expect(x >= width_, 0)) {
+                custom_exit(ExitCode::OOM);
+            }
+        } else {
             index = y * width_ + x;
-        }
-        if (__builtin_expect(index >= nblocks_, 0)) {
-            custom_exit(ExitCode::OOM);
+            if (__builtin_expect(index >= nblocks_, 0)) {
+                custom_exit(ExitCode::OOM);
+            }
         }
         return image_[index];
     }
 
 
     AlignedBlock& raster(uint32_t offset) {
-        if (memory_optimized_image_) {
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             offset = offset % (width_ << 2);
 #else
             offset = offset % (width_ << 1);
 #endif
-        }
-        if (offset >= nblocks_) {
+            assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
+        } else if (offset >= nblocks_) {
             custom_exit(ExitCode::OOM);
         }
         return image_[offset];
     }
     const AlignedBlock& raster(uint32_t offset) const {
-        if (memory_optimized_image_) {
+        if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             offset = offset % (width_ << 2);
 #else
             offset = offset % (width_ << 1);
-#endif            
-        }
-        if (__builtin_expect(offset >= nblocks_, 0)) {
+#endif
+            assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
+        } else if (__builtin_expect(offset >= nblocks_, 0)) {
             custom_exit(ExitCode::OOM);
         }
         return image_[offset];
     }
 };
-
+class BlockBasedImage : public BlockBasedImageBase<false> {
+    BlockBasedImage(const BlockBasedImage&) = delete;
+    BlockBasedImage& operator=(const BlockBasedImage&) = delete;
+public:
+    BlockBasedImage() {}
+};
 inline
 BlockColorContext get_color_context_blocks(
                                         const BlockColorContextIndices & indices,
