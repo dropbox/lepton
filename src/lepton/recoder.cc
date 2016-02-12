@@ -104,12 +104,13 @@ void escape_0xff_huffman_and_write(Sirikata::BoundedMemWriter* str_out,
 
 extern int cs_cmp[ 4 ];
 
-bool recode_one_mcu_row(abitwriter *huffw, int mcu, int &cumulative_reset_markers,
+bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                         Sirikata::BoundedMemWriter*str_out, int lastdc[4] ) {
   int cmp = cs_cmp[ 0 ];
   int csc = 0, sub = 0;
   int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
   int rstw = rsti ? rsti - mcu % rsti : 0;
+  int cumulative_reset_markers = rstw ? mcu / rsti : 0;
 
   Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     bool end_of_row = false;
@@ -274,13 +275,12 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         return false;
     }
     /* step 2: decode the scan, row by row */
-    int cumulative_reset_markers = 0;
     Sirikata::JpegAllocator<uint8_t> alloc;
     Sirikata::BoundedMemWriter local_buffer(alloc);
     for ( unsigned int row = 0; row < mcuv && !str_out->has_reached_bound(); row++ ) {
         local_buffer.Reset();
         local_buffer.set_bound(local_bound);
-        if ( !recode_one_mcu_row(huffw, row * mcuh, cumulative_reset_markers, &local_buffer, lastdc) ) {
+        if ( !recode_one_mcu_row(huffw, row * mcuh, &local_buffer, lastdc) ) {
             return false;
         }
         const unsigned char * flushed_data = huffw->partial_bytewise_flush();
