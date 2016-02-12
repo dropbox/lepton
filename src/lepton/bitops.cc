@@ -87,7 +87,7 @@ abitwriter::abitwriter( int size , int max_file_size)
 abitwriter::~abitwriter( void )
 {
 	// free memory if pointer was not given out
-    if ( fmem )	free( data2 );
+    if ( fmem )	custom_free( data2 );
 }
 
 
