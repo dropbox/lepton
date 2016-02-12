@@ -240,7 +240,8 @@ public:
         return header_[(int)cmp].component_.
             raster(dpos).coefficients_zigzag(bpos);
     }
-
+    // return the minimum luma multiple for full mcu splits in luma
+    int min_vertical_luma_multiple() const;
     int block_height( const int cmp ) const
     {
         return bcv_(cmp);

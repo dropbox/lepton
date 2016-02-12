@@ -5,3 +5,24 @@
 #include "component_info.hh"
 
 int UncompressedComponents::max_number_of_blocks = 0;
+
+int gcd(int a, int b) {
+    while(b) {
+        int tmp = a % b;
+        a = b;
+        b = tmp;
+    }
+    return a;
+}
+int lcm (int a, int b) {
+    return a * b / gcd(a, b);
+}
+int UncompressedComponents::min_vertical_luma_multiple() const {
+    int luma_height = header_[0].info_.bcv;
+    int overall_gcd = luma_height;
+    for (int i = 1; i< cmpc_; ++i) {
+        int cur_height = header_[i].info_.bcv;
+        overall_gcd = gcd(overall_gcd, cur_height);
+    }
+    return luma_height / overall_gcd;
+}

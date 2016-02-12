@@ -96,6 +96,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
 template <bool force_memory_optimized>
 bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* input,
                                                    const UncompressedComponents * const colldata,
+                                                   bool splits_must_preserve_full_mcu_row,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                                      NUM_THREADS>& framebuffer) {
     if (colldata->get_num_components() > (int)BlockType::Y) {
@@ -130,8 +131,17 @@ bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* inpu
 
     std::vector<uint16_t> luma_splits_tmp(mark - 1);
     IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
+    int sfv_lcm = colldata->min_vertical_luma_multiple();
+    
     for (int i = 0; i + 1 < mark; ++i) {
         file_luma_splits_[i] = htole16(luma_splits_tmp[i]);
+        if (splits_must_preserve_full_mcu_row) {
+            if (file_luma_splits_[i] % sfv_lcm) {
+                fprintf(stderr, "File Split %d = %d (remainder %d)\n",
+                        i, file_luma_splits_[i], sfv_lcm);
+                custom_exit(ExitCode::THREADING_PARTIAL_MCU);
+            }
+        }
     }
     /* read entire chunk into memory */
     mux_reader_.fillBufferEntirely(streams_.begin());
@@ -163,6 +173,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         bool ret = initialize_decoder_state(str_in,
                                             colldata,
+                                            true,
                                             all_framebuffers);
         if (!ret) {
             return CODING_ERROR;

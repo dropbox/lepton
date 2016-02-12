@@ -23,6 +23,7 @@ extern bool g_use_seccomp;
     CB(FILE_NOT_FOUND,9)                        \
     CB(SAMPLING_BEYOND_TWO_UNSUPPORTED,10)      \
     CB(SAMPLING_BEYOND_FOUR_UNSUPPORTED,11)     \
+    CB(THREADING_PARTIAL_MCU,12)                \
     CB(OS_ERROR,33)                             \
     CB(HEADER_TOO_LARGE,34)                     \
     CB(DIMENSIONS_TOO_LARGE,35)                 \

@@ -30,6 +30,7 @@ public:
     template <bool force_memory_optimized>
     bool initialize_decoder_state(Sirikata::DecoderReader* input,
                                   const UncompressedComponents * const colldata,
+                                  bool splits_must_preserve_full_mcu_row,
                                   Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                     NUM_THREADS>& framebuffer);
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {

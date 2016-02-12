@@ -170,13 +170,7 @@ void pick_luma_splits(const UncompressedComponents *colldata,
                       int luma_splits[NUM_THREADS]) {
     int height = colldata->block_height(0);
     int width = colldata->block_width(0);
-    int minheight = height;
-    for (int cmp = 1; cmp < colldata->get_num_components(); ++cmp) {
-        if (colldata->block_height(cmp) < minheight) {
-            minheight = colldata->block_height(cmp);
-        }
-    }
-    int mod_by = height / minheight;
+    int mod_by = colldata->min_vertical_luma_multiple();
     std::vector<uint32_t> row_costs(height);
     const BlockBasedImage &image = colldata->full_component_nosync(0);
     for (int i = 0; i < height; ++i) {
