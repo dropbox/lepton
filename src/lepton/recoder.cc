@@ -275,23 +275,21 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         }
     }
 
+    /* verify huffman coder is quiescent */
+    if ( !huffw->no_remainder() ) {
+        return false;
+    }
+
+    if ( huffw->error ) {
+        custom_exit(ExitCode::OOM);
+    }
+
     /* step 3: blit any trailing data */
     if ( not str_out->has_reached_bound() ) {
         str_out->write( hdrdata + byte_position, hdrs - byte_position );
     }
 
-    if(str_out->has_reached_bound()) {
-        check_decompression_memory_bound_ok();
-    }
-
-    // safety check for error in huffwriter
-    if ( huffw->error ) {
-        custom_exit(ExitCode::OOM);
-    }
-
-    assert(huffw->no_remainder() && "this should have been padded");
-    escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), true);
-    huffw->reset();
+    check_decompression_memory_bound_ok();
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)
     // this guarantees that we can stop the write in time.
