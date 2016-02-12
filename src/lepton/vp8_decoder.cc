@@ -93,9 +93,11 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
     TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
-
+template <bool force_memory_optimized>
 bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* input,
-                                                   UncompressedComponents * const colldata) {
+                                                   const UncompressedComponents * const colldata,
+                                                   Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
+                                                                     NUM_THREADS>& framebuffer) {
     if (colldata->get_num_components() > (int)BlockType::Y) {
         ProbabilityTablesBase::set_quantization_table(BlockType::Y,
                                                       colldata->get_quantization_tables(BlockType::Y));
@@ -133,15 +135,10 @@ bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* inpu
     }
     /* read entire chunk into memory */
     mux_reader_.fillBufferEntirely(streams_.begin());
-    BlockBasedImagePerChannel<false> framebuffer;
-    framebuffer.memset(0);
-    for (size_t i = 0; i < framebuffer.size() && i < colldata->get_num_components(); ++i) {
-        framebuffer[i] = &colldata->full_component_write((BlockType)i);
-    }
-    initialize_thread_id(0, 0, framebuffer);
+    initialize_thread_id(0, 0, framebuffer[0]);
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            initialize_thread_id(thread_id, thread_id, framebuffer);
+            initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
         }
     }
     return true;
@@ -155,8 +152,18 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
     if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].context.isNil() ) {
         /* first call */
+        BlockBasedImagePerChannel<false> framebuffer;
+        framebuffer.memset(0);
+        for (size_t i = 0; i < framebuffer.size() && i < colldata->get_num_components(); ++i) {
+            framebuffer[i] = &colldata->full_component_write((BlockType)i);
+        }
+        Sirikata::Array1d<BlockBasedImagePerChannel<false>, NUM_THREADS> all_framebuffers;
+        for (size_t i = 0; i < all_framebuffers.size(); ++i) {
+            all_framebuffers[i] = framebuffer;
+        }
         bool ret = initialize_decoder_state(str_in,
-                                            colldata);
+                                            colldata,
+                                            all_framebuffers);
         if (!ret) {
             return CODING_ERROR;
         }

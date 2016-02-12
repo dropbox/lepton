@@ -27,8 +27,11 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
 public:
     VP8ComponentDecoder(bool do_threading);
     // reads the threading information and uses mux_reader_ to create the streams_ return true is success
+    template <bool force_memory_optimized>
     bool initialize_decoder_state(Sirikata::DecoderReader* input,
-        UncompressedComponents * const colldata);
+                                  const UncompressedComponents * const colldata,
+                                  Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
+                                                    NUM_THREADS>& framebuffer);
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         this->VP8ComponentEncoder::registerWorkers(workers);
     }
