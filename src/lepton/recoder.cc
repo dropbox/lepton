@@ -52,8 +52,7 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
  */
 void escape_0xff_huffman_and_write(bounded_iostream* str_out,
                                    const unsigned char * local_huff_data,
-                                   unsigned int max_byte_coded,
-                                   bool flush) {
+                                   unsigned int max_byte_coded) {
     unsigned int progress_ipos = 0;
     //write a single scan
     {
@@ -147,7 +146,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu, int &cumulative_reset_marker
                 sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
             }
             if (sta == 0 && huffw->no_remainder()) {
-                escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
+                escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos());
                 huffw->reset();
             }
             if (str_out->has_reached_bound()) {
@@ -164,7 +163,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu, int &cumulative_reset_marker
         // pad huffman writer
         huffw->pad( padbit );
         if (huffw->no_remainder()) {
-            escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos(), false);
+            escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos());
             huffw->reset();
         }
         // evaluate status
