@@ -229,24 +229,12 @@ public:
         return header_[cmp].component_;
 
     }
-    signed short&set(BlockType cmp, int bpos, int dpos) {
-        return header_[(int)cmp].component_.
-            raster(dpos).mutable_coefficients_zigzag(bpos);
-    }
-    AlignedBlock& mutable_block(BlockType cmp, int dpos) {
-        return header_[(int)cmp].component_.raster(dpos);
-    }
     const AlignedBlock& block(BlockType cmp, int dpos) {
         wait_for_worker_on_dpos((int)cmp, dpos);
         return header_[(int)cmp].component_.raster(dpos);
     }
     const AlignedBlock& block_nosync(BlockType cmp, int dpos) const {
         return header_[(int)cmp].component_.raster(dpos);
-    }
-    signed short at(BlockType cmp, int bpos, int dpos) {
-        wait_for_worker_on_dpos((int)cmp, dpos);
-        return header_[(int)cmp].component_.
-            raster(dpos).coefficients_zigzag(bpos);
     }
     signed short at_nosync(BlockType cmp, int bpos, int dpos) const {
         return header_[(int)cmp].component_.
@@ -275,6 +263,28 @@ public:
         reset();
     }
     static int max_number_of_blocks;
+
+
+    // the following functions are progressive-only functions (recode_jpeg)
+    // or decode-only functions (decode_jpeg, check_value_range)
+    // these are the only functions able to access the components
+    friend bool decode_jpeg(void);
+    friend bool recode_jpeg(void);
+    friend bool check_value_range(void);
+private:
+    AlignedBlock& mutable_block(BlockType cmp, int dpos) {
+        return header_[(int)cmp].component_.raster(dpos);
+    }
+    signed short at(BlockType cmp, int bpos, int dpos) {
+        wait_for_worker_on_dpos((int)cmp, dpos);
+        return header_[(int)cmp].component_.
+            raster(dpos).coefficients_zigzag(bpos);
+    }
+    signed short&set(BlockType cmp, int bpos, int dpos) {
+        return header_[(int)cmp].component_.
+            raster(dpos).mutable_coefficients_zigzag(bpos);
+    }
+
 };
 
 
