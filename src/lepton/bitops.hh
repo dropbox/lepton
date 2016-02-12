@@ -128,7 +128,10 @@ class abitwriter
     bool fmem;
     int size_bound;
 public:
-	abitwriter( int size, int size_bound=0 );
+    void debug() const;
+    void reset_bytes_only();
+    
+    abitwriter( int size, int size_bound=0 );
 	~abitwriter( void );
     
     void flush_no_pad() {
@@ -248,7 +251,7 @@ public:
         cbyte2 = 0;
         cbit2 = 64;
     }
-    int getpos( void ) {
+    int getpos( void ) const {
         return cbyte2;
     }
     bool no_remainder() const {
