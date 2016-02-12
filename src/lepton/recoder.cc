@@ -104,7 +104,7 @@ void escape_0xff_huffman_and_write(bounded_iostream* str_out,
 
 extern int cs_cmp[ 4 ];
 
-bool recode_one_mcu_row(abitwriter *huffw, int &mcu, int &cumulative_reset_markers,
+bool recode_one_mcu_row(abitwriter *huffw, int mcu, int &cumulative_reset_markers,
                         bounded_iostream*str_out, int lastdc[4] ) {
   int cmp = cs_cmp[ 0 ];
   int csc = 0, sub = 0;
@@ -268,9 +268,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     }
 
     /* step 2: decode the scan, row by row */
-    int mcu = 0, cumulative_reset_markers = 0;
-    for ( unsigned int i = 0; i < mcuv and !str_out->has_reached_bound(); i++ ) {
-        if ( !recode_one_mcu_row(huffw, mcu, cumulative_reset_markers, str_out, lastdc) ) {
+    int cumulative_reset_markers = 0;
+    for ( unsigned int row = 0; row < mcuv and !str_out->has_reached_bound(); row++ ) {
+        if ( !recode_one_mcu_row(huffw, row * mcuh, cumulative_reset_markers, str_out, lastdc) ) {
             return false;
         }
     }
