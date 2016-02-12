@@ -252,15 +252,11 @@ void abitwriter::debug() const
 bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
 {
-    abitwriter*  huffw; // bitwise writer for image data
 
 
     int lastdc[ 4 ] = {0, 0, 0, 0}; // last dc for each component
     int rstw = 0; // restart wait counter
 
-    // open huffman coded image data in abitwriter
-    huffw = new abitwriter( 16384, max_file_size);
-    huffw->fillbit = padbit;
     unsigned int local_bound = max_file_size - grbs;
     str_out->set_bound(local_bound);
     {
@@ -275,33 +271,41 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         return false;
     }
     /* step 2: decode the scan, row by row */
+    uint8_t overhang_byte = 0;
+    uint8_t num_overhang_bits = 0;
+    
     Sirikata::JpegAllocator<uint8_t> alloc;
+    // the reason local_buffer isn't contained entirely in the loop is one purely of performance
+    // The allocation/deallocation of the vector just takes ages with test_hq
+    // However, this doesn't mean the contents are shared: it gets treated as cleared each time
     Sirikata::BoundedMemWriter local_buffer(alloc);
     for ( unsigned int row = 0; row < mcuv && !str_out->has_reached_bound(); row++ ) {
+        // open huffman coded image data in abitwriter
+        abitwriter huffw(16384, max_file_size);
+        huffw.fillbit = padbit;
+        huffw.reset_from_overhang_byte_and_num_bits(overhang_byte,
+                                                    num_overhang_bits);
         local_buffer.Reset();
         local_buffer.set_bound(local_bound);
-        if ( !recode_one_mcu_row(huffw, row * mcuh, &local_buffer, lastdc) ) {
+        if ( !recode_one_mcu_row(&huffw, row * mcuh, &local_buffer, lastdc) ) {
             return false;
         }
-        const unsigned char * flushed_data = huffw->partial_bytewise_flush();
-        escape_0xff_huffman_and_write(&local_buffer, flushed_data, huffw->getpos() );
-        huffw->reset_crystalized_bytes();
+        const unsigned char * flushed_data = huffw.partial_bytewise_flush();
+        escape_0xff_huffman_and_write(&local_buffer, flushed_data, huffw.getpos() );
+        huffw.reset_crystalized_bytes();
+        num_overhang_bits = huffw.get_num_overhang_bits();
+        overhang_byte = huffw.get_overhang_byte();
         size_t bytes_to_copy = local_buffer.bytes_written();
         if (bytes_to_copy) {
             local_bound -= bytes_to_copy;
             str_out->write(&local_buffer.buffer()[0],
                            bytes_to_copy);
         }
+        if ( huffw.error ) {
+            custom_exit(ExitCode::OOM);
+        }
     }
 
-    /* verify huffman coder is quiescent */
-    if ( !huffw->no_remainder() ) {
-        return false;
-    }
-
-    if ( huffw->error ) {
-        custom_exit(ExitCode::OOM);
-    }
 
     /* step 3: blit any trailing data */
     if ( not str_out->has_reached_bound() ) {

@@ -120,6 +120,7 @@ private:
 class abitwriter
 {
     unsigned char* data2;
+public:
     uint64_t buf;
     int dsize;
     int adds;
@@ -196,15 +197,7 @@ public:
 
         // write data
         if ( nbits2 >= cbit2 ) {
-            /*
-            uint64_t tmp = val2;
-            uint64_t mask = 1;
-            mask <<= nbits2 - cbit2;
-            mask -=1;
-            tmp &= mask;
-            buf <<= nbits2;
-            buf |= tmp;
-             */
+
             buf |= MBITS64(val2, nbits2, (nbits2-cbit2));
             nbits2 -= cbit2;
             cbit2 = 0;
@@ -217,21 +210,6 @@ public:
             cbit2 -= nbits2;
         }
 
-        /*
-        uint64_t to_print = htobe64(buf);
-        to_print >>= (cbit2+nbitsbak)/8*8;
-        to_print &= 255;
-        fprintf(stderr, "%x & %d =>\n", val2, nbitsbak);
-        for (int i = 0; i <= cbyte;++i) {
-            fprintf(stderr, "%x", (int)data[i]);
-        }
-        fprintf(stderr, "\n");
-        for (int i = 0; i <= cbyte2;++i) {
-            fprintf(stderr, "%x", (int)data2[i]);
-        }
-        fprintf(stderr, "%07llx", buf);
-        fprintf(stderr,"\n");
-         */
 
 
     }
@@ -255,6 +233,27 @@ public:
     const unsigned char* peekptr( void ) {
         flush_no_pad();
         return data2;
+    }
+    uint8_t get_num_overhang_bits() {
+        return 64 - cbit2;
+    }
+    uint8_t get_overhang_byte() const {
+        assert(cbit2 > 56);
+        uint64_t retval = buf;
+        retval >>= 56;
+        return (uint8_t) retval;
+    }
+    void reset_from_overhang_byte_and_num_bits(uint8_t overhang_byte,
+                                               uint8_t num_bits) {
+        memset(data2, 0, cbyte2);
+        if (size_bound) {
+            size_bound -=cbyte2;
+        }
+        cbyte2 = 0;
+        buf = 0;
+        buf = overhang_byte;
+        buf <<= 56;
+        cbit2 = 64 - num_bits;
     }
     void reset() {
         assert(no_remainder());
