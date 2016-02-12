@@ -28,6 +28,9 @@ public:
         return force_memory_optimization
             || memory_optimized_image_;
     }
+    uint32_t block_width() const {
+        return width_;
+    }
     size_t bytes_allocated() const {
         return 32 + nblocks_ * sizeof(Block);
     }
@@ -227,28 +230,9 @@ class BlockBasedImage : public BlockBasedImageBase<false> {
 public:
     BlockBasedImage() {}
 };
-inline
-BlockColorContext get_color_context_blocks(
-                                        const BlockColorContextIndices & indices,
-                                           const Sirikata::Array1d<BlockBasedImage,
-                                                                   (uint32_t)ColorChannel::NumBlockTypes> &jpeg,
-                                           uint8_t component) {
-    BlockColorContext retval = {(uint8_t)component};
-    retval.color = component;
-    (void)indices;
-    (void)jpeg;
-#ifdef USE_COLOR_VALUES
-    for (size_t i = 0; i < sizeof(indices.luminanceIndex)/sizeof(indices.luminanceIndex[0]); ++i) {
-        for (size_t j = 0; j < sizeof(indices.luminanceIndex[0])/sizeof(indices.luminanceIndex[0][0]); ++j) {
-            if (indices.luminanceIndex[i][j].initialized()) {
-                retval.luminance[i][j] = &jpeg[0].at(indices.luminanceIndex[i][j].get().second,indices.luminanceIndex[i][j].get().first);
-            }
-        }
-    }
-    if (indices.chromaIndex.initialized()) {
-        retval.chroma = &jpeg[1].at(indices.chromaIndex.get().second,indices.chromaIndex.get().first);
-    }
-#endif
-    return retval;
-}
+template<bool force_memory_optimization=false> class BlockBasedImagePerChannel :
+    public Sirikata::Array1d<BlockBasedImageBase<force_memory_optimization> *,
+                             (uint32_t)ColorChannel::NumBlockTypes> {
+};
+
 #endif

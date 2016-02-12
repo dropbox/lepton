@@ -19,14 +19,16 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
     VP8ComponentDecoder(const VP8ComponentDecoder&) = delete;
     VP8ComponentDecoder& operator=(const VP8ComponentDecoder&) = delete;
     static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata);
+    template <bool force_memory_optimized>
     void initialize_thread_id(int thread_id, int target_thread_state,
-                              UncompressedComponents * const colldata);
+                              BlockBasedImagePerChannel<force_memory_optimized>& framebuffer);
+
     int virtual_thread_id_;
 public:
     VP8ComponentDecoder(bool do_threading);
     // reads the threading information and uses mux_reader_ to create the streams_ return true is success
     bool initialize_decoder_state(Sirikata::DecoderReader* input,
-                                  UncompressedComponents * const colldata);
+        UncompressedComponents * const colldata);
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         this->VP8ComponentEncoder::registerWorkers(workers);
     }

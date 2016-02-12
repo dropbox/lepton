@@ -214,7 +214,7 @@ public:
     }
     void signal_worker_should_begin() {
         //std::atomic_thread_fence(std::memory_order_release);
-        worker_start_read_signal_++;
+         worker_start_read_signal_++;
     }
     unsigned int component_size_allocated(int cmp) const {
         return header_[cmp].component_.bytes_allocated();

@@ -65,16 +65,21 @@ void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, Uncompre
     }
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
 }
+template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
-                                               UncompressedComponents * const colldata) {
+                                               BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
     TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
     }
-    for (int i = 0; i < colldata->get_num_components(); ++i) {
-        thread_state_[target_thread_state]->context_.at(i).context
-            = colldata->full_component_write((BlockType)i).begin(thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
-        thread_state_[target_thread_state]->context_.at(i).y = 0;
+    for (int i = 0; i < framebuffer.size(); ++i) {
+        if (framebuffer[i] != NULL)  {
+            thread_state_[target_thread_state]->is_top_row_.at(i) = true;
+            thread_state_[target_thread_state]->num_nonzeros_.at(i).resize(framebuffer[i]->block_width() << 1);
+            thread_state_[target_thread_state]->context_.at(i).context
+                = framebuffer[i]->begin(thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
+            thread_state_[target_thread_state]->context_.at(i).y = 0;
+        }
     }
     /* initialize the bool decoder */
     int index = thread_id;
@@ -82,10 +87,6 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
 [index].second
                                                  ? &*streams_[index].first : nullptr,
                                                  streams_[index].second - streams_[index].first );
-    for (int j   = 0 ; j < (int)ColorChannel::NumBlockTypes; ++j) {
-        thread_state_[target_thread_state]->is_top_row_.at(j) = true;
-        thread_state_[target_thread_state]->num_nonzeros_.at(j).resize(colldata->block_width(j) << 1);
-    }
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     thread_state_[target_thread_state]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
@@ -132,10 +133,15 @@ bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* inpu
     }
     /* read entire chunk into memory */
     mux_reader_.fillBufferEntirely(streams_.begin());
-    initialize_thread_id(0, 0, colldata);
+    BlockBasedImagePerChannel<false> framebuffer;
+    framebuffer.memset(0);
+    for (size_t i = 0; i < framebuffer.size() && i < colldata->get_num_components(); ++i) {
+        framebuffer[i] = &colldata->full_component_write((BlockType)i);
+    }
+    initialize_thread_id(0, 0, framebuffer);
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            initialize_thread_id(thread_id, thread_id, colldata);
+            initialize_thread_id(thread_id, thread_id, framebuffer);
         }
     }
     return true;
@@ -195,7 +201,13 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         // wait for "threads"
         virtual_thread_id_ += 1;
         for (int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
-            initialize_thread_id(thread_id, 0, colldata);
+            BlockBasedImagePerChannel<false> framebuffer;
+            framebuffer.memset(0);
+            for (size_t i = 0; i < framebuffer.size() && i < colldata->get_num_components(); ++i) {
+                framebuffer[i] = &colldata->full_component_write((BlockType)i);
+            }
+
+            initialize_thread_id(thread_id, 0, framebuffer);
             TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
             if ((ret = thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
                 return ret;
