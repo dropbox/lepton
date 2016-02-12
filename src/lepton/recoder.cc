@@ -6,6 +6,7 @@
 #include "uncompressed_components.hh"
 #include "recoder.hh"
 #include "bitops.hh"
+#include "../io/BoundedMemWriter.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
@@ -50,7 +51,7 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
  * This function takes local byte-aligned huffman data and writes it to the file
  * This function escapes any 0xff bytes found in the huffman data
  */
-void escape_0xff_huffman_and_write(bounded_iostream* str_out,
+void escape_0xff_huffman_and_write(Sirikata::BoundedMemWriter* str_out,
                                    const unsigned char * local_huff_data,
                                    unsigned int max_byte_coded) {
     unsigned int progress_ipos = 0;
@@ -104,7 +105,7 @@ void escape_0xff_huffman_and_write(bounded_iostream* str_out,
 extern int cs_cmp[ 4 ];
 
 bool recode_one_mcu_row(abitwriter *huffw, int mcu, int &cumulative_reset_markers,
-                        bounded_iostream*str_out, int lastdc[4] ) {
+                        Sirikata::BoundedMemWriter*str_out, int lastdc[4] ) {
   int cmp = cs_cmp[ 0 ];
   int csc = 0, sub = 0;
   int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
@@ -259,8 +260,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     // open huffman coded image data in abitwriter
     huffw = new abitwriter( 16384, max_file_size);
     huffw->fillbit = padbit;
-
-    str_out->set_bound(max_file_size - grbs);
+    unsigned int local_bound = max_file_size - grbs;
+    str_out->set_bound(local_bound);
     {
         unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
         // write SOI
@@ -272,16 +273,25 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if ( byte_position == -1 ) {
         return false;
     }
-
     /* step 2: decode the scan, row by row */
     int cumulative_reset_markers = 0;
-    for ( unsigned int row = 0; row < mcuv and !str_out->has_reached_bound(); row++ ) {
-        if ( !recode_one_mcu_row(huffw, row * mcuh, cumulative_reset_markers, str_out, lastdc) ) {
+    Sirikata::JpegAllocator<uint8_t> alloc;
+    Sirikata::BoundedMemWriter local_buffer(alloc);
+    for ( unsigned int row = 0; row < mcuv && !str_out->has_reached_bound(); row++ ) {
+        local_buffer.Reset();
+        local_buffer.set_bound(local_bound);
+        if ( !recode_one_mcu_row(huffw, row * mcuh, cumulative_reset_markers, &local_buffer, lastdc) ) {
             return false;
         }
         const unsigned char * flushed_data = huffw->partial_bytewise_flush();
-        escape_0xff_huffman_and_write( str_out, flushed_data, huffw->getpos() );
+        escape_0xff_huffman_and_write(&local_buffer, flushed_data, huffw->getpos() );
         huffw->reset_crystalized_bytes();
+        size_t bytes_to_copy = local_buffer.bytes_written();
+        if (bytes_to_copy) {
+            local_bound -= bytes_to_copy;
+            str_out->write(&local_buffer.buffer()[0],
+                           bytes_to_copy);
+        }
     }
 
     /* verify huffman coder is quiescent */
