@@ -129,11 +129,25 @@ class abitwriter
     int size_bound;
 public:
     void debug() const;
-    void reset_bytes_only();
+
     
     abitwriter( int size, int size_bound=0 );
 	~abitwriter( void );
     
+    unsigned char* partial_bytewise_flush() {
+        if (__builtin_expect(cbyte2 >= size_bound, 0)) {
+            return data2;
+        }
+        int partial_byte_bits = (64 - cbit2) & 7;
+        uint64_t xbuf = htobe64(buf);
+        uint32_t bytes_to_write = (64 - (cbit2 + partial_byte_bits)) / 8;
+        uint32_t bits_to_write = (bytes_to_write << 3);
+        memcpy(data2 + cbyte2, &xbuf, bytes_to_write);
+        cbyte2 += bytes_to_write;
+        buf <<= bits_to_write;
+        cbit2 += bits_to_write;
+        return data2;
+    }
     void flush_no_pad() {
         if (__builtin_expect(cbyte2 >= size_bound, 0)) {
             return;
@@ -244,12 +258,14 @@ public:
     }
     void reset() {
         assert(no_remainder());
+        reset_crystalized_bytes();
+    }
+    void reset_crystalized_bytes() {
         memset(data2, 0, cbyte2);
         if (size_bound) {
             size_bound -=cbyte2;
         }
         cbyte2 = 0;
-        cbit2 = 64;
     }
     int getpos( void ) const {
         return cbyte2;

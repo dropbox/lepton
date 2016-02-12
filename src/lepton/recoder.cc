@@ -241,16 +241,7 @@ void abitwriter::debug() const
 {
     using std::cerr;
 
-    cerr << "abitwriter: no_remainder=" << no_remainder() << ", getpos=" << getpos() << "\n";
-}
-
-void abitwriter::reset_bytes_only()
-{
-    memset(data2, 0, cbyte2);
-    if (size_bound) {
-        size_bound -= cbyte2;
-    }
-    cbyte2 = 0;
+    cerr << "abitwriter: no_remainder=" << no_remainder() << ", getpos=" << getpos() << ", bits="<<cbit2<<", buf="<<std::hex<<buf<<std::dec<<"\n";
 }
 
 /* -----------------------------------------------
@@ -288,11 +279,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         if ( !recode_one_mcu_row(huffw, row * mcuh, cumulative_reset_markers, str_out, lastdc) ) {
             return false;
         }
-
-        huffw->debug();
-        escape_0xff_huffman_and_write( str_out, huffw->peekptr(), huffw->getpos() );
-        huffw->reset_bytes_only();
-        huffw->debug();
+        const unsigned char * flushed_data = huffw->partial_bytewise_flush();
+        escape_0xff_huffman_and_write( str_out, flushed_data, huffw->getpos() );
+        huffw->reset_crystalized_bytes();
     }
 
     /* verify huffman coder is quiescent */
