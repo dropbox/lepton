@@ -28,11 +28,12 @@ public:
     VP8ComponentDecoder(bool do_threading);
     // reads the threading information and uses mux_reader_ to create the streams_ return true is success
     template <bool force_memory_optimized>
-    bool initialize_decoder_state(Sirikata::DecoderReader* input,
-                                  const UncompressedComponents * const colldata,
-                                  bool splits_must_preserve_full_mcu_row,
+    bool initialize_decoder_state(const UncompressedComponents * const colldata, // quantization_tables
                                   Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
-                                                    NUM_THREADS>& framebuffer);
+                                                    NUM_THREADS>& framebuffer); // framebuffer
+    virtual bool initialize_baseline_decoder(const UncompressedComponents * const colldata,
+                                             Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                                                               NUM_THREADS>& framebuffer);
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         this->VP8ComponentEncoder::registerWorkers(workers);
     }
@@ -40,5 +41,11 @@ public:
     void initialize(Sirikata::DecoderReader *input);
     //necessary to implement the BaseDecoder interface. Thin wrapper around vp8_decoder
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst);
-
+    virtual void decode_row(int target_thread_id,
+                            BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::
+                                              NumBlockTypes> component_size_in_blocks,
+                            int component,
+                            int curr_y);
 };

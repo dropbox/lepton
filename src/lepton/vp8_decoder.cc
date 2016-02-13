@@ -20,7 +20,18 @@ void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
     str_in = input;
     mux_reader_.init(input);
 }
-
+void VP8ComponentDecoder::decode_row(int target_thread_id,
+                                     BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                                     Sirikata::Array1d<uint32_t,
+                                                       (uint32_t)ColorChannel::
+                                                       NumBlockTypes> component_size_in_blocks,
+                                     int component,
+                                     int curr_y) {
+    thread_state_[target_thread_id]->decode_row(image_data,
+                                               component_size_in_blocks,
+                                               component,
+                                               curr_y);
+}
 
 
 VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
@@ -93,12 +104,16 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
     TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
+bool VP8ComponentDecoder::initialize_baseline_decoder(const UncompressedComponents * const colldata,
+                                                      Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                                                                        NUM_THREADS>& framebuffer) {
+    return initialize_decoder_state(colldata, framebuffer);
+}
 template <bool force_memory_optimized>
-bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* input,
-                                                   const UncompressedComponents * const colldata,
-                                                   bool splits_must_preserve_full_mcu_row,
+bool VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                                      NUM_THREADS>& framebuffer) {
+    Sirikata::DecoderReader* input = str_in;
     if (colldata->get_num_components() > (int)BlockType::Y) {
         ProbabilityTablesBase::set_quantization_table(BlockType::Y,
                                                       colldata->get_quantization_tables(BlockType::Y));
@@ -135,12 +150,10 @@ bool VP8ComponentDecoder::initialize_decoder_state(Sirikata::DecoderReader* inpu
     
     for (int i = 0; i + 1 < mark; ++i) {
         file_luma_splits_[i] = htole16(luma_splits_tmp[i]);
-        if (splits_must_preserve_full_mcu_row) {
-            if (file_luma_splits_[i] % sfv_lcm) {
-                fprintf(stderr, "File Split %d = %d (remainder %d)\n",
-                        i, file_luma_splits_[i], sfv_lcm);
-                custom_exit(ExitCode::THREADING_PARTIAL_MCU);
-            }
+        if (file_luma_splits_[i] % sfv_lcm) {
+            fprintf(stderr, "File Split %d = %d (remainder %d)\n",
+                    i, file_luma_splits_[i], sfv_lcm);
+            custom_exit(ExitCode::THREADING_PARTIAL_MCU);
         }
     }
     /* read entire chunk into memory */
@@ -171,9 +184,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (size_t i = 0; i < all_framebuffers.size(); ++i) {
             all_framebuffers[i] = framebuffer;
         }
-        bool ret = initialize_decoder_state(str_in,
-                                            colldata,
-                                            true,
+        bool ret = initialize_decoder_state(colldata,
                                             all_framebuffers);
         if (!ret) {
             return CODING_ERROR;

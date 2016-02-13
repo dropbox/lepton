@@ -16,7 +16,16 @@ public:
     virtual void initialize(Sirikata::DecoderReader *input);
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
-    static void simple_continuous_decoder(UncompressedComponents* colldata,
-                                          Sirikata::DecoderReader *);
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {}
+    bool initialize_baseline_decoder(const UncompressedComponents * const colldata,
+                                     Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                                                       NUM_THREADS>& framebuffer){}
+    void decode_row(int thread_state_id,
+                    BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                    Sirikata::Array1d<uint32_t,
+                                      (uint32_t)ColorChannel::
+                                      NumBlockTypes> component_size_in_blocks,
+                    int component,
+                    int curr_y);
+
 };

@@ -241,7 +241,9 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
         component_size_in_blocks[i] = colldata->component_size_in_blocks(i);
         image_data[i] = &colldata->full_component_write((BlockType)i);
     }
-    Sirikata::Array1d<uint32_t, (size_t)ColorChannel::NumBlockTypes> max_coded_heights = colldata->get_max_coded_heights();
+    Sirikata::Array1d<uint32_t,
+                      (size_t)ColorChannel::NumBlockTypes> max_coded_heights
+        = colldata->get_max_coded_heights();
     /* deserialize each block in planar order */
 
     assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet

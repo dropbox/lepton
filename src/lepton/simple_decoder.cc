@@ -20,14 +20,15 @@ void SimpleComponentDecoder::initialize(Sirikata::DecoderReader *i) {
     str_in = i;
 }
 
-void SimpleComponentDecoder::simple_continuous_decoder(UncompressedComponents* colldata,
-                                                       Sirikata::DecoderReader *i) {
-    SimpleComponentDecoder scd;
-    scd.initialize(i);
-    while(scd.decode_chunk(colldata) == CODING_PARTIAL) {
-    }
+void SimpleComponentDecoder::decode_row(int thread_state_id,
+                                        BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                                        Sirikata::Array1d<uint32_t,
+                                                          (uint32_t)ColorChannel::
+                                                          NumBlockTypes> component_size_in_blocks,
+                                        int component,
+                                        int curr_y) {
+    custom_exit(ExitCode::ASSERTION_FAILURE);
 }
-
 BlockType get_cmp(int cur_read_batch[3], int target[3]) {
     BlockType cmp = BlockType::Y;
     double cmp_progress = cur_read_batch[(int)cmp]/(double)target[(int)cmp];
