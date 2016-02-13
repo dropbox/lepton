@@ -56,6 +56,14 @@ public:
     unsigned short *get_quantization_tables(BlockType component) const {
         return header_[(int)component].info_.qtable;
     }
+    Sirikata::Array1d<uint32_t, (size_t)ColorChannel::NumBlockTypes> get_max_coded_heights() {
+        Sirikata::Array1d<uint32_t, (size_t)ColorChannel::NumBlockTypes> retval;
+        retval.memset(0);
+        for (int i = 0; i < cmpc_ && i < (int)ColorChannel::NumBlockTypes; ++i) {
+            retval[i] = header_[i].trunc_bcv_;
+        }
+        return retval;
+    }
     template<class Context> bool get_next_component(const Sirikata::Array1d<Context, (size_t)ColorChannel::NumBlockTypes> &curr_y,
                                                     BlockType *out_component,
                                                     int *out_luma_y) const {
