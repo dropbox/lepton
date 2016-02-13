@@ -8,9 +8,6 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           int curr_y,
                                           BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           int component_size_in_block) {
-    if (curr_y != context_.at((int)middle_model.COLOR).y_deprecated) {
-        custom_exit(ExitCode::ASSERTION_FAILURE);
-    }
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
@@ -102,7 +99,6 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
     tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true,true,true));
     tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
     tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
-    assert(context_.at((int)component).y_deprecated == curr_y); //caller must set this
     context_.at(component).context
         = image_data[component]->off_y(curr_y,
                                        num_nonzeros_.at(component).begin());
@@ -245,34 +241,30 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
         component_size_in_blocks[i] = colldata->component_size_in_blocks(i);
         image_data[i] = &colldata->full_component_write((BlockType)i);
     }
+    Sirikata::Array1d<uint32_t, (size_t)ColorChannel::NumBlockTypes> max_coded_heights = colldata->get_max_coded_heights();
     /* deserialize each block in planar order */
 
-    BlockType component = BlockType::Y;
     assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
-    int luma_y = 0;
-    while(colldata->get_next_component(context_, &component, &luma_y)) {
-        int min_y = luma_splits_[0];
-        int max_y = luma_splits_[1];
-        if (luma_y >= min_y) {
-            is_valid_range_ = true;
+    int min_y = luma_splits_[0];
+    int max_y = luma_splits_[1];
+    while(true) {
+        RowSpec cur_row = row_spec_from_index(decode_index_++, image_data, max_coded_heights);
+        if (cur_row.done || cur_row.luma_y >= max_y) {
+            break;
         }
-        if (luma_y >= max_y) {
-            break; // coding done
-        }
-        if (!is_valid_range_) {
-            ++context_.at((int)component).y_deprecated;
+        if (cur_row.skip) {
             continue;
         }
-        int curr_y = context_.at((int)component).y_deprecated;
+        if (cur_row.luma_y < min_y) {
+            continue;
+        }
         decode_row(image_data,
                    component_size_in_blocks,
-                   (int)component,
-                   curr_y);
-        ++context_.at((int)component).y_deprecated;
-
+                   cur_row.component,
+                   cur_row.component_y);
         if (thread_id == 0) {
-            colldata->worker_update_cmp_progress(component,
-                                                 image_data[(int)component]->block_width() );
+            colldata->worker_update_cmp_progress((BlockType)cur_row.component,
+                                                 image_data[cur_row.component]->block_width() );
         }
         return CODING_PARTIAL;
     }

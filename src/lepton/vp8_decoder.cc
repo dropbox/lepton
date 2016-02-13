@@ -72,6 +72,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
     }
+    thread_state_[target_thread_state]->decode_index_ = 0;
     for (int i = 0; i < framebuffer.size(); ++i) {
         if (framebuffer[i] != NULL)  {
             thread_state_[target_thread_state]->is_top_row_.at(i) = true;
