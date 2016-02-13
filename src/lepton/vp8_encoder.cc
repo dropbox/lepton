@@ -290,9 +290,11 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         image_data[i] = &colldata->full_component_nosync((int)i);
     }
     uint32_t encode_index = 0;
+    Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights = colldata->get_max_coded_heights();
     for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y_deprecated) {
         RowSpec test = row_spec_from_index(encode_index++,
-                                           image_data);
+                                           image_data,
+                                           max_coded_heights);
         if (test.component != (int)component
             || test.luma_y != luma_y
             || test.component_y != context.at((int)component).y_deprecated) {
@@ -453,6 +455,15 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
 #endif
             }
         }
+    }
+    RowSpec test = row_spec_from_index(encode_index,
+                                       image_data,
+                                       max_coded_heights);
+    
+    if (thread_id == NUM_THREADS - 1 && (test.skip == false || test.done == false)) {
+        fprintf(stderr, "Row spec test: cmp %d luma %d item %d skip %d done %d\n",
+                test.component, test.luma_y, test.component_y, test.skip, test.done);
+        custom_exit(ExitCode::ASSERTION_FAILURE);
     }
     bool_encoder->finish(*stream);
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();

@@ -51,10 +51,15 @@ protected:
         int component_y;
         int mcu_row_index;
         bool last_row_to_complete_mcu;
+        bool skip;
+        bool done;
     };
     template<class BlockBasedImagePerChannels>
     static RowSpec row_spec_from_index(uint32_t decode_index,
-                                    const BlockBasedImagePerChannels& image_data) {
+                                       const BlockBasedImagePerChannels& image_data,
+                                       Sirikata::Array1d<uint32_t,
+                                                         (size_t)ColorChannel
+                                                         ::NumBlockTypes> max_coded_heights) {
         uint32_t luma_height = image_data[0]->original_height();
         uint32_t num_cmp = (uint32_t)ColorChannel::NumBlockTypes;
         uint32_t overall_gcd = luma_height;
@@ -73,6 +78,8 @@ protected:
         }
         uint32_t mcu_row = decode_index / mcu_multiple;
         RowSpec retval = {};
+        retval.skip = false;
+        retval.done = false;
         retval.mcu_row_index = mcu_row;
         uint32_t place_within_scan = decode_index - mcu_row * mcu_multiple;
         retval.component = num_cmp;
@@ -85,6 +92,17 @@ protected:
                 retval.component_y = mcu_row * component_multiple[i] + place_within_scan;
                 retval.last_row_to_complete_mcu = (place_within_scan + 1 == component_multiple[i]
                                                    && i == 0);
+                if (retval.component_y >= max_coded_heights[i]) {
+                    retval.skip = true;
+                    retval.done = true; // assume true, but if we find something that needs coding, set false
+                    for (uint32_t j = 0; j < num_cmp - 1; ++j) {
+                        if (mcu_row * component_multiple[j] < max_coded_heights[j]) {
+                            retval.done = false; // we want to make sure to write out any partial rows,
+                            // so set done only when all items in this mcu are really skips
+                            // i.e. round down
+                        }
+                    }                    
+                }
                 if (i == 0) {
                     retval.luma_y = retval.component_y;
                 }
@@ -94,6 +112,8 @@ protected:
             }
             if (i == 0) {
                 assert(false);
+                retval.skip = true;
+                retval.done = true;
                 break;
             }
         }
