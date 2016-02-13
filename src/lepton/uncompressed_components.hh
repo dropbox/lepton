@@ -64,33 +64,6 @@ public:
         }
         return retval;
     }
-    template<class Context> bool get_next_component(const Sirikata::Array1d<Context, (size_t)ColorChannel::NumBlockTypes> &curr_y,
-                                                    BlockType *out_component,
-                                                    int *out_luma_y) const {
-        int min_height = header_[0].info_.bcv;
-        for (int i = 1; i < cmpc_&& i < (int)ColorChannel::NumBlockTypes; ++i) {
-            min_height = std::min(header_[i].info_.bcv, min_height);
-        }
-        int adj_y[sizeof(header_)/sizeof(header_[0])];
-        for (int i = 0; i < cmpc_ && i < (int)ColorChannel::NumBlockTypes; ++i) {
-            adj_y[i] = (uint32_t)(((uint64_t)curr_y[i].y_deprecated * (uint64_t)min_height)/(uint64_t)header_[i].info_.bcv);
-        }
-        int max_component = std::min(cmpc_, (int)ColorChannel::NumBlockTypes);
-        int original = max_component;
-        int best_selection = original;
-        for (int i = best_selection - 1; i >= 0; --i) {
-            if ((best_selection == max_component || adj_y[best_selection] > adj_y[i]) && curr_y[i].y_deprecated < header_[i].trunc_bcv_) {
-                best_selection = i;
-            }
-        }
-        if (best_selection != original) {
-            //fprintf(stderr, "Best next component for y=%d is %d\n", curr_y[best_selection].y_deprecated, best_selection);
-            *out_component = (BlockType)best_selection;
-            *out_luma_y = curr_y[0].y_deprecated;
-            return true;
-        }
-        return false;
-    }
     bool is_memory_optimized(int cmp) const {
         return header_[cmp].component_.is_memory_optimized();
     }

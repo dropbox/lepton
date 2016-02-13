@@ -165,12 +165,10 @@ typedef MBlockContext<const AlignedBlock> ConstBlockContext;
 
 struct VContext {
     BlockContext context;
-    int y_deprecated;
-    VContext(): context(BlockContext::nil()), y_deprecated(0) {}
+    VContext(): context(BlockContext::nil()){}
 };
 struct KVContext {
     ConstBlockContext context;
-    int y_deprecated;
-    KVContext(): context(ConstBlockContext::nil()), y_deprecated(0) {}
+    KVContext(): context(ConstBlockContext::nil()) {}
 };
 #endif

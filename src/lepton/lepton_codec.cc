@@ -249,7 +249,10 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
     int max_y = luma_splits_[1];
     while(true) {
         RowSpec cur_row = row_spec_from_index(decode_index_++, image_data, max_coded_heights);
-        if (cur_row.done || cur_row.luma_y >= max_y) {
+        if (cur_row.done) {
+            break;
+        }
+        if (cur_row.luma_y >= max_y && thread_id + 1 != NUM_THREADS) {
             break;
         }
         if (cur_row.skip) {

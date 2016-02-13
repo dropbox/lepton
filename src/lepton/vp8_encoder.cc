@@ -85,9 +85,6 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
         KVContext state = context.at((int)middle_model.COLOR);
-        if (curr_y != state.y_deprecated) {
-            custom_exit(ExitCode::ASSERTION_FAILURE);
-        }
         const AlignedBlock &block = state.context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -272,13 +269,9 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
     for (size_t i = 0; i < context.size(); ++i) {
         context[i].context = colldata->full_component_nosync(i).begin(num_nonzeros->at(i).begin());
-        context[i].y_deprecated = 0;
     }
-    BlockType component = BlockType::Y;
     uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
     memset(is_top_row, true, sizeof(is_top_row));
-    bool valid_range = false;
-    int luma_y = 0;
     ProbabilityTablesBase *model = &thread_state_[0]->model_;
     if (do_threading_) {
         model = &thread_state_[thread_id]->model_;
@@ -291,41 +284,36 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     }
     uint32_t encode_index = 0;
     Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights = colldata->get_max_coded_heights();
-    for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y_deprecated) {
-        RowSpec test = row_spec_from_index(encode_index++,
-                                           image_data,
-                                           max_coded_heights);
-        if (test.component != (int)component
-            || test.luma_y != luma_y
-            || test.component_y != context.at((int)component).y_deprecated) {
-            fprintf(stderr, "Row spec test: cmp %d luma %d item %d vs cmp %d luma %d item %d\n",
-                    test.component, test.luma_y, test.component_y, component, luma_y, context.at((int)component).y_deprecated);
-            custom_exit(ExitCode::ASSERTION_FAILURE);
+    while(true) {
+        RowSpec cur_row = row_spec_from_index(encode_index++,
+                                              image_data,
+                                              max_coded_heights);
+        if(cur_row.done) {
+            break;
         }
-        int curr_y = context.at((int)component).y_deprecated;
-        context[(int)component].context
-            = colldata->full_component_nosync((int)component).off_y(curr_y,
-                                                                    num_nonzeros->at((int)component).begin());
-        if (luma_y >= min_y) {
-            valid_range = true;
+        if (cur_row.luma_y >= max_y && thread_id + 1 != NUM_THREADS) {
+            break;
         }
-        if (luma_y >= max_y && thread_id + 1 != NUM_THREADS) {
-            break; // we are out of range
+        if (cur_row.skip) {
+            continue;
         }
-        if (!valid_range) {
-            continue; // before range for this thread
+        if (cur_row.luma_y < min_y) {
+            continue;
         }
+        context[cur_row.component].context
+            = image_data.at(cur_row.component)->off_y(cur_row.component_y,
+                                                      num_nonzeros->at(cur_row.component).begin());
         // DEBUG only fprintf(stderr, "Thread %d min_y %d - max_y %d cmp[%d] y = %d\n", thread_id, min_y, max_y, (int)component, curr_y);
-        int block_width = colldata->block_width( component );
-        if (is_top_row[(int)component]) {
-            is_top_row[(int)component] = false;
-            switch(component) {
+        int block_width = image_data.at(cur_row.component)->block_width();
+        if (is_top_row[cur_row.component]) {
+            is_top_row[cur_row.component] = false;
+            switch((BlockType)cur_row.component) {
                 case BlockType::Y:
                     process_row(*model,
                             std::get<(int)BlockType::Y>(corner),
                             std::get<(int)BlockType::Y>(top),
                             std::get<(int)BlockType::Y>(top),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -335,7 +323,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cb>(corner),
                             std::get<(int)BlockType::Cb>(top),
                             std::get<(int)BlockType::Cb>(top),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -345,7 +333,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cr>(corner),
                             std::get<(int)BlockType::Cr>(top),
                             std::get<(int)BlockType::Cr>(top),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -356,7 +344,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Ck>(corner),
                             std::get<(int)BlockType::Ck>(top),
                             std::get<(int)BlockType::Ck>(top),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -364,13 +352,13 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
 #endif
             }
         } else if (block_width > 1) {
-            switch(component) {
+            switch((BlockType)cur_row.component) {
                 case BlockType::Y:
                     process_row(*model,
                             std::get<(int)BlockType::Y>(midleft),
                             std::get<(int)BlockType::Y>(middle),
                             std::get<(int)BlockType::Y>(midright),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -380,7 +368,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cb>(midleft),
                             std::get<(int)BlockType::Cb>(middle),
                             std::get<(int)BlockType::Cb>(midright),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -390,7 +378,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cr>(midleft),
                             std::get<(int)BlockType::Cr>(middle),
                             std::get<(int)BlockType::Cr>(midright),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -401,7 +389,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Ck>(midleft),
                             std::get<(int)BlockType::Ck>(middle),
                             std::get<(int)BlockType::Ck>(midright),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -410,13 +398,13 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
             }
         } else {
             assert(block_width == 1);
-            switch(component) {
+            switch((BlockType)cur_row.component) {
                 case BlockType::Y:
                     process_row(*model,
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -426,7 +414,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -436,7 +424,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -447,7 +435,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Ck>(width_one),
                             std::get<(int)BlockType::Ck>(width_one),
                             std::get<(int)BlockType::Ck>(width_one),
-                            curr_y,
+                            cur_row.component_y,
                             colldata,
                             context,
                             *bool_encoder);

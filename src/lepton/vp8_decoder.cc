@@ -79,7 +79,6 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
             thread_state_[target_thread_state]->num_nonzeros_.at(i).resize(framebuffer[i]->block_width() << 1);
             thread_state_[target_thread_state]->context_.at(i).context
                 = framebuffer[i]->begin(thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
-            thread_state_[target_thread_state]->context_.at(i).y_deprecated = 0;
         }
     }
     /* initialize the bool decoder */
