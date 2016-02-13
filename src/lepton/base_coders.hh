@@ -28,14 +28,6 @@ class BaseDecoder {
     virtual void initialize(Sirikata::DecoderReader *input) = 0;
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst) = 0;
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) = 0;
-    static CodingReturnValue generic_continuous_decoder(BaseDecoder *d,
-                                                        UncompressedComponents* colldata){
-        CodingReturnValue retval;
-        do {
-            retval = d->decode_chunk(colldata);
-        }while (retval == CODING_PARTIAL);
-        return retval;
-    }
 };
 
 

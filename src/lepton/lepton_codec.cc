@@ -264,7 +264,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
         decode_row(image_data,
                    component_size_in_blocks,
                    cur_row.component,
-                   cur_row.component_y);
+                   cur_row.curr_y);
         if (thread_id == 0) {
             colldata->worker_update_cmp_progress((BlockType)cur_row.component,
                                                  image_data[cur_row.component]->block_width() );

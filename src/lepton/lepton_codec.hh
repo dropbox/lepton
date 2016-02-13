@@ -48,7 +48,7 @@ protected:
         int next_row_luma_y;
         int luma_y;
         int component;
-        int component_y;
+        int curr_y;
         int mcu_row_index;
         bool last_row_to_complete_mcu;
         bool skip;
@@ -89,10 +89,10 @@ protected:
         for (uint32_t i = num_cmp - 1; true; --i) {
             if (place_within_scan < component_multiple[i]) {
                 retval.component = i;
-                retval.component_y = mcu_row * component_multiple[i] + place_within_scan;
+                retval.curr_y = mcu_row * component_multiple[i] + place_within_scan;
                 retval.last_row_to_complete_mcu = (place_within_scan + 1 == component_multiple[i]
                                                    && i == 0);
-                if (retval.component_y >= max_coded_heights[i]) {
+                if (retval.curr_y >= max_coded_heights[i]) {
                     retval.skip = true;
                     retval.done = true; // assume true, but if we find something that needs coding, set false
                     for (uint32_t j = 0; j < num_cmp - 1; ++j) {
@@ -104,7 +104,7 @@ protected:
                     }                    
                 }
                 if (i == 0) {
-                    retval.luma_y = retval.component_y;
+                    retval.luma_y = retval.curr_y;
                 }
                 break;
             } else {
