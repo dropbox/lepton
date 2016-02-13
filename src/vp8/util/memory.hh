@@ -33,7 +33,7 @@ extern bool g_use_seccomp;
     CB(EARLY_EXIT,40)
 
 #define MAKE_EXIT_CODE_ENUM(ITEM, VALUE) ITEM=VALUE,
-#define GENERATE_EXIT_CODE_STRING(ITEM, VALUE) #ITEM,
+#define GENERATE_EXIT_CODE_RETURN(ITEM, VALUE) {if ((ec) == ExitCode::ITEM) { return #ITEM;}}
 
 #if __cplusplus <= 199711L
 namespace ExitCode { enum ExitCode_ {

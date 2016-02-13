@@ -12,6 +12,7 @@ class BlockBasedImageBase {
     uint32_t width_;
     uint32_t nblocks_;
     uint8_t *storage_;
+    uint32_t theoretical_component_height_;
     // if true, this image only contains 2 rows during decode
     bool memory_optimized_image_;
     BlockBasedImageBase(const BlockBasedImageBase&) = delete;
@@ -23,6 +24,7 @@ public:
         storage_ = nullptr;
         width_ = 0;
         nblocks_ = 0;
+        theoretical_component_height_ = 0;
     }
     bool is_memory_optimized() const {
         return force_memory_optimization
@@ -37,7 +39,11 @@ public:
     size_t blocks_allocated() const {
         return nblocks_;
     }
+    size_t original_height() const {
+        return theoretical_component_height_;
+    }
     void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
+        theoretical_component_height_ = height;
         if (force_memory_optimization) {
             assert(memory_optimized_image && "MemoryOptimized must match template");
         }
@@ -233,6 +239,19 @@ public:
 template<bool force_memory_optimization=false> class BlockBasedImagePerChannel :
     public Sirikata::Array1d<BlockBasedImageBase<force_memory_optimization> *,
                              (uint32_t)ColorChannel::NumBlockTypes> {
+public:
+    BlockBasedImagePerChannel() {
+        this->memset(0);
+    }
+};
+
+template<bool force_memory_optimization=false> class KBlockBasedImagePerChannel :
+    public Sirikata::Array1d<const BlockBasedImageBase<force_memory_optimization> *,
+                             (uint32_t)ColorChannel::NumBlockTypes> {
+public:
+    KBlockBasedImagePerChannel() {
+        this->memset(0);
+    }
 };
 
 #endif

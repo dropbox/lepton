@@ -279,7 +279,21 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     } else {
         reset_thread_model_state(0);
     }
+    KBlockBasedImagePerChannel<false> image_data;
+    for (int i = 0; i < colldata->get_num_components(); ++i) {
+        image_data[i] = &colldata->full_component_nosync((int)i);
+    }
+    uint32_t encode_index = 0;
     for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y) {
+        RowSpec test = row_spec_from_index(encode_index++,
+                                           image_data);
+        if (test.component != (int)component
+            || test.luma_y != luma_y
+            || test.component_y != context.at((int)component).y) {
+            fprintf(stderr, "Row spec test: cmp %d luma %d item %d vs cmp %d luma %d item %d\n",
+                    test.component, test.luma_y, test.component_y, component, luma_y, context.at((int)component).y);
+            custom_exit(ExitCode::ASSERTION_FAILURE);
+        }
         int curr_y = context.at((int)component).y;
         context[(int)component].context
             = colldata->full_component_nosync((int)component).off_y(curr_y,

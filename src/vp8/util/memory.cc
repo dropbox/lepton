@@ -7,15 +7,16 @@
 #if defined(__APPLE__) || __cplusplus <= 199711L
 #define thread_local __thread
 #endif
-static const char * exit_code_strings[] = {
-    FOREACH_EXIT_CODE(GENERATE_EXIT_CODE_STRING)
-};
 
 const char *ExitString(ExitCode ec) {
-  if ((int)ec >= sizeof(exit_code_strings) / sizeof(exit_code_strings[0])) {
-      return "EXIT_CODE_BEYOND_EXIT_CODE_ARRAY";
-  }
-  return exit_code_strings[(int)ec];
+  FOREACH_EXIT_CODE(GENERATE_EXIT_CODE_RETURN)
+  static char data[] = "XXXX_EXIT_CODE_BEYOND_EXIT_CODE_ARRAY";
+  data[0] = ((int)ec / 1000) + '0';
+  data[1] = ((int)ec / 100 % 10) + '0';
+  data[2] = ((int)ec / 10 % 10) + '0';
+  data[3] = ((int)ec % 10) + '0';
+  sprintf(data, "%d", (int)ec);
+  return data;
 }
 extern "C" {
 void* custom_malloc (size_t size) {
