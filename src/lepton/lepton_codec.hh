@@ -23,7 +23,6 @@ protected:
                         Right& right_model,
                         int block_width,
                         UncompressedComponents * const colldata);
-        CodingReturnValue vp8_decoder(const UncompressedComponents * const colldata);
         CodingReturnValue vp8_decode_thread(int thread_id, UncompressedComponents * const colldata);
     };
     bool do_threading_;
