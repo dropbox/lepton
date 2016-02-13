@@ -7,7 +7,7 @@ struct GenericWorker;
 enum CodingReturnValue {
     CODING_ERROR,
     CODING_DONE,
-    CODING_PARTIAL // run it again
+    CODING_PARTIAL, // run it again
 };
 class UncompressedComponents;
 

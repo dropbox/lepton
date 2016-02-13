@@ -24,6 +24,14 @@ protected:
                         int block_width,
                         BlockBasedImagePerChannel<should_force_memory_optimization>&image_data,
                         int component_size_in_block);
+        template<bool force_memory_optimization>
+        void decode_row(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
+                                          Sirikata::Array1d<uint32_t,
+                                                            (uint32_t)ColorChannel::
+                                                            NumBlockTypes> component_size_in_block,
+                                                  int component,
+                                                  int curr_y);
+
         CodingReturnValue vp8_decode_thread(int thread_id, UncompressedComponents * const colldata);
     };
     bool do_threading_;
