@@ -79,68 +79,68 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       Right& right_model,
                                       int curr_y,
                                       const UncompressedComponents * const colldata,
-                                      Sirikata::Array1d<KVContext,
+                                      Sirikata::Array1d<ConstBlockContext,
                                               (uint32_t)ColorChannel::NumBlockTypes> &context,
                                       BoolEncoder &bool_encoder) {
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
-        KVContext state = context.at((int)middle_model.COLOR);
-        const AlignedBlock &block = state.context.here();
+        ConstBlockContext state = context.at((int)middle_model.COLOR);
+        const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = 0;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        state.context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
-        serialize_tokens(state.context,
+        state.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
+        serialize_tokens(state,
                          bool_encoder,
                          left_model,
                          pt);
         uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
                                                                                         true,
                                                                                         curr_y);
-        context.at((int)middle_model.COLOR).context = state.context;
+        context.at((int)middle_model.COLOR) = state;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
         
     }
     for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        KVContext state = context.at((int)middle_model.COLOR);
-        const AlignedBlock &block = state.context.here();
+        ConstBlockContext state = context.at((int)middle_model.COLOR);
+        const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = jpeg_x;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        state.context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
-        serialize_tokens(state.context,
+        state.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
+        serialize_tokens(state,
                          bool_encoder,
                          middle_model,
                          pt);
         uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
                                                                                         true,
                                                                                         curr_y);
-        context.at((int)middle_model.COLOR).context = state.context;
+        context.at((int)middle_model.COLOR) = state;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
     }
     if (block_width > 1) {
-        KVContext state = context.at((int)middle_model.COLOR);
-        const AlignedBlock &block = state.context.here();
+        ConstBlockContext state = context.at((int)middle_model.COLOR);
+        const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = middle_model.COLOR; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = block_width - 1;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        state.context.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
-        serialize_tokens(state.context,
+        state.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
+        serialize_tokens(state,
                          bool_encoder,
                          right_model,
                          pt);
         colldata->full_component_nosync((int)middle_model.COLOR).next(state, false, curr_y);
-        context.at((int)middle_model.COLOR).context = state.context;
+        context.at((int)middle_model.COLOR) = state;
     }
 }
 uint32_t aligned_block_cost(const AlignedBlock &block) {
@@ -266,9 +266,9 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                                                               > *num_nonzeros) {
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     using namespace Sirikata;
-    Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
+    Array1d<ConstBlockContext, (uint32_t)ColorChannel::NumBlockTypes> context;
     for (size_t i = 0; i < context.size(); ++i) {
-        context[i].context = colldata->full_component_nosync(i).begin(num_nonzeros->at(i).begin());
+        context[i] = colldata->full_component_nosync(i).begin(num_nonzeros->at(i).begin());
     }
     uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
     memset(is_top_row, true, sizeof(is_top_row));
@@ -300,7 +300,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         if (cur_row.luma_y < min_y) {
             continue;
         }
-        context[cur_row.component].context
+        context[cur_row.component]
             = image_data.at(cur_row.component)->off_y(cur_row.component_y,
                                                       num_nonzeros->at(cur_row.component).begin());
         // DEBUG only fprintf(stderr, "Thread %d min_y %d - max_y %d cmp[%d] y = %d\n", thread_id, min_y, max_y, (int)component, curr_y);

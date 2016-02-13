@@ -10,7 +10,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           int component_size_in_block) {
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
     if (block_width > 0) {
-        BlockContext context = context_.at((int)middle_model.COLOR).context;
+        BlockContext context = context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      left_model,
@@ -21,7 +21,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
         }
     }
     for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
-        BlockContext context = context_.at((int)middle_model.COLOR).context;
+        BlockContext context = context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      middle_model,
@@ -34,7 +34,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
         }
     }
     if (block_width > 1) {
-        BlockContext context = context_.at((int)middle_model.COLOR).context;
+        BlockContext context = context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      right_model,
@@ -99,7 +99,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
     tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true,true,true));
     tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
     tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
-    context_.at(component).context
+    context_.at(component)
         = image_data[component]->off_y(curr_y,
                                        num_nonzeros_.at(component).begin());
     

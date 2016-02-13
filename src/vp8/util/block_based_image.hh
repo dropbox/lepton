@@ -113,14 +113,14 @@ public:
                 (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
     template <class BlockContext> uint32_t next(BlockContext& it, bool has_left, int component_y) const {
-        it.context.cur += 1;
-        ptrdiff_t offset = it.context.cur - image_;
+        it.cur += 1;
+        ptrdiff_t offset = it.cur - image_;
         uint32_t retval = offset;
         if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
             if (__builtin_expect(offset == (width_ << 2), 0)) {
                 retval = offset = 0;
-                it.context.cur = image_;
+                it.cur = image_;
             }
             if (retval >= (width_ << 1)) {
                 retval -= (width_ << 1);
@@ -132,7 +132,7 @@ public:
 #else
             if (__builtin_expect(offset == (width_ << 1), 0)) {
                 retval = offset = 0;
-                it.context.cur = image_;
+                it.cur = image_;
             }
             if (retval >= width_) {
                 retval -= width_;
@@ -142,23 +142,23 @@ public:
         }
         if (__builtin_expect(offset < width_, 0)) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
-            it.context.above = it.context.cur + 3 * width_;
+            it.above = it.cur + 3 * width_;
 #else
-            it.context.above = it.context.cur + width_;
+            it.above = it.cur + width_;
 #endif
         } else {
-            it.context.above = it.context.cur - width_;
+            it.above = it.cur - width_;
         }
-        ++it.context.num_nonzeros_here;
-        ++it.context.num_nonzeros_above;
+        ++it.num_nonzeros_here;
+        ++it.num_nonzeros_above;
         if (!has_left) {
-            bool cur_row_first = (it.context.num_nonzeros_here < it.context.num_nonzeros_above);
+            bool cur_row_first = (it.num_nonzeros_here < it.num_nonzeros_above);
             if (cur_row_first) {
-                it.context.num_nonzeros_above -= width_;
-                it.context.num_nonzeros_above -= width_;
+                it.num_nonzeros_above -= width_;
+                it.num_nonzeros_above -= width_;
             } else {
-                it.context.num_nonzeros_here -= width_;
-                it.context.num_nonzeros_here -= width_;
+                it.num_nonzeros_here -= width_;
+                it.num_nonzeros_here -= width_;
             }
         }
         return retval;

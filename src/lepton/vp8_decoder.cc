@@ -77,7 +77,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
         if (framebuffer[i] != NULL)  {
             thread_state_[target_thread_state]->is_top_row_.at(i) = true;
             thread_state_[target_thread_state]->num_nonzeros_.at(i).resize(framebuffer[i]->block_width() << 1);
-            thread_state_[target_thread_state]->context_.at(i).context
+            thread_state_[target_thread_state]->context_.at(i)
                 = framebuffer[i]->begin(thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
         }
     }
@@ -160,7 +160,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
 
 
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
-    if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].context.isNil() ) {
+    if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].isNil() ) {
         /* first call */
         BlockBasedImagePerChannel<false> framebuffer;
         framebuffer.memset(0);

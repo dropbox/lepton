@@ -88,6 +88,21 @@ template <class ABlock> struct MBlockContext {
     ABlock * above; //offset from cur; 0 for unavail
     std::vector<NeighborSummary>::iterator num_nonzeros_here;
     std::vector<NeighborSummary>::iterator num_nonzeros_above;
+    MBlockContext() {
+        std::memset(this, 0, sizeof(*this));
+        cur = nullptr;
+        above = nullptr;
+    }
+    MBlockContext(ABlock *cur,
+                  ABlock * above,
+                  std::vector<NeighborSummary>::iterator num_nonzeros_here,
+                  std::vector<NeighborSummary>::iterator num_nonzeros_above) {
+        std::memset(this, 0, sizeof(*this));
+        this->cur = cur;
+        this->above = above;
+        this->num_nonzeros_here = num_nonzeros_here;
+        this->num_nonzeros_above = num_nonzeros_above;
+    }
     MBlockContext<const AlignedBlock> copy() const {
         return {cur, above, num_nonzeros_here, num_nonzeros_above};
     }
@@ -162,13 +177,4 @@ template <class ABlock> struct MBlockContext {
 };
 typedef MBlockContext<AlignedBlock> BlockContext;
 typedef MBlockContext<const AlignedBlock> ConstBlockContext;
-
-struct VContext {
-    BlockContext context;
-    VContext(): context(BlockContext::nil()){}
-};
-struct KVContext {
-    ConstBlockContext context;
-    KVContext(): context(ConstBlockContext::nil()) {}
-};
 #endif
