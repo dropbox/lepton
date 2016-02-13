@@ -56,28 +56,6 @@ public:
     unsigned short *get_quantization_tables(BlockType component) const {
         return header_[(int)component].info_.qtable;
     }
-    BlockColorContextIndices get_color_context(int curr_x,
-                                               const Sirikata::Array1d<VContext, 3>&curr_y,
-                                               int curr_component) const {
-        BlockColorContextIndices retval; // zero initialize
-#ifdef USE_COLOR_VALUES
-        if (curr_component > 0) {
-            size_t ratioX = std::max(header_[0].info_.bch/header_[curr_component].info_.bch, 1);
-            size_t ratioY = std::max(header_[0].info_.bcv/header_[curr_component].info_.bcv, 1);
-            for (size_t i = 0; i < ratioY && i < sizeof(retval.luminanceIndex)/sizeof(retval.luminanceIndex[0]); ++i) {
-                for (size_t j = 0;
-                     j < ratioX && i < sizeof(retval.luminanceIndex[0])/sizeof(retval.luminanceIndex[0][0]);
-                     ++j) {
-                    retval.luminanceIndex[i][j] = std::pair<int, int>(curr_y[0].y - ratioY + i, curr_x * ratioX + j);
-                }
-            }
-            if (curr_component > 1) {
-                retval.chromaIndex = std::pair<int, int>(curr_y[1].y - 1, curr_x);
-            }
-        }
-#endif
-        return retval;
-    }
     template<class Context> bool get_next_component(const Sirikata::Array1d<Context, (size_t)ColorChannel::NumBlockTypes> &curr_y,
                                                     BlockType *out_component,
                                                     int *out_luma_y) const {
@@ -87,20 +65,20 @@ public:
         }
         int adj_y[sizeof(header_)/sizeof(header_[0])];
         for (int i = 0; i < cmpc_ && i < (int)ColorChannel::NumBlockTypes; ++i) {
-            adj_y[i] = (uint32_t)(((uint64_t)curr_y[i].y * (uint64_t)min_height)/(uint64_t)header_[i].info_.bcv);
+            adj_y[i] = (uint32_t)(((uint64_t)curr_y[i].y_deprecated * (uint64_t)min_height)/(uint64_t)header_[i].info_.bcv);
         }
         int max_component = std::min(cmpc_, (int)ColorChannel::NumBlockTypes);
         int original = max_component;
         int best_selection = original;
         for (int i = best_selection - 1; i >= 0; --i) {
-            if ((best_selection == max_component || adj_y[best_selection] > adj_y[i]) && curr_y[i].y < header_[i].trunc_bcv_) {
+            if ((best_selection == max_component || adj_y[best_selection] > adj_y[i]) && curr_y[i].y_deprecated < header_[i].trunc_bcv_) {
                 best_selection = i;
             }
         }
         if (best_selection != original) {
-            //fprintf(stderr, "Best next component for y=%d is %d\n", curr_y[best_selection].y, best_selection);
+            //fprintf(stderr, "Best next component for y=%d is %d\n", curr_y[best_selection].y_deprecated, best_selection);
             *out_component = (BlockType)best_selection;
-            *out_luma_y = curr_y[0].y;
+            *out_luma_y = curr_y[0].y_deprecated;
             return true;
         }
         return false;

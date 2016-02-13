@@ -22,7 +22,7 @@ protected:
         void decode_row(Left & left_model,
                         Middle& middle_model,
                         Right& right_model,
-                        int block_width,
+                        int curr_y,
                         BlockBasedImagePerChannel<should_force_memory_optimization>&image_data,
                         int component_size_in_block);
         template<bool force_memory_optimization>

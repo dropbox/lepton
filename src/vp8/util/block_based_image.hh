@@ -112,7 +112,7 @@ public:
                 (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
                 (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
-    template <class BlockContext> uint32_t next(BlockContext& it, bool has_left) const {
+    template <class BlockContext> uint32_t next(BlockContext& it, bool has_left, int component_y) const {
         it.context.cur += 1;
         ptrdiff_t offset = it.context.cur - image_;
         uint32_t retval = offset;
@@ -128,7 +128,7 @@ public:
             if (retval >= width_) {
                 retval -= width_;
             }
-            retval += width_ * it.y;
+            retval += width_ * component_y;
 #else
             if (__builtin_expect(offset == (width_ << 1), 0)) {
                 retval = offset = 0;
@@ -137,7 +137,7 @@ public:
             if (retval >= width_) {
                 retval -= width_;
             }
-            retval += width_ * it.y;
+            retval += width_ * component_y;
 #endif
         }
         if (__builtin_expect(offset < width_, 0)) {

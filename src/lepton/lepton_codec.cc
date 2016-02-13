@@ -5,16 +5,20 @@ template<class Left, class Middle, class Right, bool force_memory_optimization>
 void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           Middle& middle_model,
                                           Right& right_model,
-                                          int block_width,
+                                          int curr_y,
                                           BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           int component_size_in_block) {
+    if (curr_y != context_.at((int)middle_model.COLOR).y_deprecated) {
+        custom_exit(ExitCode::ASSERTION_FAILURE);
+    }
+    uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true);
+        uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true, curr_y);
         if (offset >= component_size_in_block) {
             return;
         }
@@ -26,7 +30,8 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      middle_model,
                      model_); //FIXME
         uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR),
-                                                              true);
+                                                               true,
+                                                               curr_y);
         if (offset >= component_size_in_block) {
             return;
         }
@@ -37,7 +42,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      right_model,
                      model_);
-        image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), false);
+        image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), false, curr_y);
     }
 }
 #ifdef ALLOW_FOUR_COLORS
@@ -97,7 +102,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
     tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true,true,true));
     tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
     tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
-    assert(context_.at((int)component).y == curr_y); //caller must set this
+    assert(context_.at((int)component).y_deprecated == curr_y); //caller must set this
     context_.at(component).context
         = image_data[component]->off_y(curr_y,
                                        num_nonzeros_.at(component).begin());
@@ -110,7 +115,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Y>(corner),
                        std::get<(int)BlockType::Y>(top),
                        std::get<(int)BlockType::Y>(top),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             break;
@@ -118,7 +123,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Cb>(corner),
                        std::get<(int)BlockType::Cb>(top),
                        std::get<(int)BlockType::Cb>(top),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -127,7 +132,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Cr>(corner),
                        std::get<(int)BlockType::Cr>(top),
                        std::get<(int)BlockType::Cr>(top),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -137,7 +142,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Ck>(corner),
                        std::get<(int)BlockType::Ck>(top),
                        std::get<(int)BlockType::Ck>(top),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -151,7 +156,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Y>(midleft),
                        std::get<(int)BlockType::Y>(middle),
                        std::get<(int)BlockType::Y>(midright),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -160,7 +165,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Cb>(midleft),
                        std::get<(int)BlockType::Cb>(middle),
                        std::get<(int)BlockType::Cb>(midright),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -169,7 +174,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Cr>(midleft),
                        std::get<(int)BlockType::Cr>(middle),
                        std::get<(int)BlockType::Cr>(midright),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -179,7 +184,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Ck>(midleft),
                        std::get<(int)BlockType::Ck>(middle),
                        std::get<(int)BlockType::Ck>(midright),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -194,7 +199,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Y>(width_one),
                        std::get<(int)BlockType::Y>(width_one),
                        std::get<(int)BlockType::Y>(width_one),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -203,7 +208,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Cb>(width_one),
                        std::get<(int)BlockType::Cb>(width_one),
                        std::get<(int)BlockType::Cb>(width_one),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -212,7 +217,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Cr>(width_one),
                        std::get<(int)BlockType::Cr>(width_one),
                        std::get<(int)BlockType::Cr>(width_one),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -222,7 +227,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
             decode_row(std::get<(int)BlockType::Ck>(width_one),
                        std::get<(int)BlockType::Ck>(width_one),
                        std::get<(int)BlockType::Ck>(width_one),
-                       block_width,
+                       curr_y,
                        image_data,
                        component_size_in_blocks[component]);
             
@@ -255,15 +260,15 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
             break; // coding done
         }
         if (!is_valid_range_) {
-            ++context_.at((int)component).y;
+            ++context_.at((int)component).y_deprecated;
             continue;
         }
-        int curr_y = context_.at((int)component).y;
+        int curr_y = context_.at((int)component).y_deprecated;
         decode_row(image_data,
                    component_size_in_blocks,
                    (int)component,
                    curr_y);
-        ++context_.at((int)component).y;
+        ++context_.at((int)component).y_deprecated;
 
         if (thread_id == 0) {
             colldata->worker_update_cmp_progress(component,

@@ -11,7 +11,7 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                             Left & left_model,
                          Middle& middle_model,
                          Right& right_model,
-                         int block_width,
+                         int curr_y,
                          const UncompressedComponents * const colldata,
                          Sirikata::Array1d<KVContext,
                                            (uint32_t)ColorChannel::NumBlockTypes> &context,

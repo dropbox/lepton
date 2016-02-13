@@ -77,13 +77,17 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       Left & left_model,
                                       Middle& middle_model,
                                       Right& right_model,
-                                      int block_width,
+                                      int curr_y,
                                       const UncompressedComponents * const colldata,
                                       Sirikata::Array1d<KVContext,
                                               (uint32_t)ColorChannel::NumBlockTypes> &context,
                                       BoolEncoder &bool_encoder) {
+    uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
         KVContext state = context.at((int)middle_model.COLOR);
+        if (curr_y != state.y_deprecated) {
+            custom_exit(ExitCode::ASSERTION_FAILURE);
+        }
         const AlignedBlock &block = state.context.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -96,7 +100,8 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          left_model,
                          pt);
         uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
-                                                                                        true);
+                                                                                        true,
+                                                                                        curr_y);
         context.at((int)middle_model.COLOR).context = state.context;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
@@ -117,7 +122,8 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          middle_model,
                          pt);
         uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
-                                                                                        true);
+                                                                                        true,
+                                                                                        curr_y);
         context.at((int)middle_model.COLOR).context = state.context;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
@@ -136,7 +142,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          right_model,
                          pt);
-        colldata->full_component_nosync((int)middle_model.COLOR).next(state, false);
+        colldata->full_component_nosync((int)middle_model.COLOR).next(state, false, curr_y);
         context.at((int)middle_model.COLOR).context = state.context;
     }
 }
@@ -266,7 +272,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     Array1d<KVContext, (uint32_t)ColorChannel::NumBlockTypes> context;
     for (size_t i = 0; i < context.size(); ++i) {
         context[i].context = colldata->full_component_nosync(i).begin(num_nonzeros->at(i).begin());
-        context[i].y = 0;
+        context[i].y_deprecated = 0;
     }
     BlockType component = BlockType::Y;
     uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
@@ -284,17 +290,17 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
         image_data[i] = &colldata->full_component_nosync((int)i);
     }
     uint32_t encode_index = 0;
-    for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y) {
+    for(;colldata->get_next_component(context, &component, &luma_y); ++context.at((int)component).y_deprecated) {
         RowSpec test = row_spec_from_index(encode_index++,
                                            image_data);
         if (test.component != (int)component
             || test.luma_y != luma_y
-            || test.component_y != context.at((int)component).y) {
+            || test.component_y != context.at((int)component).y_deprecated) {
             fprintf(stderr, "Row spec test: cmp %d luma %d item %d vs cmp %d luma %d item %d\n",
-                    test.component, test.luma_y, test.component_y, component, luma_y, context.at((int)component).y);
+                    test.component, test.luma_y, test.component_y, component, luma_y, context.at((int)component).y_deprecated);
             custom_exit(ExitCode::ASSERTION_FAILURE);
         }
-        int curr_y = context.at((int)component).y;
+        int curr_y = context.at((int)component).y_deprecated;
         context[(int)component].context
             = colldata->full_component_nosync((int)component).off_y(curr_y,
                                                                     num_nonzeros->at((int)component).begin());
@@ -317,7 +323,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Y>(corner),
                             std::get<(int)BlockType::Y>(top),
                             std::get<(int)BlockType::Y>(top),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -327,7 +333,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cb>(corner),
                             std::get<(int)BlockType::Cb>(top),
                             std::get<(int)BlockType::Cb>(top),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -337,7 +343,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cr>(corner),
                             std::get<(int)BlockType::Cr>(top),
                             std::get<(int)BlockType::Cr>(top),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -348,7 +354,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Ck>(corner),
                             std::get<(int)BlockType::Ck>(top),
                             std::get<(int)BlockType::Ck>(top),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -362,7 +368,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Y>(midleft),
                             std::get<(int)BlockType::Y>(middle),
                             std::get<(int)BlockType::Y>(midright),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -372,7 +378,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cb>(midleft),
                             std::get<(int)BlockType::Cb>(middle),
                             std::get<(int)BlockType::Cb>(midright),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -382,7 +388,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cr>(midleft),
                             std::get<(int)BlockType::Cr>(middle),
                             std::get<(int)BlockType::Cr>(midright),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -393,7 +399,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Ck>(midleft),
                             std::get<(int)BlockType::Ck>(middle),
                             std::get<(int)BlockType::Ck>(midright),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -408,7 +414,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
                             std::get<(int)BlockType::Y>(width_one),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -418,7 +424,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
                             std::get<(int)BlockType::Cb>(width_one),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -428,7 +434,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
                             std::get<(int)BlockType::Cr>(width_one),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
@@ -439,7 +445,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                             std::get<(int)BlockType::Ck>(width_one),
                             std::get<(int)BlockType::Ck>(width_one),
                             std::get<(int)BlockType::Ck>(width_one),
-                            block_width,
+                            curr_y,
                             colldata,
                             context,
                             *bool_encoder);
