@@ -1,20 +1,20 @@
 #include "lepton_codec.hh"
 #include "uncompressed_components.hh"
 #include "../vp8/decoder/decoder.hh"
-template<class Left, class Middle, class Right>
+template<class Left, class Middle, class Right, bool force_memory_optimization>
 void LeptonCodec::ThreadState::decode_row(Left & left_model,
-                                                   Middle& middle_model,
-                                                   Right& right_model,
-                                                   int block_width,
-                                                   UncompressedComponents * const colldata) {
-    uint32_t component_size_in_block = colldata->component_size_in_blocks(middle_model.COLOR);
+                                          Middle& middle_model,
+                                          Right& right_model,
+                                          int block_width,
+                                          BlockBasedImagePerChannel<force_memory_optimization>& image_data,
+                                          int component_size_in_block) {
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR).context;
         parse_tokens(context,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        uint32_t offset = colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR), true);
+        uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true);
         if (offset >= component_size_in_block) {
             return;
         }
@@ -25,9 +25,8 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
-        BlockBasedImage * channel_image = &colldata->full_component_write((BlockType)middle_model.COLOR);
-        uint32_t offset = channel_image->next(context_.at((int)middle_model.COLOR),
-                                              true);
+        uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR),
+                                                              true);
         if (offset >= component_size_in_block) {
             return;
         }
@@ -38,7 +37,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      right_model,
                      model_);
-        colldata->full_component_write((BlockType)middle_model.COLOR).next(context_.at((int)middle_model.COLOR), false);
+        image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), false);
     }
 }
 
@@ -84,7 +83,13 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
 #endif
 
 CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
-                                                                      UncompressedComponents *const colldata) {
+                                                              UncompressedComponents *const colldata) {
+    Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks;
+    BlockBasedImagePerChannel<false> image_data;
+    for (int i = 0; i < colldata->get_num_components(); ++i) {
+        component_size_in_blocks[i] = colldata->component_size_in_blocks(i);
+        image_data[i] = &colldata->full_component_write((BlockType)i);
+    }
     /* deserialize each block in planar order */
     using namespace std;
     BlockType component = BlockType::Y;
@@ -110,7 +115,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
             ++context_.at((int)component).y;
             continue;
         }
-        context_.at((int)component).context = colldata->full_component_write(component).off_y(curr_y, num_nonzeros_.at((int)component).begin());
+        context_.at((int)component).context = image_data[(int)component]->off_y(curr_y, num_nonzeros_.at((int)component).begin());
         int block_width = colldata->block_width((int)component);
 
         if (is_top_row_.at((int)component)) {
@@ -118,24 +123,29 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
             switch(component) {
                 case BlockType::Y:
                     decode_row(std::get<(int)BlockType::Y>(corner),
-                                std::get<(int)BlockType::Y>(top),
-                                std::get<(int)BlockType::Y>(top),
-                                block_width,
-                                colldata);
+                               std::get<(int)BlockType::Y>(top),
+                               std::get<(int)BlockType::Y>(top),
+                               block_width,
+                               image_data,
+                               component_size_in_blocks[(int)component]);
                     break;
                 case BlockType::Cb:
                     decode_row(std::get<(int)BlockType::Cb>(corner),
                                 std::get<(int)BlockType::Cb>(top),
                                 std::get<(int)BlockType::Cb>(top),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
                 case BlockType::Cr:
                     decode_row(std::get<(int)BlockType::Cr>(corner),
                                 std::get<(int)BlockType::Cr>(top),
                                 std::get<(int)BlockType::Cr>(top),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
 #ifdef ALLOW_FOUR_COLORS
               case BlockType::Ck:
@@ -143,7 +153,9 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
                                 std::get<(int)BlockType::Ck>(top),
                                 std::get<(int)BlockType::Ck>(top),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
 #endif
             }
@@ -155,21 +167,27 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
                                 std::get<(int)BlockType::Y>(middle),
                                 std::get<(int)BlockType::Y>(midright),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
                 case BlockType::Cb:
                     decode_row(std::get<(int)BlockType::Cb>(midleft),
                                 std::get<(int)BlockType::Cb>(middle),
                                 std::get<(int)BlockType::Cb>(midright),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
                 case BlockType::Cr:
                     decode_row(std::get<(int)BlockType::Cr>(midleft),
                                 std::get<(int)BlockType::Cr>(middle),
                                 std::get<(int)BlockType::Cr>(midright),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
 #ifdef ALLOW_FOUR_COLORS
               case BlockType::Ck:
@@ -177,7 +195,9 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
                                 std::get<(int)BlockType::Ck>(middle),
                                 std::get<(int)BlockType::Ck>(midright),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
 #endif
             }
@@ -190,21 +210,27 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
                                 std::get<(int)BlockType::Y>(width_one),
                                 std::get<(int)BlockType::Y>(width_one),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
                 case BlockType::Cb:
                     decode_row(std::get<(int)BlockType::Cb>(width_one),
                                 std::get<(int)BlockType::Cb>(width_one),
                                 std::get<(int)BlockType::Cb>(width_one),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
                 case BlockType::Cr:
                     decode_row(std::get<(int)BlockType::Cr>(width_one),
                                 std::get<(int)BlockType::Cr>(width_one),
                                 std::get<(int)BlockType::Cr>(width_one),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
 #ifdef ALLOW_FOUR_COLORS
                 case BlockType::Ck:
@@ -212,7 +238,9 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
                                 std::get<(int)BlockType::Ck>(width_one),
                                 std::get<(int)BlockType::Ck>(width_one),
                                 block_width,
-                                colldata);
+                               image_data,
+                               component_size_in_blocks[(int)component]);
+
                     break;
 #endif
             }

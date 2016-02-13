@@ -17,12 +17,13 @@ protected:
         Sirikata::Array1d<std::vector<NeighborSummary>, (size_t)ColorChannel::NumBlockTypes> num_nonzeros_;
         bool is_valid_range_;
         BoolDecoder bool_decoder_;
-        template<class Left, class Middle, class Right>
+        template<class Left, class Middle, class Right, bool should_force_memory_optimization>
         void decode_row(Left & left_model,
                         Middle& middle_model,
                         Right& right_model,
                         int block_width,
-                        UncompressedComponents * const colldata);
+                        BlockBasedImagePerChannel<should_force_memory_optimization>&image_data,
+                        int component_size_in_block);
         CodingReturnValue vp8_decode_thread(int thread_id, UncompressedComponents * const colldata);
     };
     bool do_threading_;
