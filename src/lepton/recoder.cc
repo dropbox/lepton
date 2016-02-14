@@ -328,8 +328,12 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if (cur_row.skip) {
                 continue;
             }
-            while (cur_row.luma_y >= luma_bounds[logical_thread_id]) {
+            while (logical_thread_id < NUM_THREADS
+                   && cur_row.luma_y >= luma_bounds[logical_thread_id]) {
                 ++logical_thread_id;
+                if (logical_thread_id >= NUM_THREADS) {
+                    break;
+                }
                 if (g_threaded) {
                     ++physical_thread_id;
                 } else {
@@ -337,7 +341,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                     g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer[logical_thread_id]);
                 }
             }
-            if (logical_thread_id == NUM_THREADS) {
+            if (logical_thread_id >= NUM_THREADS) {
                 break;
             }
             g_decoder->decode_row(physical_thread_id,
