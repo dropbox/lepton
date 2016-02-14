@@ -351,6 +351,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                                   framebuffer[thread_id][cmp],
                                                   true);
         }
+        if (!g_threaded) {
+            break;
+        }
     }
     luma_bounds = g_decoder->initialize_baseline_decoder(&colldata,
                                                          framebuffer);
@@ -363,9 +366,12 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     std::get<2>(overhang_byte_and_bit_count).memset(0);
     
     for (int logical_thread_id = 0;logical_thread_id < NUM_THREADS; ++logical_thread_id) {
+        if (logical_thread_id && !g_threaded) { // clear old state
+            g_decoder->clear_thread_state(logical_thread_id, 0, framebuffer[g_threaded ? logical_thread_id : 0]);
+        }
         if (logical_thread_id == 0) {
             overhang_byte_and_bit_count = recode_row_range(str_out,
-                                                           framebuffer[logical_thread_id],
+                                                           framebuffer[g_threaded ? logical_thread_id : 0],
                                                            std::get<0>(overhang_byte_and_bit_count),
                                                            std::get<1>(overhang_byte_and_bit_count),
                                                            std::get<2>(overhang_byte_and_bit_count),
@@ -382,7 +388,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             Sirikata::BoundedMemWriter local_buffer(alloc);
             local_buffer.set_bound(max_file_size - grbs);
             overhang_byte_and_bit_count = recode_row_range(&local_buffer,
-                                                           framebuffer[logical_thread_id],
+                                                           framebuffer[g_threaded ? logical_thread_id : 0],
                                                            std::get<0>(overhang_byte_and_bit_count),
                                                            std::get<1>(overhang_byte_and_bit_count),
                                                            std::get<2>(overhang_byte_and_bit_count),
@@ -397,9 +403,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                 str_out->write(&local_buffer.buffer()[0],
                                bytes_to_copy);
             }
-        }
-        if (!g_threaded) {
-            g_decoder->clear_thread_state(logical_thread_id, 0, framebuffer[logical_thread_id]);
         }
     }
 
