@@ -54,7 +54,8 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
  * This function takes local byte-aligned huffman data and writes it to the file
  * This function escapes any 0xff bytes found in the huffman data
  */
-void escape_0xff_huffman_and_write(Sirikata::BoundedMemWriter* str_out,
+template<class OutputWriter>
+void escape_0xff_huffman_and_write(OutputWriter* str_out,
                                    const unsigned char * local_huff_data,
                                    unsigned int max_byte_coded) {
     unsigned int progress_ipos = 0;
@@ -106,9 +107,10 @@ void escape_0xff_huffman_and_write(Sirikata::BoundedMemWriter* str_out,
 }
 
 extern int cs_cmp[ 4 ];
-bool legacy_mode = false;
+template <class OutputWriter>
 bool recode_one_mcu_row(abitwriter *huffw, int mcu,
-                        Sirikata::BoundedMemWriter*str_out, int lastdc[4],
+                        OutputWriter*str_out,
+                        Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> &lastdc,
                         BlockBasedImagePerChannel<false> &framebuffer) {
     int cmp = cs_cmp[ 0 ];
     int csc = 0, sub = 0;
@@ -127,10 +129,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
         // ---> sequential interleaved encoding <---
         while ( sta == 0 ) {
             // copy from colldata
-            const AlignedBlock &aligned_block =
-                legacy_mode
-                ? colldata.block((BlockType)cmp, dpos)
-                : framebuffer[cmp]->raster(dpos);
+            const AlignedBlock &aligned_block = framebuffer[cmp]->raster(dpos);
             //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
             for ( int bpos = 0; bpos < 64; bpos++ ) {
                 block[bpos] = aligned_block.coefficients_zigzag(bpos);
@@ -195,10 +194,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                 // (re)set rst wait counter
                 rstw = rsti;
                 // (re)set last DCs for diff coding
-                lastdc[ 0 ] = 0;
-                lastdc[ 1 ] = 0;
-                lastdc[ 2 ] = 0;
-                lastdc[ 3 ] = 0;
+                lastdc.memset(0);
             }
         }
         assert(huffw->no_remainder() && "this should have been padded");
@@ -254,14 +250,77 @@ void abitwriter::debug() const
     cerr << "abitwriter: no_remainder=" << no_remainder() << ", getpos=" << getpos() << ", bits="<<cbit2<<", buf="<<std::hex<<buf<<std::dec<<"\n";
 }
 
+//currently returns the overhang byte and num_overhang_bits -- these will be factored out when the encoder serializes them
+template<class BoundedWriter>
+std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> > recode_row_range(BoundedWriter *stream_out,
+                                             BlockBasedImagePerChannel<false> &framebuffer,
+                                             uint8_t overhang_byte,
+                                             uint8_t num_overhang_bits,
+                                             Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> lastdc,
+                                             const std::vector<int> &luma_bounds,
+                                             Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
+                                             Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
+                                             int logical_thread_id,
+                                             int max_file_size) {
+    int physical_thread_id = logical_thread_id;
+    if (!g_threaded) {
+        physical_thread_id = 0;
+    }
+    // open huffman coded image data in abitwriter
+    abitwriter huffw(16384, max_file_size);
+    huffw.fillbit = padbit;
+    huffw.reset_from_overhang_byte_and_num_bits(overhang_byte,
+                                                    num_overhang_bits);
+    int decode_index = 0;
+    uint16_t min_luma_y = 0;
+    uint16_t max_luma_y = luma_bounds[logical_thread_id];
+    if (logical_thread_id > 0) {
+        min_luma_y = luma_bounds[logical_thread_id - 1];
+    }
+    while (true) {
+        LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
+                                                                        framebuffer,
+                                                                        max_coded_heights);
+        if (cur_row.done) {
+            break;
+        }
+        if (cur_row.skip) {
+            continue;
+        }
+        if (cur_row.min_row_luma_y < min_luma_y) {
+            continue;
+        }
+        if (cur_row.next_row_luma_y > max_luma_y) {
+            break; // we're done here
+        }
+        g_decoder->decode_row(physical_thread_id,
+                              framebuffer,
+                              component_size_in_blocks,
+                              cur_row.component,
+                              cur_row.curr_y);
+        if (cur_row.last_row_to_complete_mcu) {
+            if ( !recode_one_mcu_row(&huffw, cur_row.mcu_row_index * mcuh, stream_out, lastdc,
+                                     framebuffer) ) {
+                custom_exit(ExitCode::CODING_ERROR);
+            }
+            const unsigned char * flushed_data = huffw.partial_bytewise_flush();
+            escape_0xff_huffman_and_write(stream_out, flushed_data, huffw.getpos() );
+            huffw.reset_crystalized_bytes();
+            num_overhang_bits = huffw.get_num_overhang_bits();
+            overhang_byte = huffw.get_overhang_byte();
+            if ( huffw.error ) {
+                custom_exit(ExitCode::CODING_ERROR);
+            }
+        }
+    }
+    return std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> >(overhang_byte, num_overhang_bits, lastdc);
+}
 /* -----------------------------------------------
     JPEG encoding routine
     ----------------------------------------------- */
 bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
 {    
-    int lastdc[ 4 ] = {0, 0, 0, 0}; // last dc for each component
-    int rstw = 0; // restart wait counter
 
     unsigned int local_bound = max_file_size - grbs;
     str_out->set_bound(local_bound);
@@ -285,93 +344,65 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                       NUM_THREADS> framebuffer;
     std::vector<int> luma_bounds;
-    if (!legacy_mode) {
-        for (size_t thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-            for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
-                framebuffer[thread_id][cmp] = new BlockBasedImageBase<false>;
-                colldata.allocate_channel_framebuffer(cmp,
-                                                      framebuffer[thread_id][cmp],
-                                                      true);
-            }
+    for (size_t thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+        for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
+            framebuffer[thread_id][cmp] = new BlockBasedImageBase<false>;
+            colldata.allocate_channel_framebuffer(cmp,
+                                                  framebuffer[thread_id][cmp],
+                                                  true);
         }
-        luma_bounds = g_decoder->initialize_baseline_decoder(&colldata,
-                                                             framebuffer);
     }
+    luma_bounds = g_decoder->initialize_baseline_decoder(&colldata,
+                                                         framebuffer);
+
 
     /* step 3: decode the scan, row by row */
-    uint8_t overhang_byte = 0;
-    uint8_t num_overhang_bits = 0;
+    std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> > overhang_byte_and_bit_count;
+    std::get<0>(overhang_byte_and_bit_count) = 0;
+    std::get<1>(overhang_byte_and_bit_count) = 0;
+    std::get<2>(overhang_byte_and_bit_count).memset(0);
     
-    Sirikata::JpegAllocator<uint8_t> alloc;
-    // the reason local_buffer isn't contained entirely in the loop is one purely of performance
-    // The allocation/deallocation of the vector just takes ages with test_hq
-    // However, this doesn't mean the contents are shared: it gets treated as cleared each time
-    Sirikata::BoundedMemWriter local_buffer(alloc);
-    int physical_thread_id = 0;
-    int logical_thread_id = 0;
-    uint32_t decode_index = 0;
-    for ( unsigned int row = 0; row < mcuv && !str_out->has_reached_bound(); row++ ) {
-        // open huffman coded image data in abitwriter
-        abitwriter huffw(16384, max_file_size);
-        huffw.fillbit = padbit;
-        huffw.reset_from_overhang_byte_and_num_bits(overhang_byte,
-                                                    num_overhang_bits);
-        local_buffer.Reset();
-        local_buffer.set_bound(local_bound);
-        while (!legacy_mode) {
-            LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
-                                                                            framebuffer[logical_thread_id],
-                                                                            max_coded_heights);
-            if (cur_row.done) {
-                break;
-            }
-            if (cur_row.skip) {
-                continue;
-            }
-            while (logical_thread_id < NUM_THREADS
-                   && cur_row.luma_y >= luma_bounds[logical_thread_id]) {
-                ++logical_thread_id;
-                if (logical_thread_id >= NUM_THREADS) {
-                    break;
-                }
-                if (g_threaded) {
-                    ++physical_thread_id;
-                } else {
-                    assert(physical_thread_id == 0);
-                    g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer[logical_thread_id]);
-                }
-            }
-            if (logical_thread_id >= NUM_THREADS) {
-                break;
-            }
-            g_decoder->decode_row(physical_thread_id,
-                                  framebuffer[logical_thread_id],
-                                  component_size_in_blocks,
-                                  cur_row.component,
-                                  cur_row.curr_y);
-            if (cur_row.last_row_to_complete_mcu) {
-                break;
+    for (int logical_thread_id = 0;logical_thread_id < NUM_THREADS; ++logical_thread_id) {
+        if (logical_thread_id == 0) {
+            overhang_byte_and_bit_count = recode_row_range(str_out,
+                                                           framebuffer[logical_thread_id],
+                                                           std::get<0>(overhang_byte_and_bit_count),
+                                                           std::get<1>(overhang_byte_and_bit_count),
+                                                           std::get<2>(overhang_byte_and_bit_count),
+                                                           luma_bounds,
+                                                           max_coded_heights,
+                                                           component_size_in_blocks,
+                                                           logical_thread_id,
+                                                           max_file_size);
+        } else {
+            Sirikata::JpegAllocator<uint8_t> alloc;
+            // the reason local_buffer isn't contained entirely in the loop is one purely of performance
+            // The allocation/deallocation of the vector just takes ages with test_hq
+            // However, this doesn't mean the contents are shared: it gets treated as cleared each time
+            Sirikata::BoundedMemWriter local_buffer(alloc);
+            local_buffer.set_bound(max_file_size - grbs);
+            overhang_byte_and_bit_count = recode_row_range(&local_buffer,
+                                                           framebuffer[logical_thread_id],
+                                                           std::get<0>(overhang_byte_and_bit_count),
+                                                           std::get<1>(overhang_byte_and_bit_count),
+                                                           std::get<2>(overhang_byte_and_bit_count),
+                                                           luma_bounds,
+                                                           max_coded_heights,
+                                                           component_size_in_blocks,
+                                                           logical_thread_id,
+                                                           max_file_size);
+            size_t bytes_to_copy = local_buffer.bytes_written();
+            if (bytes_to_copy) {
+                local_bound -= bytes_to_copy;
+                str_out->write(&local_buffer.buffer()[0],
+                               bytes_to_copy);
             }
         }
-        if ( !recode_one_mcu_row(&huffw, row * mcuh, &local_buffer, lastdc,
-                                 framebuffer[logical_thread_id]) ) {
-            return false;
-        }
-        const unsigned char * flushed_data = huffw.partial_bytewise_flush();
-        escape_0xff_huffman_and_write(&local_buffer, flushed_data, huffw.getpos() );
-        huffw.reset_crystalized_bytes();
-        num_overhang_bits = huffw.get_num_overhang_bits();
-        overhang_byte = huffw.get_overhang_byte();
-        size_t bytes_to_copy = local_buffer.bytes_written();
-        if (bytes_to_copy) {
-            local_bound -= bytes_to_copy;
-            str_out->write(&local_buffer.buffer()[0],
-                           bytes_to_copy);
-        }
-        if ( huffw.error ) {
-            custom_exit(ExitCode::OOM);
+        if (!g_threaded) {
+            g_decoder->clear_thread_state(logical_thread_id, 0, framebuffer[logical_thread_id]);
         }
     }
+
 
 
     /* step 3: blit any trailing data */
