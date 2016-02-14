@@ -43,6 +43,7 @@ protected:
         }
         return a;
     }
+public:
     struct RowSpec {
         int min_row_luma_y;
         int next_row_luma_y;
@@ -119,6 +120,7 @@ protected:
         }
         return retval;
     }
+protected:
     bool do_threading_;
     Sirikata::Array1d<GenericWorker,
                       (NUM_THREADS - 1)>::Slice spin_workers_;

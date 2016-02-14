@@ -90,6 +90,31 @@ public:
     CodingReturnValue do_more_work() {
         return decoder_->decode_chunk(this);
     }
+    template<bool force_memory_optimized>
+    void allocate_channel_framebuffer(int desired_cmp,
+                                        BlockBasedImageBase<force_memory_optimized> *framebuffer) const {
+        uint64_t total_req_blocks = 0;
+        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc_; cmp++) {
+            total_req_blocks += header_[cmp].info_.bcv * header_[cmp].info_.bch;
+        }
+        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc_; cmp++) {
+            int bc_allocated = header_[cmp].info_.bc;
+            int64_t max_cmp_bc = max_number_of_blocks;
+            max_cmp_bc *= header_[cmp].info_.bcv * header_[cmp].info_.bch;
+            max_cmp_bc /= total_req_blocks;
+            if (bc_allocated > max_cmp_bc) {
+                bc_allocated = max_cmp_bc - (max_cmp_bc % header_[cmp].info_.bch);
+            }
+            if (cmp == desired_cmp) {
+                framebuffer->init(header_[cmp].info_.bch,
+                                  header_[cmp].info_.bcv,
+                                  bc_allocated,
+                                  force_memory_optimized);
+                break;
+            }
+        }
+        
+    }
     void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc, bool memory_optimized_image) {
         if (cmpc > (int)ColorChannel::NumBlockTypes) {
             cmpc = (int)ColorChannel::NumBlockTypes;
@@ -108,23 +133,9 @@ public:
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
             allocated_ += cmpinfo[cmp].bc * 64;
         }
-        uint64_t total_req_blocks = 0;
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
-            total_req_blocks += cmpinfo[cmp].bcv * cmpinfo[cmp].bch;
-        }
-        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
-            int bc_allocated = cmpinfo[cmp].bc;
-            int64_t max_cmp_bc = max_number_of_blocks;
-            max_cmp_bc *= cmpinfo[cmp].bcv * cmpinfo[cmp].bch;
-            max_cmp_bc /= total_req_blocks;
-            if (bc_allocated > max_cmp_bc) {
-                bc_allocated = max_cmp_bc - (max_cmp_bc % cmpinfo[cmp].bch);
-            }
-            this->header_[cmp].component_.init(cmpinfo[cmp].bch,
-                                               cmpinfo[cmp].bcv,
-                                               bc_allocated,
-                                               memory_optimized_image);
-
+            allocate_channel_framebuffer(cmp,
+                                         &this->header_[cmp].component_);
         }
     }
     void set_block_count_dpos(ExtendedComponentInfo *ci, int trunc_bc) {
@@ -177,6 +188,15 @@ public:
     }
     unsigned int component_size_allocated(int cmp) const {
         return header_[cmp].component_.bytes_allocated();
+    }
+    Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes>
+        get_component_size_in_blocks() const {
+        Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> retval;
+        retval.memset(0);
+        for (int cmp = 0; cmp < cmpc_; ++cmp) {
+            retval[cmp] = header_[cmp].trunc_bc_;
+        }
+        return retval;
     }
     unsigned int component_size_in_blocks(int cmp) const {
         return header_[cmp].trunc_bc_;

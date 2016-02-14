@@ -29,7 +29,7 @@ class BaseDecoder {
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst) = 0;
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) = 0;
 
-    virtual bool initialize_baseline_decoder(const UncompressedComponents * const colldata,
+    virtual std::vector<int> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                              Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                                                                NUM_THREADS>& framebuffer) = 0;
     virtual void decode_row(int thread_state_id,

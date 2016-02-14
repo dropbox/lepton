@@ -26,12 +26,15 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
     int virtual_thread_id_;
 public:
     VP8ComponentDecoder(bool do_threading);
-    // reads the threading information and uses mux_reader_ to create the streams_ return true is success
+    // reads the threading information and uses mux_reader_ to create the streams_ 
+    // returns the bound of each threads' max_luma (non inclusive) responsibility in the file
     template <bool force_memory_optimized>
-    bool initialize_decoder_state(const UncompressedComponents * const colldata, // quantization_tables
-                                  Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
-                                                    NUM_THREADS>& framebuffer); // framebuffer
-    virtual bool initialize_baseline_decoder(const UncompressedComponents * const colldata,
+    std::vector<int> initialize_decoder_state(
+        const UncompressedComponents * const colldata,
+        // quantization_tables
+        Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
+                          NUM_THREADS>& framebuffer); // framebuffer
+    virtual std::vector<int> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                              Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                                                                NUM_THREADS>& framebuffer);
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {

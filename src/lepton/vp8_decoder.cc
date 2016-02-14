@@ -104,13 +104,14 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
     TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
-bool VP8ComponentDecoder::initialize_baseline_decoder(const UncompressedComponents * const colldata,
-                                                      Sirikata::Array1d<BlockBasedImagePerChannel<false>,
-                                                                        NUM_THREADS>& framebuffer) {
+std::vector<int> VP8ComponentDecoder::initialize_baseline_decoder(
+    const UncompressedComponents * const colldata,
+    Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                      NUM_THREADS>& framebuffer) {
     return initialize_decoder_state(colldata, framebuffer);
 }
 template <bool force_memory_optimized>
-bool VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
+std::vector<int> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                                      NUM_THREADS>& framebuffer) {
     Sirikata::DecoderReader* input = str_in;
@@ -136,13 +137,9 @@ bool VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents 
     unsigned char mark {};
     const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
     if (!ok) {
-        return false;
+        return std::vector<int>();
     }
-    if ( mark > NUM_THREADS || mark == 0) {
-        cerr << " unsupported NUM_THREADS " << (int)mark << endl;
-        return false;
-    }
-    file_luma_splits_.insert(file_luma_splits_.end(), NUM_THREADS, colldata->block_height(0));
+    file_luma_splits_.insert(file_luma_splits_.end(), mark, colldata->block_height(0));
 
     std::vector<uint16_t> luma_splits_tmp(mark - 1);
     IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
@@ -164,7 +161,7 @@ bool VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents 
             initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
         }
     }
-    return true;
+    return file_luma_splits_;
 }
 
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
@@ -184,9 +181,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (size_t i = 0; i < all_framebuffers.size(); ++i) {
             all_framebuffers[i] = framebuffer;
         }
-        bool ret = initialize_decoder_state(colldata,
-                                            all_framebuffers);
-        if (!ret) {
+        size_t num_threads_needed = initialize_decoder_state(colldata,
+                                                             all_framebuffers).size();
+        if (num_threads_needed > NUM_THREADS || num_threads_needed == 0) {
             return CODING_ERROR;
         }
         if (do_threading_) {

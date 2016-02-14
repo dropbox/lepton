@@ -17,7 +17,7 @@ public:
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {}
-    bool initialize_baseline_decoder(const UncompressedComponents * const colldata,
+    std::vector<int> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                      Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                                                        NUM_THREADS>& framebuffer){}
     void decode_row(int thread_state_id,

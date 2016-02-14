@@ -6,9 +6,11 @@
 #include "uncompressed_components.hh"
 #include "recoder.hh"
 #include "bitops.hh"
+#include "lepton_codec.hh"
 #include "../io/BoundedMemWriter.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
+extern BaseDecoder *g_decoder;
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
 extern char padbit;
@@ -28,6 +30,7 @@ extern int mcuc; // count of mcus
 extern std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
 extern bool rst_cnt_set;
 extern std::vector<unsigned int> rst_cnt;
+extern BaseDecoder* g_decoder;
 void check_decompression_memory_bound_ok();
 
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
@@ -105,14 +108,15 @@ void escape_0xff_huffman_and_write(Sirikata::BoundedMemWriter* str_out,
 extern int cs_cmp[ 4 ];
 
 bool recode_one_mcu_row(abitwriter *huffw, int mcu,
-                        Sirikata::BoundedMemWriter*str_out, int lastdc[4] ) {
-  int cmp = cs_cmp[ 0 ];
-  int csc = 0, sub = 0;
-  int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
-  int rstw = rsti ? rsti - mcu % rsti : 0;
-  int cumulative_reset_markers = rstw ? mcu / rsti : 0;
+                        Sirikata::BoundedMemWriter*str_out, int lastdc[4],
+                        BlockBasedImagePerChannel<false> &framebuffer) {
+    int cmp = cs_cmp[ 0 ];
+    int csc = 0, sub = 0;
+    int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
+    int rstw = rsti ? rsti - mcu % rsti : 0;
+    int cumulative_reset_markers = rstw ? mcu / rsti : 0;
 
-  Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
+    Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     bool end_of_row = false;
     // JPEG imagedata encoding routines
     while (!end_of_row) {
@@ -123,7 +127,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
         // ---> sequential interleaved encoding <---
         while ( sta == 0 ) {
             // copy from colldata
-            const AlignedBlock &aligned_block = colldata.block((BlockType)cmp, dpos);
+            const AlignedBlock &aligned_block = framebuffer[cmp]->raster(dpos);
             //fprintf(stderr, "Reading from cmp(%d) dpos %d\n", cmp, dpos);
             for ( int bpos = 0; bpos < 64; bpos++ ) {
                 block[bpos] = aligned_block.coefficients_zigzag(bpos);
@@ -251,9 +255,7 @@ void abitwriter::debug() const
     ----------------------------------------------- */
 bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
-{
-
-
+{    
     int lastdc[ 4 ] = {0, 0, 0, 0}; // last dc for each component
     int rstw = 0; // restart wait counter
 
@@ -270,7 +272,24 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if ( byte_position == -1 ) {
         return false;
     }
-    /* step 2: decode the scan, row by row */
+    /* step 2: setup multithreaded decoder with framebuffer for each */
+    Sirikata::Array1d<uint32_t,
+                      (size_t)ColorChannel::NumBlockTypes> max_coded_heights
+        = colldata.get_max_coded_heights();
+    Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks
+        = colldata.get_component_size_in_blocks();
+    BlockBasedImagePerChannel<false> image_data;
+    Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                      NUM_THREADS> framebuffer;
+    for (size_t thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+        for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
+            colldata.allocate_channel_framebuffer(cmp,
+                                                  framebuffer[thread_id][cmp]);
+        }
+    }
+    std::vector<int> luma_bounds = g_decoder->initialize_baseline_decoder(&colldata, framebuffer);
+
+    /* step 3: decode the scan, row by row */
     uint8_t overhang_byte = 0;
     uint8_t num_overhang_bits = 0;
     
@@ -279,6 +298,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     // The allocation/deallocation of the vector just takes ages with test_hq
     // However, this doesn't mean the contents are shared: it gets treated as cleared each time
     Sirikata::BoundedMemWriter local_buffer(alloc);
+    int thread_id = 0;
+    uint32_t decode_index = 0;
     for ( unsigned int row = 0; row < mcuv && !str_out->has_reached_bound(); row++ ) {
         // open huffman coded image data in abitwriter
         abitwriter huffw(16384, max_file_size);
@@ -287,7 +308,33 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                                     num_overhang_bits);
         local_buffer.Reset();
         local_buffer.set_bound(local_bound);
-        if ( !recode_one_mcu_row(&huffw, row * mcuh, &local_buffer, lastdc) ) {
+        while (true) {
+            LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
+                                                                            image_data,
+                                                                            max_coded_heights);
+            while (cur_row.luma_y >= luma_bounds[thread_id]) {
+                ++thread_id;
+            }
+            if (thread_id == NUM_THREADS) {
+                break;
+            }
+            if (cur_row.skip) {
+                continue;
+            }
+            if (cur_row.done) {
+                break;
+            }
+            g_decoder->decode_row(thread_id,
+                                  framebuffer[thread_id],
+                                  component_size_in_blocks,
+                                  cur_row.component,
+                                  cur_row.curr_y);
+            if (cur_row.last_row_to_complete_mcu) {
+                break;
+            }
+        }        
+        if ( !recode_one_mcu_row(&huffw, row * mcuh, &local_buffer, lastdc,
+                                 framebuffer[thread_id]) ) {
             return false;
         }
         const unsigned char * flushed_data = huffw.partial_bytewise_flush();
