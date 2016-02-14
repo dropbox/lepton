@@ -290,7 +290,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
                 framebuffer[thread_id][cmp] = new BlockBasedImageBase<false>;
                 colldata.allocate_channel_framebuffer(cmp,
-                                                      framebuffer[thread_id][cmp]);
+                                                      framebuffer[thread_id][cmp],
+                                                      true);
             }
         }
         luma_bounds = g_decoder->initialize_baseline_decoder(&colldata,
