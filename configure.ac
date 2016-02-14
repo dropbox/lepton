@@ -8,7 +8,7 @@ AC_CONFIG_SRCDIR([src/lepton/vp8_encoder.hh])
 AC_CONFIG_HEADERS([config.h])
 
 # Add preprocessor flags
-CXX11_FLAGS="-std=c++11 -pthread"
+CXX11_FLAGS="-std=c++11"
 AC_SUBST([CXX11_FLAGS])
 C99_FLAGS="-std=c99"
 AC_SUBST([C99_FLAGS])

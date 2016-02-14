@@ -19,7 +19,9 @@ public:
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {}
     std::vector<int> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                      Sirikata::Array1d<BlockBasedImagePerChannel<false>,
-                                                       NUM_THREADS>& framebuffer){}
+                                                       NUM_THREADS>& framebuffer){
+        return std::vector<int>();
+    }
     void decode_row(int thread_state_id,
                     BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
                     Sirikata::Array1d<uint32_t,

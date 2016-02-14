@@ -8,7 +8,7 @@ noinst_LIBRARIES = liblocalzlib.a libtestdriver.a liblocalmd5.a
 
 bin_PROGRAMS = lepton test_suite/test_invariants
 
-lepton_LDADD = liblocalmd5.a liblocalzlib.a 
+lepton_LDADD = liblocalmd5.a liblocalzlib.a -lpthread
 
 lepton_SOURCES = \
    src/io/MemReadWriter.cc \
