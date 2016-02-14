@@ -106,7 +106,7 @@ void escape_0xff_huffman_and_write(Sirikata::BoundedMemWriter* str_out,
 }
 
 extern int cs_cmp[ 4 ];
-bool legacy_mode = true;
+bool legacy_mode = false;
 bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                         Sirikata::BoundedMemWriter*str_out, int lastdc[4],
                         BlockBasedImagePerChannel<false> &framebuffer) {
@@ -282,7 +282,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         = colldata.get_max_coded_heights();
     Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks
         = colldata.get_component_size_in_blocks();
-    BlockBasedImagePerChannel<false> image_data;
     Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                       NUM_THREADS> framebuffer;
     std::vector<int> luma_bounds;
@@ -319,7 +318,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         local_buffer.set_bound(local_bound);
         while (!legacy_mode) {
             LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
-                                                                            image_data,
+                                                                            framebuffer[thread_id],
                                                                             max_coded_heights);
             while (cur_row.luma_y >= luma_bounds[thread_id]) {
                 ++thread_id;
