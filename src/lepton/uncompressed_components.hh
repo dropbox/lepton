@@ -92,7 +92,8 @@ public:
     }
     template<bool force_memory_optimized>
     void allocate_channel_framebuffer(int desired_cmp,
-                                        BlockBasedImageBase<force_memory_optimized> *framebuffer) const {
+                                      BlockBasedImageBase<force_memory_optimized> *framebuffer,
+                                      bool memory_optimized=force_memory_optimized) const {
         uint64_t total_req_blocks = 0;
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc_; cmp++) {
             total_req_blocks += header_[cmp].info_.bcv * header_[cmp].info_.bch;
@@ -109,7 +110,7 @@ public:
                 framebuffer->init(header_[cmp].info_.bch,
                                   header_[cmp].info_.bcv,
                                   bc_allocated,
-                                  force_memory_optimized);
+                                  memory_optimized);
                 break;
             }
         }
@@ -135,7 +136,8 @@ public:
         }
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
             allocate_channel_framebuffer(cmp,
-                                         &this->header_[cmp].component_);
+                                         &this->header_[cmp].component_,
+                                         memory_optimized_image);
         }
     }
     void set_block_count_dpos(ExtendedComponentInfo *ci, int trunc_bc) {
