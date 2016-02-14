@@ -1208,7 +1208,7 @@ void process_file(IOUtil::FileReader* reader,
                     read_done = clock();
                 }
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-                if (!g_allow_progressive) {
+                if (filetype != UJG && !g_allow_progressive) {
                     execute(recode_baseline_jpeg_wrapper);
                 } else {
                     execute(recode_jpeg);

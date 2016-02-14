@@ -307,7 +307,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     // The allocation/deallocation of the vector just takes ages with test_hq
     // However, this doesn't mean the contents are shared: it gets treated as cleared each time
     Sirikata::BoundedMemWriter local_buffer(alloc);
-    int thread_id = 0;
+    int physical_thread_id = 0;
+    int logical_thread_id = 0;
     uint32_t decode_index = 0;
     for ( unsigned int row = 0; row < mcuv && !str_out->has_reached_bound(); row++ ) {
         // open huffman coded image data in abitwriter
@@ -319,7 +320,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         local_buffer.set_bound(local_bound);
         while (!legacy_mode) {
             LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
-                                                                            framebuffer[thread_id],
+                                                                            framebuffer[logical_thread_id],
                                                                             max_coded_heights);
             if (cur_row.done) {
                 break;
@@ -327,14 +328,20 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if (cur_row.skip) {
                 continue;
             }
-            while (cur_row.luma_y >= luma_bounds[thread_id]) {
-                ++thread_id;
+            while (cur_row.luma_y >= luma_bounds[logical_thread_id]) {
+                ++logical_thread_id;
+                if (g_threaded) {
+                    ++physical_thread_id;
+                } else {
+                    assert(physical_thread_id == 0);
+                    g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer[logical_thread_id]);
+                }
             }
-            if (thread_id == NUM_THREADS) {
+            if (logical_thread_id == NUM_THREADS) {
                 break;
             }
-            g_decoder->decode_row(thread_id,
-                                  framebuffer[thread_id],
+            g_decoder->decode_row(physical_thread_id,
+                                  framebuffer[logical_thread_id],
                                   component_size_in_blocks,
                                   cur_row.component,
                                   cur_row.curr_y);
@@ -343,7 +350,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             }
         }
         if ( !recode_one_mcu_row(&huffw, row * mcuh, &local_buffer, lastdc,
-                                 framebuffer[thread_id]) ) {
+                                 framebuffer[logical_thread_id]) ) {
             return false;
         }
         const unsigned char * flushed_data = huffw.partial_bytewise_flush();

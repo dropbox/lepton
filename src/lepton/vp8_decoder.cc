@@ -70,6 +70,9 @@ const bool dospin = true;
                         BlockType::Cr
 #endif
 
+void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<false>& framebuffer) {
+    initialize_thread_id(thread_id, target_thread_state, framebuffer);
+}
 void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata) {
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {

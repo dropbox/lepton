@@ -28,4 +28,5 @@ public:
                     int component,
                     int curr_y);
 
+    virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<false>& framebuffer) {}
 };

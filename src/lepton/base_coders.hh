@@ -39,6 +39,7 @@ class BaseDecoder {
                                               NumBlockTypes> component_size_in_blocks,
                             int component,
                             int curr_y) = 0;
+    virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<false>& framebuffer) = 0;
 };
 
 
