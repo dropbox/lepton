@@ -321,16 +321,16 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
                                                                             framebuffer[thread_id],
                                                                             max_coded_heights);
-            while (cur_row.luma_y >= luma_bounds[thread_id]) {
-                ++thread_id;
-            }
-            if (thread_id == NUM_THREADS) {
+            if (cur_row.done) {
                 break;
             }
             if (cur_row.skip) {
                 continue;
             }
-            if (cur_row.done) {
+            while (cur_row.luma_y >= luma_bounds[thread_id]) {
+                ++thread_id;
+            }
+            if (thread_id == NUM_THREADS) {
                 break;
             }
             g_decoder->decode_row(thread_id,
