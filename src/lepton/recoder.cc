@@ -335,6 +335,11 @@ std::tuple<uint8_t,
     int logical_thread_start = (physical_thread_id * num_logical_threads) / num_physical_threads;
     int logical_thread_end = std::min(((physical_thread_id  + 1) * num_logical_threads) / num_physical_threads,
                                       num_logical_threads);
+    if (num_logical_threads < num_physical_threads) {
+        // this is an optimization so we don't have to call the reset logic as often
+        logical_thread_start = std::min(physical_thread_id, num_logical_threads);
+        logical_thread_end = std::min(physical_thread_id + 1, num_logical_threads);
+    }
     std::tuple<uint8_t,
                uint8_t,
                Sirikata::Array1d<int16_t,
@@ -342,7 +347,7 @@ std::tuple<uint8_t,
                                                                                                     num_overhang_bits,
                                                                                                     lastdc);
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
-        if (logical_thread_id != logical_thread_start) {
+        if (logical_thread_id != physical_thread_id) {
             g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
         }
         overhang_byte_and_bit_count = recode_row_range(stream_out,

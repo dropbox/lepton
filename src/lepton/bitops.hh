@@ -370,6 +370,9 @@ public:
     void call_size_callback(size_t size);
     bool chkerr();
     unsigned int getsize();
+    unsigned int bytes_written()const {
+        return byte_position;
+    }
     void set_bound(size_t bound); // bound of zero = fine
     bool has_reached_bound() const {
         return byte_bound && byte_position == byte_bound;
