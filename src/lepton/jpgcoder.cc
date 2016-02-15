@@ -3069,8 +3069,10 @@ bool read_ujpg( void )
     if ( err != Sirikata::JpegError::nil() || ujpg_mrk[ 0 ] != ujgversion ) {
         fprintf( stderr, "incompatible file, use %s v%i.%i",
             appname, ujpg_mrk[ 0 ] / 10, ujpg_mrk[ 0 ] % 10 );
-        errorlevel.store(2);
-        return false;
+        if (err != JpegError::nil()) {
+            custom_exit(ExitCode::SHORT_READ);
+        }
+        custom_exit(ExitCode::VERSION_UNSUPPORTED);
     }
     ReadFull(str_in, ujpg_mrk, 1 );
     uint32_t compressed_file_size = 0;

@@ -23,6 +23,8 @@ lepton_SOURCES = \
    src/lepton/htables.hh \
    src/lepton/fork_serve.cc \
    src/lepton/fork_serve.hh \
+   src/lepton/thread_handoff.cc \
+   src/lepton/thread_handoff.hh \
    src/lepton/socket_serve.cc \
    src/lepton/socket_serve.hh \
    src/lepton/jpgcoder.cc \
@@ -128,6 +130,8 @@ test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/All
    src/io/ioutil.cc \
    src/io/Zlib0.hh \
    src/io/Zlib0.cc \
+   src/lepton/thread_handoff.cc \
+   src/lepton/thread_handoff.hh \
    src/io/MemReadWriter.cc \
    src/io/MemMgrAllocator.cc \
    src/io/MemMgrAllocator.hh \

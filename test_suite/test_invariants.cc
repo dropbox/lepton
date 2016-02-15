@@ -5,6 +5,8 @@
 #include "../src/vp8/model/numeric.hh"
 #include "../src/io/MuxReader.hh"
 #include "../src/io/MemReadWriter.hh"
+#include "../src/lepton/thread_handoff.hh"
+
 #include <stdio.h>
 struct Data {
     unsigned char prob;
@@ -260,12 +262,87 @@ void testRoundtrip() {
 //constexpr Sirikata::AlignedArray1d<uint8_t, 16> karray
 constexpr Sirikata::Array1d<uint8_t, 16 > karray
     = {{0,1,2,3,4,5,6,7,8,9,0xa, 0xb, 0xc, 0xd, 0xe, 0xf}};
+
+void handoff_compare(const std::vector<ThreadHandoff> &a,
+                     const std::vector<ThreadHandoff> &b) {
+    if (a.size() != b.size()) {
+        exit(1);
+    }
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (memcmp(&a[i], &b[i], sizeof(ThreadHandoff)) != 0) {
+            exit(1);
+        }
+    }
+}
+void test_thread_handoff() {
+    std::vector<ThreadHandoff> x = ThreadHandoff::make_rand(NUM_THREADS);
+    Sirikata::Array1d<ThreadHandoff, NUM_THREADS> random_handoffs;
+    for (size_t i = 0; i < NUM_THREADS;++i) {
+        random_handoffs[i] = x[i];
+    }
+    Sirikata::Array1d<unsigned char,
+                      NUM_THREADS * ThreadHandoff::BYTES_PER_HANDOFF
+                      + 2> data = ThreadHandoff::serialize(random_handoffs);
+    std::vector<ThreadHandoff> roundtrip = ThreadHandoff::deserialize(data.begin(), data.size());
+    handoff_compare(x, roundtrip);
+    std::vector<ThreadHandoff> test8;
+    {
+        ThreadHandoff item0 = {17767, 22714,
+                               846930886, 105,
+                               3, {-23633, 5194, 7977}};
+        ThreadHandoff item1 = {22714, 8987, 1350490027,
+                               242, 3, {10723, 124, 2132}};
+
+        ThreadHandoff item2 = {8987, 50377,
+                               521595368, 231,
+                               5, {-3958, -31022, -16947}};
+        ThreadHandoff item3 = {
+            50377, 24869, 1801979802,
+            102, 2, {20493,
+                                          14897, 12451}};
+        ThreadHandoff item4 = {24869, 53453,
+                               1653377373, 5,
+                               7, {-10328, 1118, 15787}};
+        ThreadHandoff item5 = {
+            53453, 62753, 184803526,
+            155, 4, {
+                -9300, -17422, -30836}};
+        ThreadHandoff item6 = {62753, 44540,
+                               2084420925, 220,
+                               7, {6768, 18494, 16961}};
+        ThreadHandoff item7 = {
+            44540, 0, 84353895,
+            62, 1, {18046, 14826, -21355}};
+        test8.push_back(item0);
+        test8.push_back(item1);
+        test8.push_back(item2);
+        test8.push_back(item3);
+        test8.push_back(item4);
+        test8.push_back(item5);
+        test8.push_back(item6);
+        test8.push_back(item7);
+    }
+    const unsigned char data8[] = {
+        0x48,0x08,0x67,0x45,0xc6,0x23,0x7b,0x32,0x69,0x03,0xaf,0xa3,0x4a,0x14,0x29,0x1f,0x00,0x00,
+        0xba,0x58,0xab,0xd7,0x7e,0x50,0xf2,0x03,0xe3,0x29,0x7c,0x00,0x54,0x08,0x00,0x00,0x1b,0x23,
+        0xe8,0xe9,0x16,0x1f,0xe7,0x05,0x8a,0xf0,0xd2,0x86,0xcd,0xbd,0x00,0x00,0xc9,0xc4,0x9a,0x07,
+        0x68,0x6b,0x66,0x02,0x0d,0x50,0x31,0x3a,0xa3,0x30,0x00,0x00,0x25,0x61,0x5d,0x89,0x8c,0x62,
+        0x05,0x07,0xa8,0xd7,0x5e,0x04,0xab,0x3d,0x00,0x00,0xcd,0xd0,0xc6,0xe0,0x03,0x0b,0x9b,0x04,
+        0xac,0xdb,0xf2,0xbb,0x8c,0x87,0x00,0x00,0x21,0xf5,0x3d,0xbd,0x3d,0x7c,0xdc,0x07,0x70,0x1a,
+        0x3e,0x48,0x41,0x42,0x00,0x00,0xfc,0xad,0x67,0x23,0x07,0x05,0x3e,0x01,0x7e,0x46,0xea,0x39,
+        0x95,0xac,0x00,0x00
+    };
+    std::vector<ThreadHandoff> roundtrip8 = ThreadHandoff::deserialize(data8, sizeof(data8));
+    handoff_compare(test8, roundtrip8);
+}
+
+
 int main() {
     Sirikata::memmgr_init(768 * 1024 * 1024,
                           64 * 1024 * 1024,
                           3,
                           256);
-
+    test_thread_handoff();
     for (size_t i = 0; i < karray.size(); ++i) {
         assert(karray[i] == i);
     }
@@ -311,7 +388,6 @@ int main() {
         if (i > 0) {
             assert(log2((uint16_t)i) == uint16log2(i));
         }
-        
     }
     for (int denom = 1; denom < 1026; ++denom) {
         for (int num = 256; num < 262144; num += 256) {
