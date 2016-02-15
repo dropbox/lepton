@@ -315,6 +315,53 @@ std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::Nu
     }
     return std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> >(overhang_byte, num_overhang_bits, lastdc);
 }
+
+
+template<class BoundedWriter>
+std::tuple<uint8_t,
+           uint8_t,
+           Sirikata::Array1d<int16_t,
+                             (size_t)ColorChannel::NumBlockTypes> > recode_physical_thread(BoundedWriter *stream_out,
+                                                                                           BlockBasedImagePerChannel<false> &framebuffer,
+                                                                                           uint8_t overhang_byte,
+                                                                                           uint8_t num_overhang_bits,
+                                                                                           Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> lastdc,
+                                                                                           const std::vector<int> &luma_bounds,
+                                                                                           Sirikata::Array1d<uint32_t,
+                                                                                                             (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
+                                                                                           Sirikata::Array1d<uint32_t,
+                                                                                                             (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
+                                                                                           int physical_thread_id,
+                                                                                           int max_file_size) {
+    int num_physical_threads = g_threaded ? NUM_THREADS : 1;
+    int num_logical_threads = luma_bounds.size();
+    int logical_thread_start = (physical_thread_id * num_logical_threads) / num_physical_threads;
+    int logical_thread_end = std::min(((physical_thread_id  + 1) * num_logical_threads) / num_physical_threads,
+                                      num_logical_threads);
+    std::tuple<uint8_t,
+               uint8_t,
+               Sirikata::Array1d<int16_t,
+                                 (size_t)ColorChannel::NumBlockTypes> > overhang_byte_and_bit_count(overhang_byte,
+                                                                                                    num_overhang_bits,
+                                                                                                    lastdc);
+    for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
+        if (logical_thread_id != logical_thread_start) {
+            g_decoder->clear_thread_state(logical_thread_id, 0, framebuffer);
+        }
+        overhang_byte_and_bit_count = recode_row_range(stream_out,
+                                                       framebuffer,
+                                                       std::get<0>(overhang_byte_and_bit_count),
+                                                       std::get<1>(overhang_byte_and_bit_count),
+                                                       std::get<2>(overhang_byte_and_bit_count),
+                                                       luma_bounds,
+                                                       max_coded_heights,
+                                                       component_size_in_blocks,
+                                                       logical_thread_id,
+                                                       max_file_size);
+        
+    }
+    return overhang_byte_and_bit_count;
+}
 /* -----------------------------------------------
     JPEG encoding routine
     ----------------------------------------------- */
@@ -365,22 +412,19 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     std::get<1>(overhang_byte_and_bit_count) = 0;
     std::get<2>(overhang_byte_and_bit_count).memset(0);
     
-    for (int logical_thread_id = 0;logical_thread_id < NUM_THREADS; ++logical_thread_id) {
-        if (logical_thread_id && !g_threaded) { // clear old state
-            g_decoder->clear_thread_state(logical_thread_id, 0, framebuffer[g_threaded ? logical_thread_id : 0]);
-        }
-        if (logical_thread_id == 0) {
-            overhang_byte_and_bit_count = recode_row_range(str_out,
-                                                           framebuffer[g_threaded ? logical_thread_id : 0],
+    for (int physical_thread_id = 0;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        if (physical_thread_id == 0) {
+            overhang_byte_and_bit_count = recode_physical_thread(str_out,
+                                                           framebuffer[physical_thread_id],
                                                            std::get<0>(overhang_byte_and_bit_count),
                                                            std::get<1>(overhang_byte_and_bit_count),
                                                            std::get<2>(overhang_byte_and_bit_count),
                                                            luma_bounds,
                                                            max_coded_heights,
                                                            component_size_in_blocks,
-                                                           logical_thread_id,
+                                                           physical_thread_id,
                                                            max_file_size);
-        } else {
+        } else {//FIXME: spawn a thread for each, once we have the overhang_byte_and_bit_count deserialized
             Sirikata::JpegAllocator<uint8_t> alloc;
             // the reason local_buffer isn't contained entirely in the loop is one purely of performance
             // The allocation/deallocation of the vector just takes ages with test_hq
@@ -388,14 +432,14 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             Sirikata::BoundedMemWriter local_buffer(alloc);
             local_buffer.set_bound(max_file_size - grbs);
             overhang_byte_and_bit_count = recode_row_range(&local_buffer,
-                                                           framebuffer[g_threaded ? logical_thread_id : 0],
+                                                           framebuffer[physical_thread_id],
                                                            std::get<0>(overhang_byte_and_bit_count),
                                                            std::get<1>(overhang_byte_and_bit_count),
                                                            std::get<2>(overhang_byte_and_bit_count),
                                                            luma_bounds,
                                                            max_coded_heights,
                                                            component_size_in_blocks,
-                                                           logical_thread_id,
+                                                           physical_thread_id,
                                                            max_file_size);
             size_t bytes_to_copy = local_buffer.bytes_written();
             if (bytes_to_copy) {
