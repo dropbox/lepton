@@ -260,12 +260,9 @@ std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::Nu
                                              const std::vector<int> &luma_bounds,
                                              Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
                                              Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
+                                             int physical_thread_id,
                                              int logical_thread_id,
                                              int max_file_size) {
-    int physical_thread_id = logical_thread_id;
-    if (!g_threaded) {
-        physical_thread_id = 0;
-    }
     // open huffman coded image data in abitwriter
     abitwriter huffw(16384, max_file_size);
     huffw.fillbit = padbit;
@@ -346,7 +343,7 @@ std::tuple<uint8_t,
                                                                                                     lastdc);
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
         if (logical_thread_id != logical_thread_start) {
-            g_decoder->clear_thread_state(logical_thread_id, 0, framebuffer);
+            g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
         }
         overhang_byte_and_bit_count = recode_row_range(stream_out,
                                                        framebuffer,
@@ -356,6 +353,7 @@ std::tuple<uint8_t,
                                                        luma_bounds,
                                                        max_coded_heights,
                                                        component_size_in_blocks,
+                                                       physical_thread_id,
                                                        logical_thread_id,
                                                        max_file_size);
         
@@ -431,7 +429,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             // However, this doesn't mean the contents are shared: it gets treated as cleared each time
             Sirikata::BoundedMemWriter local_buffer(alloc);
             local_buffer.set_bound(max_file_size - grbs);
-            overhang_byte_and_bit_count = recode_row_range(&local_buffer,
+            overhang_byte_and_bit_count = recode_physical_thread(&local_buffer,
                                                            framebuffer[physical_thread_id],
                                                            std::get<0>(overhang_byte_and_bit_count),
                                                            std::get<1>(overhang_byte_and_bit_count),

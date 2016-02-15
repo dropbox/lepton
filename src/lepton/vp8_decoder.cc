@@ -82,7 +82,7 @@ void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, Uncompre
 template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
-    TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
+    TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
     }
@@ -105,7 +105,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     thread_state_[target_thread_state]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
     thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
-    TimingHarness::timing[thread_id][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
+    TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
 std::vector<int> VP8ComponentDecoder::initialize_baseline_decoder(
     const UncompressedComponents * const colldata,
