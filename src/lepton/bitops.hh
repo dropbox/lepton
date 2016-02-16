@@ -25,113 +25,8 @@
 #include "../io/Reader.hh"
 #include "../io/ioutil.hh"
 #include "../vp8/util/vpx_config.hh"
-/* -----------------------------------------------
-	class to read arrays bitwise
-	----------------------------------------------- */
-void compute_md5(const char * filename, unsigned char *result);
-class abitreader
-{
-public:
-	abitreader( unsigned char* array, int size );
-	~abitreader( void );	
-	unsigned int read( int nbits ) {
-        if (__builtin_expect(eof || !nbits, 0)) {
-            return 0;
-        }
-        unsigned int bits_read = 0;
-        unsigned int retval2 = 0;
-        if (__builtin_expect(nbits >= cbit2, 0)) {
-            bits_read = cbit2;
-            retval2 = (RBITS64(buf, cbit2) << (nbits - bits_read)) & ((1 << nbits) - 1);
-            int cur_nbits = nbits - bits_read;
-            buf >>= bits_read;
-            cbit2 -= bits_read;
-            if (cbyte2 == lbyte && cbit2 == 0) {
-                eof = true;
-                return retval2;
-            }
-            if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
-                int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
-                memcpy(&buf, &data2[cbyte2], new_bytes);
-                buf = htobe64(buf);
-                buf >>= (sizeof(buf) - new_bytes) * 8;
-                cbyte2 += new_bytes;
-                cbit2 += new_bytes * 8;
-            } else {
-                memcpy(&buf, &data2[cbyte2], sizeof(buf));
-                buf = htobe64(buf);
-                cbyte2 += sizeof(buf);
-                cbit2 += sizeof(buf) * 8;
-            }
-            if (cbyte2 == lbyte && cbit2 == 0) {
-                eof = true;
-            }
-            if (cur_nbits) {
-                if (cur_nbits <= cbit2) {
-                    retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
-                    cbit2 -= cur_nbits;
-                } else {
-                    retval2 |= buf;
-                    buf = 0;
-                    cbit2 = 0;
-                }
-            }
-        } else {
-            retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
-            cbit2 -= nbits;
-        }
-        return retval2;
-    }
-    bool remainder() {
-        if (cbit2 & 7) {
-            return 8 - (cbit2 &7);
-        } return 0;
-    }
-	unsigned char unpad( unsigned char fillbit ) {
-        if ((cbit2 & 7) == 0 || eof) return fillbit;
-        else {
-            char last_bit = read( 1 );
-            fillbit = last_bit;
-            int offset = 1;
-            while (cbit2 & 7) {
-                last_bit = read( 1 );
-                fillbit |= (last_bit << offset);
-                ++offset;
-            }
-            while(offset < 7) {
-                fillbit |= (last_bit << offset);
-                ++offset;
-            }
-        }
-        return fillbit;
-    }
-	int getpos( void ) {
-        return cbyte2 - 7 + ((64 - cbit2) >> 3);
-    }
-    uint64_t debug_peek(void) {
-        uint64_t retval = 0;
-        abitreader tmp(*this);
-        bool had_remainder = false;
-        while (tmp.remainder()) {
-            had_remainder = true;
-            retval = tmp.read(tmp.remainder());
-        }
-        for (int i = 0 ;i < (had_remainder ? 7 : 8);++i) {
-            uint8_t a = tmp.read(8);
-            retval |= a;
-            retval <<= 8;
-        }
-        return retval;
-    }
-    bool eof;
-private:
-    unsigned char* data2;
-    int cbyte2;
-    int cbit2;
-    uint64_t buf;
-	int lbyte;
-};
 
+void compute_md5(const char * filename, unsigned char *result);
 
 /* -----------------------------------------------
 	class to write arrays bitwise
@@ -297,6 +192,112 @@ public:
 	
 };
 
+/* -----------------------------------------------
+	class to read arrays bitwise
+	----------------------------------------------- */
+
+class abitreader
+{
+public:
+	abitreader( unsigned char* array, int size );
+	~abitreader( void );
+	unsigned int read( int nbits ) {
+        if (__builtin_expect(eof || !nbits, 0)) {
+            return 0;
+        }
+        unsigned int bits_read = 0;
+        unsigned int retval2 = 0;
+        if (__builtin_expect(nbits >= cbit2, 0)) {
+            bits_read = cbit2;
+            retval2 = (RBITS64(buf, cbit2) << (nbits - bits_read)) & ((1 << nbits) - 1);
+            int cur_nbits = nbits - bits_read;
+            buf >>= bits_read;
+            cbit2 -= bits_read;
+            if (cbyte2 == lbyte && cbit2 == 0) {
+                eof = true;
+                return retval2;
+            }
+            if (__builtin_expect(lbyte - cbyte2 < (int)sizeof(buf), 0)) {
+                int new_bytes = std::min((int)sizeof(buf), lbyte - cbyte2);
+                memcpy(&buf, &data2[cbyte2], new_bytes);
+                buf = htobe64(buf);
+                buf >>= (sizeof(buf) - new_bytes) * 8;
+                cbyte2 += new_bytes;
+                cbit2 += new_bytes * 8;
+            } else {
+                memcpy(&buf, &data2[cbyte2], sizeof(buf));
+                buf = htobe64(buf);
+                cbyte2 += sizeof(buf);
+                cbit2 += sizeof(buf) * 8;
+            }
+            if (cbyte2 == lbyte && cbit2 == 0) {
+                eof = true;
+            }
+            if (cur_nbits) {
+                if (cur_nbits <= cbit2) {
+                    retval2 |= MBITS64(buf, cbit2, (cbit2-cur_nbits));
+                    cbit2 -= cur_nbits;
+                } else {
+                    retval2 |= buf;
+                    buf = 0;
+                    cbit2 = 0;
+                }
+            }
+        } else {
+            retval2 = MBITS64(buf, cbit2, (cbit2-nbits));
+            cbit2 -= nbits;
+        }
+        return retval2;
+    }
+    bool remainder() {
+        if (cbit2 & 7) {
+            return 8 - (cbit2 &7);
+        } return 0;
+    }
+	unsigned char unpad( unsigned char fillbit ) {
+        if ((cbit2 & 7) == 0 || eof) return fillbit;
+        else {
+            char last_bit = read( 1 );
+            fillbit = last_bit;
+            int offset = 1;
+            while (cbit2 & 7) {
+                last_bit = read( 1 );
+                fillbit |= (last_bit << offset);
+                ++offset;
+            }
+            while(offset < 7) {
+                fillbit |= (last_bit << offset);
+                ++offset;
+            }
+        }
+        return fillbit;
+    }
+	int getpos( void ) {
+        return cbyte2 - 7 + ((64 - cbit2) >> 3);
+    }
+    uint64_t debug_peek(void) {
+        uint64_t retval = 0;
+        abitreader tmp(*this);
+        bool had_remainder = false;
+        while (tmp.remainder()) {
+            had_remainder = true;
+            retval = tmp.read(tmp.remainder());
+        }
+        for (int i = 0 ;i < (had_remainder ? 7 : 8);++i) {
+            uint8_t a = tmp.read(8);
+            retval |= a;
+            retval <<= 8;
+        }
+        return retval;
+    }
+    bool eof;
+private:
+    unsigned char* data2;
+    int cbyte2;
+    int cbit2;
+    uint64_t buf;
+	int lbyte;
+};
 
 /* -----------------------------------------------
 	class to write arrays bytewise
