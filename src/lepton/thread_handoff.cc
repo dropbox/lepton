@@ -38,6 +38,12 @@ std::vector<ThreadHandoff> ThreadHandoff::deserialize(const unsigned char *data,
     }
     return retval;
 }
+size_t ThreadHandoff::get_remaining_data_size_from_two_bytes(unsigned char input[2]) {
+    if (input[0] != 'H') {
+        custom_exit(ExitCode::VERSION_UNSUPPORTED);
+    }
+    return input[1] * ThreadHandoff::BYTES_PER_HANDOFF;
+}
 Sirikata::Array1d<unsigned char,
                   NUM_THREADS * ThreadHandoff::BYTES_PER_HANDOFF
                   + 2> ThreadHandoff::serialize(const Sirikata::Array1d<ThreadHandoff,

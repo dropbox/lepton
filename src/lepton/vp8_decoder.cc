@@ -15,10 +15,12 @@
 #include "../vp8/decoder/decoder.hh"
 using namespace std;
 
-void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input)
+void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input,
+                                      const std::vector<ThreadHandoff>& thread_handoff)
 {
     str_in = input;
     mux_reader_.init(input);
+    thread_handoff_ = thread_handoff;
 }
 void VP8ComponentDecoder::decode_row(int target_thread_id,
                                      BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
@@ -103,18 +105,20 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
                                                  streams_[index].second - streams_[index].first );
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
-    thread_state_[target_thread_state]->luma_splits_[0] = thread_id != 0 ? file_luma_splits_[thread_id - 1] : 0;
-    thread_state_[target_thread_state]->luma_splits_[1] = file_luma_splits_[thread_id];
+    thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_[thread_id].luma_y_start;
+    thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_[thread_id].luma_y_end;
+    //fprintf(stderr, "tid: %d   %d -> %d\n", thread_id, thread_state_[target_thread_state]->luma_splits_[0],
+    //        thread_state_[target_thread_state]->luma_splits_[1]);
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
-std::vector<int> VP8ComponentDecoder::initialize_baseline_decoder(
+std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
     const UncompressedComponents * const colldata,
     Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                       NUM_THREADS>& framebuffer) {
     return initialize_decoder_state(colldata, framebuffer);
 }
 template <bool force_memory_optimized>
-std::vector<int> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
+std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                                      NUM_THREADS>& framebuffer) {
     Sirikata::DecoderReader* input = str_in;
@@ -140,20 +144,28 @@ std::vector<int> VP8ComponentDecoder::initialize_decoder_state(const Uncompresse
     unsigned char mark {};
     const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
     if (!ok) {
-        return std::vector<int>();
+        return std::vector<ThreadHandoff>();
     }
-    file_luma_splits_.insert(file_luma_splits_.end(), mark, colldata->block_height(0));
+    if (thread_handoff_.empty()) {
+        ThreadHandoff th;
+        memset(&th, 0, sizeof(th));
+        th.num_overhang_bits = ThreadHandoff::LEGACY_OVERHANG_BITS; // to make sure we don't use this value
+        th.luma_y_end = colldata->block_height(0);
+        thread_handoff_.insert(thread_handoff_.end(), mark, th);
 
-    std::vector<uint16_t> luma_splits_tmp(mark - 1);
-    IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
-    int sfv_lcm = colldata->min_vertical_luma_multiple();
-    
-    for (int i = 0; i + 1 < mark; ++i) {
-        file_luma_splits_[i] = htole16(luma_splits_tmp[i]);
-        if (file_luma_splits_[i] % sfv_lcm) {
-            fprintf(stderr, "File Split %d = %d (remainder %d)\n",
-                    i, file_luma_splits_[i], sfv_lcm);
-            custom_exit(ExitCode::THREADING_PARTIAL_MCU);
+        std::vector<uint16_t> luma_splits_tmp(mark - 1);
+        IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
+        int sfv_lcm = colldata->min_vertical_luma_multiple();
+        for (int i = 0; i + 1 < mark; ++i) {
+            thread_handoff_[i].luma_y_end = htole16(luma_splits_tmp[i]);
+            if (thread_handoff_[i].luma_y_end % sfv_lcm) {
+                fprintf(stderr, "File Split %d = %d (remainder %d)\n",
+                        i, thread_handoff_[i].luma_y_end, sfv_lcm);
+                custom_exit(ExitCode::THREADING_PARTIAL_MCU);
+            }
+        }
+        for (int i = 1; i < mark; ++i) {
+            thread_handoff_[i].luma_y_start = thread_handoff_[i - 1].luma_y_end;
         }
     }
     /* read entire chunk into memory */
@@ -164,7 +176,7 @@ std::vector<int> VP8ComponentDecoder::initialize_decoder_state(const Uncompresse
             initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
         }
     }
-    return file_luma_splits_;
+    return thread_handoff_;
 }
 
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)

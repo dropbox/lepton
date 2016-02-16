@@ -16,8 +16,10 @@ SimpleComponentDecoder::SimpleComponentDecoder() {
         started_scan[i] = false;
     }
 }
-void SimpleComponentDecoder::initialize(Sirikata::DecoderReader *i) {
-    str_in = i;
+void SimpleComponentDecoder::initialize(Sirikata::DecoderReader *i,
+                                        const std::vector<ThreadHandoff>& thread_transition_info) {
+    this->str_in = i;
+    this->thread_handoffs_ = thread_transition_info;
 }
 
 void SimpleComponentDecoder::decode_row(int thread_state_id,

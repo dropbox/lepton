@@ -11,7 +11,7 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
     Sirikata::DecoderReader *str_in {};
     //const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     Sirikata::MuxReader mux_reader_;
-    std::vector<int> file_luma_splits_;
+    std::vector<ThreadHandoff> thread_handoff_;
     Sirikata::Array1d<std::pair <Sirikata::MuxReader::ResizableByteBuffer::const_iterator,
                                  Sirikata::MuxReader::ResizableByteBuffer::const_iterator>,
                       Sirikata::MuxReader::MAX_STREAM_ID> streams_;
@@ -29,19 +29,20 @@ public:
     // reads the threading information and uses mux_reader_ to create the streams_ 
     // returns the bound of each threads' max_luma (non inclusive) responsibility in the file
     template <bool force_memory_optimized>
-    std::vector<int> initialize_decoder_state(
+    std::vector<ThreadHandoff> initialize_decoder_state(
         const UncompressedComponents * const colldata,
         // quantization_tables
         Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                           NUM_THREADS>& framebuffer); // framebuffer
-    virtual std::vector<int> initialize_baseline_decoder(const UncompressedComponents * const colldata,
+    virtual std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                              Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                                                                NUM_THREADS>& framebuffer);
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         this->VP8ComponentEncoder::registerWorkers(workers);
     }
     ~VP8ComponentDecoder();
-    void initialize(Sirikata::DecoderReader *input);
+    void initialize(Sirikata::DecoderReader *input,
+                    const std::vector<ThreadHandoff>& thread_transition_info);
     //necessary to implement the BaseDecoder interface. Thin wrapper around vp8_decoder
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst);
     virtual void decode_row(int target_thread_id,

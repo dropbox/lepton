@@ -3172,7 +3172,7 @@ bool read_ujpg( void )
         errorlevel.store(2);
         return false;
     }
-
+    std::vector<ThreadHandoff> thread_handoff;
     // read further recovery information if any
     while ( ReadFull(&header_reader, ujpg_mrk, 3 ) == 3 ) {
         // check marker
@@ -3183,6 +3183,13 @@ bool read_ujpg( void )
             for (size_t i = 0; i < rst_cnt.size(); ++i) {
                 ReadFull(&header_reader, ujpg_mrk, 4);
                 rst_cnt[i] = LEtoUint32(ujpg_mrk);
+            }
+        } else if ( memcmp( ujpg_mrk, "HHX", 2 ) == 0 ) { // only look at first two bytes
+            size_t to_alloc = ThreadHandoff::get_remaining_data_size_from_two_bytes(ujpg_mrk + 1);
+            if(to_alloc) {
+                std::vector<unsigned char> data(to_alloc);
+                ReadFull(&header_reader, &data[0], to_alloc);
+                thread_handoff = ThreadHandoff::deserialize(&data[0], to_alloc);
             }
         } else if ( memcmp( ujpg_mrk, "FRS", 3 ) == 0 ) {
             // read number of false set RST markers per scan from file
@@ -3239,7 +3246,7 @@ bool read_ujpg( void )
         return false; // not a JPG
     }
     colldata.signal_worker_should_begin();
-    g_decoder->initialize(str_in);
+    g_decoder->initialize(str_in, thread_handoff);
     colldata.start_decoder(g_decoder);
     return true;
 }

@@ -9,18 +9,20 @@ class SimpleComponentDecoder : public BaseDecoder {
     int cur_read_batch[4];
     int target[4];
     Sirikata::DecoderReader * str_in;
+    std::vector<ThreadHandoff> thread_handoffs_;
     unsigned int batch_size;
 public:
     SimpleComponentDecoder();
     ~SimpleComponentDecoder();
-    virtual void initialize(Sirikata::DecoderReader *input);
+    virtual void initialize(Sirikata::DecoderReader *input,
+                            const std::vector<ThreadHandoff>& thread_transition_info);
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {}
-    std::vector<int> initialize_baseline_decoder(const UncompressedComponents * const colldata,
+    std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                      Sirikata::Array1d<BlockBasedImagePerChannel<false>,
                                                        NUM_THREADS>& framebuffer){
-        return std::vector<int>();
+        return thread_handoffs_;
     }
     void decode_row(int thread_state_id,
                     BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
