@@ -3015,8 +3015,11 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     }
     for (size_t i = selected_splits.size() - 1; i > 0 ; --i) {
         selected_splits[i].segment_size -= selected_splits[i - 1].segment_size;
+        selected_splits[i].luma_y_start = selected_splits[i - 1].luma_y_end;
     }
     selected_splits[0].segment_size -= row_thread_handoffs[0].segment_size;
+    selected_splits[0].luma_y_start = row_thread_handoffs[0].luma_y_start;
+    assert(!selected_splits[0].luma_y_start);
     // write header to file
     // marker: "HDR" + [size of header]
     unsigned char hdr_mrk[] = {'H', 'D', 'R'};
