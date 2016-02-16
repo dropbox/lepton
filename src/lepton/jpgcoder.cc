@@ -252,6 +252,8 @@ int            hdrs             =    0  ;   // size of header
 int            zlib_hdrs        =    0  ;   // size of compressed header
 size_t         total_framebuffer_allocated = 0; // framebuffer allocated
 int            grbs             =    0  ;   // size of garbage
+int            prefix_grbs = 0; // size of prefix;
+unsigned char *prefix_grbgdata = NULL; // if prefix_grb is specified, header is not prepended
 
 std::vector<unsigned int>  rstp;   // restart markers positions in huffdata
 std::vector<unsigned int>  scnp;   // scan start positions in huffdata
@@ -263,6 +265,7 @@ std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per sca
 std::vector<unsigned int> rst_cnt;
 bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
+int            start_byte       =    0;     // support for producing a slice of jpeg
 
 UncompressedComponents colldata; // baseline sorted DCT coefficients
 
@@ -813,6 +816,9 @@ int initialize_options( int argc, char** argv )
         else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
             g_max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
         }
+        else if ( strncmp((*argv), "-startbyte=", strlen("-startbyte=") ) == 0 ) {
+            start_byte = atoi((*argv) + strlen("-startbyte="));
+        }        
         else if ( strncmp((*argv), "-trunc=", strlen("-trunc=") ) == 0 ) {
             max_file_size = atoi((*argv) + strlen("-trunc="));
         }
@@ -3212,6 +3218,19 @@ bool read_ujpg( void )
             }
             // read garbage data
             ReadFull(&header_reader, grbgdata, grbs );
+        }
+        else if ( memcmp( ujpg_mrk, "PGR", 3 ) == 0 ) {
+            // read prefix garbage (data before beginning of JPG) from file
+            ReadFull(&header_reader, ujpg_mrk, 4);
+            prefix_grbs = LEtoUint32(ujpg_mrk);
+            prefix_grbgdata = aligned_alloc(grbs);
+            if ( prefix_grbgdata == NULL ) {
+                fprintf( stderr, MEM_ERRMSG );
+                errorlevel.store(2);
+                return false;
+            }
+            // read garbage data
+            ReadFull(&header_reader, prefix_grbgdata, prefix_grbs );
         }
         else if ( memcmp( ujpg_mrk, "SIZ", 3 ) == 0 ) {
             // full size of the original file

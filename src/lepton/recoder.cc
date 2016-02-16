@@ -30,6 +30,8 @@ extern int mcuc; // count of mcus
 extern std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
 extern bool rst_cnt_set;
 extern std::vector<unsigned int> rst_cnt;
+extern int prefix_grbs;   // size of prefix garbage
+extern unsigned char *prefix_grbgdata; // the actual prefix garbage: if present, hdrdata not serialized
 
 void check_decompression_memory_bound_ok();
 
@@ -237,7 +239,11 @@ unsigned int handle_initial_segments( bounded_iostream * const str_out )
            then return the byte position -- done with initial headers */
 
         if ( type == 0xDA ) {
-            str_out->write( hdrdata, byte_position );
+            if (prefix_grbgdata) {
+                str_out->write(prefix_grbgdata, prefix_grbs);
+            } else {
+                str_out->write( hdrdata, byte_position );
+            }
             return byte_position; /* ready for the scan */
         }
     }
