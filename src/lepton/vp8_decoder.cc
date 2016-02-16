@@ -140,13 +140,13 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
                                                       colldata->get_quantization_tables(BlockType::Ck));
     }
 #endif
-    /* read and verify "x" mark */
-    unsigned char mark {};
-    const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
-    if (!ok) {
-        return std::vector<ThreadHandoff>();
-    }
     if (thread_handoff_.empty()) {
+        /* read and verify "x" mark */
+        unsigned char mark {};
+        const bool ok = str_in->Read( &mark, 1 ).second == Sirikata::JpegError::nil();
+        if (!ok) {
+            return std::vector<ThreadHandoff>();
+        }
         ThreadHandoff th;
         memset(&th, 0, sizeof(th));
         th.num_overhang_bits = ThreadHandoff::LEGACY_OVERHANG_BITS; // to make sure we don't use this value
