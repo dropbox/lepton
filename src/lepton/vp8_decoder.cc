@@ -167,6 +167,14 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
         for (int i = 1; i < mark; ++i) {
             thread_handoff_[i].luma_y_start = thread_handoff_[i - 1].luma_y_end;
         }
+    } else {
+        for (size_t i = 0; i < thread_handoff_.size(); ++i) {
+            thread_handoff_[i].num_overhang_bits = ThreadHandoff::LEGACY_OVERHANG_BITS;
+            thread_handoff_[i].overhang_byte = 0;
+            thread_handoff_[i].last_dc[0] = 0;
+            thread_handoff_[i].last_dc[1] = 0;
+            thread_handoff_[i].last_dc[2] = 0;
+        }
     }
     /* read entire chunk into memory */
     mux_reader_.fillBufferEntirely(streams_.begin());
@@ -175,6 +183,9 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
         }
+    }
+    if (thread_handoff_.size()) {
+        thread_handoff_.back().luma_y_end = colldata->block_height(0);
     }
     return thread_handoff_;
 }

@@ -368,7 +368,7 @@ std::unique_ptr<BaseEncoder> g_encoder;
 BaseDecoder* g_decoder = NULL;
 std::unique_ptr<BaseDecoder> g_reference_to_free;
 const char * g_socket_name = NULL;
-bool g_threaded = true;
+bool g_threaded = false;
 bool g_allow_progressive = false;
 bool g_unkillable = false;
 uint64_t g_time_bound_ms = 0;
