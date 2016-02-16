@@ -4,7 +4,7 @@
 enum {
     VECTORIZE = 1,
     MICROVECTORIZE = 1,
-    NUM_THREADS = 1,
+    NUM_THREADS = 4,
     SIMD_WIDTH = 1
 };
 
