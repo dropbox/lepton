@@ -381,19 +381,22 @@ void recode_physical_thread(BoundedWriter *stream_out,
         if (logical_thread_id != physical_thread_id) {
             g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
         }
-        th = recode_row_range(stream_out,
-                              framebuffer,
-                              th,
-                              max_coded_heights,
-                              component_size_in_blocks,
-                              physical_thread_id,
-                              logical_thread_id,
-                              max_file_size);        
+        ThreadHandoff outth = recode_row_range(stream_out,
+                                               framebuffer,
+                                               th,
+                                               max_coded_heights,
+                                               component_size_in_blocks,
+                                               physical_thread_id,
+                                               logical_thread_id,
+                                               max_file_size);        
         if (logical_thread_id + 1 < num_logical_threads
             && !thread_handoffs[logical_thread_id + 1].is_legacy_mode()) {
             // make sure we computed the same item that was stored
-            assert(memcmp(&th, &thread_handoffs[logical_thread_id + 1], sizeof(th)) == 0);
+            assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
+            assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
+            assert(memcmp(outth.last_dc.begin(), thread_handoffs[logical_thread_id + 1].last_dc.begin(), sizeof(outth.last_dc)) == 0);
         }
+        th = outth;
     }
 }
 /* -----------------------------------------------
