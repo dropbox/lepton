@@ -473,15 +473,16 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                    physical_thread_id,
                                    max_file_size,
                                    true);
-            size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
-            if (bytes_to_copy) {
-                local_bound -= bytes_to_copy;
-                str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
-                               bytes_to_copy);
-            }
         }
     }
-
+    for (int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
+        if (bytes_to_copy) {
+            local_bound -= bytes_to_copy;
+            str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
+                           bytes_to_copy);
+        }
+    }
 
 
     /* step 3: blit any trailing data */
