@@ -171,12 +171,13 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offset);
 struct MergeJpegProgress;
 bool decode_jpeg(const std::vector<std::pair<uint32_t,
-                                     uint32_t> > &huff_input_offset);
+                                   uint32_t> > &huff_input_offset,
+                 std::vector<ThreadHandoff>*row_thread_handoffs);
 bool recode_jpeg( void );
 
 bool adapt_icos( void );
 bool check_value_range( void );
-bool write_ujpg( void );
+bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs);
 bool read_ujpg( void );
 bool reset_buffers( void );
 
@@ -1185,11 +1186,14 @@ void process_file(IOUtil::FileReader* reader,
                 execute(std::bind(&read_jpeg, &huff_input_offset));
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
                     TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
-
-                execute(std::bind(&decode_jpeg, huff_input_offset));
-                TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_FINISHED] = TimingHarness::get_time_us();
-                //execute( check_value_range );
-                execute( write_ujpg ); // replace with compression function!
+                {
+                    std::vector<ThreadHandoff> luma_row_offsets;
+                    execute(std::bind(&decode_jpeg, huff_input_offset, &luma_row_offsets));
+                    TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_FINISHED]
+                        = TimingHarness::get_time_us();
+                    //execute( check_value_range );
+                    execute(std::bind(&write_ujpg, luma_row_offsets));
+                }
                 timing_operation_complete( 'c' );
                 break;
 
@@ -2099,7 +2103,8 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     JPEG decoding routine
     ----------------------------------------------- */
 
-bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_offsets)
+bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_offsets,
+                 std::vector<ThreadHandoff>*luma_row_offset_return)
 {
     abitreader* huffr; // bitwise reader for image data
 
@@ -2173,8 +2178,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                 max_cmp = std::max(max_cmp, cs_cmp[i]);
             }
         }
-        std::vector<ThreadHandoff> row_handoff;
-        row_handoff.push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+        luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
         // JPEG imagedata decoding routines
         while ( true )
         {
@@ -2235,7 +2239,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
                         if (mcu % mcuh == 0 && old_mcu !=  mcu) {
                             //fprintf(stderr, "ROW %d\n", (int)row_handoff.size());
-                            row_handoff.push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+                            luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
                         }
                         if(huffr->eof) {
                             sta = 2;
@@ -2323,8 +2327,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         else sta = next_mcuposn( &cmp, &dpos, &rstw );
 
                         if (dpos % cmpnfo[cmp].bch == 0) {
-                            fprintf(stderr, "ROW %d\n",(int) row_handoff.size());
-                            row_handoff.push_back(crystallize_thread_handoff(huffr, huff_input_offsets, dpos, lastdc, 1));
+                            luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, dpos, lastdc, 1));
                         }
                         if(huffr->eof) {
                             sta = 2;
@@ -2981,7 +2984,7 @@ bool check_value_range( void )
     write uncompressed JPEG file
     ----------------------------------------------- */
 
-bool write_ujpg( )
+bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
 {
     unsigned char ujpg_mrk[ 64 ];
     bool has_lepton_entropy_coding = (ofiletype == LEPTON || filetype == LEPTON );
@@ -3004,7 +3007,16 @@ bool write_ujpg( )
             return false;
 
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
-
+    Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
+    for (size_t i = 0; i < selected_splits.size(); ++i) {
+        size_t index = std::min((i + 1) * row_thread_handoffs.size() / NUM_THREADS,
+                                row_thread_handoffs.size() - 1);
+        selected_splits[i] = row_thread_handoffs[index];
+    }
+    for (size_t i = selected_splits.size() - 1; i > 0 ; --i) {
+        selected_splits[i].segment_size -= selected_splits[i - 1].segment_size;
+    }
+    selected_splits[0].segment_size -= row_thread_handoffs[0].segment_size;
     // write header to file
     // marker: "HDR" + [size of header]
     unsigned char hdr_mrk[] = {'H', 'D', 'R'};
@@ -3015,12 +3027,19 @@ bool write_ujpg( )
     mrw.Write( hdrdata, hdrs );
     // beginning here: recovery information (needed for exact JPEG recovery)
 
-    // write huffman coded data padbit
     // marker: P0D"
     unsigned char pad_mrk[] = {'P', '0', 'D'};
     err = mrw.Write( pad_mrk, sizeof(pad_mrk) ).second;
     // data: padbit
     err = mrw.Write( (unsigned char*) &padbit, 1 ).second;
+
+    // write luma splits
+    unsigned char luma_mrk[1] = {'H'};
+    err = mrw.Write( luma_mrk, sizeof(luma_mrk) ).second;
+    // data: serialized luma splits
+    auto serialized_splits = ThreadHandoff::serialize(selected_splits);
+    err = mrw.Write(serialized_splits.begin(), serialized_splits.size()).second;
+
     if (!rst_cnt.empty()) {
         unsigned char frs_mrk[] = {'C', 'R', 'S'};
         err = mrw.Write( frs_mrk, 3 ).second;
@@ -3090,7 +3109,7 @@ bool write_ujpg( )
     }
     unsigned char cmp_mrk[] = {'C', 'M', 'P'};
     err = ujg_out->Write( cmp_mrk, sizeof(cmp_mrk) ).second;
-    while (g_encoder->encode_chunk(&colldata, ujg_out) == CODING_PARTIAL) {
+    while (g_encoder->encode_chunk(&colldata, ujg_out, selected_splits) == CODING_PARTIAL) {
     }
     
     // errormessage if write error
@@ -3252,10 +3271,12 @@ bool read_ujpg( void )
                 rst_cnt[i] = LEtoUint32(ujpg_mrk);
             }
         } else if ( memcmp( ujpg_mrk, "HHX", 2 ) == 0 ) { // only look at first two bytes
-            size_t to_alloc = ThreadHandoff::get_remaining_data_size_from_two_bytes(ujpg_mrk + 1);
+            size_t to_alloc = ThreadHandoff::get_remaining_data_size_from_two_bytes(ujpg_mrk + 1) + 2;
             if(to_alloc) {
                 std::vector<unsigned char> data(to_alloc);
-                ReadFull(&header_reader, &data[0], to_alloc);
+                data[0] = ujpg_mrk[1];
+                data[1] = ujpg_mrk[2];
+                ReadFull(&header_reader, &data[2], to_alloc - 2);
                 thread_handoff = ThreadHandoff::deserialize(&data[0], to_alloc);
             }
         } else if ( memcmp( ujpg_mrk, "FRS", 3 ) == 0 ) {

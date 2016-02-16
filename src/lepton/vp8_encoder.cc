@@ -68,8 +68,11 @@ VP8ComponentEncoder::VP8ComponentEncoder(bool do_threading)
 }
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,
-                                                    IOUtil::FileWriter *output) {
-    return vp8_full_encoder(input, output);
+                                                    IOUtil::FileWriter *output,
+                                                    Sirikata::Array1d<ThreadHandoff,
+                                                                      NUM_THREADS> selected_splits)
+{
+    return vp8_full_encoder(input, output, selected_splits);
 }
 
 template<class Left, class Middle, class Right>
@@ -468,7 +471,9 @@ int model_file_fd = load_model_file_fd_output();
 
 const bool dospin = true;
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
-                                                         IOUtil::FileWriter *str_out)
+                                                         IOUtil::FileWriter *str_out,
+                                                         Sirikata::Array1d<ThreadHandoff,
+                                                                           NUM_THREADS> selected_splits)
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
@@ -491,8 +496,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                                       colldata->get_quantization_tables(BlockType::Ck));
     }
 #endif
-    int luma_splits[NUM_THREADS] = {0};
-    pick_luma_splits(colldata, luma_splits);
     
     std::vector<uint8_t>* stream[MuxReader::MAX_STREAM_ID];
     for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
@@ -514,7 +517,8 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                     = std::bind(&VP8ComponentEncoder::process_row_range, this,
                                 thread_id,
                                 colldata,
-                                luma_splits[thread_id - 1], luma_splits[thread_id],
+                                selected_splits[thread_id].luma_y_start,
+                                selected_splits[thread_id].luma_y_end,
                                 stream[thread_id],
                                 &bool_encoder[thread_id],
                                 &num_nonzeros[thread_id]);
@@ -524,18 +528,27 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                     = new std::thread(std::bind(&VP8ComponentEncoder::process_row_range, this,
                                                 thread_id,
                                                 colldata,
-                                                luma_splits[thread_id - 1], luma_splits[thread_id],
+                                                selected_splits[thread_id].luma_y_start,
+                                                selected_splits[thread_id].luma_y_end,
                                                 stream[thread_id],
                                                 &bool_encoder[thread_id],
                                                 &num_nonzeros[thread_id]));
             }
         }
     }
-    process_row_range(0, colldata, 0, luma_splits[0], stream[0], &bool_encoder[0], &num_nonzeros[0]);
+    process_row_range(0,
+                      colldata,
+                      selected_splits[0].luma_y_start,
+                      selected_splits[0].luma_y_end,
+                      stream[0],
+                      &bool_encoder[0],
+                      &num_nonzeros[0]);
     if(!do_threading_) { // single threading
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             process_row_range(thread_id,
-                              colldata, luma_splits[thread_id - 1], luma_splits[thread_id],
+                              colldata,
+                              selected_splits[thread_id].luma_y_start,
+                              selected_splits[thread_id].luma_y_end,
                               stream[thread_id],
                               &bool_encoder[thread_id],
                               &num_nonzeros[thread_id]);
@@ -545,15 +558,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
                   "Need to have enough mux streams for all threads and simd width");
 
-    /* write block header */
-    uint8_t thread_splits[1 + NUM_THREADS * 2 - 2];
-    thread_splits[0] = NUM_THREADS;
-    for (int i = 0; i + 1 < NUM_THREADS; ++i) {
-        thread_splits[i * 2 + 1] = (luma_splits[i] & 255);
-        thread_splits[i * 2 + 2] = (luma_splits[i] >> 8);
-        assert((luma_splits[i] >> 16) == 0 && "We only support jpegs 65536 tall or less--which complies with the spec");
-    } // the last thread is expected to cover the rest
-    str_out->Write(thread_splits, sizeof(thread_splits));
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();

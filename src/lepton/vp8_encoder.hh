@@ -31,8 +31,14 @@ public:
     }
 
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
-                                        IOUtil::FileWriter *);
+                                        IOUtil::FileWriter *,
+                                        Sirikata::Array1d<ThreadHandoff,
+                                                          NUM_THREADS> selected_splits);
+
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
-                                   IOUtil::FileWriter *);
+                                   IOUtil::FileWriter *,
+                                   Sirikata::Array1d<ThreadHandoff,
+                                                          NUM_THREADS> selected_splits);
+
 };
 #endif
