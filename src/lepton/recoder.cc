@@ -405,6 +405,24 @@ void recode_physical_thread(BoundedWriter *stream_out,
         th = outth;
     }
 }
+void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,
+                            BlockBasedImagePerChannel<false> &framebuffer,
+                            const std::vector<ThreadHandoff> &thread_handoffs,
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
+                            int physical_thread_id,
+                            int max_file_size) {
+    recode_physical_thread(stream_out,
+                           framebuffer,
+                           thread_handoffs,
+                           max_coded_heights,
+                           component_size_in_blocks,
+                           physical_thread_id,
+                           max_file_size,
+                           true);
+}
 /* -----------------------------------------------
     JPEG encoding routine
     ----------------------------------------------- */
@@ -468,23 +486,21 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                    physical_thread_id,
                                    max_file_size,
                                    false);
-        } else {//FIXME: spawn a thread for each, once we have the overhang_byte_and_bit_count deserialized
-            // the reason local_buffer isn't contained entirely in the loop is one purely of performance
-            // The allocation/deallocation of the vector just takes ages with test_hq
-            // However, this doesn't mean the contents are shared: it gets treated as cleared each time
-
-            
-            recode_physical_thread(&local_buffers[physical_thread_id - 1],
-                                   framebuffer[physical_thread_id],
-                                   luma_bounds,
-                                   max_coded_heights,
-                                   component_size_in_blocks,
-                                   physical_thread_id,
-                                   max_file_size,
-                                   true);
+        } else {
+            auto work_fn = std::bind(&recode_physical_thread_wrapper,
+                                  &local_buffers[physical_thread_id - 1],
+                                  framebuffer[physical_thread_id],
+                                  luma_bounds,
+                                  max_coded_heights,
+                                  component_size_in_blocks,
+                                  physical_thread_id,
+                                     max_file_size);
+            g_decoder->getWorker(physical_thread_id - 1)->work
+                = work_fn;
         }
     }
     for (int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        g_decoder->getWorker(physical_thread_id - 1)->main_wait_for_done();
         size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
         if (bytes_to_copy) {
             local_bound -= bytes_to_copy;
