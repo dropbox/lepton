@@ -250,7 +250,7 @@ public:
     // the following functions are progressive-only functions (recode_jpeg)
     // or decode-only functions (decode_jpeg, check_value_range)
     // these are the only functions able to access the components
-    friend bool decode_jpeg(void);
+    friend bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> >&huff_byte_offsets);
     friend bool recode_jpeg(void);
     friend bool check_value_range(void);
 private:

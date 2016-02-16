@@ -82,6 +82,11 @@ public:
         }
         return retval2;
     }
+    bool remainder() {
+        if (cbit2 & 7) {
+            return 8 - (cbit2 &7);
+        } return 0;
+    }
 	unsigned char unpad( unsigned char fillbit ) {
         if ((cbit2 & 7) == 0 || eof) return fillbit;
         else {
@@ -101,7 +106,22 @@ public:
         return fillbit;
     }
 	int getpos( void ) {
-        return cbyte2 - (cbit2 >> 3);
+        return cbyte2 - 7 + ((64 - cbit2) >> 3);
+    }
+    uint64_t debug_peek(void) {
+        uint64_t retval = 0;
+        abitreader tmp(*this);
+        bool had_remainder = false;
+        while (tmp.remainder()) {
+            had_remainder = true;
+            retval = tmp.read(tmp.remainder());
+        }
+        for (int i = 0 ;i < (had_remainder ? 7 : 8);++i) {
+            uint8_t a = tmp.read(8);
+            retval |= a;
+            retval <<= 8;
+        }
+        return retval;
     }
     bool eof;
 private:
@@ -257,9 +277,9 @@ public:
     }
     void reset() {
         assert(no_remainder());
-        reset_crystalized_bytes();
+        reset_crystallized_bytes();
     }
-    void reset_crystalized_bytes() {
+    void reset_crystallized_bytes() {
         memset(data2, 0, cbyte2);
         if (size_bound) {
             size_bound -=cbyte2;

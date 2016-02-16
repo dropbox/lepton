@@ -158,7 +158,7 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
 
 // returns the max size of the input file
 int initialize_options( int argc, char** argv );
-void execute( bool (*function)() );
+void execute(const std::function<bool()> &);
 void show_help( void );
 
 
@@ -167,9 +167,11 @@ void show_help( void );
     ----------------------------------------------- */
 
 bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
-bool read_jpeg( void );
+bool read_jpeg(std::vector<std::pair<uint32_t,
+                                     uint32_t>> *huff_input_offset);
 struct MergeJpegProgress;
-bool decode_jpeg( void );
+bool decode_jpeg(const std::vector<std::pair<uint32_t,
+                                     uint32_t> > &huff_input_offset);
 bool recode_jpeg( void );
 
 bool adapt_icos( void );
@@ -1170,7 +1172,7 @@ void process_file(IOUtil::FileReader* reader,
     }
 
 
-
+    std::vector<std::pair<uint32_t, uint32_t> > huff_input_offset;
     if ( filetype == JPEG )
     {
         switch ( action )
@@ -1180,10 +1182,11 @@ void process_file(IOUtil::FileReader* reader,
             case socketserve:
                 timing_operation_start( 'c' );
                 TimingHarness::timing[0][TimingHarness::TS_READ_STARTED] = TimingHarness::get_time_us();
-                execute( read_jpeg );
+                execute(std::bind(&read_jpeg, &huff_input_offset));
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
                     TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
-                execute( decode_jpeg );
+
+                execute(std::bind(&decode_jpeg, huff_input_offset));
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_FINISHED] = TimingHarness::get_time_us();
                 //execute( check_value_range );
                 execute( write_ujpg ); // replace with compression function!
@@ -1191,7 +1194,7 @@ void process_file(IOUtil::FileReader* reader,
                 break;
 
             case info:
-                execute( read_jpeg );
+                execute(std::bind(read_jpeg, &huff_input_offset));
                 execute( write_info );
                 break;
         }
@@ -1360,7 +1363,7 @@ void process_file(IOUtil::FileReader* reader,
     main-function execution routine
     ----------------------------------------------- */
 
-void execute( bool (*function)() )
+void execute(const std::function<bool()> &function)
 {
     clock_t begin = 0, end = 0;
     bool success;
@@ -1377,7 +1380,7 @@ void execute( bool (*function)() )
             begin = clock();
         }
         // call function
-        success = ( *function )();
+        success = function();
         // set endtime
         if (!g_use_seccomp) {
             end = clock();
@@ -1589,7 +1592,8 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
     Read in header & image data
     ----------------------------------------------- */
 unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
-bool read_jpeg( void )
+bool read_jpeg(std::vector<std::pair<uint32_t,
+                                     uint32_t>> *huff_input_offsets)
 {
     std::vector<unsigned char> segment(1024); // storage for current segment
     unsigned char  type = 0x00; // type of current marker segment
@@ -1613,7 +1617,7 @@ bool read_jpeg( void )
     // start huffman writer
     huffw = new abytewriter( 0 );
     hufs  = 0; // size of image data, start with 0
-
+    uint32_t file_offset = 0;
     // JPEG reader loop
     while ( true ) {
         if ( type == 0xDA ) { // if last marker was sos
@@ -1621,6 +1625,8 @@ bool read_jpeg( void )
             cpos = 0;
             crst = 0;
             while ( true ) {
+                huff_input_offsets->push_back(std::pair<uint32_t, uint32_t>(huffw->getpos(),
+                                                                            jpg_in->getsize()));
                 // read byte from imagedata
                 if ( jpg_in->read_byte( &tmp) == false ) {
                     early_eof(hdrw, huffw);
@@ -1819,6 +1825,47 @@ bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan) {
     }
     return rst_cnt.size() > (size_t)scan - 1 && num_rst_markers_this_scan < rst_cnt[scan - 1];
 }
+
+
+ThreadHandoff crystallize_thread_handoff(abitreader *reader,
+                                         const std::vector<std::pair<uint32_t, uint32_t> >&huff_input_offsets,
+                                         int mcu_y,
+                                         int lastdc[4],
+                                         int luma_mul) {
+    auto iter = std::lower_bound(huff_input_offsets.begin(), huff_input_offsets.end(),
+                                 std::pair<uint32_t, uint32_t>(reader->getpos(), reader->getpos()));
+    uint32_t mapped_item = 0;
+    if (iter != huff_input_offsets.begin()) {
+        --iter;
+    }
+    if (iter != huff_input_offsets.end()) {
+        mapped_item = iter->second;
+        mapped_item += reader->getpos() - iter->first;
+    }
+    //fprintf(stderr, "ROWx (%08lx): %x -> %x\n", reader->debug_peek(), reader->getpos(), mapped_item);
+    ThreadHandoff retval = {};
+    retval.segment_size = mapped_item; // the caller will need to take the difference of the chosen items
+    // to compute the actual segment size
+    for (int i = 0; i < 4 && i < sizeof(retval.last_dc)/ sizeof(retval.last_dc[0]); ++i) {
+        retval.last_dc[i] = lastdc[i];
+        retval.luma_y_start = luma_mul * mcu_y;
+        retval.luma_y_end = luma_mul * (mcu_y + 1);
+    }
+/*
+    fprintf(stderr, "%d: %d -> %d  lastdc %d %d %d size %d overhang %d (cnt: %d)\n",
+            mcu_y,
+            retval.luma_y_start,
+            retval.luma_y_end,
+            retval.last_dc[0],
+            retval.last_dc[1],
+            retval.last_dc[2],
+            retval.segment_size,
+            retval.overhang_byte,
+            retval.num_overhang_bits);
+*/
+    return retval;
+}
+
 MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress, const unsigned char * local_huff_data, unsigned int max_byte_coded,
                                               bool flush) {
     MergeJpegProgress progress(stored_progress);
@@ -2049,7 +2096,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     JPEG decoding routine
     ----------------------------------------------- */
 
-bool decode_jpeg( void )
+bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_offsets)
 {
     abitreader* huffr; // bitwise reader for image data
 
@@ -2074,7 +2121,6 @@ bool decode_jpeg( void )
 
     // open huffman coded image data for input in abitreader
     huffr = new abitreader( huffdata, hufs );
-
     // preset count of scans
     scnc = 0;
 
@@ -2124,6 +2170,8 @@ bool decode_jpeg( void )
                 max_cmp = std::max(max_cmp, cs_cmp[i]);
             }
         }
+        std::vector<ThreadHandoff> row_handoff;
+        row_handoff.push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
         // JPEG imagedata decoding routines
         while ( true )
         {
@@ -2179,8 +2227,13 @@ bool decode_jpeg( void )
                             aligned_block.mutable_coefficients_zigzag(bpos) = block[ bpos ];
                         }
                         // check for errors, proceed if no error encountered
+                        int old_mcu = mcu;
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        if (mcu % mcuh == 0 && old_mcu !=  mcu) {
+                            //fprintf(stderr, "ROW %d\n", (int)row_handoff.size());
+                            row_handoff.push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+                        }
                         if(huffr->eof) {
                             sta = 2;
                             break;
@@ -2261,10 +2314,15 @@ bool decode_jpeg( void )
                         for ( bpos = 0; bpos < eob; bpos++ ) {
                             aligned_block.mutable_coefficients_zigzag(bpos) = block[ bpos ];
                         }
-
+                        
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcuposn( &cmp, &dpos, &rstw );
+
+                        if (dpos % cmpnfo[cmp].bch == 0) {
+                            fprintf(stderr, "ROW %d\n",(int) row_handoff.size());
+                            row_handoff.push_back(crystallize_thread_handoff(huffr, huff_input_offsets, dpos, lastdc, 1));
+                        }
                         if(huffr->eof) {
                             sta = 2;
                             break;

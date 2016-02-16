@@ -317,7 +317,7 @@ ThreadHandoff recode_row_range(BoundedWriter *stream_out,
             }
             const unsigned char * flushed_data = huffw.partial_bytewise_flush();
             escape_0xff_huffman_and_write(stream_out, flushed_data, huffw.getpos() );
-            huffw.reset_crystalized_bytes();
+            huffw.reset_crystallized_bytes();
             retval.num_overhang_bits = huffw.get_num_overhang_bits();
             retval.overhang_byte = huffw.get_overhang_byte();
             if ( huffw.error ) {
