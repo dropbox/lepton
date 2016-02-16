@@ -447,7 +447,8 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     std::get<0>(overhang_byte_and_bit_count) = 0;
     std::get<1>(overhang_byte_and_bit_count) = 0;
     std::get<2>(overhang_byte_and_bit_count).memset(0);
-    
+    Sirikata::JpegAllocator<uint8_t> alloc;
+    Sirikata::BoundedMemWriter local_buffers[NUM_THREADS - 1];
     for (int physical_thread_id = 0;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
         if (physical_thread_id == 0) {
             recode_physical_thread(str_out,
@@ -459,12 +460,12 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                    max_file_size,
                                    false);
         } else {//FIXME: spawn a thread for each, once we have the overhang_byte_and_bit_count deserialized
-            Sirikata::JpegAllocator<uint8_t> alloc;
             // the reason local_buffer isn't contained entirely in the loop is one purely of performance
             // The allocation/deallocation of the vector just takes ages with test_hq
             // However, this doesn't mean the contents are shared: it gets treated as cleared each time
-            Sirikata::BoundedMemWriter local_buffer(alloc);
-            recode_physical_thread(&local_buffer,
+
+            
+            recode_physical_thread(&local_buffers[physical_thread_id - 1],
                                    framebuffer[physical_thread_id],
                                    luma_bounds,
                                    max_coded_heights,
@@ -472,10 +473,10 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                    physical_thread_id,
                                    max_file_size,
                                    true);
-            size_t bytes_to_copy = local_buffer.bytes_written();
+            size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
             if (bytes_to_copy) {
                 local_bound -= bytes_to_copy;
-                str_out->write(&local_buffer.buffer()[0],
+                str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
                                bytes_to_copy);
             }
         }

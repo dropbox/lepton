@@ -40,6 +40,10 @@ public:
     void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
         this->VP8ComponentEncoder::registerWorkers(workers);
     }
+    GenericWorker *getWorker(int i) {
+        return &spin_workers_.at(i);
+    }
+
     ~VP8ComponentDecoder();
     void initialize(Sirikata::DecoderReader *input,
                     const std::vector<ThreadHandoff>& thread_transition_info);
