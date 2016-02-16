@@ -2112,7 +2112,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     unsigned int   len  = 0; // length of current marker segment
     unsigned int   hpos = 0; // current position in header
 
-    int lastdc[ 4 ]; // last dc for each component
+    int lastdc[ 4 ] = {0, 0, 0, 0}; // last dc for each component
     Sirikata::Aligned256Array1d<int16_t,64> block; // store block for coeffs
     int peobrun; // previous eobrun
     unsigned int eobrun; // run of eobs
@@ -2178,7 +2178,12 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                 max_cmp = std::max(max_cmp, cs_cmp[i]);
             }
         }
-        luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+        // startup
+        luma_row_offset_return->push_back(crystallize_thread_handoff(huffr,
+                                                                     huff_input_offsets,
+                                                                     mcu / mcuh,
+                                                                     lastdc,
+                                                                     cmpnfo[0].bcv / mcuv));
         // JPEG imagedata decoding routines
         while ( true )
         {

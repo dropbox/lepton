@@ -167,7 +167,7 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
         for (int i = 1; i < mark; ++i) {
             thread_handoff_[i].luma_y_start = thread_handoff_[i - 1].luma_y_end;
         }
-    } else {
+    } else if (false) {
         for (size_t i = 0; i < thread_handoff_.size(); ++i) {
             thread_handoff_[i].num_overhang_bits = ThreadHandoff::LEGACY_OVERHANG_BITS;
             thread_handoff_[i].overhang_byte = 0;
