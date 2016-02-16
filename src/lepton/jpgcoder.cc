@@ -3014,16 +3014,11 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
     for (size_t i = 0; i < selected_splits.size(); ++i) {
-        size_t index = std::min((i + 1) * row_thread_handoffs.size() / NUM_THREADS,
-                                row_thread_handoffs.size() - 1);
-        selected_splits[i] = row_thread_handoffs[index];
+        size_t beginning_of_range = i * row_thread_handoffs.size() / NUM_THREADS;
+        size_t end_of_range = ((i + 1) * row_thread_handoffs.size() / NUM_THREADS) - 1;
+        assert( end_of_range < row_thread_handoffs.size() );
+        selected_splits[i] = row_thread_handoffs[ end_of_range ] - row_thread_handoffs[ beginning_of_range ];
     }
-    for (size_t i = selected_splits.size() - 1; i > 0 ; --i) {
-        selected_splits[i].segment_size -= selected_splits[i - 1].segment_size;
-        selected_splits[i].luma_y_start = selected_splits[i - 1].luma_y_end;
-    }
-    selected_splits[0].segment_size -= row_thread_handoffs[0].segment_size;
-    selected_splits[0].luma_y_start = row_thread_handoffs[0].luma_y_start;
     assert(!selected_splits[0].luma_y_start);
     // write header to file
     // marker: "HDR" + [size of header]

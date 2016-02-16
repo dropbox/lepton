@@ -95,3 +95,13 @@ std::vector<ThreadHandoff> ThreadHandoff::make_rand(int num) {
     }
     return retval;
 }
+/* combine two ThreadHandoff objects into a range, starting with the initialization
+   of the thread represented by the first object, and continuing until the end
+   of the second object */
+ThreadHandoff ThreadHandoff::operator-( const ThreadHandoff & other ) const
+{
+  ThreadHandoff ret = other;
+  ret.luma_y_end = luma_y_end;
+  ret.segment_size = segment_size - other.segment_size;
+  return ret;
+}

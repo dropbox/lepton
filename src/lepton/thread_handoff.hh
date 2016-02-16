@@ -28,6 +28,11 @@ public:
                              + 2> serialize(const Sirikata::Array1d<ThreadHandoff,
                                                                   NUM_THREADS>&data);
     static std::vector<ThreadHandoff> make_rand(int num_items);
+
+    /* combine two ThreadHandoff objects into a range, starting with the initialization
+       of the thread represented by the first object, and continuing until the end
+       of the second object */
+    ThreadHandoff operator-( const ThreadHandoff & other ) const;
 };
 
 #endif
