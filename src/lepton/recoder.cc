@@ -332,7 +332,8 @@ void recode_physical_thread(BoundedWriter *stream_out,
                             Sirikata::Array1d<uint32_t,
                                               (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
                             int physical_thread_id,
-                            int max_file_size) {
+                            int max_file_size,
+                            bool reset_bound) {
     int num_physical_threads = g_threaded ? NUM_THREADS : 1;
     int num_logical_threads = thread_handoffs.size();
     int logical_thread_start = (physical_thread_id * num_logical_threads) / num_physical_threads;
@@ -342,6 +343,16 @@ void recode_physical_thread(BoundedWriter *stream_out,
         // this is an optimization so we don't have to call the reset logic as often
         logical_thread_start = std::min(physical_thread_id, num_logical_threads);
         logical_thread_end = std::min(physical_thread_id + 1, num_logical_threads);
+    }
+    if (reset_bound) {
+        int work_size = 0;
+        for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
+            work_size += thread_handoffs[logical_thread_id].segment_size;
+        }
+        if (!work_size) {
+            work_size = max_file_size;
+        }
+        stream_out->set_bound(work_size);
     }
     ThreadHandoff th = thread_handoffs[logical_thread_start];
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
@@ -439,21 +450,22 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                    max_coded_heights,
                                    component_size_in_blocks,
                                    physical_thread_id,
-                                   max_file_size);
+                                   max_file_size,
+                                   false);
         } else {//FIXME: spawn a thread for each, once we have the overhang_byte_and_bit_count deserialized
             Sirikata::JpegAllocator<uint8_t> alloc;
             // the reason local_buffer isn't contained entirely in the loop is one purely of performance
             // The allocation/deallocation of the vector just takes ages with test_hq
             // However, this doesn't mean the contents are shared: it gets treated as cleared each time
             Sirikata::BoundedMemWriter local_buffer(alloc);
-            local_buffer.set_bound(max_file_size - grbs);
             recode_physical_thread(&local_buffer,
                                    framebuffer[physical_thread_id],
                                    luma_bounds,
                                    max_coded_heights,
                                    component_size_in_blocks,
                                    physical_thread_id,
-                                   max_file_size);
+                                   max_file_size,
+                                   true);
             size_t bytes_to_copy = local_buffer.bytes_written();
             if (bytes_to_copy) {
                 local_bound -= bytes_to_copy;
