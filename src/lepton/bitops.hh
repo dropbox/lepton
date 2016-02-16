@@ -201,7 +201,20 @@ class abitreader
 public:
 	abitreader( unsigned char* array, int size );
 	~abitreader( void );
-	unsigned int read( int nbits ) {
+    unsigned int read( int nbits )
+    {
+        const unsigned int retval = read_internal( nbits );
+        debug_writer.write( retval, nbits );
+        return retval;
+    }
+    std::pair<uint8_t, uint8_t> overhang()
+    {
+        debug_writer.partial_bytewise_flush();
+        debug_writer.reset_crystallized_bytes();
+        return { debug_writer.get_num_overhang_bits(), debug_writer.get_overhang_byte() };
+    }
+private:
+	unsigned int read_internal( int nbits ) {
         if (__builtin_expect(eof || !nbits, 0)) {
             return 0;
         }
@@ -249,6 +262,7 @@ public:
         }
         return retval2;
     }
+public:
     bool remainder() {
         if (cbit2 & 7) {
             return 8 - (cbit2 &7);
@@ -297,6 +311,7 @@ private:
     int cbit2;
     uint64_t buf;
 	int lbyte;
+    abitwriter debug_writer;
 };
 
 /* -----------------------------------------------

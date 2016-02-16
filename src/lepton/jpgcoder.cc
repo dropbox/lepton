@@ -1851,6 +1851,9 @@ ThreadHandoff crystallize_thread_handoff(abitreader *reader,
         retval.luma_y_start = luma_mul * mcu_y;
         retval.luma_y_end = luma_mul * (mcu_y + 1);
     }
+
+    std::tie( retval.num_overhang_bits, retval.overhang_byte ) = reader->overhang();
+
 /*
     fprintf(stderr, "%d: %d -> %d  lastdc %d %d %d size %d overhang %d (cnt: %d)\n",
             mcu_y,
