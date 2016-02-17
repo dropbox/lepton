@@ -350,12 +350,14 @@ void recode_physical_thread(BoundedWriter *stream_out,
         logical_thread_start = std::min(physical_thread_id, num_logical_threads);
         logical_thread_end = std::min(physical_thread_id + 1, num_logical_threads);
     }
+    bool tight_bound = true;
     int work_size = 0;
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
         work_size += thread_handoffs[logical_thread_id].segment_size;
     }
     if (!work_size) {
         work_size = max_file_size;
+        tight_bound = false;
     }
     if (reset_bound) {
         stream_out->set_bound(work_size);
@@ -396,7 +398,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
             assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
             assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
             assert(memcmp(outth.last_dc.begin(), thread_handoffs[logical_thread_id + 1].last_dc.begin(), sizeof(outth.last_dc)) == 0);
-            if (logical_thread_id > 0) {
+            if (logical_thread_id > 0 && tight_bound) {
                 assert(work_size == stream_out->bytes_written());
             }
         }
