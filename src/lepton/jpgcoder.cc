@@ -2178,12 +2178,15 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                 max_cmp = std::max(max_cmp, cs_cmp[i]);
             }
         }
+/*
         // startup
         luma_row_offset_return->push_back(crystallize_thread_handoff(huffr,
                                                                      huff_input_offsets,
                                                                      mcu / mcuh,
                                                                      lastdc,
                                                                      cmpnfo[0].bcv / mcuv));
+*/
+        bool do_handoff_print = true;
         // JPEG imagedata decoding routines
         while ( true )
         {
@@ -2215,6 +2218,11 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                 if ( jpegtype == 1 ) {
                     // ---> sequential interleaved decoding <---
                     while ( sta == 0 ) {
+                        if (do_handoff_print) {
+                            luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+                            do_handoff_print = false;
+                        }
+
                         if(!huffr->eof) {
                             max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block read
                         }
@@ -2243,8 +2251,9 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
                         if (mcu % mcuh == 0 && old_mcu !=  mcu) {
+                            do_handoff_print = true;
                             //fprintf(stderr, "ROW %d\n", (int)row_handoff.size());
-                            luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+                            
                         }
                         if(huffr->eof) {
                             sta = 2;
@@ -2494,7 +2503,6 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
             else {
                 padbit = huffr->unpad( padbit );
             }
-
             // evaluate status
             if ( sta == -1 ) { // status -1 means error
                 fprintf( stderr, "decode error in scan%i / mcu%i",
@@ -2513,6 +2521,9 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     if (early_eof_encountered) {
         colldata.set_truncation_bounds(max_cmp, max_bpos, max_dpos, max_sah);
     }
+
+    luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
+
     // check for unneeded data
     if ( !huffr->eof ) {
         fprintf( stderr, "unneeded data found after coded image data" );
@@ -3014,10 +3025,20 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
     for (size_t i = 0; i < selected_splits.size(); ++i) {
-        size_t beginning_of_range = i * row_thread_handoffs.size() / NUM_THREADS;
-        size_t end_of_range = ((i + 1) * row_thread_handoffs.size() / NUM_THREADS) - 1;
+        size_t beginning_of_range = i * (row_thread_handoffs.size() - 1) / NUM_THREADS;
+        size_t end_of_range = ((i + 1) * (row_thread_handoffs.size() - 1) / NUM_THREADS);
         assert( end_of_range < row_thread_handoffs.size() );
         selected_splits[i] = row_thread_handoffs[ end_of_range ] - row_thread_handoffs[ beginning_of_range ];
+        if (i + 1 == selected_splits.size() && row_thread_handoffs[ end_of_range ].num_overhang_bits) {
+            ++selected_splits[i].segment_size; // need room for that last byte to hold the overhang byte
+        }
+/*
+        if (i + 1 == selected_splits.size()) {
+            int tmp = selected_splits[i].segment_size;
+            selected_splits[i].segment_size = jpgfilesize - row_thread_handoffs[ beginning_of_range ].segment_size;
+            fprintf(stderr, "Split size was %x and is %x - %x = %x\n", tmp, jpgfilesize, row_thread_handoffs[ beginning_of_range ].segment_size, selected_splits[i].segment_size);
+        }
+*/
     }
     assert(!selected_splits[0].luma_y_start);
     // write header to file
