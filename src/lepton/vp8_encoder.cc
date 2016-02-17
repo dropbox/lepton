@@ -554,12 +554,6 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                               &num_nonzeros[thread_id]);
         }
     }
-    fprintf(stderr, "FIRST FIVE %02x%02x%02x%02x%02x\n",
-            (int)stream[0][0][0],
-            (int)stream[0][0][1],
-            (int)stream[0][0][2],
-            (int)stream[0][0][3],
-            (int)stream[0][0][4]);
     static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
                   "Need to have enough mux streams for all threads and simd width");
 
