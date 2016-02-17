@@ -358,7 +358,8 @@ void recode_physical_thread(BoundedWriter *stream_out,
         if (!work_size) {
             work_size = max_file_size;
         }
-        stream_out->set_bound(work_size);
+        //stream_out->set_bound(work_size);
+        stream_out->set_bound(max_file_size);// FIXME: hack until we figure out why work_size is incorect
     }
     ThreadHandoff th = thread_handoffs[logical_thread_start];
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
