@@ -32,16 +32,16 @@ class BaseDecoder {
     virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) = 0;
     virtual GenericWorker* getWorker(int i) = 0;
     virtual std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
-                                             Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                                             Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                                                                NUM_THREADS>& framebuffer) = 0;
     virtual void decode_row(int thread_state_id,
-                            BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                            BlockBasedImagePerChannel<true>& image_data, // FIXME: set image_data to true
                             Sirikata::Array1d<uint32_t,
                                               (uint32_t)ColorChannel::
                                               NumBlockTypes> component_size_in_blocks,
                             int component,
                             int curr_y) = 0;
-    virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<false>& framebuffer) = 0;
+    virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) = 0;
 };
 
 

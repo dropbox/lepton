@@ -23,7 +23,7 @@ void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input,
     thread_handoff_ = thread_handoff;
 }
 void VP8ComponentDecoder::decode_row(int target_thread_id,
-                                     BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                                     BlockBasedImagePerChannel<true>& image_data, // FIXME: set image_data to true
                                      Sirikata::Array1d<uint32_t,
                                                        (uint32_t)ColorChannel::
                                                        NumBlockTypes> component_size_in_blocks,
@@ -72,7 +72,7 @@ const bool dospin = true;
                         BlockType::Cr
 #endif
 
-void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<false>& framebuffer) {
+void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
     initialize_thread_id(thread_id, target_thread_state, framebuffer);
 }
 void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata) {
@@ -113,7 +113,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
 }
 std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
     const UncompressedComponents * const colldata,
-    Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+    Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                       NUM_THREADS>& framebuffer) {
     return initialize_decoder_state(colldata, framebuffer);
 }

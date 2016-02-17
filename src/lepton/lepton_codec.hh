@@ -34,6 +34,14 @@ protected:
                                                   int curr_y);
 
         CodingReturnValue vp8_decode_thread(int thread_id, UncompressedComponents * const colldata);
+    private:
+        void decode_row_wrapper(BlockBasedImagePerChannel<true>& image_data,
+                                Sirikata::Array1d<uint32_t,
+                                                  (uint32_t)ColorChannel::
+                                                  NumBlockTypes> component_size_in_blocks,
+                                int component,
+                                int curr_y);
+
     };
     static uint32_t gcd(uint32_t a, uint32_t b) {
         while(b) {

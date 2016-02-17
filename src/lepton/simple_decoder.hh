@@ -23,17 +23,17 @@ public:
         return NULL;
     }
     std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
-                                     Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+                                     Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                                                        NUM_THREADS>& framebuffer){
         return thread_handoffs_;
     }
     void decode_row(int thread_state_id,
-                    BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                    BlockBasedImagePerChannel<true>& image_data, // FIXME: set image_data to true
                     Sirikata::Array1d<uint32_t,
                                       (uint32_t)ColorChannel::
                                       NumBlockTypes> component_size_in_blocks,
                     int component,
                     int curr_y);
 
-    virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<false>& framebuffer) {}
+    virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {}
 };

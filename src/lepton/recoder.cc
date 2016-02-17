@@ -113,7 +113,7 @@ template <class OutputWriter>
 bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                         OutputWriter*str_out,
                         Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> &lastdc,
-                        BlockBasedImagePerChannel<false> &framebuffer) {
+                        BlockBasedImagePerChannel<true> &framebuffer) {
     int cmp = cs_cmp[ 0 ];
     int csc = 0, sub = 0;
     int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
@@ -259,7 +259,7 @@ void abitwriter::debug() const
 //currently returns the overhang byte and num_overhang_bits -- these will be factored out when the encoder serializes them
 template<class BoundedWriter>
 ThreadHandoff recode_row_range(BoundedWriter *stream_out,
-                                             BlockBasedImagePerChannel<false> &framebuffer,
+                                             BlockBasedImagePerChannel<true> &framebuffer,
                                              const ThreadHandoff &thread_handoff,
                                              Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
                                              Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
@@ -341,7 +341,7 @@ std::pair<int, int> logical_thread_range_from_physical_thread_id(int physical_th
 }
 template<class BoundedWriter>
 void recode_physical_thread(BoundedWriter *stream_out,
-                            BlockBasedImagePerChannel<false> &framebuffer,
+                            BlockBasedImagePerChannel<true> &framebuffer,
                             const std::vector<ThreadHandoff> &thread_handoffs,
                             Sirikata::Array1d<uint32_t,
                                               (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
@@ -397,7 +397,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
     }
 }
 void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,
-                            BlockBasedImagePerChannel<false> &framebuffer,
+                            BlockBasedImagePerChannel<true> &framebuffer,
                             const std::vector<ThreadHandoff> &thread_handoffs,
                             Sirikata::Array1d<uint32_t,
                                               (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
@@ -439,12 +439,12 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         = colldata.get_max_coded_heights();
     Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks
         = colldata.get_component_size_in_blocks();
-    Sirikata::Array1d<BlockBasedImagePerChannel<false>,
+    Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                       NUM_THREADS> framebuffer;
 
     for (size_t thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
         for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
-            framebuffer[thread_id][cmp] = new BlockBasedImageBase<false>;
+            framebuffer[thread_id][cmp] = new BlockBasedImageBase<true>;
             colldata.allocate_channel_framebuffer(cmp,
                                                   framebuffer[thread_id][cmp],
                                                   true);

@@ -88,6 +88,15 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
 
 
 
+
+void LeptonCodec::ThreadState::decode_row_wrapper(BlockBasedImagePerChannel<true>& image_data,
+                                          Sirikata::Array1d<uint32_t,
+                                                            (uint32_t)ColorChannel::
+                                                            NumBlockTypes> component_size_in_blocks,
+                                          int component,
+                                          int curr_y) {
+    return decode_row(image_data, component_size_in_blocks, component, curr_y);
+}
 template<bool force_memory_optimization>
 void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           Sirikata::Array1d<uint32_t,

@@ -23,7 +23,7 @@ void SimpleComponentDecoder::initialize(Sirikata::DecoderReader *i,
 }
 
 void SimpleComponentDecoder::decode_row(int thread_state_id,
-                                        BlockBasedImagePerChannel<false>& image_data, // FIXME: set image_data to true
+                                        BlockBasedImagePerChannel<true>& image_data, // FIXME: set image_data to true
                                         Sirikata::Array1d<uint32_t,
                                                           (uint32_t)ColorChannel::
                                                           NumBlockTypes> component_size_in_blocks,
