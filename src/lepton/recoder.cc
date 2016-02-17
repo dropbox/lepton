@@ -398,7 +398,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
             assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
             assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
             assert(memcmp(outth.last_dc.begin(), thread_handoffs[logical_thread_id + 1].last_dc.begin(), sizeof(outth.last_dc)) == 0);
-            if (logical_thread_id > 0 && tight_bound) {
+            if (physical_thread_id > 0 && tight_bound) {
                 assert(work_size == stream_out->bytes_written());
             }
         }
