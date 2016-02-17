@@ -7,6 +7,9 @@ class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
     BoundedMemWriter(const JpegAllocator<uint8_t> &alloc = JpegAllocator<uint8_t>()) : mBuffer(alloc){
         mWriteCursor = 0;
     }
+    size_t get_bound () const{
+        return mBuffer.size();
+    }
     void set_bound(size_t bound) {
         mBuffer.resize(bound);
         mWriteCursor = std::min(bound, mWriteCursor);

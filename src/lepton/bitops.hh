@@ -410,6 +410,9 @@ public:
         return byte_position;
     }
     void set_bound(size_t bound); // bound of zero = fine
+    size_t get_bound() const {
+        return byte_bound;
+    }
     bool has_reached_bound() const {
         return byte_bound && byte_position == byte_bound;
     }
