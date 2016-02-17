@@ -895,20 +895,25 @@ size_t decompression_memory_bound() {
     size_t streaming_buffer_size = 0;
     size_t current_run_size = 0;
     for (int i = 0; i < colldata.get_num_components(); ++i) {
-        size_t frame_buffer_size = colldata.component_size_allocated(i);
         size_t streaming_size = 
             colldata.block_width(i)
-            * std::min(4, colldata.block_height(i)) * 64 * sizeof(uint16_t);
+            * 2 * NUM_THREADS * 64 * sizeof(uint16_t);
+        size_t frame_buffer_size = colldata.component_size_allocated(i);
+        if (cs_cmpc != colldata.get_num_components() || jpegtype != 1) {
+            streaming_size = frame_buffer_size;
+        } else if (filetype != JPEG) {
+            if (!g_threaded) {
+                frame_buffer_size = colldata.block_width(i) * 2 * 64 * sizeof(uint16_t);
 
+            } else {
+                frame_buffer_size = streaming_size;
+            }
+        }
         cumulative_buffer_size += frame_buffer_size;
         streaming_buffer_size += streaming_size;
-        current_run_size += colldata.is_memory_optimized(i)
-            ? streaming_size : frame_buffer_size;
     }
-    current_run_size = total_framebuffer_allocated;
-    if (cs_cmpc != colldata.get_num_components() || jpegtype != 1) {
-        streaming_buffer_size = current_run_size;
-    }
+    current_run_size = cumulative_buffer_size;
+
     size_t bit_writer_augmentation = 0;
     if (g_allow_progressive) {
         for (size_t cur_size = jpgfilesize - 1; cur_size; cur_size >>=1) {
@@ -932,18 +937,12 @@ size_t decompression_memory_bound() {
             doubled *= 2;
         } while (doubled < (size_t)hdrs);
     }
-    
-    fprintf(stderr,
-            "Original Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
-            Sirikata::memmgr_total_size_ever_allocated()
-            - current_run_size + streaming_buffer_size,
-            Sirikata::memmgr_size_allocated()
-            - current_run_size + streaming_buffer_size,
-            garbage_augmentation * 2,
-            decode_header_needed_size,
-            bit_writer_augmentation,
-            non_preloaded_mux);
-    
+    size_t single_threaded_model_bonus = 0;
+    size_t single_threaded_buffer_bonus = 0; //the threads have to save their output to 3/4 of the jpeg before writing it
+    if (filetype != JPEG && !g_threaded) {
+        single_threaded_buffer_bonus += jpgfilesize;
+        single_threaded_model_bonus = (NUM_THREADS - 1) * sizeof(ProbabilityTablesBase);
+    }
     size_t abit_writer = 0;
     if (g_allow_progressive) {
 
@@ -966,6 +965,8 @@ size_t decompression_memory_bound() {
     size_t decom_memory_bound = total
             - current_run_size
             + streaming_buffer_size
+            + single_threaded_model_bonus
+            + single_threaded_buffer_bonus
             - (filetype == JPEG
                ? vp8_bool_excess
                  + bit_writer_augmentation * 2
@@ -975,9 +976,19 @@ size_t decompression_memory_bound() {
             + (filetype == JPEG
                ? abit_writer
                  + 100 * 1024 // padding
-                 + decode_header_needed_size : 0)
-            - (g_threaded
-                ? (NUM_THREADS - 1) * sizeof(ProbabilityTablesBase) : 0);
+                 + decode_header_needed_size : 0);
+    fprintf(stderr,
+            "Predicted Decompress %ld\nAllocated This Run %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
+            decom_memory_bound,
+            Sirikata::memmgr_size_allocated(),
+            Sirikata::memmgr_total_size_ever_allocated()
+            - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
+            Sirikata::memmgr_size_allocated()
+            - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
+            garbage_augmentation * 2,
+            decode_header_needed_size,
+            bit_writer_augmentation,
+            non_preloaded_mux);
     return decom_memory_bound;
 }
 
