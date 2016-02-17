@@ -134,10 +134,12 @@ public:
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
             allocated_ += cmpinfo[cmp].bc * 64;
         }
-        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
-            allocate_channel_framebuffer(cmp,
-                                         &this->header_[cmp].component_,
-                                         memory_optimized_image);
+        if (!memory_optimized_image) {
+            for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
+                allocate_channel_framebuffer(cmp,
+                                             &this->header_[cmp].component_,
+                                             memory_optimized_image);
+            }
         }
     }
     void set_block_count_dpos(ExtendedComponentInfo *ci, int trunc_bc) {

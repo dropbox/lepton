@@ -3313,7 +3313,7 @@ bool read_ujpg( void )
         errorlevel.store(2);
         return false;
     }
-    bool memory_optimized_image = !g_threaded;
+    bool memory_optimized_image = (filetype != UJG) && !g_allow_progressive;
     // parse header for image-info
     if ( !setup_imginfo_jpg(memory_optimized_image) )
         return false;
