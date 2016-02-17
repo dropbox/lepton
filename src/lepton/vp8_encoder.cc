@@ -267,6 +267,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
                                             Sirikata::Array1d<std::vector<NeighborSummary>,
                                                               (uint32_t)ColorChannel::NumBlockTypes
                                                               > *num_nonzeros) {
+
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     using namespace Sirikata;
     Array1d<ConstBlockContext, (uint32_t)ColorChannel::NumBlockTypes> context;
