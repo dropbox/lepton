@@ -17,20 +17,28 @@ AC_SUBST([C99_FLAGS])
 PICKY_CFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter"
 AC_SUBST([PICKY_CFLAGS])
 
-PICKY_CXXFLAGS="$(PICKY_CFLAGS) -Werror -fno-exceptions -fno-rtti"
+PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter -Werror -fno-exceptions -fno-rtti"
 AC_SUBST([PICKY_CXXFLAGS])
-
-# Add default CXXFLAGS/CFLAGS with optimizer settings
-: ${CXXFLAGS="-march=native -g"}
-: ${CFLAGS="-march=native -g"}
 
 # Add -DNDEBUG by default
 AC_ARG_ENABLE([debug],
   [AS_HELP_STRING([--enable-debug],
     [Enable assertions @<:@no@:>@])],
   [NODEBUG_CXXFLAGS=""],
-  [NODEBUG_CXXFLAGS="-O2 -DNDEBUG"])
+  [NODEBUG_CXXFLAGS="-DNDEBUG"])
 AC_SUBST(NODEBUG_CXXFLAGS)
+
+# Add optimizer flags
+ARCH_FLAGS="-march=native"
+AC_SUBST([ARCH_FLAGS])
+
+# Allow sanitizing
+AC_ARG_ENABLE([sanitize],
+  [AS_HELP_STRING([--enable-sanitize],
+    [Enable address and undefined-behavior sanitizers @<:@no@:>@])],
+  [NODEBUG_CXXFLAGS="-fsanitize=undefined"],
+  [NODEBUG_CXXFLAGS=""])
+AC_SUBST(SANITIZE_FLAGS)
 
 # Checks for programs.
 AC_PROG_CXX

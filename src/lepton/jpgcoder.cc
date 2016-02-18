@@ -1632,7 +1632,6 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
     // start huffman writer
     huffw = new abytewriter( 0 );
     hufs  = 0; // size of image data, start with 0
-    uint32_t file_offset = 0;
     // JPEG reader loop
     while ( true ) {
         if ( type == 0xDA ) { // if last marker was sos
@@ -1861,7 +1860,7 @@ ThreadHandoff crystallize_thread_handoff(abitreader *reader,
     ThreadHandoff retval = {};
     retval.segment_size = mapped_item; // the caller will need to take the difference of the chosen items
     // to compute the actual segment size
-    for (int i = 0; i < 4 && i < sizeof(retval.last_dc)/ sizeof(retval.last_dc[0]); ++i) {
+    for (unsigned int i = 0; i < 4 && i < sizeof(retval.last_dc)/ sizeof(retval.last_dc[0]); ++i) {
         retval.last_dc[i] = lastdc[i];
         retval.luma_y_start = luma_mul * mcu_y;
         retval.luma_y_end = luma_mul * (mcu_y + 1);

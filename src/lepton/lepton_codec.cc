@@ -18,20 +18,20 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true, curr_y);
+        int offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true, curr_y);
         if (offset >= component_size_in_block) {
             return;
         }
     }
-    for (int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
+    for (unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
-        uint32_t offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR),
-                                                               true,
-                                                               curr_y);
+        int offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR),
+							  true,
+							  curr_y);
         if (offset >= component_size_in_block) {
             return;
         }

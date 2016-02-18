@@ -108,7 +108,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         }
         
     }
-    for ( int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
+    for ( unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
         ConstBlockContext state = context.at((int)middle_model.COLOR);
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED

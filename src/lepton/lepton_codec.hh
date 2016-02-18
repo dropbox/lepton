@@ -74,7 +74,7 @@ public:
         uint32_t overall_gcd = luma_height;
         uint32_t heights[(uint32_t)ColorChannel::NumBlockTypes] = {0};
         uint32_t component_multiple[(uint32_t)ColorChannel::NumBlockTypes] = {0};
-        for (int i = 0; i < num_cmp; ++i) {
+        for (unsigned int i = 0; i < num_cmp; ++i) {
             uint32_t cur_height = heights[i] = image_data[i] ? image_data[i]->original_height() : 0;
             if (cur_height) {
                 overall_gcd = gcd(overall_gcd, cur_height);
@@ -101,7 +101,7 @@ public:
                 retval.curr_y = mcu_row * component_multiple[i] + place_within_scan;
                 retval.last_row_to_complete_mcu = (place_within_scan + 1 == component_multiple[i]
                                                    && i == 0);
-                if (retval.curr_y >= max_coded_heights[i]) {
+                if (retval.curr_y >= int( max_coded_heights[i] ) ) {
                     retval.skip = true;
                     retval.done = true; // assume true, but if we find something that needs coding, set false
                     for (uint32_t j = 0; j < num_cmp - 1; ++j) {

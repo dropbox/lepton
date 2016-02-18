@@ -89,7 +89,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
         reset_thread_model_state(target_thread_state);
     }
     thread_state_[target_thread_state]->decode_index_ = 0;
-    for (int i = 0; i < framebuffer.size(); ++i) {
+    for (unsigned int i = 0; i < framebuffer.size(); ++i) {
         if (framebuffer[i] != NULL)  {
             thread_state_[target_thread_state]->is_top_row_.at(i) = true;
             thread_state_[target_thread_state]->num_nonzeros_.at(i).resize(framebuffer[i]->block_width() << 1);
@@ -121,7 +121,6 @@ template <bool force_memory_optimized>
 std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                                      NUM_THREADS>& framebuffer) {
-    Sirikata::DecoderReader* input = str_in;
     if (colldata->get_num_components() > (int)BlockType::Y) {
         ProbabilityTablesBase::set_quantization_table(BlockType::Y,
                                                       colldata->get_quantization_tables(BlockType::Y));
@@ -192,7 +191,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         /* first call */
         BlockBasedImagePerChannel<false> framebuffer;
         framebuffer.memset(0);
-        for (size_t i = 0; i < framebuffer.size() && i < colldata->get_num_components(); ++i) {
+        for (size_t i = 0; i < framebuffer.size() && int( i ) < colldata->get_num_components(); ++i) {
             framebuffer[i] = &colldata->full_component_write((BlockType)i);
         }
         Sirikata::Array1d<BlockBasedImagePerChannel<false>, NUM_THREADS> all_framebuffers;
@@ -247,7 +246,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
             BlockBasedImagePerChannel<false> framebuffer;
             framebuffer.memset(0);
-            for (size_t i = 0; i < framebuffer.size() && i < colldata->get_num_components(); ++i) {
+            for (size_t i = 0; i < framebuffer.size() && int( i ) < colldata->get_num_components(); ++i) {
                 framebuffer[i] = &colldata->full_component_write((BlockType)i);
             }
 

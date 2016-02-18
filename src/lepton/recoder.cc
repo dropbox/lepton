@@ -118,7 +118,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
     int csc = 0, sub = 0;
     int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
     int rstw = rsti ? rsti - mcu % rsti : 0;
-    int cumulative_reset_markers = rstw ? mcu / rsti : 0;
+    unsigned int cumulative_reset_markers = rstw ? mcu / rsti : 0;
 
     Sirikata::Aligned256Array1d<int16_t, 64> block; // store block for coeffs
     bool end_of_row = false;
@@ -151,9 +151,6 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
             // check for errors, proceed if no error encountered
             if ( eob < 0 ) sta = -1;
             else {
-                int test_cmp = cmp;
-                int test_dpos = dpos;
-                int test_rstw = rstw;
                 sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
             }
             if (sta == 0 && huffw->no_remainder()) {
@@ -430,7 +427,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
     /* step 1: handle the initial segments */
     unsigned int byte_position = handle_initial_segments( str_out );
-    if ( byte_position == -1 ) {
+    if ( byte_position == static_cast<unsigned int>( -1 ) ) {
         return false;
     }
     /* step 2: setup multithreaded decoder with framebuffer for each */
@@ -473,7 +470,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
     if (g_threaded) {
         for (int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
-            bool tight_bound = true;
             int work_size = 0;
             int logical_thread_start, logical_thread_end;
             std::tie(logical_thread_start, logical_thread_end)
@@ -484,7 +480,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             }
             if (!work_size) {
                 work_size = max_file_size;
-                tight_bound = false;
             }
             local_buffers[physical_thread_id - 1].set_bound(work_size);
             auto work_fn = std::bind(&recode_physical_thread_wrapper,
@@ -519,7 +514,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     }
     if (!rst_err.empty()) {
 
-        int cumulative_reset_markers = rsti ? (mcuh * mcuv - 1)/ rsti : 0;
+        unsigned int cumulative_reset_markers = rsti ? (mcuh * mcuv - 1)/ rsti : 0;
         for (unsigned char i = 0; i < rst_err[0]; ++i) {
             const unsigned char mrk = 0xFF;
             const unsigned char rst = 0xD0 + ( (cumulative_reset_markers + i) & 7 );

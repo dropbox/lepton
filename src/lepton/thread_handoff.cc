@@ -9,7 +9,7 @@ std::vector<ThreadHandoff> ThreadHandoff::deserialize(const unsigned char *data,
     int num_threads = data[0];
     ++data; --max_size;
     std::vector<ThreadHandoff> retval;
-    if (max_size < BYTES_PER_HANDOFF * num_threads) {
+    if (int( max_size ) < BYTES_PER_HANDOFF * num_threads) {
         custom_exit(ExitCode::VERSION_UNSUPPORTED);
     }
     for (int i = 0; i< num_threads; ++i) {
@@ -67,7 +67,7 @@ Sirikata::Array1d<unsigned char,
         retslice[5] = ((th.segment_size >> 24) & 255);
         retslice[6] = th.overhang_byte;
         retslice[7] = th.num_overhang_bits;
-        for (int i = 0; i < sizeof(th.last_dc)/sizeof(th.last_dc[0]); ++i) {
+        for (unsigned int i = 0; i < sizeof(th.last_dc)/sizeof(th.last_dc[0]); ++i) {
             uint16_t dc = th.last_dc[i]; // this will cast to unsigned
             retslice[8 + 2 * i] = (dc & 255);
             retslice[9 + 2 * i] = ((dc >> 8) & 255);
