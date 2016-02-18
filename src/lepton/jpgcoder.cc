@@ -177,7 +177,7 @@ bool recode_jpeg( void );
 
 bool adapt_icos( void );
 bool check_value_range( void );
-bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs);
+bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs);
 bool read_ujpg( void );
 bool reset_buffers( void );
 
@@ -1218,7 +1218,7 @@ void process_file(IOUtil::FileReader* reader,
                     TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_FINISHED]
                         = TimingHarness::get_time_us();
                     //execute( check_value_range );
-                    execute(std::bind(&write_ujpg, luma_row_offsets));
+                    execute(std::bind(&write_ujpg, std::move(luma_row_offsets)));
                 }
                 timing_operation_complete( 'c' );
                 break;
@@ -1636,7 +1636,8 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
     abytewriter* hdrw;
     abytewriter* grbgw;
     unsigned int jpg_ident_offset = 2;
-    ibytestream str_jpg_in(str_in, jpg_ident_offset, Sirikata::JpegAllocator<uint8_t>());
+    ibytestream str_jpg_in(str_in, jpg_ident_offset,
+                           start_byte, max_file_size, Sirikata::JpegAllocator<uint8_t>());
     ibytestream * jpg_in = &str_jpg_in;
     // preset count of scans
     scnc = 0;
@@ -1647,6 +1648,12 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
     // start huffman writer
     huffw = new abytewriter( 0 );
     hufs  = 0; // size of image data, start with 0
+    uint32_t file_offset = 0;
+    if (start_byte) {
+        assert(max_file_size);
+        prefix_grbs = max_file_size - start_byte;
+        prefix_grbgdata = aligned_alloc(prefix_grbs);
+    }
     // JPEG reader loop
     while ( true ) {
         if ( type == 0xDA ) { // if last marker was sos
@@ -3079,7 +3086,7 @@ public: bool operator() (const ThreadHandoff &a,
 /* -----------------------------------------------
     write uncompressed JPEG file
     ----------------------------------------------- */
-bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
+bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs)
 {
     unsigned char ujpg_mrk[ 64 ];
     bool has_lepton_entropy_coding = (ofiletype == LEPTON || filetype == LEPTON );
@@ -3100,7 +3107,22 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     if ( disc_meta )
         if ( !rebuild_header_jpg() )
             return false;
-
+    if (start_byte) {
+        std::vector<ThreadHandoff> local_row_thread_handoffs;
+        for (std::vector<ThreadHandoff>::iterator i = row_thread_handoffs.begin(),
+                 ie = row_thread_handoffs.end(); i != ie; ++i) {
+            auto j = i;
+            ++j;
+            if ((j == ie || j->segment_size >= start_byte)
+                && (max_file_size == 0 || i->segment_size <= max_file_size + start_byte)) {
+                local_row_thread_handoffs.push_back(*i);
+                fprintf(stderr, "OK: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
+            } else {
+                fprintf(stderr, "XX: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
+            }
+        }
+        row_thread_handoffs.swap(local_row_thread_handoffs);
+    }
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
     Sirikata::Array1d<int, NUM_THREADS> split_indices;
@@ -3122,7 +3144,11 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
 #endif
     for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
+        if(max_file_size && max_file_size + start_byte < desired_handoff.segment_size) {
+            desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
+        }
         desired_handoff.segment_size -= row_thread_handoffs.front().segment_size;
+
         desired_handoff.segment_size *= (i + 1);
         desired_handoff.segment_size /= NUM_THREADS;
         desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
@@ -3156,6 +3182,10 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
         if (i + 1 == selected_splits.size() && row_thread_handoffs[ end_of_range ].num_overhang_bits) {
             ++selected_splits[i].segment_size; // need room for that last byte to hold the overhang byte
         }
+        fprintf(stderr, "%d->%d) %d - %d {%ld}\n", selected_splits[i].luma_y_start,
+                selected_splits[i].luma_y_end, 
+                row_thread_handoffs[ beginning_of_range ].segment_size,
+                row_thread_handoffs[ end_of_range ].segment_size, row_thread_handoffs.size());
 /*
         if (i + 1 == selected_splits.size()) {
             int tmp = selected_splits[i].segment_size;
@@ -3180,7 +3210,8 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
                 (int)selected_splits[i].last_dc[2]);
     }
 #endif
-    assert(!selected_splits[0].luma_y_start);
+
+    assert(start_byte||!selected_splits[0].luma_y_start);
     // write header to file
     // marker: "HDR" + [size of header]
     unsigned char hdr_mrk[] = {'H', 'D', 'R'};
