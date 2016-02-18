@@ -517,7 +517,17 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                            bytes_to_copy);
         }
     }
+    if (!rst_err.empty()) {
 
+        int cumulative_reset_markers = rsti ? (mcuh * mcuv - 1)/ rsti : 0;
+        for (unsigned char i = 0; i < rst_err[0]; ++i) {
+            const unsigned char mrk = 0xFF;
+            const unsigned char rst = 0xD0 + ( (cumulative_reset_markers + i) & 7 );
+            str_out->write_byte(mrk);
+            str_out->write_byte(rst);
+
+        }
+    }
 
     /* step 3: blit any trailing data */
     if ( not str_out->has_reached_bound() ) {
