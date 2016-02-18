@@ -3104,8 +3104,10 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     Sirikata::Array1d<int, NUM_THREADS> split_indices;
     for (int32_t i = 0; i < NUM_THREADS - 1; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
+        desired_handoff.segment_size -= row_thread_handoffs.front().segment_size;
         desired_handoff.segment_size *= (i + 1);
         desired_handoff.segment_size /= NUM_THREADS;
+        desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
         auto split = std::lower_bound(row_thread_handoffs.begin(), row_thread_handoffs.end(),
                                       desired_handoff,
                                       ThreadHandoffSegmentCompare());
