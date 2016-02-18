@@ -152,6 +152,8 @@ add_executable(test_invariants
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
    src/io/MemReadWriter.cc
+   src/lepton/thread_handoff.cc
+   src/lepton/thread_handoff.hh
    src/vp8/util/memory.cc
    test_suite/test_invariants.cc
  )
