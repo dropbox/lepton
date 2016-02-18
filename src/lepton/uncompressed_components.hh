@@ -145,7 +145,11 @@ public:
     void set_block_count_dpos(ExtendedComponentInfo *ci, int trunc_bc) {
         assert(ci->info_.bcv == ci->info_.bc / ci->info_.bch + (ci->info_.bc % ci->info_.bch ?  1 : 0));
         int vertical_scanlines = std::min(trunc_bc / ci->info_.bch + (trunc_bc % ci->info_.bch ? 1 : 0), ci->info_.bcv);
-        
+        int ratio = min_vertical_extcmp_multiple(ci);
+        while (vertical_scanlines % ratio != 0
+            && vertical_scanlines + 1 <= ci->info_.bcv) {
+            ++vertical_scanlines;
+        }
         assert(vertical_scanlines <= ci->info_.bcv);
         ci->trunc_bcv_ = vertical_scanlines;
         ci->trunc_bc_ = trunc_bc;
@@ -225,6 +229,8 @@ public:
     }
     // return the minimum luma multiple for full mcu splits in luma
     int min_vertical_luma_multiple() const;
+    int min_vertical_cmp_multiple(int cmp) const;
+    int min_vertical_extcmp_multiple(const ExtendedComponentInfo *info) const;
     int block_height( const int cmp ) const
     {
         return bcv_(cmp);

@@ -18,7 +18,13 @@ int lcm (int a, int b) {
     return a * b / gcd(a, b);
 }
 int UncompressedComponents::min_vertical_luma_multiple() const {
-    int luma_height = header_[0].info_.bcv;
+    return min_vertical_cmp_multiple(0);
+}
+int UncompressedComponents::min_vertical_cmp_multiple(int cmp) const {
+    return min_vertical_extcmp_multiple(&header_[cmp]);
+}
+int UncompressedComponents::min_vertical_extcmp_multiple(const ExtendedComponentInfo *cmpinfo) const{
+    int luma_height = cmpinfo->info_.bcv;
     int overall_gcd = luma_height;
     for (int i = 1; i< cmpc_; ++i) {
         int cur_height = header_[i].info_.bcv;
