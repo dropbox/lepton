@@ -2712,7 +2712,7 @@ bool recode_jpeg( void )
             if ((jpegtype != 1 || cs_cmpc != colldata.get_num_components())
                 && colldata.is_memory_optimized(0)
                 && first_pass) {
-                colldata.init(cmpnfo, cmpc, false);
+                colldata.init(cmpnfo, cmpc, mcuh, mcuv, false);
             }
             first_pass = false;
             // encoding for interleaved data
@@ -3627,7 +3627,7 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
     }
     size_t start_allocated = Sirikata::memmgr_size_allocated();
     // alloc memory for further operations
-    colldata.init(cmpnfo, cmpc, jpegtype == 1 && only_allocate_two_image_rows);
+    colldata.init(cmpnfo, cmpc, mcuh, mcuv, jpegtype == 1 && only_allocate_two_image_rows);
     size_t end_allocated = Sirikata::memmgr_size_allocated();
     total_framebuffer_allocated = end_allocated - start_allocated;
     return true;

@@ -262,7 +262,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];
     while(true) {
-        RowSpec cur_row = row_spec_from_index(decode_index_++, image_data, max_coded_heights);
+        RowSpec cur_row = row_spec_from_index(decode_index_++, image_data, colldata->get_mcu_count_vertical(), max_coded_heights);
         if (cur_row.done) {
             break;
         }

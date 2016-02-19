@@ -66,23 +66,18 @@ public:
     template<class BlockBasedImagePerChannels>
     static RowSpec row_spec_from_index(uint32_t decode_index,
                                        const BlockBasedImagePerChannels& image_data,
+				       int mcuv, // number of mcus
                                        Sirikata::Array1d<uint32_t,
                                                          (size_t)ColorChannel
                                                          ::NumBlockTypes> max_coded_heights) {
-        uint32_t luma_height = image_data[0]->original_height();
+
         uint32_t num_cmp = (uint32_t)ColorChannel::NumBlockTypes;
-        uint32_t overall_gcd = luma_height;
         uint32_t heights[(uint32_t)ColorChannel::NumBlockTypes] = {0};
         uint32_t component_multiple[(uint32_t)ColorChannel::NumBlockTypes] = {0};
-        for (unsigned int i = 0; i < num_cmp; ++i) {
-            uint32_t cur_height = heights[i] = image_data[i] ? image_data[i]->original_height() : 0;
-            if (cur_height) {
-                overall_gcd = gcd(overall_gcd, cur_height);
-            }
-        }
         uint32_t mcu_multiple = 0;
         for (uint32_t i = 0; i < num_cmp; ++i) {
-            component_multiple[i] = heights[i] / overall_gcd;
+            heights[i] = image_data[i] ? image_data[i]->original_height() : 0;
+            component_multiple[i] = heights[i] / mcuv;
             mcu_multiple += component_multiple[i];
         }
         uint32_t mcu_row = decode_index / mcu_multiple;

@@ -25,10 +25,11 @@ int UncompressedComponents::min_vertical_cmp_multiple(int cmp) const {
 }
 int UncompressedComponents::min_vertical_extcmp_multiple(const ExtendedComponentInfo *cmpinfo) const{
     int luma_height = cmpinfo->info_.bcv;
+    /*
     int overall_gcd = luma_height;
     for (int i = 1; i< cmpc_; ++i) {
         int cur_height = header_[i].info_.bcv;
         overall_gcd = gcd(overall_gcd, cur_height);
-    }
-    return luma_height / overall_gcd;
+        }*/
+    return luma_height / mcuv_;//luma_height / overall_gcd;
 }

@@ -33,6 +33,8 @@ class UncompressedComponents {
         }
     };
     int cmpc_; // the number of components
+    int mcuh_;
+    int mcuv_;
     ExtendedComponentInfo header_[4];
 
     CounterType coefficient_position_progress_;
@@ -52,6 +54,9 @@ public:
     UncompressedComponents() : coefficient_position_progress_(0), bit_progress_(0), worker_start_read_signal_(0) {
         decoder_ = NULL;
         allocated_ = 0;
+        mcuh_ = 0;
+        mcuv_ = 0;
+        cmpc_ = 0;
     }
     unsigned short *get_quantization_tables(BlockType component) const {
         return header_[(int)component].info_.qtable;
@@ -63,6 +68,12 @@ public:
             retval[i] = header_[i].trunc_bcv_;
         }
         return retval;
+    }
+    int get_mcu_count_vertical() const{
+        return mcuv_;
+    }
+    int get_mcu_count_horizontal() const{
+        return mcuh_;
     }
     bool is_memory_optimized(int cmp) const {
         return header_[cmp].component_.is_memory_optimized();
@@ -116,7 +127,10 @@ public:
         }
         
     }
-    void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc, bool memory_optimized_image) {
+    void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc,
+              int mcuh, int mcuv, bool memory_optimized_image) {
+        mcuh_ = mcuh;
+        mcuv_ = mcuv;
         if (cmpc > (int)ColorChannel::NumBlockTypes) {
             cmpc = (int)ColorChannel::NumBlockTypes;
             //abort here: we probably can't support this kind of image

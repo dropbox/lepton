@@ -291,6 +291,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     while(true) {
         RowSpec cur_row = row_spec_from_index(encode_index++,
                                               image_data,
+                                              colldata->get_mcu_count_vertical(),
                                               max_coded_heights);
         if(cur_row.done) {
             break;
@@ -450,6 +451,7 @@ void VP8ComponentEncoder::process_row_range(int thread_id,
     }
     RowSpec test = row_spec_from_index(encode_index,
                                        image_data,
+                                       colldata->get_mcu_count_vertical(),
                                        max_coded_heights);
     
     if (thread_id == NUM_THREADS - 1 && (test.skip == false || test.done == false)) {
