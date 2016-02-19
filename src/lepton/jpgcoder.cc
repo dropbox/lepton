@@ -3358,7 +3358,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     unsigned char git_revision[16] = {0}; // we only have 16 chars in the header for this
     hex_to_bin(git_revision, GIT_REVISION, sizeof(git_revision));
     err = ujg_out->Write(git_revision, sizeof(git_revision) ).second;
-    uint32toLE(jpgfilesize, ujpg_mrk);
+    uint32toLE(jpgfilesize - start_byte, ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
     uint32toLE((uint32_t)compressed_header.size(), ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
