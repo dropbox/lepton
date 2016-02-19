@@ -401,18 +401,29 @@ unsigned int bounded_iostream::getsize() {
 bounded_iostream::~bounded_iostream(){
 }
 
-unsigned int ibytestream::getsize () {
-    return bytes_read;
+ibytestreamcopier::ibytestreamcopier(Sirikata::DecoderReader *p, unsigned int byte_offset,
+                                     unsigned int max_file_size,
+                                     const Sirikata::JpegAllocator<uint8_t> &alloc)
+    : ibytestream(p, byte_offset, alloc), side_channel(alloc) {
+    if (max_file_size) {
+        side_channel.reserve(max_file_size);
+    }
+}
+bool ibytestreamcopier::read_byte(unsigned char *output) {
+    bool retval = ibytestream::read_byte(output);
+    if (retval) {
+        side_channel.push_back(*output);
+    }
+    return retval;
 }
 
-unsigned char ibytestream::get_last_read() {
-    return last_read[1];
+unsigned int ibytestreamcopier::read(unsigned char *output, unsigned int size) {
+    unsigned int retval = ibytestreamcopier::read(output, size);
+    if (retval > 0) {
+        side_channel.insert(side_channel.end(), output, output + retval);
+    }
+    return retval;
 }
-
-unsigned char ibytestream::get_penultimate_read() {
-    return last_read[0];
-}
-
 ibytestream::ibytestream(Sirikata::DecoderReader *p, unsigned int byte_offset,
                          const Sirikata::JpegAllocator<uint8_t> &alloc) 
     : parent(p) {

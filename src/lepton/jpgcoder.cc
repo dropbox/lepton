@@ -167,6 +167,7 @@ void show_help( void );
     ----------------------------------------------- */
 
 bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
+
 template <class stream_reader>
 bool read_jpeg(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offset,
@@ -174,6 +175,12 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
 bool read_jpeg_wrapper(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offset,
                        ibytestream *jpg_str_in){
+    return read_jpeg(huff_input_offset, jpg_str_in);
+}
+
+bool read_jpeg_and_copy_to_side_channel(std::vector<std::pair<uint32_t,
+                                                    uint32_t>> *huff_input_offset,
+                                        ibytestreamcopier *jpg_str_in){
     return read_jpeg(huff_input_offset, jpg_str_in);
 }
 
@@ -1740,7 +1747,7 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
                 fprintf( stderr, "size mismatch in marker segment FF %2X", type );
                 errorlevel.store(2);
                 if ( type == 0xFE ) { //  if last marker was COM try again
-                    if ( jpg_in->read( segment.data(), 1) != 2 ) break;
+                    if ( jpg_in->read( segment.data(), 1) != 1 ) break;
                     if ( segment[ 0 ] == 0xFF ) errorlevel.store(1);
                 }
                 if ( errorlevel.load() == 2 ) {

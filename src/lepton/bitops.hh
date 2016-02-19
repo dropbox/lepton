@@ -377,18 +377,48 @@ class ibytestream {
     Sirikata::DecoderReader* parent;
     unsigned int bytes_read;
 public:
-	unsigned char get_last_read();
-	unsigned char get_penultimate_read();
+	unsigned char get_last_read() const {
+        return last_read[1];
+    }
+	unsigned char get_penultimate_read() const {
+        return last_read[0];
+    }
     ibytestream(Sirikata::DecoderReader *p,
                 unsigned int starting_byte_offset,
                 const Sirikata::JpegAllocator<uint8_t> &alloc);
-    unsigned int getsize();
+    unsigned int getsize() const {
+        return bytes_read;
+    }
     bool read_byte(unsigned char *output);
     unsigned int read(unsigned char *output, unsigned int size);
     // the biggest allowed huffman code (that may get damaged by truncation)
     unsigned char last_read[2];
 };
+class ibytestreamcopier : ibytestream{ // since we don't use virtual methods... must reimplement
+    std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > side_channel;
+public:
+    ibytestreamcopier(Sirikata::DecoderReader *p,
+                      unsigned int starting_byte_offset,
+                      unsigned int maximum_file_size,
+                      const Sirikata::JpegAllocator<uint8_t> &alloc);
+    unsigned int getsize() const {
+        return ibytestream::getsize();
+    }
+    unsigned int get_last_read() const {
+        return ibytestream::get_last_read();
+    }
+    unsigned int get_penultimate_read() const {
+        return ibytestream::get_penultimate_read();
+    }
 
+    bool read_byte(unsigned char *output);
+    unsigned int read(unsigned char *output, unsigned int size);
+
+    const std::vector<uint8_t,
+                      Sirikata::JpegAllocator<uint8_t> >&get_read_data() const {
+        return side_channel;
+    }
+};
 
 class bounded_iostream
 {
