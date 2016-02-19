@@ -11,7 +11,7 @@
 #define LBITS32( c, n )		( c >> (32 - n) )
 #define MBITS32( c, l, r )	( RBITS32( c,l ) >> r )
 
-#define RBITS64( c, n )		( c & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - n) ) )
+#define RBITS64( c, n )		(n == 0 ? 0ULL : ( c & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - n) ) ))
 #define LBITS64( c, n )		( c >> (64 - n) )
 #define MBITS64( c, l, r )	( RBITS64( c,l ) >> r )
 
@@ -60,7 +60,11 @@ public:
         uint32_t bits_to_write = (bytes_to_write << 3);
         memcpy(data2 + cbyte2, &xbuf, bytes_to_write);
         cbyte2 += bytes_to_write;
-        buf <<= bits_to_write;
+        if (bits_to_write > 63) {
+            buf = 0;
+        } else {
+            buf <<= bits_to_write;
+        }
         cbit2 += bits_to_write;
         return data2;
     }

@@ -54,7 +54,7 @@ bool fast_exit = true;
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
 
 #define ENVLI(s,v)        ( ( v > 0 ) ? v : ( v - 1 ) + ( 1 << s ) )
-#define DEVLI(s,n)        ( ( n >= ( 1 << (s - 1) ) ) ? n : n + 1 - ( 1 << s ) )
+#define DEVLI(s,n)        ((s) == 0 ? (n) : ( ( (n) >= ( 1 << ((s) - 1) ) ) ? (n) : (n) + 1 - ( 1 << (s) ) ))
 #define E_ENVLI(s,v)    ( v - ( 1 << s ) )
 #define E_DEVLI(s,n)    ( n + ( 1 << s ) )
 
@@ -2295,10 +2295,11 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
 
                         // fix dc for diff coding
                         colldata.set((BlockType)cmp,0,dpos) = block[0] + lastdc[ cmp ];
-                        lastdc[ cmp ] = colldata.set((BlockType)cmp,0,dpos);
-
+                        
+                        uint16_t u_last_dc = lastdc[ cmp ] = colldata.set((BlockType)cmp,0,dpos);
+                        u_last_dc <<= cs_sal; // lastdc might be negative--this avoids UB
                         // bitshift for succesive approximation
-                        colldata.set((BlockType)cmp,0,dpos) <<= cs_sal;
+                        colldata.set((BlockType)cmp,0,dpos) = u_last_dc;
 
                         // next mcupos if no error happened
                         int old_mcu = mcu;
@@ -2472,7 +2473,9 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                             AlignedBlock &aligned_block = colldata.mutable_block((BlockType)cmp, dpos);
                             // copy to colldata
                             for ( bpos = cs_from; bpos < eob; bpos++ ) {
-                                aligned_block.mutable_coefficients_zigzag(bpos) = block[ bpos ] << cs_sal;
+                                uint16_t block_bpos = block[ bpos ];
+                                block_bpos <<= cs_sal; // prevents UB since block_bpos could be negative
+                                aligned_block.mutable_coefficients_zigzag(bpos) = block_bpos;
                             }
                             // check for errors
                             if ( eob < 0 ) sta = -1;
@@ -2529,7 +2532,9 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
 
                             // copy back to colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
-                                aligned_block.mutable_coefficients_zigzag(bpos) += block[ bpos ] << cs_sal;
+                                uint16_t block_bpos = block[ bpos ];
+                                block_bpos <<= cs_sal;
+                                aligned_block.mutable_coefficients_zigzag(bpos) += block_bpos;
                             }
                             // proceed only if no error encountered
                             if ( eob < 0 ) sta = -1;

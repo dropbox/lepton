@@ -91,8 +91,10 @@ public:
             if (new_reserved > mReserved) {
                 mReserved = new_reserved;
                 uint8_t *new_begin = (uint8_t*)mAlloc.allocate(mReserved);
-                memcpy(new_begin, mBegin, mSize);
-                mAlloc.destroy(mBegin);
+                if (mBegin != NULL) {
+                    memcpy(new_begin, mBegin, mSize);
+                    mAlloc.destroy(mBegin);
+                }
                 mBegin = new_begin;
             }
         }
@@ -103,8 +105,10 @@ public:
                     mReserved = new_size;
                 }
                 uint8_t *new_begin = (uint8_t*)mAlloc.allocate(mReserved);
-                memcpy(new_begin, mBegin, mSize);
-                mAlloc.destroy(mBegin);
+                if (mBegin != NULL) {
+                    memcpy(new_begin, mBegin, mSize);
+                    mAlloc.destroy(mBegin);
+                }
                 mBegin = new_begin;
             }
             assert(mSize <= mReserved);
