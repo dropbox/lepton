@@ -167,8 +167,16 @@ void show_help( void );
     ----------------------------------------------- */
 
 bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
+template <class stream_reader>
 bool read_jpeg(std::vector<std::pair<uint32_t,
-                                     uint32_t>> *huff_input_offset);
+                                     uint32_t>> *huff_input_offset,
+               stream_reader *jpg_str_in);
+bool read_jpeg_wrapper(std::vector<std::pair<uint32_t,
+                                     uint32_t>> *huff_input_offset,
+                       ibytestream *jpg_str_in){
+    return read_jpeg(huff_input_offset, jpg_str_in);
+}
+
 struct MergeJpegProgress;
 bool decode_jpeg(const std::vector<std::pair<uint32_t,
                                    uint32_t> > &huff_input_offset,
@@ -268,7 +276,7 @@ std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per sca
 std::vector<unsigned int> rst_cnt;
 bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
-int            start_byte       =    0;     // support for producing a slice of jpeg
+size_t            start_byte       =    0;     // support for producing a slice of jpeg
 
 UncompressedComponents colldata; // baseline sorted DCT coefficients
 
@@ -1209,7 +1217,12 @@ void process_file(IOUtil::FileReader* reader,
             case socketserve:
                 timing_operation_start( 'c' );
                 TimingHarness::timing[0][TimingHarness::TS_READ_STARTED] = TimingHarness::get_time_us();
-                execute(std::bind(&read_jpeg, &huff_input_offset));
+                {
+                    unsigned int jpg_ident_offset = 2;
+                    ibytestream str_jpg_in(str_in, jpg_ident_offset, Sirikata::JpegAllocator<uint8_t>());
+
+                    execute(std::bind(&read_jpeg_wrapper, &huff_input_offset, &str_jpg_in));
+                }
                 TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
                     TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
                 {
@@ -1224,7 +1237,11 @@ void process_file(IOUtil::FileReader* reader,
                 break;
 
             case info:
-                execute(std::bind(read_jpeg, &huff_input_offset));
+                {
+                    unsigned int jpg_ident_offset = 2;
+                    ibytestream str_jpg_in(str_in, jpg_ident_offset, Sirikata::JpegAllocator<uint8_t>());
+                    execute(std::bind(read_jpeg_wrapper, &huff_input_offset, &str_jpg_in));
+                }
                 execute( write_info );
                 break;
         }
@@ -1622,9 +1639,10 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
     Read in header & image data
     ----------------------------------------------- */
 unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
+template<class input_byte_stream>
 bool read_jpeg(std::vector<std::pair<uint32_t,
-                                     uint32_t>> *huff_input_offsets)
-{
+                                     uint32_t>> *huff_input_offsets,
+               input_byte_stream *jpg_in){
     std::vector<unsigned char> segment(1024); // storage for current segment
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
@@ -1635,10 +1653,7 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
     abytewriter* huffw;
     abytewriter* hdrw;
     abytewriter* grbgw;
-    unsigned int jpg_ident_offset = 2;
-    ibytestream str_jpg_in(str_in, jpg_ident_offset,
-                           start_byte, max_file_size, Sirikata::JpegAllocator<uint8_t>());
-    ibytestream * jpg_in = &str_jpg_in;
+
     // preset count of scans
     scnc = 0;
     // start headerwriter
@@ -1648,12 +1663,7 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
     // start huffman writer
     huffw = new abytewriter( 0 );
     hufs  = 0; // size of image data, start with 0
-    uint32_t file_offset = 0;
-    if (start_byte) {
-        assert(max_file_size);
-        prefix_grbs = max_file_size - start_byte;
-        prefix_grbgdata = aligned_alloc(prefix_grbs);
-    }
+
     // JPEG reader loop
     while ( true ) {
         if ( type == 0xDA ) { // if last marker was sos
