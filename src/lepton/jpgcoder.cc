@@ -3173,13 +3173,6 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                    &(*jpeg_file_raw_bytes)[start_byte],
                    std::min((size_t)prefix_grbs,
                             jpeg_file_raw_bytes->size() - start_byte));
-            fprintf(stderr, "First bytes are %02x%02x%02x%02x%02x%02x\n",
-                    (int)prefix_grbgdata[0],
-                    (int)prefix_grbgdata[1],
-                    (int)prefix_grbgdata[2],
-                    (int)prefix_grbgdata[3],
-                    (int)prefix_grbgdata[4],
-                    (int)prefix_grbgdata[5]);
         } else {
             prefix_grbgdata = aligned_alloc(1); // so it's nonnull
         }
@@ -3571,7 +3564,7 @@ bool read_ujpg( void )
             // read prefix garbage (data before beginning of JPG) from file
             ReadFull(&header_reader, ujpg_mrk, 4);
             prefix_grbs = LEtoUint32(ujpg_mrk);
-            prefix_grbgdata = aligned_alloc(grbs);
+            prefix_grbgdata = aligned_alloc(prefix_grbs);
             if ( prefix_grbgdata == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
