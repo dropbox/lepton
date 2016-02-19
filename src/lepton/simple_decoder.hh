@@ -18,7 +18,7 @@ public:
                             const std::vector<ThreadHandoff>& thread_transition_info);
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
-    virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {}
+    virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {}
     GenericWorker *getWorker(int i) {
         return NULL;
     }

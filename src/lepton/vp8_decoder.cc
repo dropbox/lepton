@@ -206,12 +206,12 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         if (do_threading_) {
             for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
                 if (dospin) {
-                    spin_workers_.at(thread_id - 1).work
+                    spin_workers_->at(thread_id - 1).work
                         = std::bind(worker_thread,
                                     thread_state_[thread_id],
                                     thread_id,
                                     colldata);
-                    spin_workers_.at(thread_id - 1).activate_work();
+                    spin_workers_->at(thread_id - 1).activate_work();
                 } else {
                     workers[thread_id]
                         = new std::thread(std::bind(worker_thread,
@@ -232,7 +232,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
             if (dospin) {
-                spin_workers_.at(thread_id - 1).main_wait_for_done();
+                spin_workers_->at(thread_id - 1).main_wait_for_done();
             } else {
                 workers[thread_id]->join();// for now maybe we want to use atomics instead
                 delete workers[thread_id];

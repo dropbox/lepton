@@ -516,7 +516,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     if (do_threading_) {
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             if (dospin) {
-                spin_workers_.at(thread_id - 1).work
+                spin_workers_->at(thread_id - 1).work
                     = std::bind(&VP8ComponentEncoder::process_row_range, this,
                                 thread_id,
                                 colldata,
@@ -525,7 +525,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                 stream[thread_id],
                                 &bool_encoder[thread_id],
                                 &num_nonzeros[thread_id]);
-                spin_workers_.at(thread_id - 1).activate_work();
+                spin_workers_->at(thread_id - 1).activate_work();
             } else {
                 workers[thread_id]
                     = new std::thread(std::bind(&VP8ComponentEncoder::process_row_range, this,
@@ -564,7 +564,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
             if (dospin) {
-                spin_workers_.at(thread_id - 1).main_wait_for_done();
+                spin_workers_->at(thread_id - 1).main_wait_for_done();
             } else {
                 workers[thread_id]->join();
                 delete workers[thread_id];

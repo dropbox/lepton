@@ -126,7 +126,7 @@ public:
 protected:
     bool do_threading_;
     Sirikata::Array1d<GenericWorker,
-                      (NUM_THREADS - 1)>::Slice spin_workers_;
+                      (NUM_THREADS - 1)>* spin_workers_;
     std::thread *workers[NUM_THREADS];
     ThreadState *thread_state_[NUM_THREADS];
 
@@ -134,7 +134,7 @@ protected:
         (&thread_state_[thread_id]->model_)->~ProbabilityTablesBase();
         new (&thread_state_[thread_id]->model_) ProbabilityTablesBase();
     }
-    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
+    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {
         spin_workers_ = workers;
     }
     LeptonCodec(bool do_threading) {

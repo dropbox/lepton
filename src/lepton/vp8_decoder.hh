@@ -37,11 +37,11 @@ public:
     virtual std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                              Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                                                                NUM_THREADS>& framebuffer);
-    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
+    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {
         this->VP8ComponentEncoder::registerWorkers(workers);
     }
     GenericWorker *getWorker(int i) {
-        return &spin_workers_.at(i);
+        return &spin_workers_->at(i);
     }
 
     ~VP8ComponentDecoder();

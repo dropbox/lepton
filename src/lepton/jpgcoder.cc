@@ -325,14 +325,17 @@ int cs_sah       =   0  ; // successive approximation bit pos high
 int cs_sal       =   0  ; // successive approximation bit pos low
 void kill_workers(void * workers);
 
-Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice get_worker_threads() {
+Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* get_worker_threads() {
+    if (NUM_THREADS < 2) {
+        return NULL;
+    }
     Sirikata::Array1d<GenericWorker,
                       NUM_THREADS - 1>*generic_workers = new Sirikata::Array1d<GenericWorker,
                                                                                NUM_THREADS - 1>;
 
     TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
     custom_atexit(kill_workers, generic_workers);
-    return generic_workers->slice<0, NUM_THREADS - 1>();
+    return generic_workers;
 }
 
 VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
@@ -1075,10 +1078,22 @@ void process_file(IOUtil::FileReader* reader,
 
 
     if (g_inject_syscall_test == 2) {
-        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers =
-            new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
+        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = NULL;
+        if (NUM_THREADS > 1) {
+            generic_workers = new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
+        }
         if (g_inject_syscall_test == 2) {
-            for (size_t i = 0; i < generic_workers->size(); ++i) {
+            if (NUM_THREADS <= 1) {
+                if (g_use_seccomp) {
+                    Sirikata::installStrictSyscallFilter(true);
+                }
+                std::atomic<int> value;
+                value.store(0);
+                test_syscall_injection(&value);
+                if (value.load() < 1) {
+                    custom_exit(ExitCode::ASSERTION_FAILURE); // this should exit_group
+                }
+            } else for (size_t i = 0; i < generic_workers->size(); ++i) {
                 std::atomic<int> value;
                 value.store(0);
                 generic_workers->at(i).work = std::bind(&test_syscall_injection, &value);
@@ -3087,7 +3102,7 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
     Sirikata::Array1d<int, NUM_THREADS> split_indices;
-    for (uint32_t i = 0; i < NUM_THREADS - 1; ++ i) {
+    for (int32_t i = 0; i < NUM_THREADS - 1; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
         desired_handoff.segment_size *= (i + 1);
         desired_handoff.segment_size /= NUM_THREADS;

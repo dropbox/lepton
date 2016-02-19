@@ -26,7 +26,7 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
 public:
     VP8ComponentEncoder(bool do_threading);
-    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>::Slice workers) {
+    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {
         this->LeptonCodec::registerWorkers(workers);
     }
 
