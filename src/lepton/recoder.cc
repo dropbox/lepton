@@ -240,6 +240,11 @@ unsigned int handle_initial_segments( bounded_iostream * const str_out )
             if (prefix_grbgdata) {
                 str_out->write(prefix_grbgdata, prefix_grbs);
             } else {
+                {
+                    unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
+                    // write SOI
+                    str_out->write( SOI, 2 );
+                }
                 str_out->write( hdrdata, byte_position );
             }
             return byte_position; /* ready for the scan */
@@ -426,11 +431,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
     unsigned int local_bound = max_file_size - grbs;
     str_out->set_bound(local_bound);
-    {
-        unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
-        // write SOI
-        str_out->write( SOI, 2 );
-    }
 
     /* step 1: handle the initial segments */
     unsigned int byte_position = handle_initial_segments( str_out );
