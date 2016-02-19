@@ -19,6 +19,27 @@ const char *ExitString(ExitCode ec) {
   return data;
 }
 extern "C" {
+void always_assert_inner(bool value, const char * expr, const char * file, int line){
+    if (!value) {
+        while (write(2, "Assert Failed: ", strlen("Assert Failed: ")) < 0 && errno == EINTR) {
+
+        }
+        while (write(2, expr, strlen(expr)) < 0 && errno == EINTR) {
+
+        }
+        while (write(2, " at (", 5) < 0 && errno == EINTR) {
+
+        }
+        while (write(2, file, strlen(file)) < 0 && errno == EINTR) {
+
+        }
+        while (write(2, ":", 1) < 0 && errno == EINTR) {
+
+        }
+        fprintf(stderr, "%d)\n", line);
+        custom_exit(ExitCode::ASSERTION_FAILURE);
+    }
+}
 void* custom_malloc (size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
     return malloc(size);

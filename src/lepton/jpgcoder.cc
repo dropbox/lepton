@@ -73,7 +73,9 @@ bool fast_exit = true;
 #define MEM_ERRMSG    "out of memory error"
 #define FRD_ERRMSG    "could not read file / file not found: %s"
 #define FWR_ERRMSG    "could not write file / file write-protected: %s"
+size_t local_atoi(const char *data);
 namespace TimingHarness {
+
 uint64_t timing[NUM_THREADS][NUM_STAGES] = {{0}};
 uint64_t get_time_us(bool force) {
     if (force || !g_use_seccomp) {
@@ -192,7 +194,8 @@ bool recode_jpeg( void );
 
 bool adapt_icos( void );
 bool check_value_range( void );
-bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs);
+bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
+                std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >*jpeg_file_raw_bytes);
 bool read_ujpg( void );
 bool reset_buffers( void );
 
@@ -552,10 +555,10 @@ size_t local_atoi(const char *data) {
                 exit(1);
             }
         } else if ('M' == *data) {
-            retval *= 1000000;
+            retval *= 1024 * 1024;
             break;
         } else if ('K' == *data) {
-            retval *= 1000;
+            retval *= 1024;
             break;
         } else {
             fprintf(stderr, "Could not allocate alphanumeric memory %s\n", odata);
@@ -838,10 +841,10 @@ int initialize_options( int argc, char** argv )
             g_max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
         }
         else if ( strncmp((*argv), "-startbyte=", strlen("-startbyte=") ) == 0 ) {
-            start_byte = atoi((*argv) + strlen("-startbyte="));
+            start_byte = local_atoi((*argv) + strlen("-startbyte="));
         }        
         else if ( strncmp((*argv), "-trunc=", strlen("-trunc=") ) == 0 ) {
-            max_file_size = atoi((*argv) + strlen("-trunc="));
+            max_file_size = local_atoi((*argv) + strlen("-trunc="));
         }
         else if ( strncmp((*argv), "-trunctiming=", strlen("-trunctiming=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-trunctiming="), "w");
@@ -1225,20 +1228,36 @@ void process_file(IOUtil::FileReader* reader,
                 timing_operation_start( 'c' );
                 TimingHarness::timing[0][TimingHarness::TS_READ_STARTED] = TimingHarness::get_time_us();
                 {
+                    std::vector<uint8_t,
+                                Sirikata::JpegAllocator<uint8_t> > jpeg_file_raw_bytes;
                     unsigned int jpg_ident_offset = 2;
-                    ibytestream str_jpg_in(str_in, jpg_ident_offset, Sirikata::JpegAllocator<uint8_t>());
+                    if (start_byte == 0) {
+                        ibytestream str_jpg_in(str_in,
+                                               jpg_ident_offset,
+                                               Sirikata::JpegAllocator<uint8_t>());
 
-                    execute(std::bind(&read_jpeg_wrapper, &huff_input_offset, &str_jpg_in));
-                }
-                TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
-                    TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
-                {
+                        execute(std::bind(&read_jpeg_wrapper, &huff_input_offset, &str_jpg_in));
+                    } else {
+                        ibytestreamcopier str_jpg_in(str_in,
+                                                     jpg_ident_offset,
+                                                     max_file_size,
+                                                     Sirikata::JpegAllocator<uint8_t>());
+                        str_jpg_in.mutate_read_data().push_back(0xff);
+                        str_jpg_in.mutate_read_data().push_back(0xd8);
+                        execute(std::bind(&read_jpeg_and_copy_to_side_channel,
+                                          &huff_input_offset, &str_jpg_in));
+                        jpeg_file_raw_bytes.swap(str_jpg_in.mutate_read_data());
+                    }
+                    TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
+                        TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
                     std::vector<ThreadHandoff> luma_row_offsets;
                     execute(std::bind(&decode_jpeg, huff_input_offset, &luma_row_offsets));
                     TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_FINISHED]
                         = TimingHarness::get_time_us();
                     //execute( check_value_range );
-                    execute(std::bind(&write_ujpg, std::move(luma_row_offsets)));
+                    execute(std::bind(&write_ujpg,
+                                      std::move(luma_row_offsets),
+                                      jpeg_file_raw_bytes.empty() ? NULL : &jpeg_file_raw_bytes));
                 }
                 timing_operation_complete( 'c' );
                 break;
@@ -3103,7 +3122,8 @@ public: bool operator() (const ThreadHandoff &a,
 /* -----------------------------------------------
     write uncompressed JPEG file
     ----------------------------------------------- */
-bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs)
+bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
+                std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >*jpeg_file_raw_bytes)
 {
     unsigned char ujpg_mrk[ 64 ];
     bool has_lepton_entropy_coding = (ofiletype == LEPTON || filetype == LEPTON );
@@ -3130,7 +3150,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs)
                  ie = row_thread_handoffs.end(); i != ie; ++i) {
             auto j = i;
             ++j;
-            if ((j == ie || j->segment_size >= start_byte)
+            if ((j == ie || i->segment_size >= start_byte)
                 && (max_file_size == 0 || i->segment_size <= max_file_size + start_byte)) {
                 local_row_thread_handoffs.push_back(*i);
                 fprintf(stderr, "OK: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
@@ -3139,6 +3159,30 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs)
             }
         }
         row_thread_handoffs.swap(local_row_thread_handoffs);
+    }
+    if (start_byte) {
+        always_assert(jpeg_file_raw_bytes);
+    }
+    if (start_byte && jpeg_file_raw_bytes && !row_thread_handoffs.empty()) {
+        prefix_grbs = row_thread_handoffs[0].segment_size - start_byte;
+        
+        if (prefix_grbs > 0) {
+            prefix_grbgdata = aligned_alloc(prefix_grbs);
+            always_assert(jpeg_file_raw_bytes->size() >= (size_t)prefix_grbs + start_byte);
+            memcpy(prefix_grbgdata,
+                   &(*jpeg_file_raw_bytes)[start_byte],
+                   std::min((size_t)prefix_grbs,
+                            jpeg_file_raw_bytes->size() - start_byte));
+            fprintf(stderr, "First bytes are %02x%02x%02x%02x%02x%02x\n",
+                    (int)prefix_grbgdata[0],
+                    (int)prefix_grbgdata[1],
+                    (int)prefix_grbgdata[2],
+                    (int)prefix_grbgdata[3],
+                    (int)prefix_grbgdata[4],
+                    (int)prefix_grbgdata[5]);
+        } else {
+            prefix_grbgdata = aligned_alloc(1); // so it's nonnull
+        }
     }
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
@@ -3283,6 +3327,16 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs)
         uint32toLE(max_dpos[2], ujpg_mrk + 20);
         uint32toLE(max_dpos[3], ujpg_mrk + 24);
         err = mrw.Write(ujpg_mrk, 28).second;
+    }
+    // write garbage (data including and after EOI) (if any) to file
+    if ( prefix_grbs > 0 || prefix_grbgdata != NULL) {
+        // marker: "GRB" + [size of garbage]
+        unsigned char grb_mrk[] = {'P', 'G', 'R'};
+        err = mrw.Write( grb_mrk, sizeof(grb_mrk) ).second;
+        uint32toLE(prefix_grbs, ujpg_mrk);
+        err = mrw.Write( ujpg_mrk, 4 ).second;
+        // data: garbage data
+        err = mrw.Write( prefix_grbgdata, prefix_grbs ).second;
     }
     // write garbage (data including and after EOI) (if any) to file
     if ( grbs > 0 ) {

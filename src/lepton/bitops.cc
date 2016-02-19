@@ -418,7 +418,7 @@ bool ibytestreamcopier::read_byte(unsigned char *output) {
 }
 
 unsigned int ibytestreamcopier::read(unsigned char *output, unsigned int size) {
-    unsigned int retval = ibytestreamcopier::read(output, size);
+    unsigned int retval = ibytestream::read(output, size);
     if (retval > 0) {
         side_channel.insert(side_channel.end(), output, output + retval);
     }

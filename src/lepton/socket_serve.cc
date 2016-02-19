@@ -25,10 +25,6 @@ static char hex_nibble(uint8_t val) {
     return val - 10 + 'a';
 }
 
-static void always_assert(bool expr) {
-    if (!expr) custom_exit(ExitCode::ASSERTION_FAILURE);
-}
-
 static const char last_prefix[] = "/tmp/";
 static const char last_postfix[]=".uport";
 static char socket_name[sizeof((struct sockaddr_un*)0)->sun_path] = {};

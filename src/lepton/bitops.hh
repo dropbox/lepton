@@ -418,6 +418,9 @@ public:
                       Sirikata::JpegAllocator<uint8_t> >&get_read_data() const {
         return side_channel;
     }
+    std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >&mutate_read_data() {
+        return side_channel;
+    }
 };
 
 class bounded_iostream

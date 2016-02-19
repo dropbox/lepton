@@ -21,9 +21,6 @@ static char hex_nibble(uint8_t val) {
     return val - 10 + 'a';
 }
 
-static void always_assert(bool expr) {
-    if (!expr) custom_exit(ExitCode::ASSERTION_FAILURE);
-}
 
 static const char last_prefix[] = "/tmp/";
 static const char last_postfix[2][7]={".iport", ".oport"};
