@@ -3240,10 +3240,12 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         if (i + 1 == selected_splits.size() && row_thread_handoffs[ end_of_range ].num_overhang_bits) {
             ++selected_splits[i].segment_size; // need room for that last byte to hold the overhang byte
         }
+#if 0
         fprintf(stderr, "%d->%d) %d - %d {%ld}\n", selected_splits[i].luma_y_start,
                 selected_splits[i].luma_y_end, 
                 row_thread_handoffs[ beginning_of_range ].segment_size,
                 row_thread_handoffs[ end_of_range ].segment_size, row_thread_handoffs.size());
+#endif
 /*
         if (i + 1 == selected_splits.size()) {
             int tmp = selected_splits[i].segment_size;
