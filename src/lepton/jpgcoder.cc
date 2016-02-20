@@ -3153,9 +3153,9 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
             if ((j == ie || i->segment_size >= start_byte)
                 && (max_file_size == 0 || i->segment_size <= max_file_size + start_byte)) {
                 local_row_thread_handoffs.push_back(*i);
-                fprintf(stderr, "OK: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
+                //fprintf(stderr, "OK: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
             } else {
-                fprintf(stderr, "XX: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
+                //fprintf(stderr, "XX: %d (%d %d)\n", i->segment_size, i->luma_y_start, i->luma_y_end);
             }
         }
         row_thread_handoffs.swap(local_row_thread_handoffs);
