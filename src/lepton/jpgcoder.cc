@@ -3102,27 +3102,36 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
     Sirikata::Array1d<int, NUM_THREADS> split_indices;
-    for (int32_t i = 0; i < NUM_THREADS - 1; ++ i) {
+    for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
         desired_handoff.segment_size -= row_thread_handoffs.front().segment_size;
         desired_handoff.segment_size *= (i + 1);
         desired_handoff.segment_size /= NUM_THREADS;
         desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
-        auto split = std::lower_bound(row_thread_handoffs.begin(), row_thread_handoffs.end(),
+        auto split = std::lower_bound(row_thread_handoffs.begin() + 1, row_thread_handoffs.end(),
                                       desired_handoff,
                                       ThreadHandoffSegmentCompare());
         if (split == row_thread_handoffs.begin() && split != row_thread_handoffs.end()) {
-            ++split;
-        } else if (split != row_thread_handoffs.begin() && split == row_thread_handoffs.end()) {
+            //++split;
+        } else if (split != row_thread_handoffs.begin() + 1) {
             --split;
         }
         split_indices[i] = split - row_thread_handoffs.begin();
+    }
+    for (int32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
+        if (true ||split_indices[index] == split_indices[index + 1]) {
+            for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
+                split_indices[i] = (i + 1) * row_thread_handoffs.size() / NUM_THREADS;
+            }
+            break;
+        }
     }
     split_indices[NUM_THREADS - 1] = row_thread_handoffs.size() - 1;
     size_t last_split_index = 0;
     for (size_t i = 0; i < selected_splits.size(); ++i) {
         size_t beginning_of_range = last_split_index;
         size_t end_of_range = split_indices[i];
+        fprintf(stderr, "Beginning %ld end %ld\n", beginning_of_range, end_of_range); 
         last_split_index = end_of_range;
         assert( end_of_range < row_thread_handoffs.size() );
         selected_splits[i] = row_thread_handoffs[ end_of_range ] - row_thread_handoffs[ beginning_of_range ];
@@ -3802,9 +3811,6 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
             // image size, height & component count
             imgheight = B_SHORT( segment[ hpos + 1 ], segment[ hpos + 2 ] );
             imgwidth  = B_SHORT( segment[ hpos + 3 ], segment[ hpos + 4 ] );
-            if (imgwidth >= 32768) { // would take too much memory on decode
-                custom_exit(ExitCode::DIMENSIONS_TOO_LARGE);
-            }
             cmpc      = segment[ hpos + 5 ];
             if ( cmpc > 4 ) {
                 cmpc = 4;
