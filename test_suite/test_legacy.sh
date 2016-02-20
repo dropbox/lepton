@@ -1,2 +1,7 @@
 #!/bin/sh
-cat "`dirname $0`"/../images/gold-legacy.lep | ./lepton - | sha256sum | grep -l 79f13e3951e84b4e7bd8ff0f1315f336044f542387ac3a9c26205c5ac372ea54 && echo PASS
+#if which md5sum; then
+cat "`dirname $0`"/../images/gold-legacy.lep | ./lepton - | ( md5sum || md5 ) | grep -l 9ffbfc24d1157d0b1ed7a9b53bef4c23 && echo PASS
+#else
+
+#cat "`dirname $0`"/../images/gold-legacy.lep | ./lepton - | md5 | grep -l 9ffbfc24d1157d0b1ed7a9b53bef4c23 && echo PASS
+#fi

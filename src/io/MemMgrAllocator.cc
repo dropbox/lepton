@@ -38,9 +38,10 @@
 #include "DecoderPlatform.hh"
 #include "MemMgrAllocator.hh"
 #if defined(__APPLE__) || __cplusplus <= 199711L
-#define thread_local __thread
+#define THREAD_LOCAL_STORAGE __thread
 #else
 #include <atomic>
+#define THREAD_LOCAL_STORAGE thread_local
 #endif
 
 namespace Sirikata {
@@ -85,7 +86,7 @@ size_t  memmgr_num_memmgrs = 0;
 MemMgrState *memmgrs = NULL;
 size_t memmgr_bytes_allocated = 0;
 
-thread_local int memmgr_thread_id_plus_one = 0;
+THREAD_LOCAL_STORAGE int memmgr_thread_id_plus_one = 0;
 #if __cplusplus <= 199711L
 AtomicValue<int> memmgr_allocated_threads((0));
 #else

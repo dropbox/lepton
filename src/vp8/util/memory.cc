@@ -5,7 +5,9 @@
 #include <sys/syscall.h>
 #endif
 #if defined(__APPLE__) || __cplusplus <= 199711L
-#define thread_local __thread
+#define THREAD_LOCAL_STORAGE __thread
+#else
+#define THREAD_LOCAL_STORAGE thread_local
 #endif
 
 const char *ExitString(ExitCode ec) {
@@ -128,9 +130,9 @@ void operator delete (void* ptr) throw(){
 void operator delete[] (void* ptr) throw(){
     custom_free(ptr);
 }
-thread_local int l_emergency_close_signal = -1;
-thread_local void (*atexit_f)(void*) = nullptr;
-thread_local void *atexit_arg = nullptr;
+THREAD_LOCAL_STORAGE int l_emergency_close_signal = -1;
+THREAD_LOCAL_STORAGE void (*atexit_f)(void*) = nullptr;
+THREAD_LOCAL_STORAGE void *atexit_arg = nullptr;
 void custom_atexit(void (*atexit)(void*) , void *arg) {
     assert(!atexit_f);
     atexit_f = atexit;
