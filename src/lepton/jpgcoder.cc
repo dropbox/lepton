@@ -3102,6 +3102,19 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
     Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
     Sirikata::Array1d<int, NUM_THREADS> split_indices;
+#if 0
+    for (uint32_t i = 0; i < row_thread_handoffs.size() ; ++ i) {
+        fprintf(stderr,
+                "Row %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
+                (int)i,
+                (int)row_thread_handoffs[i].segment_size,
+                (int)row_thread_handoffs[i].overhang_byte,
+                (int)row_thread_handoffs[i].num_overhang_bits,
+                (int)row_thread_handoffs[i].last_dc[0],
+                (int)row_thread_handoffs[i].last_dc[1],
+                (int)row_thread_handoffs[i].last_dc[2]);
+    }
+#endif
     for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
         desired_handoff.segment_size -= row_thread_handoffs.front().segment_size;
@@ -3119,7 +3132,7 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
         split_indices[i] = split - row_thread_handoffs.begin();
     }
     for (int32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
-        if (true ||split_indices[index] == split_indices[index + 1]) {
+        if (true || split_indices[index] == split_indices[index + 1]) {
             for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
                 split_indices[i] = (i + 1) * row_thread_handoffs.size() / NUM_THREADS;
             }
@@ -3131,7 +3144,7 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
     for (size_t i = 0; i < selected_splits.size(); ++i) {
         size_t beginning_of_range = last_split_index;
         size_t end_of_range = split_indices[i];
-        fprintf(stderr, "Beginning %ld end %ld\n", beginning_of_range, end_of_range); 
+        //fprintf(stderr, "Beginning %ld end %ld\n", beginning_of_range, end_of_range);
         last_split_index = end_of_range;
         assert( end_of_range < row_thread_handoffs.size() );
         selected_splits[i] = row_thread_handoffs[ end_of_range ] - row_thread_handoffs[ beginning_of_range ];
@@ -3146,6 +3159,19 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
         }
 */
     }
+#if 0
+    for (uint32_t i = 0; i < selected_splits.size() ; ++ i) {
+        fprintf(stderr,
+                "Row %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
+                (int)i,
+                (int)selected_splits[i].segment_size,
+                (int)selected_splits[i].overhang_byte,
+                (int)selected_splits[i].num_overhang_bits,
+                (int)selected_splits[i].last_dc[0],
+                (int)selected_splits[i].last_dc[1],
+                (int)selected_splits[i].last_dc[2]);
+    }
+#endif
     assert(!selected_splits[0].luma_y_start);
     // write header to file
     // marker: "HDR" + [size of header]

@@ -102,10 +102,6 @@ ThreadHandoff ThreadHandoff::operator-( const ThreadHandoff & other ) const
 {
   ThreadHandoff ret = other;
   ret.luma_y_end = luma_y_start;
-  if (ret.luma_y_end == ret.luma_y_start) {
-      ret.segment_size = 0;
-  } else {
-      ret.segment_size = segment_size - other.segment_size;
-  }
+  ret.segment_size = segment_size - other.segment_size;
   return ret;
 }

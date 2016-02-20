@@ -8,6 +8,7 @@
 #include "bitops.hh"
 #include "lepton_codec.hh"
 #include "../io/BoundedMemWriter.hh"
+#include "../vp8/util/memory.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
 extern BaseDecoder *g_decoder;
