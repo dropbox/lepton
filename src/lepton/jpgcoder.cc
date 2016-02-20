@@ -2359,12 +2359,14 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
             else // decoding for non interleaved data
             {
                 if ( jpegtype == 1 ) {
+                    int vmul = cmpnfo[0].bcv / mcuv;
+                    int hmul = cmpnfo[0].bch / mcuh;
                     // ---> sequential non interleaved decoding <---
                     while ( sta == 0 ) {
                         if (do_handoff_print) {
                             luma_row_offset_return->push_back(crystallize_thread_handoff(huffr,
                                                                                          huff_input_offsets,
-                                                                                         dpos / cmpnfo[cmp].bch,
+                                                                                         (dpos/(hmul * vmul)) / mcuh,
                                                                                          lastdc,
                                                                                          cmpnfo[0].bcv / mcuv));
                             do_handoff_print = false;
@@ -2392,8 +2394,8 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
                         else sta = next_mcuposn( &cmp, &dpos, &rstw );
-
-                        if (cmp == 0 && dpos % cmpnfo[cmp].bch == 0) {
+                        mcu = dpos / (hmul * vmul);
+                        if (cmp == 0 && (mcu % mcuh == 0) && (dpos %(hmul *vmul) == 0)) {
                             do_handoff_print = true;
 
                         }
@@ -3105,7 +3107,10 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
 #if 0
     for (uint32_t i = 0; i < row_thread_handoffs.size() ; ++ i) {
         fprintf(stderr,
-                "Row %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
+                "Row [%d - %d], %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
+                (int)row_thread_handoffs[i].luma_y_start,
+                (int)row_thread_handoffs[i].luma_y_end,
+                
                 (int)i,
                 (int)row_thread_handoffs[i].segment_size,
                 (int)row_thread_handoffs[i].overhang_byte,
@@ -3162,7 +3167,10 @@ bool write_ujpg(const std::vector<ThreadHandoff>& row_thread_handoffs)
 #if 0
     for (uint32_t i = 0; i < selected_splits.size() ; ++ i) {
         fprintf(stderr,
-                "Row %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
+                "Row [%d - %d] %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
+                (int)selected_splits[i].luma_y_start,
+                (int)selected_splits[i].luma_y_end,
+
                 (int)i,
                 (int)selected_splits[i].segment_size,
                 (int)selected_splits[i].overhang_byte,

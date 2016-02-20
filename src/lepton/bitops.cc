@@ -16,7 +16,6 @@ extern "C" {
 #include "bitops.hh"
 
 #define BUFFER_SIZE 1024 * 1024
-
 void compute_md5(const char * filename, unsigned char *result) {
     FILE * fp = fopen(filename, "rb");
     size_t data_read;
