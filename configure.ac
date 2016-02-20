@@ -17,7 +17,7 @@ AC_SUBST([C99_FLAGS])
 PICKY_CFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter"
 AC_SUBST([PICKY_CFLAGS])
 
-PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter -Werror -fno-exceptions -fno-rtti"
+PICKY_CXXFLAGS="-pedantic -Wall -Wextra -Wno-write-strings -Wno-unused-parameter -fno-exceptions -fno-rtti"
 AC_SUBST([PICKY_CXXFLAGS])
 
 # Add -DNDEBUG by default
