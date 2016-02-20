@@ -81,7 +81,7 @@ public:
             mcu_multiple += component_multiple[i];
         }
         uint32_t mcu_row = decode_index / mcu_multiple;
-        RowSpec retval = {};
+        RowSpec retval = {0, 0, 0, 0, 0, 0, false, false, false};
         retval.skip = false;
         retval.done = false;
         retval.mcu_row_index = mcu_row;

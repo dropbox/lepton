@@ -1915,7 +1915,7 @@ ThreadHandoff crystallize_thread_handoff(abitreader *reader,
         mapped_item += reader->getpos() - iter->first;
     }
     //fprintf(stderr, "ROWx (%08lx): %x -> %x\n", reader->debug_peek(), reader->getpos(), mapped_item);
-    ThreadHandoff retval = {};
+    ThreadHandoff retval = ThreadHandoff::zero();
     retval.segment_size = mapped_item; // the caller will need to take the difference of the chosen items
     // to compute the actual segment size
     for (unsigned int i = 0; i < 4 && i < sizeof(retval.last_dc)/ sizeof(retval.last_dc[0]); ++i) {

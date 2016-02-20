@@ -18,6 +18,11 @@ public:
         // num_overhang_bits is set to this for legacy formats which must be decoded single threaded
         LEGACY_OVERHANG_BITS = 0xff
     };
+    static ThreadHandoff zero() {
+        ThreadHandoff ret;
+        memset(&ret, 0, sizeof(ret));
+        return ret;
+    }
     bool is_legacy_mode() const{ // legacy mode doesn't have access to handoff data
         return num_overhang_bits == LEGACY_OVERHANG_BITS;
     }
