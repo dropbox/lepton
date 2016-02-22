@@ -11,6 +11,7 @@
 #include "../vp8/util/memory.hh"
 int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
+int next_mcuposn(int* cmp, int* dpos, int* rstw );
 extern BaseDecoder *g_decoder;
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 extern componentInfo cmpnfo[ 4 ];
@@ -114,10 +115,11 @@ template <class OutputWriter>
 bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                         OutputWriter*str_out,
                         Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> &lastdc,
-                        BlockBasedImagePerChannel<true> &framebuffer) {
+                        const BlockBasedImagePerChannel<true> framebuffer) {
     int cmp = cs_cmp[ 0 ];
     int csc = 0, sub = 0;
-    int dpos = mcu * cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
+    int mcumul = cmpnfo[ cmp ].sfv * cmpnfo[ cmp ].sfh;
+    int dpos = mcu * mcumul;
     int rstw = rsti ? rsti - mcu % rsti : 0;
     unsigned int cumulative_reset_markers = rstw ? mcu / rsti : 0;
 
@@ -137,12 +139,12 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
             for ( int bpos = 0; bpos < 64; bpos++ ) {
                 block[bpos] = aligned_block.coefficients_zigzag(bpos);
             }
-            
+
             int16_t dc = block[0];
             // diff coding for dc
             block[ 0 ] -= lastdc[ cmp ];
             lastdc[ cmp ] = dc;
-                
+
             // encode block
             int eob = encode_block_seq(huffw,
                                        &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
@@ -151,7 +153,10 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
             int old_mcu = mcu;
             // check for errors, proceed if no error encountered
             if ( eob < 0 ) sta = -1;
-            else {
+            else if (framebuffer.size() == 1 || framebuffer[1] == NULL) {
+                sta = next_mcuposn(&cmp, &dpos, &rstw );
+                mcu = dpos / mcumul;
+            } else {
                 sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
             }
             if (sta == 0 && huffw->no_remainder()) {
@@ -168,7 +173,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                 }
             }
         }
-        
+
         // pad huffman writer
         huffw->pad( padbit );
         if (huffw->no_remainder()) {
