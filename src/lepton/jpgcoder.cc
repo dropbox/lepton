@@ -3192,8 +3192,6 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         }
     }
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
-    std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
-    std::vector<int> split_indices(NUM_THREADS);
 #if 0
     for (uint32_t i = 0; i < row_thread_handoffs.size() ; ++ i) {
         fprintf(stderr,
@@ -3210,6 +3208,25 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                 (int)row_thread_handoffs[i].last_dc[2]);
     }
 #endif
+    uint32_t framebuffer_byte_size = row_thread_handoffs.back().segment_size - row_thread_handoffs.front().segment_size;
+    uint32_t num_rows = row_thread_handoffs.size();
+    if (num_rows / 2 < NUM_THREADS) {
+        NUM_THREADS = std::max(num_rows / 2, 1U);
+    }
+    if (framebuffer_byte_size < 20000) {
+        NUM_THREADS = 1;
+    } else if (framebuffer_byte_size < 100000) {
+        NUM_THREADS = std::min(2U, (unsigned int)NUM_THREADS);
+    } else if (framebuffer_byte_size < 150000) {
+        NUM_THREADS = std::min(3U, (unsigned int)NUM_THREADS);
+    } else if (framebuffer_byte_size < 250000) {
+        NUM_THREADS = std::min(4U, (unsigned int)NUM_THREADS);
+    } else if (framebuffer_byte_size < 500000) {
+        NUM_THREADS = std::min(6U, (unsigned int)NUM_THREADS);
+    }
+    fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
+    std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
+    std::vector<int> split_indices(NUM_THREADS);
     for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
         if(max_file_size && max_file_size + start_byte < desired_handoff.segment_size) {
