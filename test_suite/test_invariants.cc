@@ -275,7 +275,9 @@ void handoff_compare(const std::vector<ThreadHandoff> &a,
     }
 }
 void test_thread_handoff() {
+    NUM_THREADS=MAX_NUM_THREADS;
     std::vector<ThreadHandoff> x = ThreadHandoff::make_rand(NUM_THREADS);
+
     Sirikata::Array1d<ThreadHandoff, MAX_NUM_THREADS> random_handoffs;
     for (size_t i = 0; i < MAX_NUM_THREADS;++i) {
         random_handoffs[i] = x[i];

@@ -9,7 +9,7 @@
 #else
 #define THREAD_LOCAL_STORAGE thread_local
 #endif
-unsigned int NUM_THREADS = 8;
+unsigned int NUM_THREADS = 4;
 const char *ExitString(ExitCode ec) {
   FOREACH_EXIT_CODE(GENERATE_EXIT_CODE_RETURN)
   static char data[] = "XXXX_EXIT_CODE_BEYOND_EXIT_CODE_ARRAY";
