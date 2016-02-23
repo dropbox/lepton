@@ -197,6 +197,7 @@ bool check_value_range( void );
 bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                 std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> >*jpeg_file_raw_bytes);
 bool read_ujpg( void );
+unsigned char read_fixed_ujpg_header( void );
 bool reset_buffers( void );
 
 
@@ -1144,14 +1145,16 @@ void process_file(IOUtil::FileReader* reader,
             g_decoder = NULL;
         }
     } else if (filetype == LEPTON) {
+        NUM_THREADS = read_fixed_ujpg_header();
         if (!g_decoder) {
             g_decoder = makeDecoder(g_threaded, g_threaded);
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
-        } else if (g_threaded && (action == socketserve || action == forkserve)) {
+        } else if (NUM_THREADS > 1 && g_threaded && (action == socketserve || action == forkserve)) {
             g_decoder->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
         }
     }else if (filetype == UJG) {
+        (void)read_fixed_ujpg_header();
         g_decoder = new SimpleComponentDecoder;
         g_reference_to_free.reset(g_decoder);
     }
@@ -1523,7 +1526,29 @@ void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
 /* -----------------------------------------------
     check file and determine filetype
     ----------------------------------------------- */
+unsigned char read_fixed_ujpg_header() {
+    Sirikata::Array1d<unsigned char, 22> header;
+    header.memset(0);
 
+    if (IOUtil::ReadFull(str_in, header.begin(), 22) != 22) {
+        custom_exit(ExitCode::SHORT_READ);
+    }
+    // check version number
+    if (header[ 0 ] != ujgversion ) {
+        fprintf( stderr, "incompatible file, use %s v%i.%i",
+            appname, header[ 0 ] / 10, header[ 0 ] % 10 );
+        custom_exit(ExitCode::VERSION_UNSUPPORTED);
+    }
+    unsigned char num_threads_hint = header[1];
+    always_assert(num_threads_hint != 0);
+    if (num_threads_hint < NUM_THREADS && num_threads_hint != 0) {
+        NUM_THREADS = num_threads_hint;
+    }
+// full size of the original file
+    Sirikata::Array1d<unsigned char, 4>::Slice file_size = header.slice<18,22>();
+    max_file_size = LEtoUint32(file_size.begin());
+    return NUM_THREADS;
+}
 bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_file_size)
 {
     unsigned char fileid[ 2 ] = { 0, 0 };
@@ -3340,9 +3365,13 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
             Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                              mrw.buffer().size(),
                                                              Sirikata::JpegAllocator<uint8_t>());
-    unsigned char siz_mrk[] = {'Z'};
-    err = ujg_out->Write( siz_mrk, sizeof(siz_mrk) ).second;
-    unsigned char git_revision[16] = {0}; // we only have 16 chars in the header for this
+    static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
+    always_assert(NUM_THREADS <= 255);
+    unsigned char num_threads[] = {(unsigned char)NUM_THREADS};
+    err =  ujg_out->Write(num_threads, sizeof(num_threads)).second;
+    unsigned char zero4[4] = {};
+    err =  ujg_out->Write(zero4, sizeof(zero4)).second;
+    unsigned char git_revision[12] = {0}; // we only have 12 chars in the header for this
     hex_to_bin(git_revision, GIT_REVISION, sizeof(git_revision));
     err = ujg_out->Write(git_revision, sizeof(git_revision) ).second;
     uint32toLE(jpgfilesize - start_byte, ujpg_mrk);
@@ -3396,38 +3425,24 @@ void* mem_realloc_nop(void * ptr, size_t size, size_t *actualSize, unsigned int 
 }
 bool read_ujpg( void )
 {
+    using namespace IOUtil;
     using namespace Sirikata;
 //    colldata.start_decoder_worker_thread(std::bind(&simple_decoder, &colldata, str_in));
     unsigned char ujpg_mrk[ 64 ];
     // this is where we will enable seccomp, before reading user data
-    using namespace IOUtil;
-    // check version number
-    Sirikata::JpegError err = str_in->Read( ujpg_mrk, 1).second;
-    if ( err != Sirikata::JpegError::nil() || ujpg_mrk[ 0 ] != ujgversion ) {
-        fprintf( stderr, "incompatible file, use %s v%i.%i",
-            appname, ujpg_mrk[ 0 ] / 10, ujpg_mrk[ 0 ] % 10 );
-        if (err != JpegError::nil()) {
-            custom_exit(ExitCode::SHORT_READ);
-        }
-        custom_exit(ExitCode::VERSION_UNSUPPORTED);
-    }
-    ReadFull(str_in, ujpg_mrk, 1 );
-    uint32_t compressed_file_size = 0;
-    bool has_read_size = (memcmp( ujpg_mrk, "Z", 1 ) == 0);
-    (void)has_read_size;
-    assert(has_read_size && "Legacy prerelease format encountered\n");
-    unsigned char md5[16];
-    ReadFull(str_in, md5, sizeof(md5));
-// full size of the original file
-    ReadFull(str_in, ujpg_mrk, 8);
-    max_file_size = LEtoUint32(ujpg_mrk);
+
     str_out->call_size_callback(max_file_size);
-    compressed_file_size = LEtoUint32(ujpg_mrk + 4);
-    if (compressed_file_size > 128 * 1024 * 1024 || max_file_size > 128 * 1024 * 1024) {
+    uint32_t compressed_header_size = 0;
+    if (ReadFull(str_in, ujpg_mrk, 4) != 4) {
+        custom_exit(ExitCode::SHORT_READ);
+    }
+
+    compressed_header_size = LEtoUint32(ujpg_mrk);
+    if (compressed_header_size > 128 * 1024 * 1024 || max_file_size > 128 * 1024 * 1024) {
         assert(false && "Only support images < 128 megs");
         return false; // bool too big
     }
-    std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_header_buffer(compressed_file_size);
+    std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_header_buffer(compressed_header_size);
     IOUtil::ReadFull(str_in, compressed_header_buffer.data(), compressed_header_buffer.size());
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
