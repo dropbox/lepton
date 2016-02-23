@@ -610,7 +610,7 @@ int main( int argc, char** argv )
     TimingHarness::timing[0][TimingHarness::TS_MAIN]
         = TimingHarness::get_time_us(true);
     size_t thread_mem_limit = 8192;
-    size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (NUM_THREADS - 1);
+    size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1);
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
         bool avx2upgrade = false;
@@ -648,7 +648,7 @@ int main( int argc, char** argv )
     UncompressedComponents::max_number_of_blocks =
         (mem_limit - 36 * 1024 * 1024)
          / (sizeof(uint16_t) * 64);
-    int n_threads = NUM_THREADS - 1;
+    int n_threads = MAX_NUM_THREADS - 1;
 #ifndef __linux
     n_threads += 4;
 #endif
