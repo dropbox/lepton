@@ -245,7 +245,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
     }
 }
 
-CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(int thread_id,
+CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int thread_id,
                                                               UncompressedComponents *const colldata) {
     Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks;
     BlockBasedImagePerChannel<false> image_data;

@@ -9,7 +9,7 @@
 #else
 #define THREAD_LOCAL_STORAGE thread_local
 #endif
-
+unsigned int NUM_THREADS = 8;
 const char *ExitString(ExitCode ec) {
   FOREACH_EXIT_CODE(GENERATE_EXIT_CODE_RETURN)
   static char data[] = "XXXX_EXIT_CODE_BEYOND_EXIT_CODE_ARRAY";
@@ -131,12 +131,14 @@ void operator delete[] (void* ptr) throw(){
     custom_free(ptr);
 }
 THREAD_LOCAL_STORAGE int l_emergency_close_signal = -1;
-THREAD_LOCAL_STORAGE void (*atexit_f)(void*) = nullptr;
-THREAD_LOCAL_STORAGE void *atexit_arg = nullptr;
-void custom_atexit(void (*atexit)(void*) , void *arg) {
+THREAD_LOCAL_STORAGE void (*atexit_f)(void*, uint64_t) = nullptr;
+THREAD_LOCAL_STORAGE void *atexit_arg0 = nullptr;
+THREAD_LOCAL_STORAGE uint64_t atexit_arg1 = 0;
+void custom_atexit(void (*atexit)(void*, uint64_t) , void *arg0, uint64_t arg1) {
     assert(!atexit_f);
     atexit_f = atexit;
-    atexit_arg = arg;
+    atexit_arg0 = arg0;
+    atexit_arg1 = arg1;
 }
 void close_thread_handle() {
     if (l_emergency_close_signal != -1) {
@@ -163,7 +165,7 @@ void custom_terminate_this_thread(uint8_t exit_code) {
 void custom_exit(ExitCode exit_code) {
     close_thread_handle();
     if (atexit_f) {
-        (*atexit_f)(atexit_arg);
+        (*atexit_f)(atexit_arg0, atexit_arg1);
         atexit_f = nullptr;
     }
     if (exit_code != ExitCode::SUCCESS) {

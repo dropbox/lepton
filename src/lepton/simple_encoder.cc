@@ -15,8 +15,8 @@ SimpleComponentEncoder::SimpleComponentEncoder() {
 }
 CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedComponents *colldata,
                                                        IOUtil::FileWriter *str_out,
-                                                       Sirikata::Array1d<ThreadHandoff,
-                                                                         NUM_THREADS> selected_splits)
+                                                       const ThreadHandoff *selected_splits,
+                                                       unsigned int num_selected_splits)
 {
     // read coefficient data from file
     unsigned int batch_size = 1600;

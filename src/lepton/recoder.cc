@@ -450,7 +450,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         = colldata.get_component_size_in_blocks();
     int mcu_count_vertical = colldata.get_mcu_count_vertical();
     Sirikata::Array1d<BlockBasedImagePerChannel<true>,
-                      NUM_THREADS> framebuffer;
+                      MAX_NUM_THREADS> framebuffer;
 
     for (size_t thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
         for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
@@ -475,14 +475,15 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     std::get<1>(overhang_byte_and_bit_count) = 0;
     std::get<2>(overhang_byte_and_bit_count).memset(0);
     Sirikata::JpegAllocator<uint8_t> alloc;
-    Sirikata::Array1d<Sirikata::BoundedMemWriter, NUM_THREADS - 1> local_buffers;
-    Sirikata::Array1d<abitwriter *, NUM_THREADS> huffws;
-    for (size_t i = 0; i < huffws.size(); ++i) {
+    Sirikata::Array1d<Sirikata::BoundedMemWriter, MAX_NUM_THREADS - 1> local_buffers;
+    Sirikata::Array1d<abitwriter *, MAX_NUM_THREADS> huffws;
+    huffws.memset(0);
+    for (size_t i = 0; i < NUM_THREADS; ++i) {
         huffws[i] = new abitwriter(65536, max_file_size);
     }
 
     if (g_threaded) {
-        for (int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
             int work_size = 0;
             int logical_thread_start, logical_thread_end;
             std::tie(logical_thread_start, logical_thread_end)
@@ -518,7 +519,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                            component_size_in_blocks,
                            0,
                            huffws[0]);
-    for (int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+    for (unsigned int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
         g_decoder->getWorker(physical_thread_id - 1)->main_wait_for_done();
         size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
         if (bytes_to_copy) {

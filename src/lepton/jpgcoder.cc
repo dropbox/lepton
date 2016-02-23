@@ -76,7 +76,7 @@ bool fast_exit = true;
 size_t local_atoi(const char *data);
 namespace TimingHarness {
 
-uint64_t timing[NUM_THREADS][NUM_STAGES] = {{0}};
+uint64_t timing[MAX_NUM_THREADS][NUM_STAGES] = {{0}};
 uint64_t get_time_us(bool force) {
     if (force || !g_use_seccomp) {
         struct timeval val = {0,0};
@@ -93,14 +93,14 @@ void print_results() {
     if (!g_use_seccomp) {
         uint64_t earliest_time = get_time_us();
         for (int i = 0; i < NUM_STAGES; ++i) {
-            for (int j = 0; j < NUM_THREADS; ++j) {
+            for (unsigned int j = 0; j < NUM_THREADS; ++j) {
                 if (timing[j][i] && timing[j][i] < earliest_time) {
                     earliest_time = timing[j][i];
                 }
             }
-        }        
+        }
         for (int i = 0; i < NUM_STAGES; ++i) {
-            for (int j = 0; j < NUM_THREADS; ++j) {
+            for (unsigned int j = 0; j < NUM_THREADS; ++j) {
                 if (timing[j][i]) {
                     fprintf(stderr,
                             "%s\t(%d)\t%f\n",
@@ -341,26 +341,24 @@ int cs_from      =   0  ; // begin - band of current scan ( inclusive )
 int cs_to        =   0  ; // end - band of current scan ( inclusive )
 int cs_sah       =   0  ; // successive approximation bit pos high
 int cs_sal       =   0  ; // successive approximation bit pos low
-void kill_workers(void * workers);
+void kill_workers(void * workers, uint64_t num_workers);
 
-Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* get_worker_threads() {
+GenericWorker * get_worker_threads(unsigned int num_workers) {
+    always_assert(num_workers + 1 == NUM_THREADS);
     if (NUM_THREADS < 2) {
         return NULL;
     }
-    Sirikata::Array1d<GenericWorker,
-                      NUM_THREADS - 1>*generic_workers = new Sirikata::Array1d<GenericWorker,
-                                                                               NUM_THREADS - 1>;
-
+    GenericWorker *retval = new GenericWorker[num_workers];
     TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
-    custom_atexit(kill_workers, generic_workers);
-    return generic_workers;
+    custom_atexit(&kill_workers, retval, num_workers);
+    return retval;
 }
 
 VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
     VP8ComponentDecoder *retval = new VP8ComponentDecoder(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
-        retval->registerWorkers(get_worker_threads());
+        retval->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
     }
     return retval;
 }
@@ -369,7 +367,7 @@ BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
     VP8ComponentEncoder * retval = new VP8ComponentEncoder(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
-        retval->registerWorkers(get_worker_threads());
+        retval->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
     }
     return retval;
 }
@@ -1023,15 +1021,14 @@ void check_decompression_memory_bound_ok() {
 /* -----------------------------------------------
     processes one file
     ----------------------------------------------- */
-void kill_workers(void * workers) {
-    Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = 
-        (Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *) workers;
+void kill_workers(void * workers, uint64_t num_workers) {
+    GenericWorker * generic_workers = (GenericWorker*)workers;
     if (generic_workers) {
-        for (size_t i = 0; i < generic_workers->size(); ++i){
-            if (!generic_workers->at(i).has_ever_queued_work()){
-                generic_workers->at(i).work = &gen_nop;
-                generic_workers->at(i).activate_work();
-                generic_workers->at(i).main_wait_for_done();
+        for (uint64_t i = 0; i < num_workers; ++i){
+            if (!generic_workers[i].has_ever_queued_work()){
+                generic_workers[i].work = &gen_nop;
+                generic_workers[i].activate_work();
+                generic_workers[i].main_wait_for_done();
             }
         }
     }
@@ -1096,27 +1093,15 @@ void process_file(IOUtil::FileReader* reader,
 
 
     if (g_inject_syscall_test == 2) {
-        Sirikata::Array1d<GenericWorker, NUM_THREADS - 1> *generic_workers = NULL;
-        if (NUM_THREADS > 1) {
-            generic_workers = new Sirikata::Array1d<GenericWorker, NUM_THREADS - 1>;
-        }
+        unsigned int num_workers = std::max(NUM_THREADS - 1, 1U);
+        GenericWorker* generic_workers = get_worker_threads(num_workers);
         if (g_inject_syscall_test == 2) {
-            if (NUM_THREADS <= 1) {
-                if (g_use_seccomp) {
-                    Sirikata::installStrictSyscallFilter(true);
-                }
+            for (size_t i = 0; i < num_workers; ++i) {
                 std::atomic<int> value;
                 value.store(0);
-                test_syscall_injection(&value);
-                if (value.load() < 1) {
-                    custom_exit(ExitCode::ASSERTION_FAILURE); // this should exit_group
-                }
-            } else for (size_t i = 0; i < generic_workers->size(); ++i) {
-                std::atomic<int> value;
-                value.store(0);
-                generic_workers->at(i).work = std::bind(&test_syscall_injection, &value);
-                generic_workers->at(i).activate_work();
-                generic_workers->at(i).join_via_syscall();
+                generic_workers[i].work = std::bind(&test_syscall_injection, &value);
+                generic_workers[i].activate_work();
+                generic_workers[i].join_via_syscall();
                 if (value.load() < 1) {
                     abort(); // this should exit_group
                 }
@@ -1152,7 +1137,7 @@ void process_file(IOUtil::FileReader* reader,
                 TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
                 g_decoder = NULL;
             } else if (g_threaded && (action == socketserve || action == forkserve)) {
-                g_encoder->registerWorkers(get_worker_threads());
+                g_encoder->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS  - 1);
             }
         }else if (ofiletype == UJG) {
             g_encoder.reset(new SimpleComponentEncoder);
@@ -1164,7 +1149,7 @@ void process_file(IOUtil::FileReader* reader,
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (g_threaded && (action == socketserve || action == forkserve)) {
-            g_decoder->registerWorkers(get_worker_threads());
+            g_decoder->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
         }
     }else if (filetype == UJG) {
         g_decoder = new SimpleComponentDecoder;
@@ -3182,8 +3167,8 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         }
     }
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
-    Sirikata::Array1d<ThreadHandoff, NUM_THREADS> selected_splits;
-    Sirikata::Array1d<int, NUM_THREADS> split_indices;
+    std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
+    std::vector<int> split_indices(NUM_THREADS);
 #if 0
     for (uint32_t i = 0; i < row_thread_handoffs.size() ; ++ i) {
         fprintf(stderr,
@@ -3200,7 +3185,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                 (int)row_thread_handoffs[i].last_dc[2]);
     }
 #endif
-    for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
+    for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
         if(max_file_size && max_file_size + start_byte < desired_handoff.segment_size) {
             desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
@@ -3220,9 +3205,9 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         }
         split_indices[i] = split - row_thread_handoffs.begin();
     }
-    for (int32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
+    for (uint32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
         if (true || split_indices[index] == split_indices[index + 1]) {
-            for (int32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
+            for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
                 split_indices[i] = (i + 1) * row_thread_handoffs.size() / NUM_THREADS;
             }
             break;
@@ -3292,8 +3277,8 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     unsigned char luma_mrk[1] = {'H'};
     err = mrw.Write( luma_mrk, sizeof(luma_mrk) ).second;
     // data: serialized luma splits
-    auto serialized_splits = ThreadHandoff::serialize(selected_splits);
-    err = mrw.Write(serialized_splits.begin(), serialized_splits.size()).second;
+    auto serialized_splits = ThreadHandoff::serialize(&selected_splits[0], selected_splits.size());
+    err = mrw.Write(&serialized_splits[0], serialized_splits.size()).second;
 
     if (!rst_cnt.empty()) {
         unsigned char frs_mrk[] = {'C', 'R', 'S'};
@@ -3374,7 +3359,8 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     }
     unsigned char cmp_mrk[] = {'C', 'M', 'P'};
     err = ujg_out->Write( cmp_mrk, sizeof(cmp_mrk) ).second;
-    while (g_encoder->encode_chunk(&colldata, ujg_out, selected_splits) == CODING_PARTIAL) {
+    while (g_encoder->encode_chunk(&colldata, ujg_out,
+                                   &selected_splits[0], selected_splits.size()) == CODING_PARTIAL) {
     }
     
     // errormessage if write error

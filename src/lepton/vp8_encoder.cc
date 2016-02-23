@@ -69,10 +69,10 @@ VP8ComponentEncoder::VP8ComponentEncoder(bool do_threading)
 
 CodingReturnValue VP8ComponentEncoder::encode_chunk(const UncompressedComponents *input,
                                                     IOUtil::FileWriter *output,
-                                                    Sirikata::Array1d<ThreadHandoff,
-                                                                      NUM_THREADS> selected_splits)
+                                                    const ThreadHandoff *selected_splits,
+                                                    unsigned int num_selected_splits)
 {
-    return vp8_full_encoder(input, output, selected_splits);
+    return vp8_full_encoder(input, output, selected_splits, num_selected_splits);
 }
 
 template<class Left, class Middle, class Right>
@@ -172,44 +172,6 @@ uint32_t aligned_block_cost(const AlignedBlock &block) {
     return cost;
 }
 
-void pick_luma_splits(const UncompressedComponents *colldata,
-                      int luma_splits[NUM_THREADS]) {
-    int height = colldata->block_height(0);
-    int width = colldata->block_width(0);
-    int mod_by = colldata->min_vertical_luma_multiple();
-    std::vector<uint32_t> row_costs(height);
-    const BlockBasedImage &image = colldata->full_component_nosync(0);
-    for (int i = 0; i < height; ++i) {
-        uint32_t row_cost = 0;
-        for (int j = 0; j < width; ++j) {
-            row_cost += aligned_block_cost(image.raster(i * width + j));
-        }
-        row_costs[i] = row_cost;
-        if (i) {
-            row_costs[i] += row_costs[i-1];
-        }
-    }
-    for (int i = 0; i < NUM_THREADS;++i) {
-        auto split = std::lower_bound(row_costs.begin(), row_costs.end(),
-                                      row_costs.back() * (i + 1) / NUM_THREADS);
-        luma_splits[i] = split - row_costs.begin();
-        if (mod_by == 1 && luma_splits[i] < height) {
-            ++luma_splits[i];
-        }
-        while (luma_splits[i] % mod_by && luma_splits[i] < height) {
-            ++luma_splits[i];
-        }
-    }
-    /*
-    int last = 0;
-    for (int i = 0;i < NUM_THREADS; ++i) {
-        luma_splits[i] = std::min((height * (i + 1) + NUM_THREADS / 2) / NUM_THREADS,
-                                  height);
-        last = luma_splits[i];
-    }
-    */
-    luma_splits[NUM_THREADS - 1] = height; // make sure we're ending at exactly the end
-}
 #ifdef ALLOW_FOUR_COLORS
 #define ProbabilityTablesTuple(left, above, right) \
     ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR0>, \
@@ -258,7 +220,7 @@ tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true, tru
 tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
 tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
 
-void VP8ComponentEncoder::process_row_range(int thread_id,
+void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                                             const UncompressedComponents * const colldata,
                                             int min_y,
                                             int max_y,
@@ -472,11 +434,11 @@ int load_model_file_fd_output() {
 }
 int model_file_fd = load_model_file_fd_output();
 
-const bool dospin = true;
+
 CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedComponents * const colldata,
                                                          IOUtil::FileWriter *str_out,
-                                                         Sirikata::Array1d<ThreadHandoff,
-                                                                           NUM_THREADS> selected_splits)
+                                                         const ThreadHandoff * selected_splits,
+                                                         unsigned int num_selected_splits)
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
@@ -504,39 +466,27 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
         stream[i] = new std::vector<uint8_t>(); // allocate streams as pointers so threads don't modify them inline
     }
-    std::thread*workers[NUM_THREADS] = {};
-    BoolEncoder bool_encoder[NUM_THREADS];
-    Array1d<std::vector<NeighborSummary>, (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros[NUM_THREADS];
-    for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+    BoolEncoder *bool_encoder = new BoolEncoder[NUM_THREADS];
+    Array1d<std::vector<NeighborSummary>,
+            (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros[MAX_NUM_THREADS];
+    for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
         for (size_t i = 0; i < num_nonzeros[thread_id].size(); ++i) {
             num_nonzeros[thread_id].at(i).resize(colldata->block_width(i) << 1);
         }
     }
 
     if (do_threading_) {
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            if (dospin) {
-                spin_workers_->at(thread_id - 1).work
-                    = std::bind(&VP8ComponentEncoder::process_row_range, this,
-                                thread_id,
-                                colldata,
-                                selected_splits[thread_id].luma_y_start,
-                                selected_splits[thread_id].luma_y_end,
-                                stream[thread_id],
-                                &bool_encoder[thread_id],
-                                &num_nonzeros[thread_id]);
-                spin_workers_->at(thread_id - 1).activate_work();
-            } else {
-                workers[thread_id]
-                    = new std::thread(std::bind(&VP8ComponentEncoder::process_row_range, this,
-                                                thread_id,
-                                                colldata,
-                                                selected_splits[thread_id].luma_y_start,
-                                                selected_splits[thread_id].luma_y_end,
-                                                stream[thread_id],
-                                                &bool_encoder[thread_id],
-                                                &num_nonzeros[thread_id]));
-            }
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            spin_workers_[thread_id - 1].work
+                = std::bind(&VP8ComponentEncoder::process_row_range, this,
+                            thread_id,
+                            colldata,
+                            selected_splits[thread_id].luma_y_start,
+                            selected_splits[thread_id].luma_y_end,
+                            stream[thread_id],
+                            &bool_encoder[thread_id],
+                            &num_nonzeros[thread_id]);
+            spin_workers_[thread_id - 1].activate_work();
         }
     }
     process_row_range(0,
@@ -547,7 +497,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                       &bool_encoder[0],
                       &num_nonzeros[0]);
     if(!do_threading_) { // single threading
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             process_row_range(thread_id,
                               colldata,
                               selected_splits[thread_id].luma_y_start,
@@ -557,23 +507,18 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                               &num_nonzeros[thread_id]);
         }
     }
-    static_assert(NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
+    static_assert(MAX_NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
                   "Need to have enough mux streams for all threads and simd width");
 
     if (do_threading_) {
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
-            if (dospin) {
-                spin_workers_->at(thread_id - 1).main_wait_for_done();
-            } else {
-                workers[thread_id]->join();
-                delete workers[thread_id];
-                workers[thread_id] = NULL;
-            }
+            spin_workers_[thread_id - 1].main_wait_for_done();
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
         }
     }
     TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
+    delete [] bool_encoder;
     Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
     size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
     bool any_written = true;

@@ -7,9 +7,9 @@ public:
     SimpleComponentEncoder();
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    IOUtil::FileWriter *,
-                                   Sirikata::Array1d<ThreadHandoff,
-                                                     NUM_THREADS> selected_splits) ;
+                                   const ThreadHandoff* selected_splits,
+                                   unsigned int num_selected_splits) ;
 
-    virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {}
+    virtual void registerWorkers(GenericWorker*, unsigned int num_workers) {}
     ~SimpleComponentEncoder();
 };

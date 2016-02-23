@@ -28,10 +28,8 @@ public:
     }
     static size_t get_remaining_data_size_from_two_bytes(unsigned char input[2]);
     static std::vector<ThreadHandoff> deserialize(const unsigned char *data, size_t max_size);
-    static Sirikata::Array1d<unsigned char,
-                             NUM_THREADS * BYTES_PER_HANDOFF
-                             + 2> serialize(const Sirikata::Array1d<ThreadHandoff,
-                                                                  NUM_THREADS>&data);
+    static std::vector<unsigned char> serialize(const ThreadHandoff * data,
+                                                unsigned int num_threads);
     static std::vector<ThreadHandoff> make_rand(int num_items);
 
     /* combine two ThreadHandoff objects into a range, starting with the initialization

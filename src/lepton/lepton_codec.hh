@@ -33,7 +33,8 @@ protected:
                                                   int component,
                                                   int curr_y);
 
-        CodingReturnValue vp8_decode_thread(int thread_id, UncompressedComponents * const colldata);
+        CodingReturnValue vp8_decode_thread(unsigned int thread_id,
+                                            UncompressedComponents * const colldata);
     private:
         void decode_row_wrapper(BlockBasedImagePerChannel<true>& image_data,
                                 Sirikata::Array1d<uint32_t,
@@ -105,7 +106,7 @@ public:
                             // so set done only when all items in this mcu are really skips
                             // i.e. round down
                         }
-                    }                    
+                    }
                 }
                 if (i == 0) {
                     retval.luma_y = retval.curr_y;
@@ -125,31 +126,40 @@ public:
     }
 protected:
     bool do_threading_;
-    Sirikata::Array1d<GenericWorker,
-                      (NUM_THREADS - 1)>* spin_workers_;
-    std::thread *workers[NUM_THREADS];
-    ThreadState *thread_state_[NUM_THREADS];
+    GenericWorker* spin_workers_;
+    unsigned int num_registered_workers_;
+    Sirikata::Array1d<ThreadState*, MAX_NUM_THREADS> thread_state_;
 
     void reset_thread_model_state(int thread_id) {
-        (&thread_state_[thread_id]->model_)->~ProbabilityTablesBase();
-        new (&thread_state_[thread_id]->model_) ProbabilityTablesBase();
+        (&thread_state_.at(thread_id)->model_)->~ProbabilityTablesBase();
+        new (&thread_state_.at(thread_id)->model_) ProbabilityTablesBase();
     }
-    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {
+    void registerWorkers(GenericWorker* workers, unsigned int num_workers) {
+        always_assert(num_workers < MAX_NUM_THREADS);
+        always_assert(num_workers  + 1 == NUM_THREADS);
+        num_registered_workers_ = num_workers;
         spin_workers_ = workers;
+        for (unsigned int i = 0; i < num_workers + 1 ; ++i) {
+            if (!thread_state_[i]) {
+                thread_state_[i] = new ThreadState;
+                thread_state_[i]->model_.load_probability_tables();
+            }
+        }
     }
     LeptonCodec(bool do_threading) {
+        num_registered_workers_ = 0; // need to wait
         do_threading_ = do_threading;
-        int num_threads = 1;
+        unsigned int num_threads = 1;
         if (do_threading) {
             num_threads = NUM_THREADS;
         }
-        for (int i = 0; i < num_threads; ++i) {
+        for (unsigned int i = 0; i < num_threads; ++i) {
             thread_state_[i] = new ThreadState;
             thread_state_[i]->model_.load_probability_tables();
         }
     }
     ~LeptonCodec() {
-        for (int i = 0; i < NUM_THREADS; ++i) {
+        for (unsigned int i = 0; i < thread_state_.size(); ++i) {
             if (thread_state_[i]) {
                 delete thread_state_[i];
             }

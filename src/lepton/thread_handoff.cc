@@ -43,33 +43,33 @@ size_t ThreadHandoff::get_remaining_data_size_from_two_bytes(unsigned char input
     }
     return input[1] * ThreadHandoff::BYTES_PER_HANDOFF;
 }
-Sirikata::Array1d<unsigned char,
-                  NUM_THREADS * ThreadHandoff::BYTES_PER_HANDOFF
-                  + 2> ThreadHandoff::serialize(const Sirikata::Array1d<ThreadHandoff,
-                                                                      NUM_THREADS>&data) {
-    Sirikata::Array1d<unsigned char,
-                      NUM_THREADS * BYTES_PER_HANDOFF
-                      + 2> retval;
-    retval.memset(0);
-    retval[0] = 'H';
-    retval[1] = NUM_THREADS;
-    for (int i = 0; i < NUM_THREADS; ++i) {
+std::vector<unsigned char> ThreadHandoff::serialize(const ThreadHandoff * data,
+                                                    unsigned int num_threads) {
+    always_assert(num_threads == NUM_THREADS);
+    std::vector<unsigned char> retval;
+    retval.reserve(NUM_THREADS * BYTES_PER_HANDOFF + 2);
+    retval.push_back('H');
+    retval.push_back(num_threads);
+    for (unsigned int i = 0; i < num_threads; ++i) {
         ThreadHandoff th = data[i];
-        Sirikata::Array1d<unsigned char,
-                          BYTES_PER_HANDOFF>::Slice retslice
-            = retval.dynslice<BYTES_PER_HANDOFF>(2 + i * BYTES_PER_HANDOFF);
-        retslice[0] = (th.luma_y_start & 255);
-        retslice[1] = ((th.luma_y_start >> 8) & 255);
-        retslice[2] = (th.segment_size & 255);
-        retslice[3] = ((th.segment_size >> 8) & 255);
-        retslice[4] = ((th.segment_size >> 16) & 255);
-        retslice[5] = ((th.segment_size >> 24) & 255);
-        retslice[6] = th.overhang_byte;
-        retslice[7] = th.num_overhang_bits;
+        retval.push_back(th.luma_y_start & 255);
+        retval.push_back((th.luma_y_start >> 8) & 255);
+        retval.push_back(th.segment_size & 255);
+        retval.push_back((th.segment_size >> 8) & 255);
+        retval.push_back((th.segment_size >> 16) & 255);
+        retval.push_back((th.segment_size >> 24) & 255);
+        retval.push_back(th.overhang_byte);
+        retval.push_back(th.num_overhang_bits);
+        unsigned int dc_values = 0;
         for (unsigned int i = 0; i < sizeof(th.last_dc)/sizeof(th.last_dc[0]); ++i) {
             uint16_t dc = th.last_dc[i]; // this will cast to unsigned
-            retslice[8 + 2 * i] = (dc & 255);
-            retslice[9 + 2 * i] = ((dc >> 8) & 255);
+            retval.push_back(dc & 255);
+            retval.push_back((dc >> 8) & 255);
+            ++dc_values;
+        }
+        for(; dc_values < 4; ++dc_values) {
+            retval.push_back(0);
+            retval.push_back(0);
         }
     }
     return retval;

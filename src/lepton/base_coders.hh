@@ -29,11 +29,11 @@ class BaseDecoder {
     virtual void initialize(Sirikata::DecoderReader *input,
                                 const std::vector<ThreadHandoff>& thread_transition_info) = 0;
     virtual CodingReturnValue decode_chunk(UncompressedComponents*dst) = 0;
-    virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) = 0;
-    virtual GenericWorker* getWorker(int i) = 0;
+    virtual void registerWorkers(GenericWorker * workers, unsigned int num_workers) = 0;
+    virtual GenericWorker* getWorker(unsigned int i) = 0;
     virtual std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                              Sirikata::Array1d<BlockBasedImagePerChannel<true>,
-                                                               NUM_THREADS>& framebuffer) = 0;
+                                                               MAX_NUM_THREADS>& framebuffer) = 0;
     virtual void decode_row(int thread_state_id,
                             BlockBasedImagePerChannel<true>& image_data, // FIXME: set image_data to true
                             Sirikata::Array1d<uint32_t,
@@ -48,13 +48,12 @@ class BaseDecoder {
 class BaseEncoder {
  public:
     virtual ~BaseEncoder(){}
-    virtual void registerWorkers(Sirikata::Array1d<GenericWorker,
-                                                   (NUM_THREADS - 1)>* workers) = 0;
+    virtual void registerWorkers(GenericWorker * workers, unsigned int num_workers) = 0;
 
     virtual CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                            IOUtil::FileWriter *,
-                                           Sirikata::Array1d<ThreadHandoff,
-                                                             NUM_THREADS> selected_splits) = 0;
+                                           const ThreadHandoff * selected_splits,
+                                           unsigned int num_selected_splits) = 0;
 };
 
 #endif

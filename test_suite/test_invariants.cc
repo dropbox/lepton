@@ -276,14 +276,13 @@ void handoff_compare(const std::vector<ThreadHandoff> &a,
 }
 void test_thread_handoff() {
     std::vector<ThreadHandoff> x = ThreadHandoff::make_rand(NUM_THREADS);
-    Sirikata::Array1d<ThreadHandoff, NUM_THREADS> random_handoffs;
-    for (size_t i = 0; i < NUM_THREADS;++i) {
+    Sirikata::Array1d<ThreadHandoff, MAX_NUM_THREADS> random_handoffs;
+    for (size_t i = 0; i < MAX_NUM_THREADS;++i) {
         random_handoffs[i] = x[i];
     }
-    Sirikata::Array1d<unsigned char,
-                      NUM_THREADS * ThreadHandoff::BYTES_PER_HANDOFF
-                      + 2> data = ThreadHandoff::serialize(random_handoffs);
-    std::vector<ThreadHandoff> roundtrip = ThreadHandoff::deserialize(data.begin(), data.size());
+    std::vector<unsigned char> data = ThreadHandoff::serialize(&random_handoffs[0],
+                                                               MAX_NUM_THREADS);
+    std::vector<ThreadHandoff> roundtrip = ThreadHandoff::deserialize(&data[0], data.size());
     handoff_compare(x, roundtrip);
     std::vector<ThreadHandoff> test8;
     {

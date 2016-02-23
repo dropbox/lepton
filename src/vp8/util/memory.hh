@@ -57,7 +57,7 @@ void custom_exit(ExitCode::ExitCode_ exit_code);
 #endif
 #define always_assert(EXPR) always_assert_inner((EXPR), #EXPR, __FILE__, __LINE__)
 void custom_terminate_this_thread(uint8_t exit_code);
-void custom_atexit(void (*atexit)(void*) , void *arg);
+void custom_atexit(void (*atexit)(void*, uint64_t) , void *arg0, uint64_t arg1);
 extern "C" {
 #else
 #include <stdlib.h>

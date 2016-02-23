@@ -16,7 +16,7 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                          Sirikata::Array1d<ConstBlockContext,
                                            (uint32_t)ColorChannel::NumBlockTypes> &context,
                          BoolEncoder &bool_encoder);
-    void process_row_range(int thread_id,
+    void process_row_range(unsigned int thread_id,
                            const UncompressedComponents * const colldata,
                            int min_y,
                            int max_y,
@@ -26,19 +26,20 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
 public:
     VP8ComponentEncoder(bool do_threading);
-    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {
-        this->LeptonCodec::registerWorkers(workers);
+    void registerWorkers(GenericWorker * workers, unsigned int num_workers) {
+        always_assert(num_workers + 1 == NUM_THREADS);
+        this->LeptonCodec::registerWorkers(workers, num_workers);
     }
 
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                         IOUtil::FileWriter *,
-                                        Sirikata::Array1d<ThreadHandoff,
-                                                          NUM_THREADS> selected_splits);
+                                        const ThreadHandoff * selected_splits,
+                                        unsigned int num_selected_splits);
 
     CodingReturnValue encode_chunk(const UncompressedComponents *input,
                                    IOUtil::FileWriter *,
-                                   Sirikata::Array1d<ThreadHandoff,
-                                                          NUM_THREADS> selected_splits);
+                                   const ThreadHandoff * selected_splits,
+                                        unsigned int num_selected_splits);
 
 };
 #endif

@@ -44,7 +44,7 @@ enum TimingStages_ {
     FOREACH_TIMING_STAGE(MAKE_TIMING_STAGE_ENUM)
     NUM_STAGES,
 };
-extern uint64_t timing[NUM_THREADS][NUM_STAGES];
+extern uint64_t timing[MAX_NUM_THREADS][NUM_STAGES];
 extern uint64_t get_time_us(bool force=false);
 void print_results();
 }

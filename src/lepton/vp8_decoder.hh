@@ -33,15 +33,16 @@ public:
         const UncompressedComponents * const colldata,
         // quantization_tables
         Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
-                          NUM_THREADS>& framebuffer); // framebuffer
+                          MAX_NUM_THREADS>& framebuffer); // framebuffer
     virtual std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                              Sirikata::Array1d<BlockBasedImagePerChannel<true>,
-                                                               NUM_THREADS>& framebuffer);
-    void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {
-        this->VP8ComponentEncoder::registerWorkers(workers);
+                                                               MAX_NUM_THREADS>& framebuffer);
+    void registerWorkers(GenericWorker *workers, unsigned int num_workers) {
+        this->VP8ComponentEncoder::registerWorkers(workers, num_workers);
     }
-    GenericWorker *getWorker(int i) {
-        return &spin_workers_->at(i);
+    GenericWorker *getWorker(unsigned int i) {
+        always_assert(i < num_registered_workers_);
+        return &spin_workers_[i];
     }
 
     ~VP8ComponentDecoder();

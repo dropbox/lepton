@@ -18,13 +18,13 @@ public:
                             const std::vector<ThreadHandoff>& thread_transition_info);
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
-    virtual void registerWorkers(Sirikata::Array1d<GenericWorker, (NUM_THREADS - 1)>* workers) {}
-    GenericWorker *getWorker(int i) {
+    virtual void registerWorkers(GenericWorker *, unsigned int num_workers) {}
+    GenericWorker *getWorker(unsigned int i) {
         return NULL;
     }
     std::vector<ThreadHandoff> initialize_baseline_decoder(const UncompressedComponents * const colldata,
                                      Sirikata::Array1d<BlockBasedImagePerChannel<true>,
-                                                       NUM_THREADS>& framebuffer){
+                                                       MAX_NUM_THREADS>& framebuffer){
         return thread_handoffs_;
     }
     void decode_row(int thread_state_id,

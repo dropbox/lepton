@@ -51,7 +51,7 @@ VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
 VP8ComponentDecoder::~VP8ComponentDecoder() {
 }
 
-const bool dospin = true;
+
 #ifdef ALLOW_FOUR_COLORS
 #define ProbabilityTablesTuple(left, above, right) \
     ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR0>, \
@@ -114,13 +114,13 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
 std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
     const UncompressedComponents * const colldata,
     Sirikata::Array1d<BlockBasedImagePerChannel<true>,
-                      NUM_THREADS>& framebuffer) {
+                      MAX_NUM_THREADS>& framebuffer) {
     return initialize_decoder_state(colldata, framebuffer);
 }
 template <bool force_memory_optimized>
 std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
-                                                                     NUM_THREADS>& framebuffer) {
+                                                                     MAX_NUM_THREADS>& framebuffer) {
     if (colldata->get_num_components() > (int)BlockType::Y) {
         ProbabilityTablesBase::set_quantization_table(BlockType::Y,
                                                       colldata->get_quantization_tables(BlockType::Y));
@@ -171,7 +171,7 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
     mux_reader_.fillBufferEntirely(streams_.begin());
     initialize_thread_id(0, 0, framebuffer[0]);
     if (do_threading_) {
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
         }
     }
@@ -194,7 +194,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         for (size_t i = 0; i < framebuffer.size() && int( i ) < colldata->get_num_components(); ++i) {
             framebuffer[i] = &colldata->full_component_write((BlockType)i);
         }
-        Sirikata::Array1d<BlockBasedImagePerChannel<false>, NUM_THREADS> all_framebuffers;
+        Sirikata::Array1d<BlockBasedImagePerChannel<false>, MAX_NUM_THREADS> all_framebuffers;
         for (size_t i = 0; i < all_framebuffers.size(); ++i) {
             all_framebuffers[i] = framebuffer;
         }
@@ -204,21 +204,13 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             return CODING_ERROR;
         }
         if (do_threading_) {
-            for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-                if (dospin) {
-                    spin_workers_->at(thread_id - 1).work
-                        = std::bind(worker_thread,
-                                    thread_state_[thread_id],
-                                    thread_id,
-                                    colldata);
-                    spin_workers_->at(thread_id - 1).activate_work();
-                } else {
-                    workers[thread_id]
-                        = new std::thread(std::bind(worker_thread,
-                                                    thread_state_[thread_id],
-                                                    thread_id,
-                                                    colldata));
-                }
+            for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+                spin_workers_[thread_id - 1].work
+                    = std::bind(worker_thread,
+                                thread_state_[thread_id],
+                                thread_id,
+                                colldata);
+                                spin_workers_[thread_id - 1].activate_work();
             }
         }
     }
@@ -229,21 +221,16 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     }
     TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
     if (do_threading_) {
-        for (int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
-            if (dospin) {
-                spin_workers_->at(thread_id - 1).main_wait_for_done();
-            } else {
-                workers[thread_id]->join();// for now maybe we want to use atomics instead
-                delete workers[thread_id];
-            }
+            spin_workers_[thread_id - 1].main_wait_for_done();
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
         }
         // join on all threads
     } else {
         // wait for "threads"
         virtual_thread_id_ += 1;
-        for (int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
+        for (unsigned int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
             BlockBasedImagePerChannel<false> framebuffer;
             framebuffer.memset(0);
             for (size_t i = 0; i < framebuffer.size() && int( i ) < colldata->get_num_components(); ++i) {
