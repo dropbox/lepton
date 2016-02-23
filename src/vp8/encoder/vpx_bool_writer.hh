@@ -1,3 +1,4 @@
+#include "../util/options.hh"
 #include "boolwriter.hh"
 
 class VPXBoolWriter
@@ -8,12 +9,27 @@ private:
 #ifdef DEBUG_ARICODER
     bool any_written;
 #endif
+    enum {
+         MIN_SIZE = 1024 * 1024
+    };
+    enum {
+        SIZE_CHECK  = 0xfff00000
+    };
 public:
-    VPXBoolWriter() : output_(4096 * 1024 + 1024) {
+    VPXBoolWriter() : output_(std::max((unsigned int)MIN_SIZE,
+                                       std::min((unsigned int)4096 * 1024,
+                                                (unsigned int)(5120 * 1024 / NUM_THREADS)))
+                              + 1024) {
         vpx_start_encode(&boolwriter, output_.data());
 #ifdef DEBUG_ARICODER
         any_written = false;
 #endif
+        static_assert(MIN_SIZE & SIZE_CHECK,
+                      "min size must be caught by the size check, so allocations happen after");
+        static_assert(((MIN_SIZE - 1) & SIZE_CHECK) == 0,
+                      "min size -1 must not be caught by the size check");
+        
+
     }
     void put( const bool value, Branch & branch) {
 #ifdef DEBUG_ARICODER
@@ -25,7 +41,7 @@ public:
         }
 #endif
         vpx_write(&boolwriter, value, branch.prob());
-        if (__builtin_expect(boolwriter.pos & 0xffc00000, false)) {
+        if (__builtin_expect(boolwriter.pos & SIZE_CHECK, false)) {
             // check if we're out of buffer space
             if (boolwriter.pos + 128 > output_.size()) {
                 output_.resize(output_.size() * 2);
