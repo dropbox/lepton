@@ -36,7 +36,7 @@ AC_SUBST([ARCH_FLAGS])
 AC_ARG_ENABLE([sanitize],
   [AS_HELP_STRING([--enable-sanitize],
     [Enable address and undefined-behavior sanitizers @<:@no@:>@])],
-  [NODEBUG_CXXFLAGS="-fsanitize=undefined"],
+  [NODEBUG_CXXFLAGS="-fsanitize=address,undefined"],
   [NODEBUG_CXXFLAGS=""])
 AC_SUBST(SANITIZE_FLAGS)
 

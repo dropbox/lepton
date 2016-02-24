@@ -1001,18 +1001,20 @@ size_t decompression_memory_bound() {
                ? abit_writer
                  + 100 * 1024 // padding
                  + decode_header_needed_size : 0);
-    fprintf(stderr,
-            "Predicted Decompress %ld\nAllocated This Run %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
-            decom_memory_bound,
-            Sirikata::memmgr_size_allocated(),
-            Sirikata::memmgr_total_size_ever_allocated()
-            - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
-            Sirikata::memmgr_size_allocated()
-            - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
-            garbage_augmentation * 2,
-            decode_header_needed_size,
-            bit_writer_augmentation,
-            non_preloaded_mux);
+    if (false) {
+        fprintf(stderr,
+                "Predicted Decompress %ld\nAllocated This Run %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
+                decom_memory_bound,
+                Sirikata::memmgr_size_allocated(),
+                Sirikata::memmgr_total_size_ever_allocated()
+                - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
+                Sirikata::memmgr_size_allocated()
+                - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
+                garbage_augmentation * 2,
+                decode_header_needed_size,
+                bit_writer_augmentation,
+                non_preloaded_mux);
+    }
     return decom_memory_bound;
 }
 
@@ -3225,7 +3227,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     } else if (framebuffer_byte_size < 500000) {
         NUM_THREADS = std::min(4U, (unsigned int)NUM_THREADS);
     }
-    fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
+    //fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
     std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
     std::vector<int> split_indices(NUM_THREADS);
     for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {

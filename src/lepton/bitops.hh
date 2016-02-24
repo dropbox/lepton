@@ -11,9 +11,9 @@
 #define LBITS32( c, n )		( c >> (32 - n) )
 #define MBITS32( c, l, r )	( RBITS32( c,l ) >> r )
 
-#define RBITS64( c, n )		(n == 0 ? 0ULL : ( c & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - n) ) ))
+#define RBITS64( c, n )		(n == 0 ? 0ULL : ( (c) & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - (n)) ) ))
 #define LBITS64( c, n )		( c >> (64 - n) )
-#define MBITS64( c, l, r )	( RBITS64( c,l ) >> r )
+#define MBITS64( c, l, r )	(((r) >= 64) ? 0 : ( RBITS64( c,l ) >> (r) ))
 
 #define BITN( c, n )		( (c >> n) & 0x1 )
 #define FDIV2( v, p )		( ( v < 0 ) ? -( (-v) >> p ) : ( v >> p ) )
@@ -124,9 +124,13 @@ public:
         }
         if ( nbits2 > 0 ) {
             uint64_t tmp = (RBITS64(val2, nbits2));
-            tmp <<= cbit2 - nbits2;
-            buf |= tmp;
-            cbit2 -= nbits2;
+            if (__builtin_expect(cbit2 < nbits2, 0)) {
+                cbit2 = 0;
+            } else {
+                tmp <<= cbit2 - nbits2;
+                buf |= tmp;
+                cbit2 -= nbits2;
+            }
         }
 
 
