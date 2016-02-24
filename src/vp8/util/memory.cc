@@ -40,6 +40,9 @@ void always_assert_inner(bool value, const char * expr, const char * file, int l
 
         }
         fprintf(stderr, "%d)\n", line);
+        if (!g_use_seccomp) {
+            abort();
+        }
         custom_exit(ExitCode::ASSERTION_FAILURE);
     }
 }

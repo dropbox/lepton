@@ -51,7 +51,7 @@ public:
 	~abitwriter( void );
     
     unsigned char* partial_bytewise_flush() {
-        if (__builtin_expect(cbyte2 >= size_bound, 0)) {
+        if (__builtin_expect(bound_reached(), 0)) {
             return data2;
         }
         int partial_byte_bits = (64 - cbit2) & 7;
@@ -69,7 +69,7 @@ public:
         return data2;
     }
     void flush_no_pad() {
-        if (__builtin_expect(cbyte2 >= size_bound, 0)) {
+        if (__builtin_expect(bound_reached(), 0)) {
             return;
         }
         assert(((64 - cbit2) & 7) == 0);
@@ -94,7 +94,7 @@ public:
         unsigned int val2 = val;
         assert(nbits <= 64);
         if ( __builtin_expect(cbyte2 > ( dsize - 16 ), false) ) {
-            if (size_bound && cbyte2 >= size_bound) {
+            if (bound_reached()) {
                 return;
             }
             if (adds < 4096 * 1024) {
@@ -156,6 +156,9 @@ public:
     uint8_t get_num_overhang_bits() {
         return 64 - cbit2;
     }
+    bool bound_reached() const {
+        return cbyte2 >= size_bound && size_bound;
+    }
     uint8_t get_overhang_byte() const {
         assert(cbit2 > 56);
         uint64_t retval = buf;
@@ -189,7 +192,7 @@ public:
         return cbyte2;
     }
     bool no_remainder() const {
-        return cbit2 == 64 || cbyte2 >= size_bound;
+        return cbit2 == 64 || bound_reached();
     }
 	bool error;	
 	unsigned char fillbit;

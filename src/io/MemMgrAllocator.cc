@@ -140,6 +140,10 @@ void setup_memmgr(MemMgrState& memmgr, uint8_t *data, size_t size) {
 }
 void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, size_t num_workers, size_t x_min_pool_alloc_quantas, bool needs_huge_pages)
 {
+#ifdef __APPLE__
+    // in apple, the thread_local storage winds up different when destroying the thread
+    num_workers *= 2;
+#endif
     min_pool_alloc_quantas = x_min_pool_alloc_quantas;
     memmgr_num_memmgrs = num_workers + 1;
     

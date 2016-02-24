@@ -3198,7 +3198,6 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                 "Row [%d - %d], %d size %d overhang byte %d num overhang bits %d  dc %d %d %d\n",
                 (int)row_thread_handoffs[i].luma_y_start,
                 (int)row_thread_handoffs[i].luma_y_end,
-                
                 (int)i,
                 (int)row_thread_handoffs[i].segment_size,
                 (int)row_thread_handoffs[i].overhang_byte,
@@ -3213,16 +3212,12 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     if (num_rows / 2 < NUM_THREADS) {
         NUM_THREADS = std::max(num_rows / 2, 1U);
     }
-    if (framebuffer_byte_size < 20000) {
+    if (framebuffer_byte_size < 125000) {
         NUM_THREADS = 1;
-    } else if (framebuffer_byte_size < 100000) {
-        NUM_THREADS = std::min(2U, (unsigned int)NUM_THREADS);
-    } else if (framebuffer_byte_size < 150000) {
-        NUM_THREADS = std::min(3U, (unsigned int)NUM_THREADS);
     } else if (framebuffer_byte_size < 250000) {
-        NUM_THREADS = std::min(4U, (unsigned int)NUM_THREADS);
+        NUM_THREADS = std::min(2U, (unsigned int)NUM_THREADS);
     } else if (framebuffer_byte_size < 500000) {
-        NUM_THREADS = std::min(6U, (unsigned int)NUM_THREADS);
+        NUM_THREADS = std::min(4U, (unsigned int)NUM_THREADS);
     }
     fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
     std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
