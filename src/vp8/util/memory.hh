@@ -55,7 +55,7 @@ void custom_exit(ExitCode exit_code);
 #else
 void custom_exit(ExitCode::ExitCode_ exit_code);
 #endif
-#define always_assert(EXPR) always_assert_inner((EXPR), #EXPR, __FILE__, __LINE__)
+#define always_assert(EXPR) always_assert_outer((EXPR), #EXPR, __FILE__, __LINE__)
 void custom_terminate_this_thread(uint8_t exit_code);
 void custom_atexit(void (*atexit)(void*, uint64_t) , void *arg0, uint64_t arg1);
 extern "C" {
@@ -64,7 +64,17 @@ extern "C" {
 #include <string.h>
 #include <stdint.h>
 #endif
-void always_assert_inner(bool value, const char * expr, const char * file, int line);
+#if __cplusplus > 199711L
+    [[noreturn]]
+#endif
+void always_assert_exit(bool value, const char * expr, const char * file, int line);
+
+inline void always_assert_outer(bool value, const char * expr, const char * file, int line) {
+    if (__builtin_expect(!value, 0)) {
+        always_assert_exit(value, expr, file, line);
+    }
+}
+
 void* custom_malloc (size_t size);
 void* custom_realloc (void * old, size_t size);
 void custom_free(void* ptr);
