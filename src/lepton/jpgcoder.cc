@@ -232,7 +232,7 @@ int encode_eobrun( abitwriter* huffw, huffCodes* actbl, unsigned int* eobrun );
 int encode_crbits( abitwriter* huffw, abytewriter* storw );
 
 int next_huffcode( abitreader *huffw, huffTree *ctree );
-int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw );
+int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw, int cs_cmpc);
 int next_mcuposn( int* cmp, int* dpos, int* rstw );
 int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun );
 
@@ -2338,7 +2338,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         // check for errors, proceed if no error encountered
                         int old_mcu = mcu;
                         if ( eob < 0 ) sta = -1;
-                        else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw, cs_cmpc);
                         if (mcu % mcuh == 0 && old_mcu !=  mcu) {
                             do_handoff_print = true;
                             //fprintf(stderr, "ROW %d\n", (int)row_handoff.size());
@@ -2379,7 +2379,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         // next mcupos if no error happened
                         int old_mcu = mcu;
                         if ( sta != -1 ) {
-                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw, cs_cmpc);
                         }
                         if (mcu % mcuh == 0 && old_mcu !=  mcu) {
                             do_handoff_print = true;
@@ -2407,7 +2407,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
-                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw, cs_cmpc);
                         if(huffr->eof) {
                             sta = 2;
                             break;
@@ -2453,7 +2453,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                         
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
-                        else sta = next_mcuposn( &cmp, &dpos, &rstw );
+                        else sta = next_mcuposn( &cmp, &dpos, &rstw);
                         mcu = dpos / (hmul * vmul);
                         if (cmp == 0 && (mcu % mcuh == 0) && (dpos %(hmul *vmul) == 0)) {
                             do_handoff_print = true;
@@ -2817,7 +2817,7 @@ bool recode_jpeg( void )
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
-                        else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                        else sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw, cs_cmpc);
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
@@ -2842,7 +2842,7 @@ bool recode_jpeg( void )
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
-                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw, cs_cmpc);
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
@@ -2863,7 +2863,7 @@ bool recode_jpeg( void )
 
                         // next mcupos if no error happened
                         if ( sta != -1 )
-                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw );
+                            sta = next_mcupos( &mcu, &cmp, &csc, &sub, &dpos, &rstw, cs_cmpc);
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
@@ -2897,7 +2897,7 @@ bool recode_jpeg( void )
 
                         // check for errors, proceed if no error encountered
                         if ( eob < 0 ) sta = -1;
-                        else sta = next_mcuposn( &cmp, &dpos, &rstw );
+                        else sta = next_mcuposn( &cmp, &dpos, &rstw);
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
@@ -4211,115 +4211,6 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
     return eob;
 }
 
-int find_aligned_end_64_scalar(const int16_t *block) {
-    int end = 63;
-    while (end && !block[end]) {
-        --end;
-    }
-    return end;
-}
-int find_aligned_end_64_sse41(const int16_t *block) {
-    unsigned int mask = 0;
-    int iter;
-    for (iter = 56; iter >= 0; iter -=8) {
-        __m128i row = _mm_load_si128((__m128i*)(block + iter));
-        __m128i row_cmp = _mm_cmpeq_epi16(row, _mm_setzero_si128());
-        mask = _mm_movemask_epi8(row_cmp);
-        if (mask != 0xffff) {
-            break;
-        }
-    }
-    if (mask == 0xffff) {
-        assert(find_aligned_end_64_scalar(block) == 0);
-        return 0;
-    }
-    unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffff);
-    int retval = iter + ((bitpos >> 1) - 1) ;
-
-    assert(retval == find_aligned_end_64_scalar(block));
-    return retval;
-}
-#ifdef __AVX2__
-int find_aligned_end_64(const int16_t *block) {
-    uint32_t mask = 0;
-    int iter;
-    for (iter = 48; iter >= 0; iter -=16) {
-        __m256i row = _mm256_load_si256((const __m256i*)(const char*)(block + iter));
-        __m256i row_cmp = _mm256_cmpeq_epi16(row, _mm256_setzero_si256());
-        mask = _mm256_movemask_epi8(row_cmp);
-        if (mask != 0xffffffffU) {
-            break;
-        }
-    }
-    if (mask == 0xffffffffU) {
-        assert(find_aligned_end_64_scalar(block) == 0);
-        return 0;
-    }
-    unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffffffffU);
-    int retval = iter + ((bitpos >> 1) - 1) ;
-
-    assert(retval == find_aligned_end_64_scalar(block));
-    return retval;
-}
-#else
-int find_aligned_end_64(const int16_t *block) {
-    return find_aligned_end_64_sse41(block);
-}
-#endif
-/* -----------------------------------------------
-    sequential block encoding routine
-    ----------------------------------------------- */
-int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, short* block )
-{
-    unsigned short n;
-    unsigned char  s;
-    int bpos;
-    int hc;
-    short tmp;
-
-
-    // encode DC
-    tmp = block[ 0 ];
-    s = uint16bit_length(ABS(tmp));
-    n = ENVLI( s, tmp );
-    huffw->write( dctbl->cval[ s ], dctbl->clen[ s ] );
-    huffw->write( n, s );
-    signed z = -1;
-    // encode AC
-    z = 0;
-    int end = find_aligned_end_64(block);
-    for ( bpos = 1; bpos <= end; bpos++ )
-    {
-        // if nonzero is encountered
-        tmp = block[bpos];
-        if (tmp == 0) {
-            ++z;
-            continue;
-        }
-        // vli encode
-        s = nonzero_bit_length(ABS(tmp));
-        n = ENVLI(s, tmp);
-        hc = ( ( (z & 0xf) << 4 ) + s );
-        if (__builtin_expect(z & 0xf0, 0)) {
-            // write remaining zeroes
-            do {
-                huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
-                z -= 16;
-            } while ( z & 0xf0 );
-        }
-        // write to huffman writer
-        huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );
-        huffw->write( n, s );
-        // reset zeroes
-        z = 0;
-    }
-    // write eob if needed
-    if ( end != 63 )
-        huffw->write( actbl->cval[ 0x00 ], actbl->clen[ 0x00 ] );
-
-
-    return end + 1;
-}
 
 
 /* -----------------------------------------------
@@ -4773,60 +4664,6 @@ int next_huffcode( abitreader *huffw, huffTree *ctree )
     return ( node - 256 );
 }
 
-/* -----------------------------------------------
-    calculates next position for MCU
-    ----------------------------------------------- */
-int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw )
-{
-    int sta = 0; // status
-    unsigned int local_mcuh = mcuh;
-    unsigned int local_mcu = *mcu;
-    unsigned int local_cmp = *cmp;
-    unsigned int local_sub;
-    // increment all counts where needed
-    if ( (local_sub = ++(*sub) ) >= (unsigned int)cmpnfo[local_cmp].mbs) {
-        local_sub = (*sub) = 0;
-
-        if ( ( ++(*csc) ) >= cs_cmpc ) {
-            (*csc) = 0;
-            local_cmp = (*cmp) = cs_cmp[ 0 ];
-            local_mcu = ++(*mcu);
-            if ( local_mcu >= (unsigned int)mcuc ) {
-                sta = 2;
-            } else if ( rsti > 0 ){
-                if ( --(*rstw) == 0 ) {
-                    sta = 1;
-                }
-            }
-        }
-        else {
-            local_cmp = (*cmp) = cs_cmp[(*csc)];
-        }
-    }
-    unsigned int sfh = cmpnfo[local_cmp].sfh;
-    unsigned int sfv = cmpnfo[local_cmp].sfv;
-    // get correct position in image ( x & y )
-    if ( sfh > 1 ) { // to fix mcu order
-        unsigned int mcu_o_mcuh = local_mcu / local_mcuh;
-        unsigned int sub_o_sfv = local_sub / sfv;
-        unsigned int mcu_mod_mcuh = local_mcu - mcu_o_mcuh * local_mcuh;
-        unsigned int sub_mod_sfv = local_sub - sub_o_sfv * sfv;
-        unsigned int local_dpos = mcu_o_mcuh * sfh + sub_o_sfv;
-        local_dpos *= cmpnfo[local_cmp].bch;
-        local_dpos += mcu_mod_mcuh * sfv + sub_mod_sfv;
-        *dpos = local_dpos;
-    }
-    else if ( sfv > 1 ) {
-        // simple calculation to speed up things if simple fixing is enough
-        (*dpos) = local_mcu * cmpnfo[local_cmp].mbs + local_sub;
-    }
-    else {
-        // no calculations needed without subsampling
-        (*dpos) = (*mcu);
-    }
-
-    return sta;
-}
 
 
 /* -----------------------------------------------
