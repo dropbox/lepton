@@ -99,14 +99,20 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     }
     /* initialize the bool decoder */
     int index = thread_id;
+    always_assert((size_t)index < streams_.size());
     thread_state_[target_thread_state]->bool_decoder_.init(streams_[index].first != streams_
 [index].second
                                                  ? &*streams_[index].first : nullptr,
                                                  streams_[index].second - streams_[index].first );
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
-    thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_[thread_id].luma_y_start;
-    thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_[thread_id].luma_y_end;
+    if ((size_t)index < thread_handoff_.size()) {
+        thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_[thread_id].luma_y_start;
+        thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_[thread_id].luma_y_end;
+    } else {
+        thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_.back().luma_y_end;
+        thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_.back().luma_y_end;
+    }
     //fprintf(stderr, "tid: %d   %d -> %d\n", thread_id, thread_state_[target_thread_state]->luma_splits_[0],
     //        thread_state_[target_thread_state]->luma_splits_[1]);
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
