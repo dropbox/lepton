@@ -98,14 +98,14 @@ void EofHelper(bool useLazyWrapper) {
     uint32_t offset = 0;
     while(offset<sizeof(testx)) {
         std::pair<uint32_t, JpegError> r = reader.Read(0, testx + offset, sizeof(testx) - offset);
-        assert(r.first > 0);
-        assert(r.second == JpegError::nil());
+        always_assert(r.first > 0);
+        always_assert(r.second == JpegError::nil());
         offset += r.first;
         if (!r.first) {
             return; // ERROR IN TEST;
         }
     }
-    assert(memcmp(testx, &testData[0][0], sizeof(testx)) == 0);
+    always_assert(memcmp(testx, &testData[0][0], sizeof(testx)) == 0);
     offset = 0;
     std::pair<uint32_t, JpegError> expectEof(0, JpegError::nil());
     while(offset<sizeof(testx)) {
@@ -115,15 +115,15 @@ void EofHelper(bool useLazyWrapper) {
             break;
         }
     }
-    assert(offset == 258);
-    assert(expectEof.second == JpegError::errEOF());
+    always_assert(offset == 258);
+    always_assert(expectEof.second == JpegError::errEOF());
     
     uint8_t testy[maxtesty];
     offset = 0;
     while(offset<sizeof(testy)) {
         std::pair<uint32_t, JpegError> r = reader.Read(1, testy + offset, sizeof(testy) - offset);
-        assert(r.first > 0);
-        assert(r.second == JpegError::nil());
+        always_assert(r.first > 0);
+        always_assert(r.second == JpegError::nil());
         offset += r.first;
         if (r.second != JpegError::nil() || !r.first) {
             return; // ERROR IN TEST;
@@ -137,7 +137,7 @@ void EofHelper(bool useLazyWrapper) {
                 }
         }
     }
-    assert(!res);
+    always_assert(!res);
     
 }
 void testEof() {
@@ -198,7 +198,7 @@ void RoundtripHelper(bool useLazyWrapper) {
                                                  amountToWrite).second;
                     (void)err;
                     progress[j] += amountToWrite;
-                    assert(err == JpegError::nil());
+                    always_assert(err == JpegError::nil());
                 }
                 allDone = false;
             }
@@ -206,7 +206,7 @@ void RoundtripHelper(bool useLazyWrapper) {
     }while(!allDone);
     writer.Close();
     for(size_t j = 0; j < sizeof(testData) / sizeof(testData[0]); ++j) {
-        assert(progress[j] == testData[j].size());
+        always_assert(progress[j] == testData[j].size());
         progress[j] = 0;
         roundTrip[j].resize(testData[j].size());
     }
@@ -240,18 +240,18 @@ void RoundtripHelper(bool useLazyWrapper) {
                                                                     &roundTrip[j][progress[j]],
                                                                     amountToRead);
                     for (uint32_t r = 0; r < ret.first; ++r) {
-                        assert(roundTrip[j][progress[j] + r]
+                        always_assert(roundTrip[j][progress[j] + r]
                                == testData[j][progress[j] + r]);
                     }
                     progress[j] += ret.first;
-                    assert(ret.second == JpegError::nil());
+                    always_assert(ret.second == JpegError::nil());
                 }
                 allDone = false;
             }
         }
     }while(!allDone);
     for(size_t j = 0; j < sizeof(testData) / sizeof(testData[0]); ++j) {
-        assert(roundTrip[j] ==
+        always_assert(roundTrip[j] ==
                          testData[j]);
     }
 }
@@ -345,15 +345,15 @@ int main() {
                           256);
     test_thread_handoff();
     for (size_t i = 0; i < karray.size(); ++i) {
-        assert(karray[i] == i);
+        always_assert(karray[i] == i);
     }
     using namespace Sirikata;
     AlignedArray7d<unsigned char, 1,3,2,5,4,6,16> aligned7d;
     uint8_t* d =&aligned7d.at(0, 2, 1, 3, 2, 1, 0);
     *d = 4;
     size_t offset = d - (uint8_t*)nullptr;
-    assert(0 == (offset & 15) && "Must have alignment");
-    assert(aligned7d.at(0, 2, 1, 3, 2, 1, 0) == 4);
+    always_assert(0 == (offset & 15) && "Must have alignment");
+    always_assert(aligned7d.at(0, 2, 1, 3, 2, 1, 0) == 4);
     Array7d<unsigned char, 1,3,2,5,3,3,16> a7;
     uint8_t* d2 =&a7.at(0, 2, 1, 3, 2, 1, 0);
     *d2 = 5;
@@ -361,17 +361,17 @@ int main() {
     if (offset & 15) {
         fprintf(stderr, "Array7d array doesn't require alignment");
     }
-    assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 5);
+    always_assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 5);
     a7.at(0, 2, 1, 3, 2, 1, 1) = 8;
-    assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 8);
+    always_assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 8);
     Array1d<unsigned char, 16>::Slice s = a7.at(0, 2, 1, 3, 2, 1);
     s.at(1) = 16;
-    assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 16);
+    always_assert(a7.at(0, 2, 1, 3, 2, 1, 1) == 16);
     s.at(0) = 6;
-    assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 6);
+    always_assert(a7.at(0, 2, 1, 3, 2, 1, 0) == 6);
     {
         a7.at(0,0,0,0,0,0,0) = 16;
-        assert(a7.at(0,0,0,0,0,0,0) == 16);
+        always_assert(a7.at(0,0,0,0,0,0,0) == 16);
         auto x = a7.at(0);
         auto y = x.at(0);
         auto z = y.at(0);
@@ -379,41 +379,41 @@ int main() {
         auto a = w.at(0);
         auto b = a.at(0);
         b.at(0) = 47;
-        assert(a7.at(0,0,0,0,0,0,0) == 47);
+        always_assert(a7.at(0,0,0,0,0,0,0) == 47);
     }
     podtest(4, a7);
     testEof();
     testRoundtrip();
     for (int i = 0; i < 65536; ++i) {
-        assert(bit_length((uint16_t)i) == uint16bit_length(i));
+        always_assert(bit_length((uint16_t)i) == uint16bit_length(i));
         if (i > 0) {
-            assert(log2((uint16_t)i) == uint16log2(i));
+            always_assert(log2((uint16_t)i) == uint16log2(i));
         }
     }
     for (int denom = 1; denom < 1026; ++denom) {
         for (int num = 256; num < 262144; num += 256) {
-            assert(slow_divide18bit_by_10bit(num, denom) == (unsigned int)num/denom);
-            assert(fast_divide18bit_by_10bit(num, denom) == (unsigned int)num / denom);
+            always_assert(slow_divide18bit_by_10bit(num, denom) == (unsigned int)num/denom);
+            always_assert(fast_divide18bit_by_10bit(num, denom) == (unsigned int)num / denom);
             if (num < 16384) {
-                assert(fast_divide16bit(num, denom) == (unsigned int)num / denom);
+                always_assert(fast_divide16bit(num, denom) == (unsigned int)num / denom);
                 if (denom == 5) {
-                    assert(templ_divide16bit<5>(num) == (unsigned int)num / denom);
+                    always_assert(templ_divide16bit<5>(num) == (unsigned int)num / denom);
                     __m128i retval = divide16bit_vec_signed<5>(_mm_set_epi32(num,(int)-num, -num-1, -num + 1));
                     int ret[4];
                     _mm_storeu_si128((__m128i*)(char *)ret, retval);
-                    assert(ret[3] == num / denom);
-                    assert(ret[2] == -num / denom);
-                    assert(ret[1] == (-num-1)/denom);
-                    assert(ret[0] == (-num + 1) / denom);
+                    always_assert(ret[3] == num / denom);
+                    always_assert(ret[2] == -num / denom);
+                    always_assert(ret[1] == (-num-1)/denom);
+                    always_assert(ret[0] == (-num + 1) / denom);
                 }
                 if (denom == 767) {
                     __m128i retval = divide16bit_vec<767>(_mm_set_epi32(num,num + 1, 0, num * 2));
                     int ret[4];
                     _mm_storeu_si128((__m128i*)(char *)ret, retval);
-                    assert(ret[3] == num / denom);
-                    assert(ret[2] == (1 + num) / denom);
-                    assert(ret[1] == 0);
-                    assert(ret[0] == (num * 2) / denom);
+                    always_assert(ret[3] == num / denom);
+                    always_assert(ret[2] == (1 + num) / denom);
+                    always_assert(ret[1] == 0);
+                    always_assert(ret[0] == (num * 2) / denom);
 
                 }
             }

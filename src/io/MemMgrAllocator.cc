@@ -189,10 +189,10 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
                      worker_thread_pool_size);
         data += worker_thread_pool_size;
     }
-    assert((size_t)(data - (uint8_t*)memmgrs) == total_size);
+    always_assert((size_t)(data - (uint8_t*)memmgrs) == total_size);
     MemMgrState & main_thread_state = get_local_memmgr();
     (void)main_thread_state;
-    assert(main_thread_state.pool_size == main_thread_pool_size);
+    always_assert(main_thread_state.pool_size == main_thread_pool_size);
 }
 size_t memmgr_size_allocated() {
     MemMgrState& memmgr = get_local_memmgr();

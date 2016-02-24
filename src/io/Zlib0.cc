@@ -45,7 +45,7 @@ Zlib0Writer::Zlib0Writer(DecoderWriter * stream, int level){
 }
 
 std::pair<uint32, JpegError> Zlib0Writer::Write(const uint8*data, unsigned int size) {
-    assert(mWritten + size <= mFileSize);
+    always_assert(mWritten + size <= mFileSize);
     mAdler32 = adler32(mAdler32, data, size);
     if (mClosed || mWritten == mFileSize) {
         return std::pair<uint32, JpegError>(0, JpegError::errEOF());
@@ -118,7 +118,7 @@ std::pair<uint32_t, JpegError> Zlib0Writer::writeHeader() {
 }
 /// writes the adler32 sum
 void Zlib0Writer::Close() {
-    assert(mWritten == mFileSize && "Must have written as much as promised");
+    always_assert(mWritten == mFileSize && "Must have written as much as promised");
     uint8_t adler[4] = {static_cast<uint8_t>((mAdler32 >> 24) & 0xff),
                         static_cast<uint8_t>((mAdler32 >> 16) & 0xff),
                         static_cast<uint8_t>((mAdler32 >> 8) & 0xff),

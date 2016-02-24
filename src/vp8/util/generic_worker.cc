@@ -48,7 +48,7 @@ void GenericWorker::wait_for_work() {
             work();
         }
     }else {
-        assert(false);// invariant violated
+        always_assert(false);// invariant violated
     }
     _generic_respond_to_main(sandbox_at_desired_level ? 1 : 2);
     reset_close_thread_handle();
@@ -101,7 +101,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
     work_done_.load();  // enforce memory ordering
 }
 void GenericWorker::_wait_for_child_to_begin() {
-    assert(!child_begun); // make sure this has work to do
+    always_assert(!child_begun); // make sure this has work to do
     _generic_wait(0);
     --work_done_;
     child_begun = true;
@@ -113,6 +113,6 @@ void GenericWorker::join_via_syscall() {
     child_.join();
 }
 void GenericWorker::main_wait_for_done() {
-    assert(new_work_exists_.load()); // make sure this has work to do
+    always_assert(new_work_exists_.load()); // make sure this has work to do
     _generic_wait(1);
 }

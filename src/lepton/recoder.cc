@@ -202,7 +202,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                 lastdc.memset(0);
             }
         }
-        assert(huffw->no_remainder() && "this should have been padded");
+        always_assert(huffw->no_remainder() && "this should have been padded");
     }
     return true;
 }
@@ -403,11 +403,11 @@ void recode_physical_thread(BoundedWriter *stream_out,
         if (logical_thread_id + 1 < num_logical_threads
             && !thread_handoffs[logical_thread_id + 1].is_legacy_mode()) {
             // make sure we computed the same item that was stored
-            assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
-            assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
-            assert(memcmp(outth.last_dc.begin(), thread_handoffs[logical_thread_id + 1].last_dc.begin(), sizeof(outth.last_dc)) == 0);
+            always_assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
+            always_assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
+            always_assert(memcmp(outth.last_dc.begin(), thread_handoffs[logical_thread_id + 1].last_dc.begin(), sizeof(outth.last_dc)) == 0);
             if (physical_thread_id > 0 && stream_out->bytes_written()) { // if 0 are written the bound is not tight
-                assert(stream_out->get_bound() == stream_out->bytes_written());
+                always_assert(stream_out->get_bound() == stream_out->bytes_written());
             }
         }
         th = outth;

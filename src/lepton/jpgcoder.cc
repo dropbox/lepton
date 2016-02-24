@@ -288,7 +288,7 @@ std::vector<unsigned int> rst_cnt;
 bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
 size_t            start_byte       =    0;     // support for producing a slice of jpeg
-
+size_t max_encode_threads = MAX_NUM_THREADS;
 UncompressedComponents colldata; // baseline sorted DCT coefficients
 
 
@@ -832,8 +832,12 @@ int initialize_options( int argc, char** argv )
 
         } else if ( strncmp((*argv), "-timing=", strlen("-timing=") ) == 0 ) {
             timing_log = fopen((*argv) + strlen("-timing="), "a");
-        }
-        else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
+        } else if (strncmp((*argv), "-maxencodethreads=", strlen("-maxencodethreads=") ) == 0 ) {
+            max_encode_threads = local_atoi((*argv) + strlen("-maxencodethreads="));
+            if (max_encode_threads > MAX_NUM_THREADS) {
+                custom_exit(ExitCode::VERSION_UNSUPPORTED);
+            }
+        } else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
             g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
         }
         else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
@@ -1593,6 +1597,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
         str_in = new Sirikata::BufferedReader<JPG_READ_BUFFER_SIZE>(reader);
         // file is JPEG
         filetype = JPEG;
+        NUM_THREADS = std::min(NUM_THREADS, (unsigned int)max_encode_threads);
         // create filenames
         if ( !pipe_on ) {
             if (file_no < file_cnt && ofilename != ifilename) {
@@ -1755,7 +1760,7 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
                         rst_err.push_back(crst);
                         // end of current scan
                         scnc++;
-                        assert(rst_err.size() == (size_t)scnc && "All reset errors must be accounted for");
+                        always_assert(rst_err.size() == (size_t)scnc && "All reset errors must be accounted for");
                         // on with the header parser routines
                         segment[ 0 ] = 0xFF;
                         segment[ 1 ] = tmp;
@@ -3209,6 +3214,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
 #endif
     uint32_t framebuffer_byte_size = row_thread_handoffs.back().segment_size - row_thread_handoffs.front().segment_size;
     uint32_t num_rows = row_thread_handoffs.size();
+    NUM_THREADS = std::min(NUM_THREADS, (unsigned int)max_encode_threads);
     if (num_rows / 2 < NUM_THREADS) {
         NUM_THREADS = std::max(num_rows / 2, 1U);
     }
@@ -3257,7 +3263,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         size_t end_of_range = split_indices[i];
         //fprintf(stderr, "Beginning %ld end %ld\n", beginning_of_range, end_of_range);
         last_split_index = end_of_range;
-        assert( end_of_range < row_thread_handoffs.size() );
+        always_assert( end_of_range < row_thread_handoffs.size() );
         selected_splits[i] = row_thread_handoffs[ end_of_range ] - row_thread_handoffs[ beginning_of_range ];
         if (i + 1 == selected_splits.size() && row_thread_handoffs[ end_of_range ].num_overhang_bits) {
             ++selected_splits[i].segment_size; // need room for that last byte to hold the overhang byte
@@ -3293,7 +3299,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     }
 #endif
 
-    assert(start_byte||!selected_splits[0].luma_y_start);
+    always_assert(start_byte||!selected_splits[0].luma_y_start);
     // write header to file
     // marker: "HDR" + [size of header]
     unsigned char hdr_mrk[] = {'H', 'D', 'R'};
@@ -3451,7 +3457,7 @@ bool read_ujpg( void )
 
     compressed_header_size = LEtoUint32(ujpg_mrk);
     if (compressed_header_size > 128 * 1024 * 1024 || max_file_size > 128 * 1024 * 1024) {
-        assert(false && "Only support images < 128 megs");
+        always_assert(false && "Only support images < 128 megs");
         return false; // bool too big
     }
     std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_header_buffer(compressed_header_size);
@@ -3473,7 +3479,7 @@ bool read_ujpg( void )
                                                          compressed_header_buffer.size(),
                                                            no_free_allocator));
         if (uncompressed_header_buffer.second) {
-            assert(false && "Data not properly zlib coded");
+            always_assert(false && "Data not properly zlib coded");
             return false;
         }
         zlib_hdrs = compressed_header_buffer.size();
@@ -3621,7 +3627,7 @@ bool read_ujpg( void )
     }
     ReadFull(str_in, ujpg_mrk, 3 ) ;
     if (memcmp(ujpg_mrk, "CMP", 3) != 0) {
-        assert(false && "CMP must be present (uncompressed) in the file");
+        always_assert(false && "CMP must be present (uncompressed) in the file");
         return false; // not a JPG
     }
     colldata.signal_worker_should_begin();

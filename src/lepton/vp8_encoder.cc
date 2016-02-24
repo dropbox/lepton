@@ -364,7 +364,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
 #endif
             }
         } else {
-            assert(block_width == 1);
+            always_assert(block_width == 1);
             switch((BlockType)cur_row.component) {
                 case BlockType::Y:
                     process_row(*model,
@@ -558,7 +558,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         }
         str_out->Write(out_buffer, sizeof(out_file_size));
         (void)file_size;
-        assert(str_out->getsize() == file_size);
+        always_assert(str_out->getsize() == file_size);
     }
     
     if ( model_file_fd >= 0 ) {

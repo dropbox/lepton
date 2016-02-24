@@ -291,8 +291,8 @@ public:
         : left_present(in_left_present),
           above_present(in_above_present),
           above_right_present(in_above_right_present) {
-       assert((left_present && above_present && above_right_present) == all_present);
-       assert(kcolor == color);
+       always_assert((left_present && above_present && above_right_present) == all_present);
+       always_assert(kcolor == color);
     }
 #else
     const BlockType COLOR;
@@ -304,7 +304,7 @@ public:
           above_present(in_above_present),
           above_right_present(in_above_right_present),
           COLOR(color) {
-        assert((left_present && right_present && above_right_present) == all_present);
+        always_assert((left_present && right_present && above_right_present) == all_present);
         static_assert((int)deprecated_color == 0, "Using dynamic color");
     }
 #endif

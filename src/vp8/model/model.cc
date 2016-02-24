@@ -163,7 +163,7 @@ template<> void print_helper(const Branch& ba,
     if (ba.true_count() > 0 ||  ba.false_count() > 1) {
         if (is_printable(ba.true_count(), ba.false_count(), ratio, other_ratio, !!other, print_branch_bitmask))
         {
-            assert(names.size() == values.size());
+            always_assert(names.size() == values.size());
             std::cout <<table_name<<"::";
             for (size_t i = 0; i < names.size(); ++i) {
                 std::cout << names[i]<<'['<<values[i]<<']';
@@ -260,7 +260,7 @@ void load_model(Model&model, const char * filename) {
     if (fp) {
         const size_t expected_size = fread(&model, 1, sizeof(model), fp);
         (void)expected_size;
-        assert(sizeof(model) == expected_size && "unexpected model file size.");
+        always_assert(sizeof(model) == expected_size && "unexpected model file size.");
     } else {
         while(write(2, filename, strlen(filename))< 0 && errno == EINTR) {
         }

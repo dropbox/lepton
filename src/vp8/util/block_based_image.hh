@@ -45,10 +45,10 @@ public:
     void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
         theoretical_component_height_ = height;
         if (force_memory_optimization) {
-            assert(memory_optimized_image && "MemoryOptimized must match template");
+            always_assert(memory_optimized_image && "MemoryOptimized must match template");
         }
         memory_optimized_image_ = force_memory_optimization || memory_optimized_image;
-        assert(nblocks <= width * height);
+        always_assert(nblocks <= width * height);
         width_ = width;
         if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
