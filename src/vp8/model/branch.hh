@@ -22,6 +22,9 @@ public:
     counts_[1] = 1;
     probability_ = 128;
   }
+  bool is_identity() const {
+    return counts_[0] == 1 && counts_[1] == 1 && probability_ == 128;
+  }
   static Branch identity() {
     Branch retval;
     retval.set_identity();

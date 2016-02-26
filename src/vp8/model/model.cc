@@ -4,12 +4,56 @@
 #include <fstream>
 #include <iostream>
 
+#include <emmintrin.h>
 #include "model.hh"
-
-void set_branch_range_identity(Branch * start, Branch * end) {
-    for (;start != end; ++start) {
-        start->set_identity();
+bool all_branches_identity(const Branch * start, const Branch * end) {
+    for (const Branch * i = start;i != end; ++i) {
+        if (!i->is_identity()){
+            return false;
+        }
     }
+    return true;
+}
+void set_branch_range_identity(Branch * start, Branch * end) {
+    if (__builtin_expect(end - start <= 64, 0)) {
+        for (;start != end; ++start) {
+            start->set_identity();
+        }
+        return;
+    }
+    for (int i = 0;i < 16; ++i) {
+        start[i].set_identity();
+    }
+    for (int i = 1; i <= 16; ++i) {
+        end[-i].set_identity();
+    }
+    char * data = (char *)(void*)start;
+    __m128i r0 = _mm_loadu_si128((const __m128i*)data);
+    __m128i r1 = _mm_loadu_si128((const __m128i*)(data + 16));
+    __m128i r2 = _mm_loadu_si128((const __m128i*)(data + 32));
+    size_t offset = data - (char*)0;
+    size_t align = 32 - (offset % 32);
+    char * dataend = (char*)end;
+    size_t offsetend = dataend - (char*)0;
+    __m128i *write_end = (__m128i*)(dataend - (offsetend % 32));
+    __m128i *write_cursor = (__m128i*)(data + align);
+    switch(align % 3) {
+        case 1:
+            _mm_store_si128(write_cursor, r1);
+            write_cursor += 1;
+        case 2:
+            _mm_store_si128(write_cursor, r2);
+            write_cursor += 1;
+        case 0:
+            break;
+    }
+    while(write_cursor + 2 < write_end) {
+        _mm_store_si128(write_cursor, r0);
+        _mm_store_si128(write_cursor + 1, r1);
+        _mm_store_si128(write_cursor + 2, r2);
+        write_cursor += 3;
+    }
+    //assert(all_branches_identity(start, end));
 }
 
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64]
