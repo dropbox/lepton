@@ -36,4 +36,10 @@ public:
                     int curr_y);
 
     virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {}
+    size_t get_model_memory_usage() const {
+        return 0;
+    }
+    size_t get_model_worker_memory_usage() const {
+        return 0;
+    }
 };

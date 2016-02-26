@@ -40,6 +40,12 @@ public:
                                    IOUtil::FileWriter *,
                                    const ThreadHandoff * selected_splits,
                                         unsigned int num_selected_splits);
+    size_t get_decode_model_memory_usage() const {
+        return model_memory_used();
+    }
+    size_t get_decode_model_worker_memory_usage() const {
+        return model_worker_memory_used();
+    }
 
 };
 #endif

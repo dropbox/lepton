@@ -12,4 +12,10 @@ public:
 
     virtual void registerWorkers(GenericWorker*, unsigned int num_workers) {}
     ~SimpleComponentEncoder();
+    size_t get_decode_model_memory_usage() const {
+        return 0;
+    }
+    size_t get_decode_model_worker_memory_usage() const {
+        return 0;
+    }
 };

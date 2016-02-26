@@ -44,7 +44,12 @@ public:
         always_assert(i < num_registered_workers_);
         return &spin_workers_[i];
     }
-
+    size_t get_model_memory_usage() const {
+        return model_memory_used();
+    }
+    size_t get_model_worker_memory_usage() const {
+        return model_worker_memory_used();
+    }
     ~VP8ComponentDecoder();
     void initialize(Sirikata::DecoderReader *input,
                     const std::vector<ThreadHandoff>& thread_transition_info);

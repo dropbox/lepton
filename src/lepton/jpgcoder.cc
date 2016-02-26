@@ -950,8 +950,6 @@ size_t decompression_memory_bound() {
         garbage_augmentation |= cur_size;
     }
     garbage_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
-    size_t vp8_bool_excess = NUM_THREADS * 4096 * 1024
-        ;//- ujgfilesize - zlib_hdrs; //VP8BoolEncoder
     int non_preloaded_mux = NUM_THREADS * (1024 * 1024 + 262144);
     size_t decode_header_needed_size = hdrs + zlib_hdrs * 3;
     if (zlib_hdrs && zlib_hdrs * 2 < hdrs) {
@@ -963,9 +961,13 @@ size_t decompression_memory_bound() {
     }
     size_t single_threaded_model_bonus = 0;
     size_t single_threaded_buffer_bonus = 0; //the threads have to save their output to 3/4 of the jpeg before writing it
+    if (g_decoder) {
+        single_threaded_model_bonus += g_decoder->get_model_worker_memory_usage();
+    } else if (g_encoder) {
+        single_threaded_model_bonus += g_encoder->get_decode_model_worker_memory_usage();
+    }
     if (filetype != JPEG && !g_threaded) {
         single_threaded_buffer_bonus += jpgfilesize;
-        single_threaded_model_bonus = (NUM_THREADS - 1) * sizeof(ProbabilityTablesBase);
     }
     size_t abit_writer = 0;
     if (g_allow_progressive) {
@@ -989,18 +991,9 @@ size_t decompression_memory_bound() {
     size_t decom_memory_bound = total
             - current_run_size
             + streaming_buffer_size
-            + single_threaded_model_bonus
-            + single_threaded_buffer_bonus
-            - (filetype == JPEG
-               ? vp8_bool_excess
-                 + bit_writer_augmentation * 2
-                 + garbage_augmentation * 2: 0)
-            + (filetype == JPEG && g_do_preload == false
-               ? non_preloaded_mux : 0)//MuxReader
-            + (filetype == JPEG
-               ? abit_writer
-                 + 100 * 1024 // padding
-                 + decode_header_needed_size : 0);
+            - single_threaded_model_bonus
+            + single_threaded_buffer_bonus;
+    
     if (false) {
         fprintf(stderr,
                 "Predicted Decompress %ld\nAllocated This Run %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",

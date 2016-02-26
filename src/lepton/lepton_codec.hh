@@ -146,6 +146,25 @@ protected:
             }
         }
     }
+    size_t model_worker_memory_used() const {
+        size_t retval = 0;
+        for (size_t i = 1;i < thread_state_.size(); ++i) {
+            if (thread_state_[i]) {
+                retval += sizeof(ProbabilityTablesBase);
+            }
+        }
+        return retval;
+    }
+
+    size_t model_memory_used() const {
+        size_t retval = 0;
+        for (size_t i = 0;i < thread_state_.size(); ++i) {
+            if (thread_state_[i]) {
+                retval += sizeof(ProbabilityTablesBase);
+            }
+        }
+        return retval;
+    }
     LeptonCodec(bool do_threading) {
         num_registered_workers_ = 0; // need to wait
         do_threading_ = do_threading;
@@ -153,6 +172,7 @@ protected:
         if (do_threading) {
             num_threads = NUM_THREADS;
         }
+        always_assert(num_threads <= MAX_NUM_THREADS);
         for (unsigned int i = 0; i < num_threads; ++i) {
             thread_state_[i] = new ThreadState;
             thread_state_[i]->model_.load_probability_tables();

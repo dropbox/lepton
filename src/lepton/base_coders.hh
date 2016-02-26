@@ -41,6 +41,8 @@ class BaseDecoder {
                                               NumBlockTypes> component_size_in_blocks,
                             int component,
                             int curr_y) = 0;
+    virtual size_t get_model_memory_usage() const = 0;
+    virtual size_t get_model_worker_memory_usage() const = 0;
     virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) = 0;
 };
 
@@ -54,6 +56,8 @@ class BaseEncoder {
                                            IOUtil::FileWriter *,
                                            const ThreadHandoff * selected_splits,
                                            unsigned int num_selected_splits) = 0;
+    virtual size_t get_decode_model_memory_usage() const = 0;
+    virtual size_t get_decode_model_worker_memory_usage() const = 0;
 };
 
 #endif
