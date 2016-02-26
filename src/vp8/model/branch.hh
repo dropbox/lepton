@@ -11,12 +11,22 @@ typedef uint8_t Probability;
 class Branch
 {
 private:
-  uint8_t counts_[2] = {1, 1};
-  Probability probability_ = 128;
+  uint8_t counts_[2];
+  Probability probability_;
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
 public:
   Probability prob() const { return probability_; }
+  void set_identity() {
+    counts_[0] = 1;
+    counts_[1] = 1;
+    probability_ = 128;
+  }
+  static Branch identity() {
+    Branch retval;
+    retval.set_identity();
+    return retval;
+  }
   uint32_t true_count() const { return counts_[1]; }
   uint32_t false_count() const { return counts_[0]; }
     struct ProbUpdate {

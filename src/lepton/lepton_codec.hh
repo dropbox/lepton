@@ -131,8 +131,7 @@ protected:
     Sirikata::Array1d<ThreadState*, MAX_NUM_THREADS> thread_state_;
 
     void reset_thread_model_state(int thread_id) {
-        (&thread_state_.at(thread_id)->model_)->~ProbabilityTablesBase();
-        new (&thread_state_.at(thread_id)->model_) ProbabilityTablesBase();
+        thread_state_[thread_id]->model_.model().set_tables_identity();
     }
     void registerWorkers(GenericWorker* workers, unsigned int num_workers) {
         always_assert(num_workers < MAX_NUM_THREADS);
@@ -142,6 +141,7 @@ protected:
         for (unsigned int i = 0; i < num_workers + 1 ; ++i) {
             if (!thread_state_[i]) {
                 thread_state_[i] = new ThreadState;
+                thread_state_[i]->model_.model().set_tables_identity();
                 thread_state_[i]->model_.load_probability_tables();
             }
         }
@@ -175,6 +175,7 @@ protected:
         always_assert(num_threads <= MAX_NUM_THREADS);
         for (unsigned int i = 0; i < num_threads; ++i) {
             thread_state_[i] = new ThreadState;
+            thread_state_[i]->model_.model().set_tables_identity();
             thread_state_[i]->model_.load_probability_tables();
         }
     }

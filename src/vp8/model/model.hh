@@ -30,6 +30,15 @@ constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = MAX_EXPONENT - 1; // the last item of the length is always 1
 
 int get_sum_median_8(int16_t*data16i);
+
+
+template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
+    auto begin = branches.begin();
+    auto end = branches.end();
+    for (;begin != end; ++begin) {
+        begin->set_identity();
+    }
+}
 struct Model
 {
     typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
@@ -84,7 +93,18 @@ typedef Sirikata::Array3d<Branch,
   ExponentCounts7x7 exponent_counts_;
   ExponentCounts8 exponent_counts_x_;
   ExponentCountsDC exponent_counts_dc_;
-
+  void set_tables_identity() {
+      set_branch_array_identity(num_nonzeros_counts_7x7_);
+      set_branch_array_identity(num_nonzeros_counts_1x8_);
+      set_branch_array_identity(num_nonzeros_counts_8x1_);
+      set_branch_array_identity(residual_noise_counts_);
+      set_branch_array_identity(residual_noise_counts_dc_);
+      set_branch_array_identity(residual_threshold_counts_);
+      set_branch_array_identity(exponent_counts_);
+      set_branch_array_identity(exponent_counts_x_);
+      set_branch_array_identity(exponent_counts_dc_);
+      set_branch_array_identity(sign_counts_);
+  }
   typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, NUMERIC_LENGTH_MAX> SignCounts;
   SignCounts sign_counts_;
   

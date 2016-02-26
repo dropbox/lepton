@@ -414,6 +414,18 @@ template <class T,
             }
         }
     }
+    T* begin() {
+        return (T*)data;
+    }
+    const T* begin() const {
+        return (const T*)data;
+    }
+    T* end() {
+        return (T*)data + s0 * s1 * s2;
+    }
+    const T* end() const {
+        return (const T*)data + s0 * s1 * s2;
+    }
 };
 
 
@@ -539,6 +551,19 @@ template <class T,
             }
         }
     }
+    T* begin() {
+      return (T*)data;
+    }
+    const T* begin() const {
+      return (const T*)data;
+    }
+    T* end() {
+      return (T*)data + s0 * s1 * s2 * s3;
+    }
+    const T* end() const {
+      return (const T*)data + s0 * s1 * s2 * s3;
+    }
+
 };
 
 
@@ -682,6 +707,19 @@ template <class T,
             }
         }
     }
+    T* begin() {
+      return (T*)data;
+    }
+    const T* begin() const {
+      return (const T*)data;
+    }
+    T* end() {
+      return (T*)data + s0 * s1 * s2 * s3 * s4;
+    }
+    const T* end() const {
+      return (const T*)data + s0 * s1 * s2 * s3 * s4;
+    }
+
 };
 
 
@@ -853,6 +891,19 @@ template <class T,
             }
         }
     }
+    T* begin() {
+      return (T*)data;
+    }
+    const T* begin() const {
+      return (const T*)data;
+    }
+    T* end() {
+      return (T*)data + s0 * s1 * s2 * s3 * s4 * s5;
+    }
+    const T* end() const {
+      return (const T*)data + s0 * s1 * s2 * s3 * s4 * s5;
+    }
+
 };
 
 template <class T,
@@ -1035,6 +1086,19 @@ template <class T,
             }
         }
     }
+    T* begin() {
+       return (T*)data;
+    }
+    const T* begin() const {
+       return (const T*)data;
+    }
+    T* end() {
+       return (T*)data + s0 * s1 * s2 * s3 * s4 * s5 * s6;
+    }
+    const T* end() const {
+       return (const T*)data + s0 * s1 * s2 * s3 * s4 * s5 * s6;
+    }
+
 };
 
 
