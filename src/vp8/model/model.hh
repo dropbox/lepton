@@ -30,14 +30,12 @@ constexpr unsigned int RESIDUAL_NOISE_FLOOR  = 7;
 constexpr unsigned int COEF_BITS = MAX_EXPONENT - 1; // the last item of the length is always 1
 
 int get_sum_median_8(int16_t*data16i);
-
+void set_branch_range_identity(Branch *start, Branch* end);
 
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
     auto end = branches.end();
-    for (;begin != end; ++begin) {
-        begin->set_identity();
-    }
+    set_branch_range_identity(begin, end);
 }
 struct Model
 {

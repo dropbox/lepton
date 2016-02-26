@@ -5,6 +5,13 @@
 #include <iostream>
 
 #include "model.hh"
+
+void set_branch_range_identity(Branch * start, Branch * end) {
+    for (;start != end; ++start) {
+        start->set_identity();
+    }
+}
+
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64]
     __attribute__ ((aligned (16))) = {{0}};
 
