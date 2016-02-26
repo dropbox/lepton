@@ -1,5 +1,6 @@
 #ifndef _LEPTON_CODEC_HH_
 #define _LEPTON_CODEC_HH_
+#include "jpgcoder.hh"
 #include "model.hh"
 #include "bool_decoder.hh"
 #include "base_coders.hh"
@@ -131,7 +132,13 @@ protected:
     Sirikata::Array1d<ThreadState*, MAX_NUM_THREADS> thread_state_;
 
     void reset_thread_model_state(int thread_id) {
+        TimingHarness::timing[thread_id][TimingHarness::TS_MODEL_INIT_BEGIN] = TimingHarness::get_time_us();
+
+        if (!thread_state_[thread_id]) {
+            thread_state_[thread_id] = new ThreadState;
+        }
         thread_state_[thread_id]->model_.model().set_tables_identity();
+        TimingHarness::timing[thread_id][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     }
     void registerWorkers(GenericWorker* workers, unsigned int num_workers) {
         always_assert(num_workers < MAX_NUM_THREADS);
@@ -140,9 +147,9 @@ protected:
         spin_workers_ = workers;
         for (unsigned int i = 0; i < num_workers + 1 ; ++i) {
             if (!thread_state_[i]) {
-                thread_state_[i] = new ThreadState;
-                thread_state_[i]->model_.model().set_tables_identity();
-                thread_state_[i]->model_.load_probability_tables();
+                //thread_state_[i] = new ThreadState;
+                //thread_state_[i]->model_.model().set_tables_identity();
+                //thread_state_[i]->model_.load_probability_tables();
             }
         }
     }
@@ -173,10 +180,12 @@ protected:
             num_threads = NUM_THREADS;
         }
         always_assert(num_threads <= MAX_NUM_THREADS);
+        
         for (unsigned int i = 0; i < num_threads; ++i) {
-            thread_state_[i] = new ThreadState;
-            thread_state_[i]->model_.model().set_tables_identity();
-            thread_state_[i]->model_.load_probability_tables();
+
+            //thread_state_[i] = new ThreadState;
+            //thread_state_[i]->model_.model().set_tables_identity();
+            //thread_state_[i]->model_.load_probability_tables();
         }
     }
     ~LeptonCodec() {

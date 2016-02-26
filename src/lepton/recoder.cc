@@ -556,9 +556,9 @@ void recode_physical_thread(BoundedWriter *stream_out,
             assert(th.num_overhang_bits == thread_handoffs[logical_thread_id].num_overhang_bits);
             th = thread_handoffs[logical_thread_id];
         }
-        if (logical_thread_id != physical_thread_id) {
-            g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
-        }
+        //if (logical_thread_id != physical_thread_id) {
+        g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
+        //}
         ThreadHandoff outth = recode_row_range(stream_out,
                                                framebuffer,
                                                mcuv,

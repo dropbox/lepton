@@ -238,11 +238,13 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
     }
     uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
     memset(is_top_row, true, sizeof(is_top_row));
-    ProbabilityTablesBase *model = &thread_state_[0]->model_;
+    ProbabilityTablesBase *model = nullptr;
     if (do_threading_) {
+        reset_thread_model_state(thread_id);
         model = &thread_state_[thread_id]->model_;
     } else {
         reset_thread_model_state(0);
+        model = &thread_state_[0]->model_;
     }
     KBlockBasedImagePerChannel<false> image_data;
     for (int i = 0; i < colldata->get_num_components(); ++i) {

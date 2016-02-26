@@ -1,5 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-
+#ifndef _JPGCODER_HH_
+#define _JPGCODER_HH_
 #include <atomic>
 #include <functional>
 #include "../vp8/util/options.hh"
@@ -20,6 +21,7 @@ void check_decompression_memory_bound_ok();
 namespace TimingHarness {
 #define FOREACH_TIMING_STAGE(CB) \
     CB(TS_MAIN) \
+    CB(TS_MODEL_INIT_BEGIN) \
     CB(TS_MODEL_INIT) \
     CB(TS_ACCEPT) \
     CB(TS_THREAD_STARTED) \
@@ -48,3 +50,4 @@ extern uint64_t timing[MAX_NUM_THREADS][NUM_STAGES];
 extern uint64_t get_time_us(bool force=false);
 void print_results();
 }
+#endif

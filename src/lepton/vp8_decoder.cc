@@ -39,8 +39,8 @@ void VP8ComponentDecoder::decode_row(int target_thread_id,
 VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
     : VP8ComponentEncoder(do_threading),
       mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
-                  4,
-                  1024 * 1024 + 262144) {
+                  8,
+                  512 * 1024 + 131072) {
     if (do_threading) {
         virtual_thread_id_ = -1; // only using real threads here
     } else {
@@ -85,9 +85,9 @@ template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
-    if (thread_id != target_thread_state) {
+    //if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
-    }
+    //}
     thread_state_[target_thread_state]->decode_index_ = 0;
     for (unsigned int i = 0; i < framebuffer.size(); ++i) {
         if (framebuffer[i] != NULL)  {
@@ -175,10 +175,10 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
     }
     /* read entire chunk into memory */
     mux_reader_.fillBufferEntirely(streams_.begin());
-    initialize_thread_id(0, 0, framebuffer[0]);
+    //initialize_thread_id(0, 0, framebuffer[0]);
     if (do_threading_) {
         for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
+            //initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
         }
     }
     if (thread_handoff_.size()) {

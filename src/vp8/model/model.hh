@@ -36,6 +36,10 @@ template <class BranchArray> void set_branch_array_identity(BranchArray &branche
     auto begin = branches.begin();
     auto end = branches.end();
     set_branch_range_identity(begin, end);
+    /*
+    for (;false&&begin != end; ++begin) {
+        begin->set_identity();
+    }*/
 }
 struct Model
 {

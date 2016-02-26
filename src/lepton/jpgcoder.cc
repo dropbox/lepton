@@ -365,6 +365,7 @@ VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
 }
 
 BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
+    TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT_BEGIN] = TimingHarness::get_time_us();
     VP8ComponentEncoder * retval = new VP8ComponentEncoder(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
@@ -610,7 +611,7 @@ int main( int argc, char** argv )
 {
     TimingHarness::timing[0][TimingHarness::TS_MAIN]
         = TimingHarness::get_time_us(true);
-    size_t thread_mem_limit = 8192;
+    size_t thread_mem_limit = 3 * 1024 * 1024;//8192;
     size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1);
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
