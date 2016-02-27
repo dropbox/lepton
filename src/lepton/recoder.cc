@@ -540,6 +540,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
         = logical_thread_range_from_physical_thread_id(physical_thread_id, num_logical_threads);
     ThreadHandoff th = thread_handoffs[logical_thread_start];
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
+        TimingHarness::timing[logical_thread_id % MAX_NUM_THREADS][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
 
         if (thread_handoffs[logical_thread_id].is_legacy_mode()) {
             if (logical_thread_id == logical_thread_start) {
@@ -579,6 +580,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
             }
         }
         th = outth;
+        TimingHarness::timing[logical_thread_id % MAX_NUM_THREADS][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
     }
 }
 void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,
@@ -692,14 +694,21 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                            component_size_in_blocks,
                            0,
                            huffws[0]);
+    TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
     for (unsigned int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
+
         g_decoder->getWorker(physical_thread_id - 1)->main_wait_for_done();
+        TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] =
+            TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
         size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
         if (bytes_to_copy) {
             local_bound -= bytes_to_copy;
             str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
                            bytes_to_copy);
         }
+        TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
+
     }
     if (!rst_err.empty()) {
 
@@ -731,6 +740,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         str_out->write( grbgdata, grbs );
     check_decompression_memory_bound_ok();
     str_out->flush();
+    TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
 
     // errormessage if write error
     if ( str_out->chkerr() ) {
