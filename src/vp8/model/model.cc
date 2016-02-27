@@ -21,6 +21,41 @@ void set_branch_range_identity(Branch * start, Branch * end) {
         }
         return;
     }
+#if __AVX__
+    for (int i = 0;i < 32; ++i) {
+        start[i].set_identity();
+    }
+    for (int i = 1; i <= 32; ++i) {
+        end[-i].set_identity();
+    }
+    char * data = (char *)(void*)start;
+    __m256i r0 = _mm256_loadu_si256((const __m256i*)data);
+    __m256i r1 = _mm256_loadu_si256((const __m256i*)(data + 32));
+    __m256i r2 = _mm256_loadu_si256((const __m256i*)(data + 64));
+    size_t offset = data - (char*)0;
+    size_t align = 32 - (offset % 32);
+    char * dataend = (char*)end;
+    size_t offsetend = dataend - (char*)0;
+    __m256i *write_end = (__m256i*)(dataend - (offsetend % 32));
+    __m256i *write_cursor = (__m256i*)(data + align);
+    switch(align % 3) {
+        case 2:
+            _mm256_store_si256(write_cursor, r1);
+            write_cursor += 1;
+        case 1:
+            _mm256_store_si256(write_cursor, r2);
+            write_cursor += 1;
+        case 0:
+            break;
+    }
+    while(write_cursor + 2 < write_end) {
+        _mm256_store_si256(write_cursor, r0);
+        _mm256_store_si256(write_cursor + 1, r1);
+        _mm256_store_si256(write_cursor + 2, r2);
+        write_cursor += 3;
+    }
+
+#else
     for (int i = 0;i < 16; ++i) {
         start[i].set_identity();
     }
@@ -32,10 +67,10 @@ void set_branch_range_identity(Branch * start, Branch * end) {
     __m128i r1 = _mm_loadu_si128((const __m128i*)(data + 16));
     __m128i r2 = _mm_loadu_si128((const __m128i*)(data + 32));
     size_t offset = data - (char*)0;
-    size_t align = 32 - (offset % 32);
+    size_t align = 16 - (offset % 16);
     char * dataend = (char*)end;
     size_t offsetend = dataend - (char*)0;
-    __m128i *write_end = (__m128i*)(dataend - (offsetend % 32));
+    __m128i *write_end = (__m128i*)(dataend - (offsetend % 16));
     __m128i *write_cursor = (__m128i*)(data + align);
     switch(align % 3) {
         case 1:
@@ -53,7 +88,8 @@ void set_branch_range_identity(Branch * start, Branch * end) {
         _mm_store_si128(write_cursor + 2, r2);
         write_cursor += 3;
     }
-    //assert(all_branches_identity(start, end));
+#endif
+    assert(all_branches_identity(start, end));
 }
 
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64]

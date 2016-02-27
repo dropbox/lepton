@@ -206,6 +206,12 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         size_t num_threads_needed = initialize_decoder_state(colldata,
                                                              all_framebuffers).size();
+        for (size_t i = 0;i < num_threads_needed; ++i) {
+            initialize_thread_id(i, i, framebuffer);
+            if (!do_threading_) {
+                break;
+            }
+        }
         if (num_threads_needed > NUM_THREADS || num_threads_needed == 0) {
             return CODING_ERROR;
         }
