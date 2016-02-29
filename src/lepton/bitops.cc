@@ -33,15 +33,12 @@ void compute_md5(const char * filename, unsigned char *result) {
 	----------------------------------------------- */	
 
 abitreader::abitreader( unsigned char* array, int size )
-    : debug_writer( size, std::numeric_limits<int>::max()/2 ) /* abitwriter constructor
-                                                                 adds 8, meaning max value
-                                                                 would become negative */
 {
     cbyte2 = 0;
     cbit2 = 0;
     data2 = array;
 	eof = false;
-	lbyte = size;	
+	lbyte = size;
 }
 
 /* -----------------------------------------------
