@@ -222,7 +222,22 @@ public:
     {
         debug_writer.partial_bytewise_flush();
         debug_writer.reset_crystallized_bytes();
-        return { debug_writer.get_num_overhang_bits(), debug_writer.get_overhang_byte() };
+        std::pair<uint8_t, uint8_t> ret = { debug_writer.get_num_overhang_bits(), debug_writer.get_overhang_byte() };
+        uint64_t selected_byte = htobe64(buf);
+        int rem = ((64 - cbit2) & 7);
+        if (rem != 64) {
+            selected_byte >>= (64 - cbit2) - rem;
+        }
+        uint8_t selected_bits = (uint8_t)selected_byte;
+        selected_bits &= (((1 << rem) - 1) << (8 - rem));
+        /*
+        fprintf(stderr, "%llx >> %d = %llx -> %llx :: (%d) vs %x, %x\n",
+                htobe64(buf), (64 - cbit2) - rem,tmp,(tmp & (((1 << rem) - 1) << (8 - rem))),
+                rem, (int)ret.first, (int)ret.second);
+        */
+        assert(ret.second == selected_bits);
+        assert(ret.first == rem);
+        return ret;
     }
 private:
 	unsigned int read_internal( int nbits ) {
