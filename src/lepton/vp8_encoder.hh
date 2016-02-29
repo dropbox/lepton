@@ -4,6 +4,7 @@
 #include "base_coders.hh"
 #include "lepton_codec.hh"
 #include "model.hh"
+#include "../io/MuxReader.hh"
 class BoolEncoder;
 class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
     template<class Left, class Middle, class Right>
@@ -20,7 +21,7 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                            const UncompressedComponents * const colldata,
                            int min_y,
                            int max_y,
-                           std::vector<uint8_t> *stream,
+                           Sirikata::MuxReader::ResizableByteBuffer *stream,
                            BoolEncoder *bool_encoder,
                            Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);

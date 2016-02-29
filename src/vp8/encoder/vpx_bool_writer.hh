@@ -1,11 +1,11 @@
 #include "../util/options.hh"
 #include "boolwriter.hh"
-
+#include "../../io/MuxReader.hh"
 class VPXBoolWriter
 {
 private:
     vpx_writer boolwriter;
-    std::vector<uint8_t> output_;
+    Sirikata::MuxReader::ResizableByteBuffer output_;
 #ifdef DEBUG_ARICODER
     bool any_written;
 #endif
@@ -16,11 +16,7 @@ private:
         SIZE_CHECK  = 0xfff00000
     };
 public:
-    VPXBoolWriter() : output_(std::max((unsigned int)MIN_SIZE,
-                                       std::min((unsigned int)4096 * 1024,
-                                                (unsigned int)(5120 * 1024 / NUM_THREADS)))
-                              + 1024) {
-        vpx_start_encode(&boolwriter, output_.data());
+  VPXBoolWriter() {
 #ifdef DEBUG_ARICODER
         any_written = false;
 #endif
@@ -30,6 +26,16 @@ public:
                       "min size -1 must not be caught by the size check");
         
 
+    }
+    void init () {
+#ifdef DEBUG_ARICODER
+        always_assert(!any_written);
+#endif
+	output_.resize((std::max((unsigned int)MIN_SIZE,
+                                 std::min((unsigned int)4096 * 1024,
+                                          (unsigned int)(5120 * 1024 / NUM_THREADS))))
+		       + 1024);
+        vpx_start_encode(&boolwriter, output_.data());
     }
     void put( const bool value, Branch & branch) {
 #ifdef DEBUG_ARICODER
@@ -50,7 +56,7 @@ public:
         }
         branch.record_obs_and_update(value);
     }
-    void finish(std::vector<uint8_t> &finish) {
+    void finish(Sirikata::MuxReader::ResizableByteBuffer &finish) {
         vpx_stop_encode(&boolwriter);
         output_.resize(boolwriter.pos);
         finish.swap(output_);

@@ -20,6 +20,7 @@
 #include "../io/MuxReader.hh"
 
 using namespace std;
+typedef Sirikata::MuxReader::ResizableByteBuffer ResizableByteBuffer;
 void printContext(FILE * fp) {
     for (int cm= 0;cm< 3;++cm) {
         for (int y = 0;y < Context::H/8; ++y) {
@@ -224,7 +225,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                                             const UncompressedComponents * const colldata,
                                             int min_y,
                                             int max_y,
-                                            std::vector<uint8_t> *stream,
+                                            ResizableByteBuffer *stream,
                                             BoolEncoder *bool_encoder,
                                             Sirikata::Array1d<std::vector<NeighborSummary>,
                                                               (uint32_t)ColorChannel::NumBlockTypes
@@ -464,14 +465,12 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     }
 #endif
     
-    std::vector<uint8_t>* stream[MuxReader::MAX_STREAM_ID];
-    for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
-        stream[i] = new std::vector<uint8_t>(); // allocate streams as pointers so threads don't modify them inline
-    }
-    BoolEncoder *bool_encoder = new BoolEncoder[NUM_THREADS];
+    ResizableByteBuffer stream[MuxReader::MAX_STREAM_ID];
+    BoolEncoder bool_encoder[MAX_NUM_THREADS];
     Array1d<std::vector<NeighborSummary>,
             (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros[MAX_NUM_THREADS];
     for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+        bool_encoder[thread_id].init();
         for (size_t i = 0; i < num_nonzeros[thread_id].size(); ++i) {
             num_nonzeros[thread_id].at(i).resize(colldata->block_width(i) << 1);
         }
@@ -485,7 +484,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                             colldata,
                             selected_splits[thread_id].luma_y_start,
                             selected_splits[thread_id].luma_y_end,
-                            stream[thread_id],
+                            &stream[thread_id],
                             &bool_encoder[thread_id],
                             &num_nonzeros[thread_id]);
             spin_workers_[thread_id - 1].activate_work();
@@ -495,7 +494,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                       colldata,
                       selected_splits[0].luma_y_start,
                       selected_splits[0].luma_y_end,
-                      stream[0],
+                      &stream[0],
                       &bool_encoder[0],
                       &num_nonzeros[0]);
     if(!do_threading_) { // single threading
@@ -504,7 +503,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                               colldata,
                               selected_splits[thread_id].luma_y_start,
                               selected_splits[thread_id].luma_y_end,
-                              stream[thread_id],
+                              &stream[thread_id],
                               &bool_encoder[thread_id],
                               &num_nonzeros[thread_id]);
         }
@@ -520,14 +519,14 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         }
     }
     TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
-    delete [] bool_encoder;
+
     Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
     size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
     bool any_written = true;
     while (any_written) {
         any_written = false;
         for (int i = 0; i < MuxReader::MAX_STREAM_ID; ++i) {
-            if (stream[i]->size() > stream_data_offset[i]) {
+            if (stream[i].size() > stream_data_offset[i]) {
                 any_written = true;
                 size_t max_written = 65536;
                 if (stream_data_offset[i] == 0) {
@@ -535,16 +534,13 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                 } else if (stream_data_offset[i] == 256) {
                     max_written = 4096;
                 }
-                auto to_write = std::min(max_written, stream[i]->size() - stream_data_offset[i]);
-                stream_data_offset[i] += mux_writer.Write(i, &(*stream[i])[stream_data_offset[i]], to_write).first;
+                auto to_write = std::min(max_written, stream[i].size() - stream_data_offset[i]);
+                stream_data_offset[i] += mux_writer.Write(i, &(stream[i])[stream_data_offset[i]], to_write).first;
             }
         }
     }
     mux_writer.Close();
     // we can probably exit(0) here
-    for (int i = 0 ; i < MuxReader::MAX_STREAM_ID; ++i) {
-        delete stream[i]; // allocate streams as pointers so threads don't modify them inline
-    }
     TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] =
         TimingHarness::timing[0][TimingHarness::TS_STREAM_FLUSH_STARTED] = TimingHarness::get_time_us();
     check_decompression_memory_bound_ok(); // this has to happen before last
