@@ -87,8 +87,10 @@ MemMgrState *memmgrs = NULL;
 size_t memmgr_bytes_allocated = 0;
 #if __cplusplus <= 199711L
 AtomicValue<size_t> bytes_currently_used(0);
+AtomicValue<size_t> bytes_ever_allocated(0);
 #else
 std::atomic<size_t> bytes_currently_used(0);
+std::atomic<size_t> bytes_ever_allocated(0);
 #endif
 THREAD_LOCAL_STORAGE int memmgr_thread_id_plus_one = 0;
 #if __cplusplus <= 199711L
@@ -208,8 +210,7 @@ size_t memmgr_size_left() {
   return memmgr.pool_size - memmgr.pool_free_pos;
 }
 size_t memmgr_total_size_ever_allocated() {
-  MemMgrState& memmgr = get_local_memmgr();
-  return memmgr.total_ever_allocated;
+  return bytes_ever_allocated.load();
 }
 
 void memmgr_print_stats()
@@ -327,6 +328,8 @@ void* memmgr_alloc(size_t nuint8_ts)
     //
     size_t nquantas = (nuint8_ts + sizeof(mem_header_t) - 1) / sizeof(mem_header_t) + 1;
     memmgr.total_ever_allocated += std::max(nquantas, min_pool_alloc_quantas)
+      * sizeof(mem_header_t);
+    bytes_ever_allocated += std::max(nquantas, min_pool_alloc_quantas)
       * sizeof(mem_header_t);
     //fprintf(stderr, "A %ld\n", std::max(nquantas, min_pool_alloc_quantas) * sizeof(mem_header_t));
     // First alloc call, and no free list yet ? Use 'base' for an initial

@@ -913,7 +913,7 @@ int initialize_options( int argc, char** argv )
     return max_file_size;
 }
 size_t decompression_memory_bound() {
-    if (ofiletype == UJG) {
+    if (ofiletype == UJG || filetype == UJG) {
         return 0;
     }
     size_t cumulative_buffer_size = 0;
@@ -951,7 +951,7 @@ size_t decompression_memory_bound() {
         garbage_augmentation |= cur_size;
     }
     garbage_augmentation += 1; // this is used to compute the buffer size of the abit_writer for writing
-    int non_preloaded_mux = NUM_THREADS * (1024 * 1024 + 262144);
+    int non_preloaded_mux = 4096 * 1024 + 131072; // only 1 thread hence only one extra 131072
     size_t decode_header_needed_size = hdrs + zlib_hdrs * 3;
     if (zlib_hdrs && zlib_hdrs * 2 < hdrs) {
         size_t doubled = zlib_hdrs * 2;
@@ -994,16 +994,21 @@ size_t decompression_memory_bound() {
             + streaming_buffer_size
             - single_threaded_model_bonus
             + single_threaded_buffer_bonus;
-    
+    if (filetype == JPEG) {
+        decom_memory_bound = streaming_buffer_size
+            + abit_writer + jpgfilesize + sizeof(ProbabilityTablesBase)
+            + garbage_augmentation + decode_header_needed_size + non_preloaded_mux;
+    }
     if (true) {
         fprintf(stderr,
-                "Predicted Decompress %ld\nAllocated This Run %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
+                "Predicted Decompress %ld\nAllocated This Run %ld vs Max allocated %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
                 decom_memory_bound,
                 Sirikata::memmgr_size_allocated(),
-                Sirikata::memmgr_total_size_ever_allocated()
-                - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
-                Sirikata::memmgr_size_allocated()
-                - current_run_size + streaming_buffer_size + single_threaded_model_bonus,
+                Sirikata::memmgr_total_size_ever_allocated(),
+                Sirikata::memmgr_total_size_ever_allocated() - current_run_size
+                    + streaming_buffer_size + single_threaded_model_bonus,
+                Sirikata::memmgr_size_allocated() - current_run_size
+                    + streaming_buffer_size + single_threaded_model_bonus,
                 garbage_augmentation * 2,
                 decode_header_needed_size,
                 bit_writer_augmentation,
