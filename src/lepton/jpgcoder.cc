@@ -647,9 +647,11 @@ int main( int argc, char** argv )
 
     // the system needs 33 megs of ram ontop of the uncompressed image buffer.
     // This adds a few extra megs just to keep things real
-    UncompressedComponents::max_number_of_blocks =
-        (mem_limit - 36 * 1024 * 1024)
-         / (sizeof(uint16_t) * 64);
+    UncompressedComponents::max_number_of_blocks = ( mem_limit / 4 ) * 3;
+    if (mem_limit > 48 * 1024 * 1024) {
+        UncompressedComponents::max_number_of_blocks = mem_limit - 36 * 1024 * 1024;
+    }
+    UncompressedComponents::max_number_of_blocks /= (sizeof(uint16_t) * 64);
     int n_threads = MAX_NUM_THREADS - 1;
 #ifndef __linux
     n_threads += 4;
