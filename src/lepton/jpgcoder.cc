@@ -1544,7 +1544,13 @@ unsigned char read_fixed_ujpg_header() {
             appname, header[ 0 ] / 10, header[ 0 ] % 10 );
         custom_exit(ExitCode::VERSION_UNSUPPORTED);
     }
-    unsigned char num_threads_hint = header[1];
+    if (header[1] != 'Z') {
+        char err[] = "X: Unknown Item in header instead of Z";
+        err[0] = header[1];
+        while(write(2, err, sizeof(err) - 1) < 0 && errno == EINTR) {
+        }
+    }
+    unsigned char num_threads_hint = header[2];
     always_assert(num_threads_hint != 0);
     if (num_threads_hint < NUM_THREADS && num_threads_hint != 0) {
         NUM_THREADS = num_threads_hint;
@@ -3386,10 +3392,12 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                                                              Sirikata::JpegAllocator<uint8_t>());
     static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
     always_assert(NUM_THREADS <= 255);
+    unsigned char zed[] = {(unsigned char)'Z'};
+    err =  ujg_out->Write(zed, sizeof(zed)).second;
     unsigned char num_threads[] = {(unsigned char)NUM_THREADS};
     err =  ujg_out->Write(num_threads, sizeof(num_threads)).second;
-    unsigned char zero4[4] = {};
-    err =  ujg_out->Write(zero4, sizeof(zero4)).second;
+    unsigned char zero3[3] = {};
+    err =  ujg_out->Write(zero3, sizeof(zero3)).second;
     unsigned char git_revision[12] = {0}; // we only have 12 chars in the header for this
     hex_to_bin(git_revision, GIT_REVISION, sizeof(git_revision));
     err = ujg_out->Write(git_revision, sizeof(git_revision) ).second;
