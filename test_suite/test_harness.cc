@@ -8,7 +8,8 @@ extern int test_file(int argc, char **argv, bool use_lepton, bool jailed, int in
                      bool allow_progressive_files, bool multithread,
                      const std::vector<const char *> &filenames,
                      bool expect_encoder_failure, bool expect_decoder_failure,
-                     const char* encode_memory, const char * decode_memory, const char* thread_memory);
+                     const char* encode_memory, const char * decode_memory, const char * singlethread_memory,
+                     const char* thread_memory);
 #ifdef UNJAILED
 #define IS_JAILED false
 #else
@@ -97,9 +98,13 @@ int main (int argc, char **argv) {
 #ifdef THREAD_MEMORY
     thread_memory = "-threadmemory=" THREAD_MEMORY;
 #endif
+    const char * singlethread_memory = NULL;
+#ifdef SINGLETHREAD_MEMORY
+    singlethread_memory = "-recodememory=" SINGLETHREAD_MEMORY;
+#endif
     return test_file(argc, argv,
                      use_lepton, enable_jailing, INJECT_SYSCALL, allow_progressive_files,
                      multithread, filenames,
                      expect_failure,
-                     expect_decode_failure, encode_memory, decode_memory, thread_memory);
+                     expect_decode_failure, encode_memory, decode_memory, singlethread_memory, thread_memory);
 }

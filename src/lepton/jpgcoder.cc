@@ -995,7 +995,7 @@ size_t decompression_memory_bound() {
             - single_threaded_model_bonus
             + single_threaded_buffer_bonus;
     
-    if (false) {
+    if (true) {
         fprintf(stderr,
                 "Predicted Decompress %ld\nAllocated This Run %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
                 decom_memory_bound,

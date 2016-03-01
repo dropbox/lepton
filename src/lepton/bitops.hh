@@ -217,7 +217,12 @@ public:
         uint64_t selected_byte = htobe64(buf);
         uint8_t rem = (uint8_t)((64 - cbit2) & 7);
         if (rem != 64) {
-            selected_byte >>= (64 - cbit2) - rem;
+            uint8_t shift_level = (64 - cbit2) - rem;
+            if (shift_level < 64) {
+                selected_byte >>= shift_level;
+            } else {
+                selected_byte = 0;
+            }
         }
         uint8_t selected_bits = (uint8_t)selected_byte;
         selected_bits &= (((1 << rem) - 1) << (8 - rem));

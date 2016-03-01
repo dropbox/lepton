@@ -85,7 +85,11 @@ struct MemMgrState {
 size_t  memmgr_num_memmgrs = 0;
 MemMgrState *memmgrs = NULL;
 size_t memmgr_bytes_allocated = 0;
-
+#if __cplusplus <= 199711L
+AtomicValue<size_t> bytes_currently_used(0);
+#else
+std::atomic<size_t> bytes_currently_used(0);
+#endif
 THREAD_LOCAL_STORAGE int memmgr_thread_id_plus_one = 0;
 #if __cplusplus <= 199711L
 AtomicValue<int> memmgr_allocated_threads((0));
@@ -195,8 +199,9 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
     always_assert(main_thread_state.pool_size == main_thread_pool_size);
 }
 size_t memmgr_size_allocated() {
-    MemMgrState& memmgr = get_local_memmgr();
-    return memmgr.pool_free_pos;
+    //MemMgrState& memmgr = get_local_memmgr();
+    //return memmgr.pool_free_pos;
+    return bytes_currently_used.load();
 }
 size_t memmgr_size_left() {
   MemMgrState& memmgr = get_local_memmgr();
@@ -272,6 +277,7 @@ static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas, mem
         h->s.size = nquantas;
         memmgr_free((void*) (h + 1));
         memmgr.pool_free_pos += total_req_size;
+        bytes_currently_used += total_req_size;
     }
     else
     {
