@@ -999,7 +999,7 @@ size_t decompression_memory_bound() {
             + abit_writer + jpgfilesize + sizeof(ProbabilityTablesBase)
             + garbage_augmentation + decode_header_needed_size + non_preloaded_mux;
     }
-    if (true) {
+    if (false) {
         fprintf(stderr,
                 "Predicted Decompress %ld\nAllocated This Run %ld vs Max allocated %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
                 decom_memory_bound,
@@ -3250,7 +3250,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         split_indices[i] = split - row_thread_handoffs.begin();
     }
     for (uint32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
-        if (true || split_indices[index] == split_indices[index + 1]) {
+        if (split_indices[index] == split_indices[index + 1]) {
             for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
                 split_indices[i] = (i + 1) * row_thread_handoffs.size() / NUM_THREADS;
             }
