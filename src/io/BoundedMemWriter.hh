@@ -23,7 +23,7 @@ class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
     virtual std::pair<Sirikata::uint32, Sirikata::JpegError> Write(const Sirikata::uint8*data,
                                                                    unsigned int size) {
         unsigned int bounded_size = 0;
-        if (!has_reached_bound()) {
+        if (mBuffer.size() > mWriteCursor) {
             bounded_size = (unsigned int)std::min((size_t)size,
                                                                mBuffer.size() - mWriteCursor);
             memcpy(&mBuffer[mWriteCursor], data, bounded_size);
@@ -46,7 +46,7 @@ class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
         return mBuffer;
     }
     bool has_reached_bound() const {
-        return mBuffer.size() <= mWriteCursor;
+        return mBuffer.size() < mWriteCursor;
     }
     void write(const void *data, unsigned int size) {
         Write((const Sirikata::uint8*)data, size);
