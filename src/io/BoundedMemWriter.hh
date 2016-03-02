@@ -3,9 +3,11 @@ namespace Sirikata {
 class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
     std::vector<Sirikata::uint8, JpegAllocator<uint8_t> > mBuffer;
     size_t mWriteCursor;
+    size_t mNumBytesAttemptedToWrite;
   public:
     BoundedMemWriter(const JpegAllocator<uint8_t> &alloc = JpegAllocator<uint8_t>()) : mBuffer(alloc){
         mWriteCursor = 0;
+        mNumBytesAttemptedToWrite = 0;
     }
     size_t get_bound () const{
         return mBuffer.size();
@@ -16,12 +18,15 @@ class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
     }
     void Reset() {
         mWriteCursor = 0;
+        mNumBytesAttemptedToWrite = 0;
     }
     void Close() {
         mWriteCursor = 0;
+        mNumBytesAttemptedToWrite = 0;
     }
     virtual std::pair<Sirikata::uint32, Sirikata::JpegError> Write(const Sirikata::uint8*data,
                                                                    unsigned int size) {
+        mNumBytesAttemptedToWrite += size;
         unsigned int bounded_size = 0;
         if (mBuffer.size() > mWriteCursor) {
             bounded_size = (unsigned int)std::min((size_t)size,
@@ -45,8 +50,11 @@ class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
     const std::vector<Sirikata::uint8, JpegAllocator<uint8_t> > &buffer() const{
         return mBuffer;
     }
-    bool has_reached_bound() const {
-        return mBuffer.size() < mWriteCursor;
+    bool has_exceeded_bound() const { // equivalent to an EOF...needs a write
+        return mBuffer.size() < mNumBytesAttemptedToWrite;
+    }
+    bool has_reached_bound() const { // equivalent to an EOF...needs a write
+        return mBuffer.size() <= mNumBytesAttemptedToWrite;
     }
     void write(const void *data, unsigned int size) {
         Write((const Sirikata::uint8*)data, size);

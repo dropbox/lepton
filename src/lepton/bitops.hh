@@ -441,8 +441,10 @@ class bounded_iostream
     Sirikata::DecoderWriter *parent;
     unsigned int byte_bound;
     unsigned int byte_position;
+    unsigned int num_bytes_attempted_to_write;
     Sirikata::JpegError err;
     std::function<void(Sirikata::DecoderWriter*, size_t)> size_callback;
+    unsigned int write_no_buffer( const void* from, size_t bytes_to_write );
 public:
 	bounded_iostream( Sirikata::DecoderWriter * parent,
                       const std::function<void(Sirikata::DecoderWriter*, size_t)> &size_callback,
@@ -461,8 +463,11 @@ public:
     bool has_reached_bound() const {
         return byte_bound && byte_position == byte_bound;
     }
-    unsigned int write_no_buffer( const void* from, size_t bytes_to_write );
+    bool has_exceeded_bound() const {
+        return byte_bound && num_bytes_attempted_to_write > byte_bound;
+    }
     unsigned int write_byte(uint8_t byte) {
+        ++num_bytes_attempted_to_write;
         assert(buffer_position < buffer_size && "Full buffer wasn't flushed");
         buffer[buffer_position++] = byte;
         if (__builtin_expect(buffer_position == buffer_size, 0)) {
@@ -472,6 +477,7 @@ public:
         return 1;
     }
     unsigned int write(const void *from, unsigned int nbytes) {
+        num_bytes_attempted_to_write += nbytes;
         size_t bytes_to_write = nbytes;
         if (__builtin_expect(nbytes + buffer_position > buffer_size, 0)) {
             if (buffer_position) {

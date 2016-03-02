@@ -2828,7 +2828,7 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
-                        if (str_out->has_reached_bound()) {
+                        if (str_out->has_exceeded_bound()) {
                             sta = 2;
                         }
                     }
@@ -2853,7 +2853,7 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
-                        if (str_out->has_reached_bound()) {
+                        if (str_out->has_exceeded_bound()) {
                             sta = 2;
                         }
                     }
@@ -2874,7 +2874,7 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
-                        if (str_out->has_reached_bound()) {
+                        if (str_out->has_exceeded_bound()) {
                             sta = 2;
                         }
 
@@ -2908,7 +2908,7 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
-                        if (str_out->has_reached_bound()) {
+                        if (str_out->has_exceeded_bound()) {
                             sta = 2;
                         }
 
@@ -2935,7 +2935,7 @@ bool recode_jpeg( void )
                             if (sta == 0 && huffw->no_remainder()) {
                                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                             }
-                            if (str_out->has_reached_bound()) {
+                            if (str_out->has_exceeded_bound()) {
                                 sta = 2;
                             }
 
@@ -2958,7 +2958,7 @@ bool recode_jpeg( void )
                         if (sta == 0 && huffw->no_remainder()) {
                             merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
-                        if (str_out->has_reached_bound()) {
+                        if (str_out->has_exceeded_bound()) {
                             sta = 2;
                         }
                     }
@@ -2985,7 +2985,7 @@ bool recode_jpeg( void )
                             if (sta == 0 && huffw->no_remainder()) {
                                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                             }
-                            if (str_out->has_reached_bound()) {
+                            if (str_out->has_exceeded_bound()) {
                                 sta = 2;
                             }
 
@@ -3018,7 +3018,7 @@ bool recode_jpeg( void )
                             if (sta == 0 && huffw->no_remainder()) {
                                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                             }
-                            if (str_out->has_reached_bound()) {
+                            if (str_out->has_exceeded_bound()) {
                                 sta = 2;
                             }
 

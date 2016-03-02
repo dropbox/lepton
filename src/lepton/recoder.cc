@@ -331,7 +331,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                 escape_0xff_huffman_and_write(str_out, huffw->peekptr(), huffw->getpos());
                 huffw->reset();
             }
-            if (str_out->has_reached_bound()) {
+            if (str_out->has_exceeded_bound()) {
                 sta = 2;
             }
             if (old_mcu != mcu && mcu % mcuh == 0) {
