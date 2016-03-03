@@ -4209,6 +4209,7 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
         }
     }
     if (eof_fixup) {
+        always_assert(huffr->eof && "If 0run is longer than the block must be truncated");
         for(;bpos < eob; ++bpos) {
             block[bpos] = 0;
         }
