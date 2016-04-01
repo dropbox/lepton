@@ -1546,7 +1546,7 @@ unsigned char read_fixed_ujpg_header() {
             appname, header[ 0 ] / 10, header[ 0 ] % 10 );
         custom_exit(ExitCode::VERSION_UNSUPPORTED);
     }
-    if (header[1] != 'Z') {
+    if (header[1] != 'Z' && header[1] != 'Y') {
         char err[] = "X: Unknown Item in header instead of Z";
         err[0] = header[1];
         while(write(2, err, sizeof(err) - 1) < 0 && errno == EINTR) {
@@ -3394,7 +3394,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                                                              Sirikata::JpegAllocator<uint8_t>());
     static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
     always_assert(NUM_THREADS <= 255);
-    unsigned char zed[] = {(unsigned char)'Z'};
+    unsigned char zed[] = {start_byte != 0 ? (unsigned char)'Y' : (unsigned char)'Z'};
     err =  ujg_out->Write(zed, sizeof(zed)).second;
     unsigned char num_threads[] = {(unsigned char)NUM_THREADS};
     err =  ujg_out->Write(num_threads, sizeof(num_threads)).second;
