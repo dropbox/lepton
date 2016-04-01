@@ -1684,7 +1684,30 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
     return true;
 }
 
-
+bool is_needed_for_second_block(const std::vector<unsigned char>&segment) {
+    if (segment.size() <= 2) {
+        return true; // don't understand this type of header
+    }
+    if (segment[0] != 0xff) {
+        return true; // don't understand this type of header
+    }
+    switch (segment[1]) {
+      case 0xC4: // DHT segment
+      case 0xDB: // DQT segment
+      case 0xDD: // DRI segment
+      case 0xC0:
+      case 0xC1:
+      case 0xC2:
+        return true;
+      case 0xD8:
+      case 0xD9:
+      case 0xDA: // FIXME <--
+        assert(false "This should be filtered out by the previous loop");
+        return true;
+      default:
+        return false;
+    }
+}
 /* -----------------------------------------------
     Read in header & image data
     ----------------------------------------------- */
@@ -1822,7 +1845,9 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
         // read rest of segment, store back in header writer
         if ( jpg_in->read( ( segment.data() + 4 ), ( len - 4 ) ) !=
             ( unsigned short ) ( len - 4 ) ) break;
-        hdrw->write_n( segment.data(), len );
+        if (start_byte == 0 || is_needed_for_second_block(segment)) {
+            hdrw->write_n( segment.data(), len );
+        }
     }
     // JPEG reader loop end
 
