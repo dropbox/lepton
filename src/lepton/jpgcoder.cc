@@ -1695,14 +1695,14 @@ bool is_needed_for_second_block(const std::vector<unsigned char>&segment) {
       case 0xC4: // DHT segment
       case 0xDB: // DQT segment
       case 0xDD: // DRI segment
+      case 0xDA: // Start of scan
       case 0xC0:
       case 0xC1:
       case 0xC2:
         return true;
       case 0xD8:
       case 0xD9:
-      case 0xDA: // FIXME <--
-        assert(false "This should be filtered out by the previous loop");
+        assert(false && "This should be filtered out by the previous loop");
         return true;
       default:
         return false;
