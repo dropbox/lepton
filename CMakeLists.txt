@@ -96,6 +96,8 @@ SET(LEPTON_SOURCES
    src/vp8/util/generic_worker.cc
    src/vp8/util/memory.cc
    src/vp8/util/memory.hh
+   src/vp8/util/billing.cc
+   src/vp8/util/billing.hh
    src/vp8/util/debug.cc
    src/vp8/util/debug.hh
    src/vp8/util/nd_array.hh

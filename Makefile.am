@@ -68,6 +68,8 @@ lepton_SOURCES = \
    src/vp8/util/debug.h \
    src/vp8/util/memory.cc \
    src/vp8/util/memory.hh \
+   src/vp8/util/billing.cc \
+   src/vp8/util/billing.hh \
    src/vp8/util/nd_array.hh \
    src/vp8/util/aligned_block.hh \
    src/vp8/util/block_based_image.hh \
