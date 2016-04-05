@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #include "vpx_config.hh"
-
+#include "billing.hh"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,7 +32,7 @@ void vpx_stop_encode(vpx_writer *bc);
 
 extern int w_bitcount;
 
-static INLINE void vpx_write(vpx_writer *br, int bit, int probability) {
+static INLINE void vpx_write(vpx_writer *br, int bit, int probability, Billing bill) {
   unsigned int split;
   int count = br->count;
   unsigned int range = br->range;
@@ -103,8 +103,6 @@ static INLINE void vpx_write(vpx_writer *br, int bit, int probability) {
   br->range = range;
 }
 
-
-#define vpx_write_prob(w, v) vpx_write_literal((w), (v), 8)
 
 #ifdef __cplusplus
 }  // extern "C"

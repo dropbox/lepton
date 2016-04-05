@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include "vpx_config.hh"
+#include "billing.hh"
 //#include "vpx_ports/mem.h"
 //#include "vpx/vp8dx.h"
 //#include "vpx/vpx_integer.h"
@@ -184,7 +185,7 @@ inline uint8_t count_leading_zeros_uint8(uint8_t v) {
     return 7 - r;
 }
 
-inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split) {
+inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split, Billing bill) {
     BD_VALUE bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
     vpx_reader_fill(r);
     BD_VALUE value = r->value;
@@ -213,7 +214,7 @@ inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split) {
     return bit;
 }
 __attribute__((always_inline))
-inline bool vpx_read(vpx_reader *r, int prob) {
+inline bool vpx_read(vpx_reader *r, int prob, Billing bill) {
   unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
   BD_VALUE value = r->value;
   int count = r->count;
@@ -227,7 +228,7 @@ inline bool vpx_read(vpx_reader *r, int prob) {
     range = split;
   }
   if (__builtin_expect(r->count < 0, 0)) {
-      bit = vpx_reader_fill_and_read(r, split);
+      bit = vpx_reader_fill_and_read(r, split, bill);
 #ifdef DEBUG_ARICODER
       fprintf(stderr, "R %d %d %d\n", r_bitcount++, prob, bit);
 #endif
@@ -248,8 +249,6 @@ inline bool vpx_read(vpx_reader *r, int prob) {
 
   return bit;
 }
-
-#define vpx_read_bit(r) vpx_read(r, 128)
 
 #ifdef __cplusplus
 }  // extern "C"

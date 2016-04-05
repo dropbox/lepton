@@ -18,7 +18,6 @@ const char *ExitString(ExitCode ec) {
   data[1] = ((int)ec / 100 % 10) + '0';
   data[2] = ((int)ec / 10 % 10) + '0';
   data[3] = ((int)ec % 10) + '0';
-  sprintf(data, "%d", (int)ec);
   return data;
 }
 extern "C" {

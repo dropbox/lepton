@@ -20,14 +20,14 @@ void vpx_start_encode(vpx_writer *br, uint8_t *source) {
   br->count    = -24;
   br->buffer   = source;
   br->pos      = 0;
-  vpx_write(br, 0, 128);
+  vpx_write(br, 0, 128, Billing::HEADER);
 }
 
 void vpx_stop_encode(vpx_writer *br) {
   int i;
 
   for (i = 0; i < 32; i++)
-    vpx_write(br, 0, 128);
+      vpx_write(br, 0, 128, Billing::HEADER);
 
   // Ensure there's no ambigous collision with any index marker bytes
   if ((br->buffer[br->pos - 1] & 0xe0) == 0xc0)

@@ -27,7 +27,7 @@ public:
         init(buffer, size);
     }
     __attribute__((always_inline))
-    bool get(Branch &branch) {
+    bool get(Branch &branch, Billing bill=Billing::RESERVED) {
 #ifdef DEBUG_ARICODER
         if (!any_read) {
                any_read = true;
@@ -36,7 +36,7 @@ public:
 	       count++;
         }
 #endif
-        bool retval = vpx_read(&bit_reader, branch.prob());
+        bool retval = vpx_read(&bit_reader, branch.prob(), bill);
         branch.record_obs_and_update(retval);
         return retval;
     }

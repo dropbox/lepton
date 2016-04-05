@@ -37,7 +37,7 @@ public:
 		       + 1024);
         vpx_start_encode(&boolwriter, output_.data());
     }
-    void put( const bool value, Branch & branch) {
+    void put( const bool value, Branch & branch, Billing bill=Billing::RESERVED) {
 #ifdef DEBUG_ARICODER
         if (!any_written) {
                any_written = true;
@@ -46,7 +46,7 @@ public:
 	       ++count;
         }
 #endif
-        vpx_write(&boolwriter, value, branch.prob());
+        vpx_write(&boolwriter, value, branch.prob(), bill);
         if (__builtin_expect(boolwriter.pos & SIZE_CHECK, false)) {
             // check if we're out of buffer space
             if (boolwriter.pos + 128 > output_.size()) {
