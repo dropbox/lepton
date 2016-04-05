@@ -53,10 +53,10 @@ inline const char * BillingString(Billing bt) {
     data[3] = (which % 10) + '0';
     return data;
 }
-extern std::atomic<uint32_t> billing_map[(uint32_t)Billing::NUM_BILLING_ELEMENTS];
-inline void write_bill(Billing bt, uint32_t num_bits = 1) {
-    always_assert((uint32_t)bt < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
-    billing_map[(uint32_t)bt] += num_bits;
+extern std::atomic<uint32_t> billing_map[2][(uint32_t)Billing::NUM_BILLING_ELEMENTS];
+inline void write_bill(Billing bt, bool is_compressed, uint32_t num_bits = 1) {
+    assert((uint32_t)bt < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
+    assert(billing_map[is_compressed ? 1 : 0][(uint32_t)bt] += num_bits); // only happens in NDEBUG
 }
 #undef BILLING_STRING_CB
 #endif

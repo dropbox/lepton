@@ -3534,6 +3534,8 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
             Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                              mrw.buffer().size(),
                                                              Sirikata::JpegAllocator<uint8_t>());
+    write_bill(Billing::HEADER, true, compressed_header.size() * 8);
+    write_bill(Billing::HEADER, false, mrw.buffer().size() * 8);
     static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
     always_assert(NUM_THREADS <= 255);
     unsigned char zed[] = {start_byte != 0 ? (unsigned char)'Y' : (unsigned char)'Z'};
