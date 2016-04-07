@@ -1533,6 +1533,7 @@ void process_file(IOUtil::FileReader* reader,
         while(write(2, to_write, strlen(to_write)) < 0 && errno == EINTR) {
         }
     }
+    print_bill(2);
     // speed and compression ratio calculation
     speed = (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC );
     bpms  = ( speed > 0 ) ? ( jpgfilesize / speed ) : jpgfilesize;

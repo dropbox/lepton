@@ -61,4 +61,7 @@ inline void write_bill(Billing bt, bool is_compressed, uint32_t num_bits = 1) {
 #endif
 }
 #undef BILLING_STRING_CB
+
+
+void print_bill(int fd);
 #endif
