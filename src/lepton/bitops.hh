@@ -47,7 +47,7 @@ public:
     void debug() const;
 
     
-    abitwriter( int size, int size_bound=0 );
+    abitwriter( int size, int size_bound);
 	~abitwriter( void );
     
     unsigned char* partial_bytewise_flush() {
@@ -72,7 +72,7 @@ public:
         if (__builtin_expect(bound_reached(), 0)) {
             return;
         }
-        assert(((64 - cbit2) & 7) == 0);
+        always_assert(((64 - cbit2) & 7) == 0);
         buf = htobe64(buf);
         uint32_t bytes_to_write = (64 - cbit2) / 8;
         memcpy(data2 + cbyte2, &buf, bytes_to_write);
@@ -161,7 +161,7 @@ public:
         return 64 - cbit2;
     }
     bool bound_reached() const {
-        return cbyte2 >= size_bound && size_bound;
+        return cbyte2 >= size_bound;
     }
     uint8_t get_overhang_byte() const {
         assert(cbit2 > 56);
