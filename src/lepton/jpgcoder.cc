@@ -3098,7 +3098,7 @@ bool recode_jpeg( void )
     // get data into huffdata
     huffdata = huffw->getptr();
     hufs = huffw->getpos();
-    assert(huffw->no_remainder() && "this should have been padded");
+    always_assert(huffw->no_remainder() && "this should have been padded");
     merge_jpeg_streaming(&streaming_progress, huffdata, hufs, true);
     if (!fast_exit) {
         delete huffw;
