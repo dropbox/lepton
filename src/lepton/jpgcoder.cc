@@ -3213,11 +3213,16 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         always_assert(jpeg_file_raw_bytes);
     }
     if (start_byte && jpeg_file_raw_bytes && !row_thread_handoffs.empty()) {
-        prefix_grbs = row_thread_handoffs[0].segment_size - start_byte;
-        if (row_thread_handoffs.size() > 1) {
-            if (prefix_grbs) {
-                --prefix_grbs; //FIXME why is this ?!
+        if (row_thread_handoffs[0].segment_size >= start_byte) {
+            prefix_grbs = row_thread_handoffs[0].segment_size - start_byte;
+            if (row_thread_handoffs.size() > 1) {
+                if (prefix_grbs) {
+                    --prefix_grbs; //FIXME why is this ?!
+                }
             }
+        } else {
+            prefix_grbs = 0;
+            custom_exit(ExitCode::ONLY_GARBAGE_NO_JPEG);
         }
         if (prefix_grbs > 0) {
             prefix_grbgdata = aligned_alloc(prefix_grbs);
