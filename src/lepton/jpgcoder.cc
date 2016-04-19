@@ -442,7 +442,7 @@ void sig_nop(int){}
     ----------------------------------------------- */
 
 const unsigned char ujgversion   = 1;
-static const char*  subversion   = "a";
+
 static const char*  appname      = "lepton";
 static const unsigned char   ujg_header[] = { 'U', 'J' };
 static const unsigned char   lepton_header[] = { 0xcf, 0x84 }; // the tau symbol for a tau lepton in utf-8
@@ -687,8 +687,8 @@ int main( int argc, char** argv )
     int max_file_size = initialize_options( argc, argv );
     if (action != forkserve && action != socketserve) {
         // write program info to screen
-        fprintf( msgout,  "%s v%i.%i%s\n",
-                 appname, ujgversion / 10, ujgversion % 10, subversion );
+        fprintf( msgout,  "%s v%i.0-%s\n",
+                 appname, ujgversion, GIT_REVISION );
     }
     // check if user input is wrong, show help screen if it is
     if ((file_cnt == 0 && action != forkserve && action != socketserve)
