@@ -7,6 +7,7 @@ import time
 import os
 import uuid
 import argparse
+import zlib
 base_dir = os.path.dirname(sys.argv[0])
 parser = argparse.ArgumentParser(description='Benchmark and test socket server for compression')
 parser.add_argument('files', metavar='N', type=str, nargs='*', default=[os.path.join(base_dir,
@@ -33,7 +34,7 @@ def read_all_sock(sock):
             pass
     return ''.join(datas)
 
-def test_compression(binary_name, socket_name = None, too_short_time_bound=False):
+def test_compression(binary_name, socket_name = None, too_short_time_bound=False, is_zlib=False):
     global jpg_name
     custom_name = socket_name is not None
     xargs = [binary_name,
@@ -56,7 +57,8 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         duplicate_socket_name = ''
         duplicate_socket_name = dup_proc.stdout.readline().strip()
         assert not duplicate_socket_name
-
+    if is_zlib:
+        socket_name = socket_name.replace('.uport', '') + '.z0'
     with open(jpg_name) as f:
         jpg = f.read()
     def encoder():
@@ -91,6 +93,7 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
 
         decode_start = time.time()
         lepton_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        os.listdir('/tmp')
         lepton_socket.connect(socket_name)
         v.start()
         decode_mid = time.time()
@@ -98,6 +101,8 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         decode_end = time.time()
         lepton_socket.close()
         v.join()
+        if is_zlib:
+            ojpg = zlib.decompress(ojpg)
         print len(ojpg)
         print len(jpg)
         assert ojpg == jpg
@@ -124,7 +129,10 @@ elif parsed_args.benchmark:
     test_compression('./lepton')
 if not parsed_args.benchmark:
     test_compression('./lepton')
+    test_compression('./lepton', is_zlib=True)
     test_compression('./lepton', '/tmp/' + str(uuid.uuid4()))
+    test_compression('./lepton', '/tmp/' + str(uuid.uuid4()), is_zlib=True)
+
 
     ok = False
     try:

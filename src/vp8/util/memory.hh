@@ -32,7 +32,8 @@ extern bool g_use_seccomp;
     CB(MALLOCED_NULL,36)                        \
     CB(OOM,37)                                  \
     CB(TOO_MUCH_MEMORY_NEEDED,38)               \
-    CB(EARLY_EXIT,40)
+    CB(EARLY_EXIT,40)                           \
+    CB(COULD_NOT_BIND_PORT, 127)                \
 
 #define MAKE_EXIT_CODE_ENUM(ITEM, VALUE) ITEM=VALUE,
 #define GENERATE_EXIT_CODE_RETURN(ITEM, VALUE) {if ((ec) == ExitCode::ITEM) { return #ITEM;}}

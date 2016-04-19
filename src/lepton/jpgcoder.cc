@@ -168,7 +168,7 @@ void show_help( void );
     function declarations: main functions
     ----------------------------------------------- */
 
-bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size);
+bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size, bool force_zlib0);
 
 template <class stream_reader>
 bool read_jpeg(std::vector<std::pair<uint32_t,
@@ -388,13 +388,12 @@ bool g_do_preload = false;
 std::unique_ptr<BaseEncoder> g_encoder;
 BaseDecoder* g_decoder = NULL;
 std::unique_ptr<BaseDecoder> g_reference_to_free;
-const char * g_socket_name = NULL;
+ServiceInfo g_socketserve_info;
 bool g_threaded = true;
 bool g_allow_progressive = false;
 bool g_unkillable = false;
 uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
-uint32_t g_max_children = 0;
 bool g_force_zlib0_out = false;
 
 Sirikata::DecoderReader* str_in  = NULL;    // input stream
@@ -708,9 +707,9 @@ int main( int argc, char** argv )
     if (action == forkserve) {
         fork_serve();
     } else if (action == socketserve) {
-        socket_serve(&process_file, max_file_size, g_socket_name, g_max_children);
+        socket_serve(&process_file, max_file_size, g_socketserve_info);
     } else {
-        process_file(nullptr, nullptr, max_file_size);
+        process_file(nullptr, nullptr, max_file_size, g_force_zlib0_out);
     }
     if (errorlevel.load() >= err_tresh) error_cnt++;
     if (errorlevel.load() == 1 ) warn_cnt++;
@@ -844,7 +843,10 @@ int initialize_options( int argc, char** argv )
             g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
         }
         else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
-            g_max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
+            g_socketserve_info.max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
+        }
+        else if ( strncmp((*argv), "-listenbacklog=", strlen("-listenbacklog=") ) == 0 ) {
+            g_socketserve_info.listen_backlog = strtol((*argv) + strlen("-listenbacklog="), NULL, 10);
         }
         else if ( strncmp((*argv), "-startbyte=", strlen("-startbyte=") ) == 0 ) {
             start_byte = local_atoi((*argv) + strlen("-startbyte="));
@@ -860,9 +862,8 @@ int initialize_options( int argc, char** argv )
         }
         else if ( strcmp((*argv), "-dev") == 0 ) {
             developer = true;
-        }
-           else if ( ( strcmp((*argv), "-ujg") == 0 ) ||
-                  ( strcmp((*argv), "-ujpg") == 0 )) {
+        } else if ( ( strcmp((*argv), "-ujg") == 0 ) ||
+                    ( strcmp((*argv), "-ujpg") == 0 )) {
             fprintf(stderr, "FOUND UJG ARG: using that as output\n");
             action = comp;
             ofiletype = UJG;
@@ -876,17 +877,32 @@ int initialize_options( int argc, char** argv )
             msgout = stderr;
             // use "-" as placeholder for the socket
             *(tmp_flp++) = g_dash;
-       } else if ( strncmp((*argv), "-socket", strlen("-socket")) == 0 ) {
-            action = socketserve;
-            // sets it up in serving mode
-            msgout = stderr;
-            // use "-" as placeholder for the socket
-            *(tmp_flp++) = g_dash;
-            if ((*argv)[strlen("-socket")] == '=') {
-                g_socket_name = (*argv) + strlen("-socket=");
+        } else if ( strncmp((*argv), "-socket", strlen("-socket")) == 0 ) {
+            if (action != socketserve) {
+                action = socketserve;
+                // sets it up in serving mode
+                msgout = stderr;
+                // use "-" as placeholder for the socket
+                *(tmp_flp++) = g_dash;
             }
-        }
-        else if ( strcmp((*argv), "-") == 0 ) {    
+            if ((*argv)[strlen("-socket")] == '=') {
+                g_socketserve_info.uds = (*argv) + strlen("-socket=");
+            }
+        } else if ( strncmp((*argv), "-listen", strlen("-listen")) == 0 ) {
+            g_socketserve_info.listen_tcp = true;
+            if (action != socketserve) {
+                action = socketserve;
+                // sets it up in serving mode
+                msgout = stderr;
+                // use "-" as placeholder for the socket
+                *(tmp_flp++) = g_dash;
+            }
+            if ((*argv)[strlen("-listen")] == '=') {
+                g_socketserve_info.port = atoi((*argv) + strlen("-listen="));
+            }
+        } else if ( strncmp((*argv), "-zliblisten", strlen("-zliblisten")) == 0 ) {
+            g_socketserve_info.zlib_port = atoi((*argv) + strlen("-zliblisten="));
+        } else if ( strcmp((*argv), "-") == 0 ) {    
             msgout = stderr;
             // set binary mode for stdin & stdout
             #ifdef _WIN32
@@ -1091,7 +1107,8 @@ bool recode_baseline_jpeg_wrapper() {
 }
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
-                  int max_file_size)
+                  int max_file_size,
+                  bool force_zlib0)
 {
     clock_t begin = 0, end = 1;
     const char* actionmsg  = NULL;
@@ -1135,7 +1152,7 @@ void process_file(IOUtil::FileReader* reader,
         ujg_base_in = reader;
     }
     // check input file and determine filetype
-    check_file(reader, writer, max_file_size);
+    check_file(reader, writer, max_file_size, force_zlib0);
     begin = clock();
     if ( filetype == JPEG )
     {
@@ -1562,7 +1579,7 @@ unsigned char read_fixed_ujpg_header() {
     max_file_size = LEtoUint32(file_size.begin());
     return NUM_THREADS;
 }
-bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_file_size)
+bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_file_size, bool force_zlib0)
 {
     unsigned char fileid[ 2 ] = { 0, 0 };
 
@@ -1637,7 +1654,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
               || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
               || ( ( fileid[0] == zlepton_header[0] ) && ( fileid[1] == zlepton_header[1] ) ) ){
         bool compressed_output = (fileid[0] == zlepton_header[0]) && (fileid[1] == zlepton_header[1]);
-        compressed_output = compressed_output || g_force_zlib0_out;
+        compressed_output = compressed_output || g_force_zlib0_out || force_zlib0;
         // file is UJG
         filetype = (( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) ) ? UJG : LEPTON;
         // create filenames

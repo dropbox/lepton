@@ -9,6 +9,7 @@
 extern std::atomic<int> errorlevel;
 extern std::string errormessage;
 extern uint64_t g_time_bound_ms;
+
 namespace IOUtil {
 class FileReader;
 class FileWriter;
@@ -16,7 +17,8 @@ class FileWriter;
 void gen_nop();
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
-                  int file_input_length = 0);
+                  int file_input_length,
+                  bool force_zlib0);
 void check_decompression_memory_bound_ok();
 namespace TimingHarness {
 #define FOREACH_TIMING_STAGE(CB) \
