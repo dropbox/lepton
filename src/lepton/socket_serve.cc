@@ -10,8 +10,8 @@
 #include <algorithm>
 #include <netinet/in.h>
 #include <sys/time.h>
-#include <sys/signalfd.h>
 #ifndef __APPLE__
+#include <sys/signalfd.h>
 #include <wait.h>
 #else
 #include <sys/wait.h>
@@ -123,6 +123,8 @@ int should_wait_bitmask(size_t children_size,
 }
 
 int make_sigchld_fd() {
+    int fd = -1;
+#ifndef __APPLE__
     sigset_t sigset;
     int err = sigemptyset(&sigset);
     always_assert(err == 0);
@@ -133,8 +135,9 @@ int make_sigchld_fd() {
     err = sigprocmask(SIG_BLOCK, &sigset, NULL);
     always_assert(err == 0);
 
-    int fd = signalfd(-1, &sigset, 0);
+    fd = signalfd(-1, &sigset, 0);
     always_assert(fd != -1);
+#endif
     return fd;
 }
 void write_num_children(size_t num_children) {
@@ -148,9 +151,8 @@ void write_num_children(size_t num_children) {
         }
         uint8_t num_children_byte = (uint8_t)num_children;
         while((err = write(lock_file, &num_children_byte, sizeof(num_children_byte))) < 0 && errno == EINTR) {
-        }        
+        }
     }
-    
 }
 void serving_loop(int unix_domain_socket_server,
                   int unix_domain_socket_server_zlib,
@@ -227,9 +229,11 @@ void serving_loop(int unix_domain_socket_server,
             if (fds[i].revents & POLLIN) {
                 fds[i].revents = 0;
                 if (fds[i].fd == sigchild_fd) {
+#ifndef __APPLE__
                     struct signalfd_siginfo info;
                     ssize_t ignore = read(fds[i].fd, &info, sizeof(info));
                     (void)ignore;
+#endif
                     continue; // we can't receive on this
                 }
                 struct sockaddr_un client;
