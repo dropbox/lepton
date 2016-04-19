@@ -34,12 +34,14 @@ static const char zlast_postfix[]=".z0";
 static char socket_name[sizeof((struct sockaddr_un*)0)->sun_path] = {};
 static char zsocket_name[sizeof((struct sockaddr_un*)0)->sun_path] = {};
 static const char lock_ext[]=".lock";
+bool random_name = false;
 static char socket_lock[sizeof((struct sockaddr_un*)0)->sun_path + sizeof(lock_ext)];
 int lock_file = -1;
 
 bool is_parent_process = true;
 
 static void name_socket(FILE * dev_random) {
+    random_name = true;
     char random_data[16] = {0};
     auto retval = fread(random_data, 1, sizeof(random_data), dev_random);
     (void)retval;// dev random should yield reasonable results
@@ -75,7 +77,7 @@ static void cleanup_socket(int) {
     if (is_parent_process) {
         unlink(socket_name);
         unlink(zsocket_name);
-        if (socket_lock[0]) {
+        if (socket_lock[0] && random_name) {
             unlink(socket_lock);
         }
         exit(0);
