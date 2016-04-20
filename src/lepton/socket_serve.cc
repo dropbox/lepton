@@ -198,6 +198,7 @@ void serving_loop(int unix_domain_socket_server,
     std::set<pid_t> children;
     int status;
     while(true) {
+        write_num_children(children.size());
         for (pid_t term_pid = 0;
              (term_pid = waitpid(-1,
                                  &status,
@@ -217,8 +218,8 @@ void serving_loop(int unix_domain_socket_server,
                 fprintf(stderr, "Child %d exited with another cause: %d\n", term_pid, status);
             }
             fflush(stderr);
+            write_num_children(children.size());
         }
-        write_num_children(children.size());
         int ret = poll(fds, num_fds, sigchild_fd == -1 ? 60 : -1);
         // need a timeout (30 ms) in case a SIGCHLD was missed between the waitpid and the poll
         if (ret == 0) { // no events ready, just timed out, check for missed SIGCHLD
