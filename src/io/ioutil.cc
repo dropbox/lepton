@@ -25,4 +25,17 @@ FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe) {
     return NULL;
 }
 
+FileReader * BindFdToReader(int fd, unsigned int max_file_size) {
+    if (fd >= 0) {
+        return new FileReader(fd, max_file_size);
+    }
+    return NULL;
+}
+FileWriter * BindFdToWriter(int fd) {
+    if (fd >= 0) {
+        return new FileWriter(fd, !g_use_seccomp);
+    }
+    return NULL;
+}
+
 }

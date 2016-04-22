@@ -50,6 +50,7 @@
 #endif
 #endif
 bool fast_exit = true;
+bool g_skip_validation = false;
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
 
@@ -168,7 +169,8 @@ void show_help( void );
     function declarations: main functions
     ----------------------------------------------- */
 
-bool check_file(IOUtil::FileReader* reader, IOUtil::FileWriter *writer, int max_file_size, bool force_zlib0);
+bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
+                Sirikata::Array1d<uint8_t, 2> two_byte_header);
 
 template <class stream_reader>
 bool read_jpeg(std::vector<std::pair<uint32_t,
@@ -204,6 +206,9 @@ bool reset_buffers( void );
 /* -----------------------------------------------
     function declarations: jpeg-specific
     ----------------------------------------------- */
+bool is_jpeg_header(Sirikata::Array1d<uint8_t, 2> header) {
+    return header[0] == 0xFF && header[1] == 0xD8;
+}
 
 // baseline single threaded decoding need only two rows of the image in memory
 bool setup_imginfo_jpg(bool only_allocate_two_image_rows);
@@ -841,6 +846,8 @@ int initialize_options( int argc, char** argv )
             }
         } else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
             g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
+        } else if ( strcmp((*argv), "-skipvalidation=") == 0 ) {
+            g_skip_validation = true;
         }
         else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
             g_socketserve_info.max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
@@ -923,7 +930,7 @@ int initialize_options( int argc, char** argv )
         fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
         exit(1);
     }
-    if (g_do_preload) {
+    if (g_do_preload && g_skip_validation) {
         VP8ComponentDecoder *d = makeBoth(g_threaded, g_threaded && action != forkserve && action != socketserve);
         g_encoder.reset(d);
         g_decoder = d;
@@ -1105,6 +1112,128 @@ bool recode_baseline_jpeg_wrapper() {
 
     return retval;
 }
+enum class ValidationContinuation {
+    ROUNDTRIP_OK,
+    BAD,
+    CONTINUE_AS_JPEG,
+    CONTINUE_AS_LEPTON,
+};
+ValidationContinuation validateAndCompress(int *reader, int*writer,
+                                           Sirikata::Array1d<uint8_t, 2> header, ExitCode *validation_exit_code) {
+/*
+    int compress_pipes[2] = {-1, -1};
+    int decompress_pipes[2] = {-1, -1};
+    int err;
+    do {
+        err = pipe(compress_pipes);
+    } while (err != 0 && errno == EINTR);
+    if (fork() == 0) {
+        
+        return ValidationContinuation::CONTINUE_AS_JPEG;
+    }
+
+    do {
+        err = pipe(decompress_pipes);
+    } while (err != 0 && errno == EINTR);
+*/
+    *validation_exit_code = ExitCode::SUCCESS;
+    
+    return ValidationContinuation::CONTINUE_AS_JPEG;
+}
+int open_fdin(const char *ifilename,
+                   IOUtil::FileReader *reader,
+                   Sirikata::Array1d<uint8_t, 2> &header) {
+    int fdin = -1;    
+    if (reader != NULL) {
+        fdin = reader->get_fd();
+    } else if (strcmp(ifilename, "-") == 0) {
+        fdin = 0;
+    } else {
+         do {
+            fdin = open(ifilename, O_RDONLY);
+        } while (fdin == -1 && errno == EINTR);
+        if (fdin == -1) {
+            const char * errormessage = "Input file unable to be opened for writing:";
+            while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {}
+            while(write(2, ifilename, strlen(ifilename)) == -1 && errno == EINTR) {}
+            while(write(2, "\n", 1) == -1 && errno == EINTR) {}
+        }
+    }
+    ssize_t data_read = 0;
+    do {
+        data_read = read(fdin, &header[0], 2);
+    } while (data_read == -1 && errno == EINTR);
+    if (__builtin_expect(data_read < 2, false)) {
+        do {
+            data_read = read(fdin, &header[1], 1);
+        } while (data_read == -1 && errno == EINTR);
+    }
+    if (data_read < 0) {
+        const char * fail = "Failed to read 2 byte header";
+        while(write(2, fail, strlen(fail)) == -1 && errno == EINTR) {}        
+    }
+    return fdin;
+}
+
+std::string uniq_filename(std::string filename) {
+    FILE * fp = fopen(filename.c_str(), "rb");
+    while (fp != NULL) {
+        fclose(fp);
+        filename += "_";
+        fp = fopen(filename.c_str(), "rb");
+    }
+    return filename;
+}
+
+std::string postfix_uniq(const std::string &filename, const char * ext) {
+    std::string::size_type where =filename.find_last_of("./\\");
+    if (where == std::string::npos || filename[where] != '.') {
+        return uniq_filename(filename + ext);
+    }
+    return uniq_filename(filename.substr(0, where) + ext);
+}
+
+
+int open_fdout(const char *ifilename,
+                    IOUtil::FileWriter *writer,
+                    Sirikata::Array1d<uint8_t, 2> fileid,
+                    bool force_compressed_output) {
+    if (writer != NULL) {
+        return writer->get_fd();
+    }
+    if (strcmp(ifilename, "-") == 0) {
+        return 1;
+    }
+    int retval = -1;
+    std::string ofilename;
+    // check file id, determine filetype
+    if (file_no + 1 < file_cnt && ofilename != ifilename) {
+        ofilename = filelist[file_no + 1];
+    } else if (is_jpeg_header(fileid)) {
+        ofilename = postfix_uniq(ifilename, (ofiletype == UJG ? ".ujg" : ".lep"));
+    } else if ( ( ( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) )
+                || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
+                || ( ( fileid[0] == zlepton_header[0] ) && ( fileid[1] == zlepton_header[1] ) ) ){
+        if ((fileid[0] == zlepton_header[0] && fileid[1] == zlepton_header[1])
+            || force_compressed_output) {
+            ofilename = postfix_uniq(ifilename, ".jpg.z");
+        } else {
+            ofilename = postfix_uniq(ifilename, ".jpg");
+        }
+    }
+    do {
+        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT|O_TRUNC, S_IWUSR | S_IRUSR);
+    }while (retval == -1 && errno == EINTR);
+    if (retval == -1) {
+        const char * errormessage = "Output file unable to be opened for writing:";
+        while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {}
+        while(write(2, ofilename.c_str(), ofilename.length()) == -1 && errno == EINTR) {}
+        while(write(2, "\n", 1) == -1 && errno == EINTR) {}
+        custom_exit(ExitCode::FILE_NOT_FOUND);
+    }
+    return retval;
+}
+
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
                   int max_file_size,
@@ -1139,23 +1268,35 @@ void process_file(IOUtil::FileReader* reader,
     jpgfilesize = 0;
     ujgfilesize = 0;
 
-    if (!reader) {
-        // compare file name, set pipe if needed
-        if ( ( strcmp( filelist[ file_no ], "-" ) == 0 ) && ( action == comp ) ) {
-            reader = ujg_base_in = IOUtil::OpenFileOrPipe("STDIN", 2, max_file_size),
-            pipe_on = true;
-        }
-        else {
-            pipe_on = false;
-        }
-    } else {
-        ujg_base_in = reader;
+    Sirikata::Array1d<uint8_t, 2> header = {{0, 0}};
+    const char * ifilename = filelist[file_no];
+    int fdin = open_fdin(ifilename, reader, header);
+    int fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
+    if (is_jpeg_header(header) && !g_skip_validation) {
+        ExitCode validation_exit_code = ExitCode::SUCCESS;
+        switch (validateAndCompress(&fdin, &fdout, header, &validation_exit_code)) {
+          case ValidationContinuation::CONTINUE_AS_JPEG:
+            break;
+          case ValidationContinuation::CONTINUE_AS_LEPTON:
+            filetype = LEPTON;
+            header[0] = lepton_header[0];
+            header[1] = lepton_header[1];
+            break;
+          case ValidationContinuation::ROUNDTRIP_OK:
+            custom_exit(ExitCode::SUCCESS);
+          case ValidationContinuation::BAD:
+          default:
+            always_assert(validation_exit_code != ExitCode::SUCCESS);
+            custom_exit(validation_exit_code);
+        }        
     }
     // check input file and determine filetype
-    check_file(reader, writer, max_file_size, force_zlib0);
+    check_file(fdin, fdout, max_file_size, force_zlib0, header);
     begin = clock();
     if ( filetype == JPEG )
     {
+
+
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
                 g_encoder.reset(makeEncoder(g_threaded, g_threaded));
@@ -1525,23 +1666,6 @@ void show_help( void )
 /* ----------------------- Begin of main functions -------------------------- */
 
 
-std::string uniq_filename(std::string filename) {
-    FILE * fp = fopen(filename.c_str(), "rb");
-    while (fp != NULL) {
-        fclose(fp);
-        filename += "_";
-        fp = fopen(filename.c_str(), "rb");
-    }
-    return filename;
-}
-
-std::string postfix_uniq(const std::string &filename, const char * ext) {
-    std::string::size_type where =filename.find_last_of("./\\");
-    if (where == std::string::npos || filename[where] != '.') {
-        return uniq_filename(filename + ext);
-    }
-    return uniq_filename(filename.substr(0, where) + ext);
-}
 void nop (Sirikata::DecoderWriter*w, size_t) {
 }
 void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
@@ -1579,100 +1703,31 @@ unsigned char read_fixed_ujpg_header() {
     max_file_size = LEtoUint32(file_size.begin());
     return NUM_THREADS;
 }
-bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_file_size, bool force_zlib0)
+
+bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
+                Sirikata::Array1d<uint8_t, 2> fileid)
 {
-    unsigned char fileid[ 2 ] = { 0, 0 };
-
-    std::string ifilename;
-    std::string ofilename;
-    if (!reader) {
-        assert(!pipe_on); // we should have filled the pipe here
-        ifilename = filelist[ file_no++ ];
-        reader = ujg_base_in = IOUtil::OpenFileOrPipe(ifilename.c_str(), 0, max_file_size);
-    } else {
-        pipe_on = true;
-    }
-    if (!reader) {
-        const char *errormessage = "Read file not found\n";
-        errorlevel.store(2);
-        while (write(2, errormessage, strlen(errormessage)) < 0 && errno == EINTR) {
-
-        }
-        custom_exit(ExitCode::FILE_NOT_FOUND);
-    }
-    // open input stream, check for errors
-    str_in = reader;
-    if ( str_in == NULL ) {
-        fprintf( stderr, FRD_ERRMSG, filelist[ file_no ] );
-        errorlevel.store(2);
-        custom_exit(ExitCode::FILE_NOT_FOUND);
-        return false;
-    }
-
-    // immediately return error if 2 bytes can't be read
-    if ( IOUtil::ReadFull(str_in, fileid, 2 ) != 2 ) {
-        filetype = UNK;
-        errormessage = "file doesn't contain enough data";
-        errorlevel.store(2);
-        custom_exit(ExitCode::SHORT_READ);
-        return false;
-    }
-
+    IOUtil::FileReader * reader = IOUtil::BindFdToReader(fd_in, max_file_size);
+    reader->mark_some_bytes_already_read((uint32_t)fileid.size());
+    IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out);
+    ujg_base_in = reader;
     // check file id, determine filetype
-    if ( ( fileid[0] == 0xFF ) && ( fileid[1] == 0xD8 ) ) {
+    if (is_jpeg_header(fileid)) {
         str_in = new Sirikata::BufferedReader<JPG_READ_BUFFER_SIZE>(reader);
         // file is JPEG
         filetype = JPEG;
         NUM_THREADS = std::min(NUM_THREADS, (unsigned int)max_encode_threads);
-        // create filenames
-        if ( !pipe_on ) {
-            if (file_no < file_cnt && ofilename != ifilename) {
-                ofilename = filelist[file_no];
-            } else {
-                ofilename = postfix_uniq(ifilename, (ofiletype == UJG ? ".ujg" : ".lep"));
-            }
-        }
         // open output stream, check for errors
         ujg_out = writer;
-        if (!writer) {
-            writer = ujg_out = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2);
-            if(!writer) {
-                const char * errormessage = "Output file unable to be opened for writing\n";
-                while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {
-
-                }
-                custom_exit(ExitCode::FILE_NOT_FOUND);
-            }
-        }
-        if ( !ujg_out ) {
-            fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
-            errorlevel.store(2);
-            return false;
-        }
     }
     else if ( ( ( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) )
               || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
               || ( ( fileid[0] == zlepton_header[0] ) && ( fileid[1] == zlepton_header[1] ) ) ){
+        str_in = reader;
         bool compressed_output = (fileid[0] == zlepton_header[0]) && (fileid[1] == zlepton_header[1]);
         compressed_output = compressed_output || g_force_zlib0_out || force_zlib0;
         // file is UJG
         filetype = (( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) ) ? UJG : LEPTON;
-        // create filenames
-        if ( !pipe_on ) {
-            if (file_no < file_cnt && ofilename != ifilename) {
-                ofilename = filelist[file_no];
-            } else {
-                if (compressed_output) {
-                    ofilename = postfix_uniq(ifilename, ".jpg.z");
-                } else {
-                    ofilename = postfix_uniq(ifilename, ".jpg");
-                }
-            }
-        }
-        // open output stream, check for errors
-        if (!writer) {
-            writer = IOUtil::OpenWriteFileOrPipe( ofilename.c_str(), ( !pipe_on ) ? 0 : 2);
-        }
         std::function<void(Sirikata::DecoderWriter*, size_t file_size)> known_size_callback = &nop;
         Sirikata::DecoderWriter * write_target = writer;
         if (compressed_output) {
@@ -1684,7 +1739,7 @@ bool check_file(IOUtil::FileReader *reader, IOUtil::FileWriter *writer, int max_
                                         known_size_callback,
                                         Sirikata::JpegAllocator<uint8_t>());
         if ( str_out->chkerr() ) {
-            fprintf( stderr, FWR_ERRMSG, ifilename.c_str() );
+            fprintf( stderr, FWR_ERRMSG, filelist[file_no]);
             errorlevel.store(2);
             return false;
         }

@@ -28,8 +28,8 @@ inline Sirikata::uint32 ReadFull(Sirikata::DecoderReader * reader, void * vdata,
 
 class FileReader : public Sirikata::DecoderReader {
     int fp;
-    unsigned int total_read;
-    unsigned int max_read;
+    uint32_t total_read;
+    uint32_t max_read;
 public:
     FileReader(int ff, int max_read_allowed = 0) {
         fp = ff;
@@ -57,11 +57,20 @@ public:
             return std::pair<Sirikata::uint32, JpegError>(nread, JpegError::nil());
         } while(true); // while not EINTR
     }
+    unsigned int bound() const {
+        return max_read;
+    }
     size_t length() {
         return total_read;
     }
     size_t getsize() {
         return total_read;
+    }
+    int get_fd() const {
+        return fp;
+    }
+    void mark_some_bytes_already_read(uint32_t num_bytes) {
+        total_read += num_bytes;
     }
 };
 class FileWriter : public Sirikata::DecoderWriter {
@@ -99,10 +108,17 @@ public:
     size_t getsize() {
         return total_written;
     }
+    int get_fd() const {
+        return fp;
+    }
+
 };
 
 SIRIKATA_FUNCTION_EXPORT FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_size_read);
 SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe);
+
+SIRIKATA_FUNCTION_EXPORT FileReader * BindFdToReader(int fd, uint32_t max_size_read);
+SIRIKATA_FUNCTION_EXPORT FileWriter * BindFdToWriter(int fd);
 
 }
 #endif
