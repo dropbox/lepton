@@ -4,6 +4,8 @@
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "../vp8/util/nd_array.hh"
+#include "MuxReader.hh"
 namespace Sirikata {
 class DecoderReader;
 class DecoderWriter;
@@ -119,6 +121,12 @@ SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(const char * filename,
 
 SIRIKATA_FUNCTION_EXPORT FileReader * BindFdToReader(int fd, uint32_t max_size_read);
 SIRIKATA_FUNCTION_EXPORT FileWriter * BindFdToWriter(int fd);
+
+// returns the md5sum of the input and tee'd input stores the output in the ResizableByteBuffer
+Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header, bool send_header,
+                                                int input, int input_tee,
+                                                int output, size_t *input_size,
+                                                Sirikata::MuxReader::ResizableByteBuffer *stored_outpt);
 
 }
 #endif

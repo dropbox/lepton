@@ -87,6 +87,9 @@ public:
             assert(mReserved == 0);
             mAlloc = new_alloc;
         }
+        size_t how_much_reserved() const {
+            return mReserved;
+        }
         void reserve(size_t new_reserved) {
             if (new_reserved > mReserved) {
                 mReserved = new_reserved;

@@ -1112,33 +1112,61 @@ bool recode_baseline_jpeg_wrapper() {
 
     return retval;
 }
+
+
 enum class ValidationContinuation {
     ROUNDTRIP_OK,
     BAD,
     CONTINUE_AS_JPEG,
     CONTINUE_AS_LEPTON,
 };
+
+
+
 ValidationContinuation validateAndCompress(int *reader, int*writer,
                                            Sirikata::Array1d<uint8_t, 2> header, ExitCode *validation_exit_code) {
-/*
-    int compress_pipes[2] = {-1, -1};
-    int decompress_pipes[2] = {-1, -1};
-    int err;
-    do {
-        err = pipe(compress_pipes);
-    } while (err != 0 && errno == EINTR);
-    if (fork() == 0) {
-        
+
+    int jpeg_input_pipes[2] = {-1, -1};
+    int lepton_output_pipes[2] = {-1, -1};
+    //int lepton_roundtrip_output[2] = {-1, -1};
+    //int jpeg_roundtrip_output[2] = {-1, -1};
+    //int err;
+    while(pipe(jpeg_input_pipes) < 0 && errno == EINTR){}
+    while(pipe(lepton_output_pipes) < 0 && errno == EINTR){}
+    if (fork() == 0) { // could also fork/exec here
+        while(close(*reader) < 0 && errno == EINTR){}
+        while(close(*writer) < 0 && errno == EINTR){}
+        *reader = jpeg_input_pipes[0];
+        *writer = lepton_output_pipes[1];
+        while(close(jpeg_input_pipes[1]) < 0 && errno == EINTR){}
+        while(close(lepton_output_pipes[0]) < 0 && errno == EINTR){}
         return ValidationContinuation::CONTINUE_AS_JPEG;
     }
-
-    do {
-        err = pipe(decompress_pipes);
-    } while (err != 0 && errno == EINTR);
-*/
+    while(close(jpeg_input_pipes[0]) < 0 && errno == EINTR){}
+    while(close(lepton_output_pipes[1]) < 0 && errno == EINTR){}
+    Sirikata::MuxReader::ResizableByteBuffer lepton_data;
+    lepton_data.reserve(4096 * 1024);
+    size_t size = 0;
+    Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header, false,
+                                                                  *reader, jpeg_input_pipes[1],
+                                                                  lepton_output_pipes[0], &size,
+                                                                  &lepton_data);
+    (void)md5;
+    size_t data_sent = 0;
+    while (data_sent < lepton_data.size()) {
+        ssize_t sent = write(*writer,
+                             lepton_data.data() + data_sent,
+                             lepton_data.size() - data_sent);
+        if (sent < 0 && errno == EINTR){
+            continue;
+        }
+        if (sent <= 0) {
+            custom_exit(ExitCode::SHORT_READ);
+        }
+        data_sent += sent;
+    }
     *validation_exit_code = ExitCode::SUCCESS;
-    
-    return ValidationContinuation::CONTINUE_AS_JPEG;
+    return ValidationContinuation::ROUNDTRIP_OK;
 }
 int open_fdin(const char *ifilename,
                    IOUtil::FileReader *reader,
