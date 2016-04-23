@@ -57,6 +57,8 @@ SET(LEPTON_SOURCES
    src/lepton/socket_serve.cc
    src/lepton/socket_serve.hh
    src/lepton/jpgcoder.cc
+   src/lepton/validation.cc
+   src/lepton/validation.hh
    src/lepton/recoder.cc
    src/lepton/recoder.hh
    src/lepton/idct.cc

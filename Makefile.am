@@ -28,6 +28,8 @@ lepton_SOURCES = \
    src/lepton/socket_serve.cc \
    src/lepton/socket_serve.hh \
    src/lepton/jpgcoder.cc \
+   src/lepton/validation.hh \
+   src/lepton/validation.cc \
    src/lepton/recoder.cc \
    src/lepton/uncompressed_components.cc \
    src/lepton/jpgcoder.hh \
