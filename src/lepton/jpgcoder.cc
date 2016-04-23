@@ -1260,7 +1260,7 @@ void process_file(IOUtil::FileReader* reader,
     if (is_jpeg_header(header) && !g_skip_validation) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
-        switch (validateAndCompress(&fdin, &fdout, header, &validation_exit_code)) {
+        switch (validateAndCompress(&fdin, &fdout, header, start_byte, max_file_size, &validation_exit_code)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
             //fprintf(stderr, "CONTINUE AS JPEG...\n");
             break;

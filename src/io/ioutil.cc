@@ -130,7 +130,10 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
     MD5_Final(&retval[0], &context);
     return retval;    
 }
-Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header, bool send_header,
+Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header,
+                                                size_t start_byte,
+                                                size_t end_byte,
+                                                bool send_header,
                                                 int copy_to_input_tee, int input_tee,
                                                 int copy_to_storage, size_t *input_size,
                                                 Sirikata::MuxReader::ResizableByteBuffer *storage,
@@ -142,7 +145,9 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
 
     MD5_CTX context;
     MD5_Init(&context);
-    MD5_Update(&context, &header[0], header.size());
+    if (start_byte < header.size()) {
+        MD5_Update(&context, &header[start_byte], header.size() - start_byte);
+    }
     *input_size = header.size();
     uint8_t buffer[65536] = {0};
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
@@ -189,7 +194,11 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             if ((fds[i].revents)) {
                 if (fds[i].fd == copy_to_input_tee) {
                     always_assert(cursor < sizeof(buffer)); // precondition to being in the poll
-                    ssize_t del = read(fds[i].fd, &buffer[cursor], sizeof(buffer) - cursor);
+                    size_t max_to_read = sizeof(buffer) - cursor;
+                    if (end_byte != 0 && max_to_read > end_byte - *input_size) {
+                        max_to_read = end_byte - *input_size;
+                    }
+                    ssize_t del = read(fds[i].fd, &buffer[cursor], max_to_read);
                     if (del < 0 && errno == EINTR) {
                         continue;
                     }
@@ -197,9 +206,19 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                         should_close = true;
                     }
                     if (del > 0) {
-                        MD5_Update(&context, &buffer[cursor], del);
+                        if (*input_size + del > start_byte) {
+                            if (*input_size >= start_byte) {
+                                MD5_Update(&context, &buffer[cursor], del);
+                            } else {
+                                size_t offset = (start_byte - *input_size);
+                                MD5_Update(&context, &buffer[cursor + offset], del - offset);
+                            }
+                        }
                         *input_size += del;
                         cursor += del;
+                        if (end_byte != 0 && *input_size == end_byte) {
+                            should_close = true; // read the truncated input
+                        }
                     }
                     //fprintf(stderr,"%d) Reading %ld bytes for total of %ld\n", fds[i].fd, del, *input_size);
                 }
@@ -269,6 +288,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
         }
     }
+    *input_size -= start_byte;
     Sirikata::Array1d<uint8_t, 16> retval;
     MD5_Final(&retval[0], &context);
     return retval;

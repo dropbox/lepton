@@ -8,4 +8,7 @@ enum class ValidationContinuation {
 
 
 ValidationContinuation validateAndCompress(int *reader, int*writer,
-                                           Sirikata::Array1d<uint8_t, 2> header, ExitCode *validation_exit_code);
+                                           Sirikata::Array1d<uint8_t, 2> header,
+                                           size_t start_byte,
+                                           size_t end_byte,
+                                           ExitCode *validation_exit_code);

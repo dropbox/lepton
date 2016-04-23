@@ -130,7 +130,10 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
                                                    size_t *output_size);
 
 // returns the md5sum of the input and tee'd input stores the output in the ResizableByteBuffer
-Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header, bool send_header,
+Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header,
+                                                size_t start_byte,
+                                                size_t end_byte,
+                                                bool send_header,
                                                 int input, int input_tee,
                                                 int output, size_t *input_size,
                                                 Sirikata::MuxReader::ResizableByteBuffer *stored_outpt,

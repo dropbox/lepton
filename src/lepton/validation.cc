@@ -5,8 +5,12 @@
 #include "../io/ioutil.hh"
 #include "validation.hh"
 
-ValidationContinuation validateAndCompress(int *reader, int*writer,
-                                           Sirikata::Array1d<uint8_t, 2> header, ExitCode *validation_exit_code) {
+ValidationContinuation validateAndCompress(int *reader,
+                                           int*writer,
+                                           Sirikata::Array1d<uint8_t, 2> header,
+                                           size_t start_byte,
+                                           size_t end_byte,
+                                           ExitCode *validation_exit_code) {
 
     int jpeg_input_pipes[2] = {-1, -1};
     int lepton_output_pipes[2] = {-1, -1};
@@ -52,9 +56,13 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
     Sirikata::MuxReader::ResizableByteBuffer lepton_data;
     lepton_data.reserve(4096 * 1024);
     size_t size = 0;
-    Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header, false,
+    Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header,
+                                                                  start_byte,
+                                                                  end_byte,
+                                                                  false,
                                                                   *reader, jpeg_input_pipes[1],
-                                                                  lepton_output_pipes[0], &size,
+                                                                  lepton_output_pipes[0],
+                                                                  &size,
                                                                   &lepton_data,
                                                                   false);
 
