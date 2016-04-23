@@ -1260,10 +1260,10 @@ void process_file(IOUtil::FileReader* reader,
     if (is_jpeg_header(header) && !g_skip_validation) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
-        switch (validateAndCompress(&fdin, &fdout, ifilename,
-                                    writer, header, start_byte, max_file_size,
+        Sirikata::MuxReader::ResizableByteBuffer lepton_data;
+        switch (validateAndCompress(&fdin, &fdout, header, start_byte, max_file_size,
                                     &validation_exit_code,
-                                    g_force_zlib0_out || force_zlib0)) {
+                                    &lepton_data)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
             //fprintf(stderr, "CONTINUE AS JPEG...\n");
             break;
@@ -1282,6 +1282,19 @@ void process_file(IOUtil::FileReader* reader,
             //fprintf(stderr, "CONTINUE AS LEPTON...\n");
             break;
           case ValidationContinuation::ROUNDTRIP_OK:
+            fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
+            for (size_t data_sent = 0; data_sent < lepton_data.size();) {
+                ssize_t sent = write(fdout,
+                                     lepton_data.data() + data_sent,
+                                     lepton_data.size() - data_sent);
+                if (sent < 0 && errno == EINTR){
+                    continue;
+                }
+                if (sent <= 0) {
+                    custom_exit(ExitCode::SHORT_READ);
+                }
+                data_sent += sent;
+            }
             //fprintf(stderr, "OK...\n");
             custom_exit(ExitCode::SUCCESS);
           case ValidationContinuation::BAD:

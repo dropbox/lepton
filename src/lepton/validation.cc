@@ -5,14 +5,13 @@
 #include "../io/ioutil.hh"
 #include "validation.hh"
 
-ValidationContinuation validateAndCompress(int *reader, int*writer,
-                                           const char * ifilename,
-                                           IOUtil::FileWriter *fwriter, // <-- may be null
+ValidationContinuation validateAndCompress(int *reader,
+                                           int *writer,
                                            Sirikata::Array1d<uint8_t, 2> header,
                                            size_t start_byte,
                                            size_t end_byte,
                                            ExitCode *validation_exit_code,
-                                           bool output_as_zlib0) {
+                                           Sirikata::MuxReader::ResizableByteBuffer *lepton_data) {
 
     int jpeg_input_pipes[2] = {-1, -1};
     int lepton_output_pipes[2] = {-1, -1};
@@ -55,8 +54,7 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
     while(close(jpeg_roundtrip_recv[1]) < 0 && errno == EINTR){}
 
 
-    Sirikata::MuxReader::ResizableByteBuffer lepton_data;
-    lepton_data.reserve(4096 * 1024);
+    lepton_data->reserve(4096 * 1024);
     size_t size = 0;
     Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header,
                                                                   start_byte,
@@ -65,7 +63,7 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
                                                                   *reader, jpeg_input_pipes[1],
                                                                   lepton_output_pipes[0],
                                                                   &size,
-                                                                  &lepton_data,
+                                                                  lepton_data,
                                                                   false);
 
 
@@ -82,8 +80,8 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
     size_t roundtrip_size = 0;
     // validate with decode
     Sirikata::Array1d<uint8_t, 16> rtmd5 = IOUtil::send_and_md5_result(
-        &lepton_data[header.size()],
-        lepton_data.size() - header.size(),
+        &(*lepton_data)[header.size()],
+        lepton_data->size() - header.size(),
         lepton_roundtrip_send[1],
         jpeg_roundtrip_recv[0],
         &roundtrip_size);
@@ -109,21 +107,6 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
         }
     } else if (WIFSIGNALED(status)) {
         raise(WTERMSIG(status));
-    }
-    *writer = open_fdout(ifilename, fwriter, header, output_as_zlib0);
-    size_t data_sent = 0;
-    while (data_sent < lepton_data.size()) {
-        ssize_t sent = write(*writer,
-                             lepton_data.data() + data_sent,
-                             lepton_data.size() - data_sent);
-        //fprintf(stderr, "Fd:%d sent:%ld %ld/%ld\n", *writer, sent, data_sent, lepton_data.size());
-        if (sent < 0 && errno == EINTR){
-            continue;
-        }
-        if (sent <= 0) {
-            custom_exit(ExitCode::SHORT_READ);
-        }
-        data_sent += sent;
     }
     *validation_exit_code = ExitCode::SUCCESS;
     return ValidationContinuation::ROUNDTRIP_OK;
