@@ -5,12 +5,14 @@
 #include "../io/ioutil.hh"
 #include "validation.hh"
 
-ValidationContinuation validateAndCompress(int *reader,
-                                           int*writer,
+ValidationContinuation validateAndCompress(int *reader, int*writer,
+                                           const char * ifilename,
+                                           IOUtil::FileWriter *fwriter, // <-- may be null
                                            Sirikata::Array1d<uint8_t, 2> header,
                                            size_t start_byte,
                                            size_t end_byte,
-                                           ExitCode *validation_exit_code) {
+                                           ExitCode *validation_exit_code,
+                                           bool output_as_zlib0) {
 
     int jpeg_input_pipes[2] = {-1, -1};
     int lepton_output_pipes[2] = {-1, -1};
@@ -23,7 +25,7 @@ ValidationContinuation validateAndCompress(int *reader,
     pid_t decode_pid;
     if ((encode_pid = fork()) == 0) { // could also fork/exec here
         while(close(*reader) < 0 && errno == EINTR){}
-        while(close(*writer) < 0 && errno == EINTR){}
+        // not yet open -- we will exit before accessed while(close(*fwriter) < 0 && errno == EINTR){}
         *reader = jpeg_input_pipes[0];
         *writer = lepton_output_pipes[1];
         while(close(jpeg_input_pipes[1]) < 0 && errno == EINTR){}
@@ -38,7 +40,7 @@ ValidationContinuation validateAndCompress(int *reader,
     // we wanna fork the decode here before we allocate 4096 * 1024 bytes here
     if ((decode_pid = fork()) == 0) { // could also fork/exec here
         while(close(*reader) < 0 && errno == EINTR){}
-        while(close(*writer) < 0 && errno == EINTR){}
+        // not yet open -- we will exit before accessed while(close(*fwriter) < 0 && errno == EINTR){}
         while(close(jpeg_input_pipes[1]) < 0 && errno == EINTR){}
         while(close(lepton_output_pipes[0]) < 0 && errno == EINTR){}
 
@@ -108,7 +110,7 @@ ValidationContinuation validateAndCompress(int *reader,
     } else if (WIFSIGNALED(status)) {
         raise(WTERMSIG(status));
     }
-
+    *writer = open_fdout(ifilename, fwriter, header, output_as_zlib0);
     size_t data_sent = 0;
     while (data_sent < lepton_data.size()) {
         ssize_t sent = write(*writer,

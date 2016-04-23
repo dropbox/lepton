@@ -1256,11 +1256,14 @@ void process_file(IOUtil::FileReader* reader,
     Sirikata::Array1d<uint8_t, 2> header = {{0, 0}};
     const char * ifilename = filelist[file_no];
     int fdin = open_fdin(ifilename, reader, header);
-    int fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
+    int fdout = -1;
     if (is_jpeg_header(header) && !g_skip_validation) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
-        switch (validateAndCompress(&fdin, &fdout, header, start_byte, max_file_size, &validation_exit_code)) {
+        switch (validateAndCompress(&fdin, &fdout, ifilename,
+                                    writer, header, start_byte, max_file_size,
+                                    &validation_exit_code,
+                                    g_force_zlib0_out || force_zlib0)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
             //fprintf(stderr, "CONTINUE AS JPEG...\n");
             break;
@@ -1286,6 +1289,8 @@ void process_file(IOUtil::FileReader* reader,
             always_assert(validation_exit_code != ExitCode::SUCCESS);
             custom_exit(validation_exit_code);
         }        
+    } else {
+        fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
     }
     // check input file and determine filetype
     check_file(fdin, fdout, max_file_size, force_zlib0, header);
