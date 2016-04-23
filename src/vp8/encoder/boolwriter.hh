@@ -75,7 +75,7 @@ static INLINE void vpx_write(vpx_writer *br, int bit, int probability, Billing b
 
   range <<= shift;
   count += shift;
-  write_bill(bill, true, shift);
+  write_bit_bill(bill, true, shift);
 
   if (count >= 0) {
     int offset = shift - count;

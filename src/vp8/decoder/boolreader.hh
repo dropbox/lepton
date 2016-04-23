@@ -206,7 +206,7 @@ inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split, Billing 
     range <<= shift;
     value <<= shift;
     count -= shift;
-    write_bill(bill, true, shift);
+    write_bit_bill(bill, true, shift);
     r->value = value;
     r->count = count;
     r->range = range;
@@ -239,7 +239,7 @@ inline bool vpx_read(vpx_reader *r, int prob, Billing bill) {
   range <<= shift;
   value <<= shift;
   count -= shift;
-  write_bill(bill, true, shift);
+  write_bit_bill(bill, true, shift);
   r->value = value;
   r->count = count;
   r->range = range;

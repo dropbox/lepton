@@ -555,6 +555,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
             out_file_size >>= 8;
         }
         str_out->Write(out_buffer, sizeof(out_file_size));
+        write_byte_bill(Billing::HEADER, true, sizeof(out_file_size));
         (void)file_size;
         always_assert(str_out->getsize() == file_size);
     }

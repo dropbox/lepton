@@ -3535,8 +3535,8 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
             Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                              mrw.buffer().size(),
                                                              Sirikata::JpegAllocator<uint8_t>());
-    write_bill(Billing::HEADER, true, compressed_header.size() * 8);
-    write_bill(Billing::HEADER, false, mrw.buffer().size() * 8);
+
+    write_byte_bill(Billing::HEADER, false, 2 + hdrs + prefix_grbs + grbs);
     static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
     always_assert(NUM_THREADS <= 255);
     unsigned char zed[] = {start_byte != 0 ? (unsigned char)'Y' : (unsigned char)'Z'};
@@ -3550,10 +3550,13 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     err = ujg_out->Write(git_revision, sizeof(git_revision) ).second;
     uint32toLE(jpgfilesize - start_byte, ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
+    write_byte_bill(Billing::HEADER, true, 24);
     uint32toLE((uint32_t)compressed_header.size(), ujpg_mrk);
     err = ujg_out->Write( ujpg_mrk, 4).second;
+    write_byte_bill(Billing::HEADER, true, 4);
     auto err2 = ujg_out->Write(compressed_header.data(),
                                compressed_header.size());
+    write_byte_bill(Billing::HEADER, true, compressed_header.size());
     zlib_hdrs = compressed_header.size();
     if (err != Sirikata::JpegError::nil() || err2.second != Sirikata::JpegError::nil()) {
         fprintf( stderr, "write error, possibly drive is full" );
@@ -3562,6 +3565,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     }
     unsigned char cmp_mrk[] = {'C', 'M', 'P'};
     err = ujg_out->Write( cmp_mrk, sizeof(cmp_mrk) ).second;
+    write_byte_bill(Billing::HEADER, true, 3);
     while (g_encoder->encode_chunk(&colldata, ujg_out,
                                    &selected_splits[0], selected_splits.size()) == CODING_PARTIAL) {
     }
@@ -3604,12 +3608,14 @@ bool read_ujpg( void )
 //    colldata.start_decoder_worker_thread(std::bind(&simple_decoder, &colldata, str_in));
     unsigned char ujpg_mrk[ 64 ];
     // this is where we will enable seccomp, before reading user data
+    write_byte_bill(Billing::HEADER, true, 24); // for the fixed header
 
     str_out->call_size_callback(max_file_size);
     uint32_t compressed_header_size = 0;
     if (ReadFull(str_in, ujpg_mrk, 4) != 4) {
         custom_exit(ExitCode::SHORT_READ);
     }
+    write_byte_bill(Billing::HEADER, true, 4);
 
     compressed_header_size = LEtoUint32(ujpg_mrk);
     if (compressed_header_size > 128 * 1024 * 1024 || max_file_size > 128 * 1024 * 1024) {
@@ -3781,7 +3787,18 @@ bool read_ujpg( void )
             return false;
         }
     }
+    write_byte_bill(Billing::HEADER,
+                    false,
+                    2 + hdrs + prefix_grbs + grbs);
+    write_byte_bill(Billing::HEADER,
+                    true,
+                    compressed_header_buffer.size());
+
     ReadFull(str_in, ujpg_mrk, 3 ) ;
+    write_byte_bill(Billing::HEADER, true, 3);
+
+    write_byte_bill(Billing::HEADER, true, 4 * NUM_THREADS + 4); // trailing bits + trailing size
+
     if (memcmp(ujpg_mrk, "CMP", 3) != 0) {
         always_assert(false && "CMP must be present (uncompressed) in the file");
         return false; // not a JPG

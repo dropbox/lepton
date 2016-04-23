@@ -42,25 +42,38 @@ void write_pct(int fd, double ratio) {
     }
     write_number(fd, (int64_t)((int64_t)(ratio * 100000) % 1000));
 }
+
+template<class T> void print_item(int fd, const char * name, const T &uncompressed, const T &compressed) {
+    write_string(fd, name);
+    write_string(fd, ": ");
+    write_number(fd, uncompressed / 8);
+    write_string(fd, ".");
+    write_number(fd, uncompressed % 8);
+    write_string(fd, " vs ");
+    write_number(fd, compressed/8);
+    write_string(fd, ".");
+    write_number(fd, compressed % 8);
+    write_string(fd, " = ");
+    double x = compressed;
+    if (uncompressed) {
+        x /= uncompressed;
+    } else {
+        x = 0;
+    }
+    write_pct(fd, x);
+    write_string(fd, "%\n");
+
+}
 void print_bill(int fd) {
     write_string(fd, "::::BILL::::\n");
+    size_t totals[2] = {0, 0};
     for (int i = 0; i < (int)Billing::NUM_BILLING_ELEMENTS; ++i) {
         if (billing_map[0][i] || billing_map[1][i]) {
-            write_string(fd, BillingString((Billing)i));
-            write_string(fd, ": ");
-            write_number(fd, billing_map[0][i]);
-            write_string(fd, " vs ");
-            write_number(fd, billing_map[1][i]);
-            write_string(fd, " = ");
-            double x = billing_map[1][i];
-            if (billing_map[0][i]) {
-                x /= billing_map[0][i];
-            } else {
-                x = 0;
-            }
-            write_pct(fd, x);
-            write_string(fd, "%\n");
+            totals[0] += billing_map[0][i];
+            totals[1] += billing_map[1][i];
+            print_item(fd, BillingString((Billing)i), billing_map[0][i], billing_map[1][i]);
         }
     }
+    print_item(fd, "Total", totals[0], totals[1]);
     write_string(fd, "::::::::::::\n");
 }
