@@ -40,6 +40,96 @@ FileWriter * BindFdToWriter(int fd) {
     }
     return NULL;
 }
+Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
+                                                   size_t data_size,
+                                                   int send_to_subprocess,
+                                                   int recv_from_subprocess,
+                                                   size_t *output_size){
+    struct pollfd fds[2];
+    size_t num_fds = sizeof(fds)/sizeof(fds[0]);
+    MD5_CTX context;
+    MD5_Init(&context);
+    *output_size = 0;
+    int flags = fcntl(send_to_subprocess, F_GETFL, 0);
+    fcntl(send_to_subprocess, F_SETFL, flags | O_NONBLOCK);
+    size_t send_cursor = 0;
+    uint8_t buffer[65536];
+    bool finished = false;
+    while(!finished) {
+        num_fds = 0;
+        if (send_to_subprocess != -1) {
+            fds[num_fds].events = POLLOUT | POLLPRI | POLLERR | POLLHUP;
+            fds[num_fds].fd = send_to_subprocess;
+            ++num_fds;            
+        }
+        if (recv_from_subprocess != -1) {
+            fds[num_fds].events = POLLIN | POLLERR | POLLHUP;
+            fds[num_fds].fd = recv_from_subprocess;
+            ++num_fds;
+        }
+        for (size_t i = 0; i < sizeof(fds) /sizeof(fds[0]); ++i) {
+            fds[i].revents = 0;
+        }
+        int ret = poll(fds, num_fds, -1);
+        if (ret == 0 || (ret < 0 && errno == EINTR)) {
+            continue;
+        }
+        for (size_t i = 0; i < num_fds; ++i) {
+            bool should_close = false;
+            if (fds[i].revents & (POLLERR/* | POLLHUP*/)) {
+                should_close = true;
+            }
+            if ((fds[i].revents)) {
+                if (fds[i].fd == recv_from_subprocess) {
+                    ssize_t del = read(fds[i].fd, &buffer[0], sizeof(buffer));
+                    if (del < 0 && errno == EINTR) {
+                        continue;
+                    }
+                    if (del == 0) {
+                        should_close = true;
+                        finished = true;
+                    }
+                    if (del > 0) {
+                        MD5_Update(&context, &buffer[0], del);
+                        *output_size += del;
+                    }
+                    //fprintf(stderr,"%d) Reading %ld bytes for total of %ld\n", fds[i].fd, del, *output_size);
+                }
+                if (fds[i].fd == send_to_subprocess) {
+                    ssize_t del = 0;
+                    if (send_cursor < data_size) {
+                        del = write(fds[i].fd,
+                                    &data[send_cursor],
+                                    data_size - send_cursor);
+                    }
+                    //fprintf(stderr, "Want %ld bytes, but sent %ld\n", data_size - send_cursor,  del);
+                    if (del < 0 && errno == EINTR) {
+                        continue;
+                    }
+                    if (del > 0) {
+                        send_cursor += del;
+                        //fprintf(stderr, "len Storage is %ld/%ld\n", send_cursor, data_size);
+                    }
+                    if (send_cursor == data_size || del == 0) {
+                        should_close = true;
+                    }
+                }
+            }
+            if (should_close) {
+                while (close(fds[i].fd) < 0 && errno == EINTR) {}
+                if (fds[i].fd == send_to_subprocess) {
+                    send_to_subprocess = -1;
+                }
+                if (fds[i].fd == recv_from_subprocess) {
+                    recv_from_subprocess = -1;
+                }
+            }
+        }
+    }
+    Sirikata::Array1d<uint8_t, 16> retval;
+    MD5_Final(&retval[0], &context);
+    return retval;    
+}
 Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header, bool send_header,
                                                 int copy_to_input_tee, int input_tee,
                                                 int copy_to_storage, size_t *input_size,
@@ -57,7 +147,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     uint8_t buffer[65536] = {0};
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;
-    bool finished;
+    bool finished = false;
     while (!finished) {
         num_fds = 0;
         if (copy_to_storage != -1) {
