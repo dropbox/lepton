@@ -392,8 +392,12 @@ int run_test(const std::vector<unsigned char> &testImage,
     always_assert(ret > 0);
     leptonBuffer.resize(ret);
     if (use_lepton) {
-        always_assert(get_uncompressed_image_size(leptonBuffer.data(),
-                                                  leptonBuffer.size()) == (ssize_t)testImage.size() &&
+        size_t result = get_uncompressed_image_size(leptonBuffer.data(),
+                                                    leptonBuffer.size());
+        if (result != testImage.size()) {
+            fprintf(stderr, "Output Size %ld != %ld\n", result, testImage.size());
+        }
+        always_assert(result == (size_t)testImage.size() &&
                       "Lepton representation must have encoded proper size");
     }
     always_assert(roundtripBuffer.size() == testImage.size());

@@ -3,6 +3,8 @@
 #include <poll.h>
 #include "Reader.hh"
 #include "ioutil.hh"
+#include "../../dependencies/md5/md5.h"
+
 namespace IOUtil {
 
 FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_size) {
@@ -41,9 +43,17 @@ FileWriter * BindFdToWriter(int fd) {
 Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header, bool send_header,
                                                 int copy_to_input_tee, int input_tee,
                                                 int copy_to_storage, size_t *input_size,
-                                                Sirikata::MuxReader::ResizableByteBuffer *storage) {
+                                                Sirikata::MuxReader::ResizableByteBuffer *storage,
+                                                bool close_input) {
     struct pollfd fds[3];
     size_t num_fds = sizeof(fds)/sizeof(fds[0]);
+    int flags = fcntl(input_tee, F_GETFL, 0);
+    fcntl(input_tee, F_SETFL, flags | O_NONBLOCK);
+
+    MD5_CTX context;
+    MD5_Init(&context);
+    MD5_Update(&context, &header[0], header.size());
+    *input_size = header.size();
     uint8_t buffer[65536] = {0};
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;
@@ -82,10 +92,11 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
         }
         for (size_t i = 0; i < num_fds; ++i) {
             bool should_close = false;
-            if (fds[i].revents & (POLLERR | POLLHUP)) {
+            if (fds[i].revents & (POLLERR/* | POLLHUP*/)) {
                 should_close = true;
+                //fprintf(stderr, "%d) Closing time %d (%d | %d) pollin: %d pollout: %d\n", fds[i].fd, fds[i].revents,POLLERR,POLLHUP, POLLIN, POLLOUT);
             }
-            if (fds[i].revents & POLLIN) {
+            if ((fds[i].revents)) {
                 if (fds[i].fd == copy_to_input_tee) {
                     always_assert(cursor < sizeof(buffer)); // precondition to being in the poll
                     ssize_t del = read(fds[i].fd, &buffer[cursor], sizeof(buffer) - cursor);
@@ -95,8 +106,12 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                     if (del == 0) {
                         should_close = true;
                     }
-                    *input_size += del;
-                    cursor += del;
+                    if (del > 0) {
+                        MD5_Update(&context, &buffer[cursor], del);
+                        *input_size += del;
+                        cursor += del;
+                    }
+                    //fprintf(stderr,"%d) Reading %ld bytes for total of %ld\n", fds[i].fd, del, *input_size);
                 }
                 if (fds[i].fd == copy_to_storage) {
                     if (storage->how_much_reserved() < storage->size() + sizeof(buffer)) {
@@ -107,6 +122,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                     ssize_t del = read(fds[i].fd,
                                        &(*storage)[old_size],
                                        storage->size() - old_size);
+                    //fprintf(stderr, "Want %ld bytes, but read %ld\n", storage->size() - old_size,  del);
                     if (del < 0 && errno == EINTR) {
                         storage->resize(old_size);
                         continue;
@@ -116,12 +132,16 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                         finished = true;
                         should_close = true;
                     }
-                    storage->resize(old_size + del);
+                    if (del > 0) {
+                        storage->resize(old_size + del);
+                        //fprintf(stderr, "len Storage is %ld\n", storage->size());
+                    }
                 }
             }
             if (fds[i].revents & POLLOUT) {
                 always_assert (cursor != 0);//precondition to being in the pollfd set
                 ssize_t del = write(fds[i].fd, buffer, cursor);
+                //fprintf(stderr, "fd: %d: Writing %ld data to %d\n", fds[i].fd, del, cursor);
                 if (del == 0) {
                     should_close = true;
                 }
@@ -131,25 +151,36 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                     }
                     cursor -= del;
                 }
+                if (cursor == 0 && copy_to_input_tee == -1) {
+                    should_close = true;
+                }
             }
             if (should_close) {
                 if (fds[i].fd == copy_to_input_tee) {
                     copy_to_input_tee = -1;
+                    //fprintf(stderr,"input:Should close(%d) size:%ld\n", fds[i].fd, *input_size);
+                    if (close_input) {
+                        while (close(fds[i].fd) < 0 && errno == EINTR) {}
+                    }
+                    // gotta leave the socket open: don't close it
                 }
                 if (fds[i].fd == copy_to_storage) {
                     copy_to_storage = -1;
                     finished = true;
+                    //fprintf(stderr,"back_copy:Should close(%d):size %ld\n",fds[i].fd,storage->size());
+                    while (close(fds[i].fd) < 0 && errno == EINTR) {}
                 }
                 if (fds[i].fd == input_tee) {
                     input_tee = -1;
+                    //fprintf(stderr,"output_to_compressor:Should close (%d) \n", fds[i].fd );
+                    while (close(fds[i].fd) < 0 && errno == EINTR) {}
                 }
-                while (close(fds[i].fd) < 0 && errno == EINTR) {}
 
             }
         }
     }
     Sirikata::Array1d<uint8_t, 16> retval;
-    retval.memset(0);
+    MD5_Final(&retval[0], &context);
     return retval;
 }
 

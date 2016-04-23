@@ -14,6 +14,7 @@
 #ifndef _WIN32
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/wait.h>
     #include <unistd.h>
 #else
     #include <io.h>
@@ -846,7 +847,7 @@ int initialize_options( int argc, char** argv )
             }
         } else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
             g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
-        } else if ( strcmp((*argv), "-skipvalidation=") == 0 ) {
+        } else if ( strcmp((*argv), "-skipvalidation") == 0 ) {
             g_skip_validation = true;
         }
         else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
@@ -1133,9 +1134,10 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
     //int err;
     while(pipe(jpeg_input_pipes) < 0 && errno == EINTR){}
     while(pipe(lepton_output_pipes) < 0 && errno == EINTR){}
-    if (fork() == 0) { // could also fork/exec here
+    pid_t encode_pid;
+    if ((encode_pid = fork()) == 0) { // could also fork/exec here
         while(close(*reader) < 0 && errno == EINTR){}
-        while(close(*writer) < 0 && errno == EINTR){}
+        //while(close(*writer) < 0 && errno == EINTR){}
         *reader = jpeg_input_pipes[0];
         *writer = lepton_output_pipes[1];
         while(close(jpeg_input_pipes[1]) < 0 && errno == EINTR){}
@@ -1150,13 +1152,19 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
     Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header, false,
                                                                   *reader, jpeg_input_pipes[1],
                                                                   lepton_output_pipes[0], &size,
-                                                                  &lepton_data);
+                                                                  &lepton_data,
+                                                                  false);
+
+    for (int i = 0; i < 16; ++i) {
+        //fprintf(stderr, "%02X%s", md5[i], i < 15 ? "" : "\n");
+    }
     (void)md5;
     size_t data_sent = 0;
     while (data_sent < lepton_data.size()) {
         ssize_t sent = write(*writer,
                              lepton_data.data() + data_sent,
                              lepton_data.size() - data_sent);
+        //fprintf(stderr, "Fd:%d sent:%ld %ld/%ld\n", *writer, sent, data_sent, lepton_data.size());
         if (sent < 0 && errno == EINTR){
             continue;
         }
@@ -1164,6 +1172,16 @@ ValidationContinuation validateAndCompress(int *reader, int*writer,
             custom_exit(ExitCode::SHORT_READ);
         }
         data_sent += sent;
+    }
+    int status = 0;
+    while (waitpid(encode_pid, &status, 0) < 0 && errno == EINTR) {}
+    if (WIFEXITED(status)) {
+        int exit_code = WEXITSTATUS(status);
+        if (exit_code != 0) {
+            exit(exit_code);
+        }
+    } else if (WIFSIGNALED(status)) {
+        raise(WTERMSIG(status));
     }
     *validation_exit_code = ExitCode::SUCCESS;
     return ValidationContinuation::ROUNDTRIP_OK;
@@ -1301,16 +1319,20 @@ void process_file(IOUtil::FileReader* reader,
     int fdin = open_fdin(ifilename, reader, header);
     int fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
     if (is_jpeg_header(header) && !g_skip_validation) {
+        //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
         switch (validateAndCompress(&fdin, &fdout, header, &validation_exit_code)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
+            //fprintf(stderr, "CONTINUE AS JPEG...\n");
             break;
           case ValidationContinuation::CONTINUE_AS_LEPTON:
             filetype = LEPTON;
             header[0] = lepton_header[0];
             header[1] = lepton_header[1];
+            //fprintf(stderr, "CONTINUE AS LEPTON...\n");
             break;
           case ValidationContinuation::ROUNDTRIP_OK:
+            //fprintf(stderr, "OK...\n");
             custom_exit(ExitCode::SUCCESS);
           case ValidationContinuation::BAD:
           default:

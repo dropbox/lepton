@@ -137,7 +137,7 @@ test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/All
    src/io/MemMgrAllocator.hh \
    src/io/DecoderPlatform.hh
 
-test_suite_test_invariants_LDADD = liblocalzlib.a
+test_suite_test_invariants_LDADD = liblocalzlib.a liblocalmd5.a
 
 check_PROGRAMS = test_suite/test_recode_memory_bound test_suite/test_truncate_lowmem test_suite/test_android_lowmem test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_phone_outdoor test_suite/test_truncate_ujg test_suite/test_truncate test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_nofsync test_suite/test_colorswap test_suite/test_odd_rst test_suite/test_trailing_header test_suite/test_trailing_rst test_suite/test_gray2sf test_suite/test_truncated_zero_run test_suite/test_bad_zero_run
 

@@ -126,7 +126,8 @@ SIRIKATA_FUNCTION_EXPORT FileWriter * BindFdToWriter(int fd);
 Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header, bool send_header,
                                                 int input, int input_tee,
                                                 int output, size_t *input_size,
-                                                Sirikata::MuxReader::ResizableByteBuffer *stored_outpt);
+                                                Sirikata::MuxReader::ResizableByteBuffer *stored_outpt,
+                                                bool close_input);
 
 }
 #endif
