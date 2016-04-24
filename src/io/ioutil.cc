@@ -84,7 +84,8 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
         if (ret == 0 || (ret < 0 && errno == EINTR)) {
             continue;
         }
-        if (recv_from_subprocess != -1 && FD_ISSET(recv_from_subprocess, &readfds)) {
+        if (recv_from_subprocess != -1 &&
+            (FD_ISSET(recv_from_subprocess, &readfds) || FD_ISSET(recv_from_subprocess, &errorfds))) {
             ssize_t del = read(recv_from_subprocess, &buffer[0], sizeof(buffer));
             if (del < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
                 // ignore
@@ -99,7 +100,8 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
                 *output_size += del;
             }
         }
-        if (send_to_subprocess != -1 && FD_ISSET(send_to_subprocess, &writefds)) {
+        if (send_to_subprocess != -1 &&
+            (FD_ISSET(send_to_subprocess, &writefds) || FD_ISSET(send_to_subprocess, &errorfds))) {
             ssize_t del = 0;
             if (send_cursor < data_size) {
                 del = write(send_to_subprocess,
@@ -207,7 +209,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             continue;
         }
         //fprintf(stderr, "Checking ev\n");
-        if (copy_to_input_tee != -1 && cursor < sizeof(buffer)) {
+        if (copy_to_input_tee != -1 && cursor < sizeof(buffer) &&
+            (FD_ISSET(copy_to_input_tee, &readfds) || FD_ISSET(copy_to_input_tee, &errorfds))) {
 
             always_assert(cursor < sizeof(buffer)); // precondition to being in the poll
             size_t max_to_read = sizeof(buffer) - cursor;
@@ -249,7 +252,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
             //fprintf(stderr,"%d) Reading %ld bytes for total of %ld\n", copy_to_input_tee, del, *input_size);
         }
-        if (copy_to_storage != -1) {
+        if (copy_to_storage != -1 &&
+            (FD_ISSET(copy_to_storage, &readfds) || FD_ISSET(copy_to_storage, &errorfds))) {
             if (storage->how_much_reserved() < storage->size() + sizeof(buffer)) {
                 storage->reserve(storage->how_much_reserved() * 2);
             }
@@ -281,7 +285,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 }
             }
         }
-        if (input_tee != -1 && cursor != 0) {
+        if (input_tee != -1 && cursor != 0 &&
+            (FD_ISSET(input_tee, &writefds) || FD_ISSET(input_tee, &errorfds))) {
             always_assert (cursor != 0);//precondition to being in the pollfd set
             ssize_t del = write(input_tee, buffer, cursor);
             //fprintf(stderr, "fd: %d: Writing %ld data to %d\n", input_tee, del, cursor);
