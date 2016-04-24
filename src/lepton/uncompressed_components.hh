@@ -40,7 +40,7 @@ class UncompressedComponents {
     CounterType coefficient_position_progress_;
     CounterType bit_progress_;
     CounterType worker_start_read_signal_;
-    int allocated_;
+    int reserved_; // don't want to change memory layout
     BaseDecoder *decoder_;
     UncompressedComponents(const UncompressedComponents&);// not implemented
     UncompressedComponents&operator=(const UncompressedComponents&);// not implemented
@@ -53,7 +53,7 @@ class UncompressedComponents {
 public:
     UncompressedComponents() : coefficient_position_progress_(0), bit_progress_(0), worker_start_read_signal_(0) {
         decoder_ = NULL;
-        allocated_ = 0;
+        reserved_ = 0;
         mcuh_ = 0;
         mcuv_ = 0;
         cmpc_ = 0;
@@ -112,7 +112,8 @@ public:
         for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc_; cmp++) {
             int bc_allocated = header_[cmp].info_.bc;
             int64_t max_cmp_bc = max_number_of_blocks;
-            max_cmp_bc *= header_[cmp].info_.bcv * header_[cmp].info_.bch;
+            max_cmp_bc *= header_[cmp].info_.bcv;
+            max_cmp_bc *= header_[cmp].info_.bch;
             max_cmp_bc /= total_req_blocks;
             if (bc_allocated > max_cmp_bc) {
                 bc_allocated = max_cmp_bc - (max_cmp_bc % header_[cmp].info_.bch);
@@ -125,7 +126,6 @@ public:
                 break;
             }
         }
-        
     }
     void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc,
               int mcuh, int mcuv, bool memory_optimized_image) {
@@ -141,12 +141,10 @@ public:
             custom_exit(ExitCode::UNSUPPORTED_4_COLORS);
         }
         cmpc_ = cmpc;
-        allocated_ = 0;
         for (int cmp = 0; cmp < cmpc; cmp++) {
             header_[cmp].info_ = cmpinfo[cmp];
             header_[cmp].trunc_bcv_ = cmpinfo[cmp].bcv;
             header_[cmp].trunc_bc_ = cmpinfo[cmp].bc;
-            allocated_ += cmpinfo[cmp].bc * 64;
         }
         if (!memory_optimized_image) {
             for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc; cmp++) {
