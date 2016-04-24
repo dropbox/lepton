@@ -70,20 +70,20 @@
  * memory accesses is just an optimization.  Nothing will break if it
  * doesn't work.
  */
-#if defined(__i386__) || defined(__x86_64__) || defined(__vax__)
+#if 0 // <-- I don't believe in activating UB
 #define SET(n) \
 	(*(MD5_u32plus *)&ptr[(n) * 4])
 #define GET(n) \
 	SET(n)
 #else
 #define SET(n) \
-	(ctx->block[(n)] = \
+	(local_block_##n = \
 	(MD5_u32plus)ptr[(n) * 4] | \
 	((MD5_u32plus)ptr[(n) * 4 + 1] << 8) | \
 	((MD5_u32plus)ptr[(n) * 4 + 2] << 16) | \
 	((MD5_u32plus)ptr[(n) * 4 + 3] << 24))
 #define GET(n) \
-	(ctx->block[(n)])
+	(local_block_##n)
 #endif
  
 /*
@@ -95,7 +95,23 @@ static const void *body(MD5_CTX *ctx, const void *data, unsigned long size)
 	const unsigned char *ptr;
 	MD5_u32plus a, b, c, d;
 	MD5_u32plus saved_a, saved_b, saved_c, saved_d;
- 
+        MD5_u32plus local_block_0,
+            local_block_1,
+            local_block_2,
+            local_block_3,
+            local_block_4,
+            local_block_5,
+            local_block_6,
+            local_block_7,
+            local_block_8,
+            local_block_9,
+            local_block_10,
+            local_block_11,
+            local_block_12,
+            local_block_13,
+            local_block_14,
+            local_block_15;
+
 	ptr = (const unsigned char *)data;
  
 	a = ctx->a;
