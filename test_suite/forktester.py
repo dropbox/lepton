@@ -31,10 +31,14 @@ with open(jpg_name) as f:
     jpg = f.read()
 def fn():
     valid_fds[0][0].write(jpg)
+    print 'written ',valid_fds[0][0]
     valid_fds[0][0].close()
+    print 'closed'
 def fn1():
     valid_fds[1][0].write(dat)
+    print 'written ',valid_fds[1][0]
     valid_fds[1][0].close()
+    print 'xclosed ',valid_fds[1][0]
 u=threading.Thread(target=add4)
 u.start()
 t=threading.Thread(target=fn)

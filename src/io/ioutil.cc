@@ -139,9 +139,22 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                                                 Sirikata::MuxReader::ResizableByteBuffer *storage,
                                                 bool close_input) {
     struct pollfd fds[3];
+    memset(fds, 0, sizeof(fds));
+    int hungup[3] = {-1, -1, -1};
     size_t num_fds = sizeof(fds)/sizeof(fds[0]);
-    int flags = fcntl(input_tee, F_GETFL, 0);
+    int flags = 0;
+#ifndef __APPLE__
+    flags = fcntl(input_tee, F_GETFL, 0);
+#endif
     fcntl(input_tee, F_SETFL, flags | O_NONBLOCK);
+#ifndef __APPLE__
+    flags = fcntl(copy_to_input_tee, F_GETFL, 0);
+#endif
+    fcntl(copy_to_input_tee, F_SETFL, flags | O_NONBLOCK);
+#ifndef __APPLE__
+    flags = fcntl(copy_to_storage, F_GETFL, 0);
+#endif
+    fcntl(copy_to_storage, F_SETFL, flags | O_NONBLOCK);
 
     MD5_CTX context;
     MD5_Init(&context);
@@ -154,15 +167,16 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     uint32_t cursor = 0;
     bool finished = false;
     while (!finished) {
+        fprintf(stderr, "Overarching loop\n");
         num_fds = 0;
         if (copy_to_storage != -1) {
-            fds[num_fds].events = POLLIN | POLLERR | POLLHUP;
+            fds[num_fds].events = POLLIN;
             fds[num_fds].fd = copy_to_storage;
             ++num_fds;
         }
         if (copy_to_input_tee != -1) {
             if (cursor < sizeof(buffer)) {
-                fds[num_fds].events = POLLIN | POLLERR | POLLHUP;
+                fds[num_fds].events = POLLIN;
                 fds[num_fds].fd = copy_to_input_tee;
                 ++num_fds;
             }
@@ -174,24 +188,49 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
         }
         if (input_tee != -1 && cursor != 0) {
-            fds[num_fds].events = POLLOUT | POLLPRI | POLLERR | POLLHUP;
+            fds[num_fds].events = POLLOUT | POLLPRI;
             fds[num_fds].fd = input_tee;
             ++num_fds;
         }
-        for (size_t i = 0; i < sizeof(fds) /sizeof(fds[0]); ++i) {
+        bool any_hungup = false;
+        for (size_t i = 0; i < num_fds; ++i) {
             fds[i].revents = 0;
+            for (size_t j = 0; j < sizeof(hungup)/sizeof(hungup[0]); ++j) {
+                if (fds[i].fd == hungup[j]) {
+                    fds[i].revents = POLLHUP;
+                    any_hungup = true;
+                }
+            }
         }
-        int ret = poll(fds, num_fds, -1);
-        if (ret == 0 || (ret < 0 && errno == EINTR)) {
-            continue;
+        if (!any_hungup) {
+            fprintf(stderr, "START POLL %ld: (%d %d %d)\n", num_fds, fds[0].fd, fds[1].fd, fds[2].fd);
+            int ret = poll(fds, num_fds, -1);
+            fprintf(stderr, "FIN POLL %d\n", ret);
+            if (ret == 0 || (ret < 0 && errno == EINTR)) {
+                continue;
+            }
+        } else {
+            fprintf(stderr, "Some hungup %d %d %d\n", hungup[0], hungup[1], hungup[2]);
         }
         for (size_t i = 0; i < num_fds; ++i) {
+            fprintf(stderr, "loopdy start %d : %d\n", fds[i].fd, fds[i].revents);
             bool should_close = false;
-            if (fds[i].revents & (POLLERR/* | POLLHUP*/)) {
-                should_close = true;
-                //fprintf(stderr, "%d) Closing time %d (%d | %d) pollin: %d pollout: %d\n", fds[i].fd, fds[i].revents,POLLERR,POLLHUP, POLLIN, POLLOUT);
+            if (fds[i].revents & (POLLERR | POLLHUP)) {
+                if (hungup[0] != fds[i].fd
+                    && hungup[1] != fds[i].fd
+                    && hungup[2] != fds[i].fd) { // not hungup yet: add to hungups
+                    if (hungup[0] == -1) {
+                        hungup[0] = fds[i].fd;
+                    } else if (hungup[1] == -1) {
+                        hungup[1] = fds[i].fd;
+                    } else if (hungup[2] == -1) {
+                        hungup[2] = fds[i].fd;
+                    }
+                }
+                fprintf(stderr, "%d) Closing time %d (%d | %d) pollin: %d pollout: %d\n", fds[i].fd, fds[i].revents,POLLERR,POLLHUP, POLLIN, POLLOUT);
             }
             if ((fds[i].revents)) {
+                fprintf(stderr, "Checking %d\n", fds[i].fd);
                 if (fds[i].fd == copy_to_input_tee) {
                     always_assert(cursor < sizeof(buffer)); // precondition to being in the poll
                     size_t max_to_read = sizeof(buffer) - cursor;
@@ -220,7 +259,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                             should_close = true; // read the truncated input
                         }
                     }
-                    //fprintf(stderr,"%d) Reading %ld bytes for total of %ld\n", fds[i].fd, del, *input_size);
+                    fprintf(stderr,"%d) Reading %ld bytes for total of %ld\n", fds[i].fd, del, *input_size);
                 }
                 if (fds[i].fd == copy_to_storage) {
                     if (storage->how_much_reserved() < storage->size() + sizeof(buffer)) {
@@ -231,7 +270,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                     ssize_t del = read(fds[i].fd,
                                        &(*storage)[old_size],
                                        storage->size() - old_size);
-                    //fprintf(stderr, "Want %ld bytes, but read %ld\n", storage->size() - old_size,  del);
+                    fprintf(stderr, "Want %ld bytes, but read %ld\n", storage->size() - old_size,  del);
                     if (del < 0 && errno == EINTR) {
                         storage->resize(old_size);
                         continue;
@@ -243,31 +282,39 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                     }
                     if (del > 0) {
                         storage->resize(old_size + del);
-                        //fprintf(stderr, "len Storage is %ld\n", storage->size());
+                        fprintf(stderr, "len Storage is %ld\n", storage->size());
                     }
                 }
             }
             if (fds[i].revents & POLLOUT) {
                 always_assert (cursor != 0);//precondition to being in the pollfd set
                 ssize_t del = write(fds[i].fd, buffer, cursor);
-                //fprintf(stderr, "fd: %d: Writing %ld data to %d\n", fds[i].fd, del, cursor);
+                fprintf(stderr, "fd: %d: Writing %ld data to %d\n", fds[i].fd, del, cursor);
+                fprintf(stderr, "A");
                 if (del == 0) {
+                        fprintf(stderr, "B\n");
                     should_close = true;
                 }
+                fprintf(stderr, "C\n");
                 if (del > 0) {
+                fprintf(stderr, "D\n");
                     if (del < cursor) {
+                        fprintf(stderr, "E %ld %ld\n", del, cursor - del);
                         memmove(buffer, buffer + del, cursor - del);
                     }
                     cursor -= del;
                 }
                 if (cursor == 0 && copy_to_input_tee == -1) {
+                    fprintf(stderr,"E\n");
                     should_close = true;
                 }
+                fprintf(stderr,"F\n");
             }
+            fprintf(stderr, "SHOULD CLOSE %d\n", should_close);
             if (should_close) {
                 if (fds[i].fd == copy_to_input_tee) {
                     copy_to_input_tee = -1;
-                    //fprintf(stderr,"input:Should close(%d) size:%ld\n", fds[i].fd, *input_size);
+                    fprintf(stderr,"input:Should close(%d) size:%ld\n", fds[i].fd, *input_size);
                     if (close_input) {
                         while (close(fds[i].fd) < 0 && errno == EINTR) {}
                     }
@@ -276,16 +323,16 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 if (fds[i].fd == copy_to_storage) {
                     copy_to_storage = -1;
                     finished = true;
-                    //fprintf(stderr,"back_copy:Should close(%d):size %ld\n",fds[i].fd,storage->size());
+                    fprintf(stderr,"back_copy:Should close(%d):size %ld\n",fds[i].fd,storage->size());
                     while (close(fds[i].fd) < 0 && errno == EINTR) {}
                 }
                 if (fds[i].fd == input_tee) {
                     input_tee = -1;
-                    //fprintf(stderr,"output_to_compressor:Should close (%d) \n", fds[i].fd );
+                    fprintf(stderr,"output_to_compressor:Should close (%d) \n", fds[i].fd );
                     while (close(fds[i].fd) < 0 && errno == EINTR) {}
                 }
-
             }
+                fprintf(stderr, "loopdy  end %d\n", fds[i].fd);
         }
     }
     *input_size -= start_byte;

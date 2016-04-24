@@ -24,8 +24,11 @@ ValidationContinuation validateAndCompress(int *reader,
     pid_t encode_pid;
     pid_t decode_pid;
     if ((encode_pid = fork()) == 0) { // could also fork/exec here
-        while(close(*reader) < 0 && errno == EINTR){}
         // not yet open -- we will exit before accessed while(close(*fwriter) < 0 && errno == EINTR){}
+        if (*writer != -1 && *writer != *reader) {
+                while(close(*writer) < 0 && errno == EINTR){}
+        }
+        while(close(*reader) < 0 && errno == EINTR){}
         *reader = jpeg_input_pipes[0];
         *writer = lepton_output_pipes[1];
         while(close(jpeg_input_pipes[1]) < 0 && errno == EINTR){}
@@ -39,6 +42,10 @@ ValidationContinuation validateAndCompress(int *reader,
     while(pipe(jpeg_roundtrip_recv) < 0 && errno == EINTR){}
     // we wanna fork the decode here before we allocate 4096 * 1024 bytes here
     if ((decode_pid = fork()) == 0) { // could also fork/exec here
+        if (*writer != -1 && *writer != *reader) {
+                while(close(*writer) < 0 && errno == EINTR){}
+        }
+
         while(close(*reader) < 0 && errno == EINTR){}
         // not yet open -- we will exit before accessed while(close(*fwriter) < 0 && errno == EINTR){}
         while(close(jpeg_input_pipes[1]) < 0 && errno == EINTR){}
@@ -57,6 +64,7 @@ ValidationContinuation validateAndCompress(int *reader,
 
     lepton_data->reserve(4096 * 1024);
     size_t size = 0;
+    fprintf(stderr, "Starting transfer\n");
     Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header,
                                                                   start_byte,
                                                                   end_byte,
@@ -67,7 +75,7 @@ ValidationContinuation validateAndCompress(int *reader,
                                                                   lepton_data,
                                                                   false);
 
-
+    fprintf(stderr, "Fini transfer\n");
     int status = 0;
     while (waitpid(encode_pid, &status, 0) < 0 && errno == EINTR) {} // wait on encode
     if (WIFEXITED(status)) {
@@ -109,6 +117,7 @@ ValidationContinuation validateAndCompress(int *reader,
     } else if (WIFSIGNALED(status)) {
         raise(WTERMSIG(status));
     }
+    fprintf(stderr, "EXIT OK...\n");
     *validation_exit_code = ExitCode::SUCCESS;
     return ValidationContinuation::ROUNDTRIP_OK;
 }
