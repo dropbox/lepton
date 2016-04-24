@@ -1283,7 +1283,6 @@ void process_file(IOUtil::FileReader* reader,
             break;
           case ValidationContinuation::ROUNDTRIP_OK:
             fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
-            fprintf(stderr, "WRITING TO %d\n", fdout);
             {
                 int flags = fcntl(fdout, F_GETFL, 0);
                 flags &= ~O_NONBLOCK;

@@ -64,7 +64,6 @@ ValidationContinuation validateAndCompress(int *reader,
 
     lepton_data->reserve(4096 * 1024);
     size_t size = 0;
-    fprintf(stderr, "Starting transfer\n");
     Sirikata::Array1d<uint8_t, 16> md5 = IOUtil::transfer_and_md5(header,
                                                                   start_byte,
                                                                   end_byte,
@@ -75,7 +74,6 @@ ValidationContinuation validateAndCompress(int *reader,
                                                                   lepton_data,
                                                                   false);
 
-    fprintf(stderr, "Fini transfer\n");
     int status = 0;
     while (waitpid(encode_pid, &status, 0) < 0 && errno == EINTR) {} // wait on encode
     if (WIFEXITED(status)) {
@@ -117,7 +115,6 @@ ValidationContinuation validateAndCompress(int *reader,
     } else if (WIFSIGNALED(status)) {
         raise(WTERMSIG(status));
     }
-    fprintf(stderr, "EXIT OK...(%ld == %ld)\n", roundtrip_size, size);
     *validation_exit_code = ExitCode::SUCCESS;
     return ValidationContinuation::ROUNDTRIP_OK;
 }
