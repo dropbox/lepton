@@ -27,7 +27,7 @@ void vpx_stop_encode(vpx_writer *br) {
   int i;
 
   for (i = 0; i < 32; i++)
-      vpx_write(br, 0, 128, Billing::HEADER);
+      vpx_write(br, 0, 128, Billing::DELIMITERS);
 
   // Ensure there's no ambigous collision with any index marker bytes
   if ((br->buffer[br->pos - 1] & 0xe0) == 0xc0)

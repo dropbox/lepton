@@ -175,6 +175,7 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
     }
     /* read entire chunk into memory */
     mux_reader_.fillBufferEntirely(streams_.begin());
+    write_byte_bill(Billing::DELIMITERS, true, mux_reader_.getOverhead());
     //initialize_thread_id(0, 0, framebuffer[0]);
     if (do_threading_) {
         for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {

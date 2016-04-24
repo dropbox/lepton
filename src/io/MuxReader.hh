@@ -167,13 +167,22 @@ private:
             len -= 2;
             offset += 2;
         }
-        return ReadFull(mReader, buffer->data() + offset, len);
+        JpegError ret = ReadFull(mReader, buffer->data() + offset, len);
+        if (ret == JpegError::nil()) {
+            if (flags == 0) {
+                mOverhead += 3;
+            } else {
+                mOverhead += 1;
+            }
+        }
+        return ret;
     }
  public:
     enum {MAX_STREAM_ID = 16};
     ResizableByteBuffer mBuffer[MAX_STREAM_ID];
     uint32_t mOffset[MAX_STREAM_ID];
     bool eof;
+    size_t mOverhead;
     MuxReader(const JpegAllocator<uint8_t> &alloc,
               int num_stream_hint = 4, int stream_hint_reserve_size=65536, Reader *reader = NULL)
         : mReader(reader) {
@@ -185,6 +194,7 @@ private:
             }
             mOffset[i] = 0;
         }
+        mOverhead = 0;
     }
     void init (Reader *reader){
         mReader = reader;
@@ -234,12 +244,16 @@ private:
         }
         return retval;
     }
+    size_t getOverhead() const {
+        return mOverhead;
+    }
     ~MuxReader(){}
 };
 
 class SIRIKATA_EXPORT MuxWriter {
     typedef Sirikata::DecoderWriter Writer;
     Writer *mWriter;
+    size_t mOverhead;
 public:
     enum {MAX_STREAM_ID = MuxReader::MAX_STREAM_ID};
     enum {MIN_OFFSET = 3};
@@ -251,6 +265,7 @@ public:
     uint32_t mLowWaterMark[MAX_STREAM_ID];
     MuxWriter(Writer* writer, const JpegAllocator<uint8_t> &alloc)
         : mWriter(writer) {
+        mOverhead = 0;
         for (uint8_t i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
             mBuffer[i] = std::vector<uint8_t, JpegAllocator<uint8_t> >(alloc);
             mOffset[i] = 0;
@@ -282,6 +297,7 @@ public:
             mBuffer[stream_id][offset - MIN_OFFSET] = stream_id;
             mBuffer[stream_id][offset - MIN_OFFSET + 1] = ((toWrite - 1) & 0xff);
             mBuffer[stream_id][offset - MIN_OFFSET + 2] = (((toWrite - 1) >> 8) & 0xff);
+            mOverhead += 3;
             retval = mWriter->Write(&mBuffer[stream_id][offset - MIN_OFFSET],
                                    toWrite + MIN_OFFSET);
             assert((retval.first == toWrite + MIN_OFFSET || retval.second != JpegError::nil())
@@ -334,6 +350,7 @@ public:
             if (offset == mBuffer[stream_id].size()) continue;
             assert(offset >= MIN_OFFSET);
             mBuffer[stream_id][offset - 1] = code;
+            mOverhead += 1;
             retval = mWriter->Write(&mBuffer[stream_id][offset - 1],
                                    len + 1);
             if (retval.first != len + 1) {
@@ -412,6 +429,9 @@ public:
                 flushFull(i, mBuffer[i].size() - mOffset[i]);
             }
         }
+    }
+    size_t getOverhead() const {
+        return mOverhead;
     }
     ~MuxWriter(){}
 };

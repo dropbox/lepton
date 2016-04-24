@@ -4,6 +4,7 @@
 #define _BILLING_HH_
 #define FOREACH_BILLING_TYPE(CB)                \
     CB(HEADER)                                  \
+    CB(DELIMITERS)                              \
     CB(RESERVED)                                \
     CB(NZ_7x7)                                  \
     CB(BITMAP_7x7)                              \
@@ -58,7 +59,7 @@ inline void write_bit_bill(Billing bt, bool is_compressed, uint32_t num_bits) {
     assert((uint32_t)bt < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
 #ifndef NDEBUG
     if (is_compressed && bt == Billing::HEADER) {
-        fprintf(stderr, "Header; %f bytes\n", num_bits / 8.0);
+        //fprintf(stderr, "Header; %f bytes\n", num_bits / 8.0);
     }
     if (num_bits) {
         billing_map[is_compressed ? 1 : 0][(uint32_t)bt] += num_bits; // only happens in NDEBUG

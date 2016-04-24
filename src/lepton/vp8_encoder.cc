@@ -540,6 +540,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         }
     }
     mux_writer.Close();
+    write_byte_bill(Billing::DELIMITERS, true, mux_writer.getOverhead());
     // we can probably exit(0) here
     TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] =
         TimingHarness::timing[0][TimingHarness::TS_STREAM_FLUSH_STARTED] = TimingHarness::get_time_us();

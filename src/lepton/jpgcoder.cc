@@ -3797,7 +3797,8 @@ bool read_ujpg( void )
     ReadFull(str_in, ujpg_mrk, 3 ) ;
     write_byte_bill(Billing::HEADER, true, 3);
 
-    write_byte_bill(Billing::HEADER, true, 4 * NUM_THREADS + 4); // trailing bits + trailing size
+    write_byte_bill(Billing::DELIMITERS, true, 4 * NUM_THREADS); // trailing vpx_encode bits
+    write_byte_bill(Billing::HEADER, true, 4); //trailing size
 
     if (memcmp(ujpg_mrk, "CMP", 3) != 0) {
         always_assert(false && "CMP must be present (uncompressed) in the file");
