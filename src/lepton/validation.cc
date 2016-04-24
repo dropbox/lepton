@@ -1,4 +1,5 @@
 #include <sys/wait.h>
+#include <signal.h>
 #include <unistd.h>
 #include "../vp8/util/nd_array.hh"
 #include "../io/MuxReader.hh"
