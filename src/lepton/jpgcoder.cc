@@ -52,7 +52,11 @@
 #endif
 #endif
 bool fast_exit = true;
+#ifdef SKIP_VALIDATION
+bool g_skip_validation = true;
+#else
 bool g_skip_validation = false;
+#endif
 #define QUANT(cmp,bpos) ( cmpnfo[cmp].qtable[ bpos ] )
 #define MAX_V(cmp,bpos) ( ( freqmax[bpos] + QUANT(cmp,bpos) - 1 ) /  QUANT(cmp,bpos) )
 
@@ -852,10 +856,22 @@ int initialize_options( int argc, char** argv )
             g_skip_validation = true;
         } else if ( strcmp((*argv), "-skipvalidate") == 0 ) {
             g_skip_validation = true;
+        } else if ( strcmp((*argv), "-skipverify") == 0 ) {
+            g_skip_validation = true;
         } else if ( strcmp((*argv), "-skipverification") == 0 ) {
             g_skip_validation = true;
         } else if ( strcmp((*argv), "-skiproundtrip") == 0 ) {
             g_skip_validation = true;
+        } else if ( strcmp((*argv), "-validate") == 0 ) {
+            g_skip_validation = false;
+        } else if ( strcmp((*argv), "-validation") == 0 ) {
+            g_skip_validation = false;
+        } else if ( strcmp((*argv), "-verify") == 0 ) {
+            g_skip_validation = false;
+        } else if ( strcmp((*argv), "-verification") == 0 ) {
+            g_skip_validation = false;
+        } else if ( strcmp((*argv), "-roundtrip") == 0 ) {
+            g_skip_validation = false;
         }
         else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
             g_socketserve_info.max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
