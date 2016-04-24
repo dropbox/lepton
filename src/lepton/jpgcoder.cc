@@ -242,7 +242,7 @@ int decode_eobrun_sa( abitreader* huffr, short* block, unsigned int* eobrun, int
 int encode_eobrun( abitwriter* huffw, huffCodes* actbl, unsigned int* eobrun );
 int encode_crbits( abitwriter* huffw, abytewriter* storw );
 
-int next_huffcode( abitreader *huffw, huffTree *ctree );
+int next_huffcode( abitreader *huffw, huffTree *ctree , Billing min_bill, Billing max_bill);
 int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw, int cs_cmpc);
 int next_mcuposn( int* cmp, int* dpos, int* rstw );
 int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun );
@@ -1887,9 +1887,11 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
                         crst = 0;
                         // no zeroes needed -> ignore 0x00. write 0xFF
                         huffw->write( 0xFF );
+                        write_byte_bill(Billing::DELIMITERS, false, 1);
                     }
                     else if ( tmp == 0xD0 + ( cpos & 7 ) ) { // restart marker
                         // increment rst counters
+                        write_byte_bill(Billing::DELIMITERS, false, 2);
                         cpos++;
                         crst++;
                         while (rst_cnt.size() <= (size_t)scnc) {
@@ -4320,7 +4322,11 @@ bool rebuild_header_jpg( void )
     return true;
 }
 
-
+bool is_edge(int bpos) {
+    assert(bpos < 64);
+    return bpos == 0 || bpos == 1 || bpos == 5 || bpos == 6 || bpos == 14 || bpos == 15 || bpos == 27 || bpos == 28 || bpos == 2
+        || bpos == 3 || bpos == 9 || bpos == 10 || bpos == 20 || bpos == 21 || bpos == 35;
+}
 /* -----------------------------------------------
     sequential block decoding routine
     ----------------------------------------------- */
@@ -4335,22 +4341,32 @@ int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, sho
 
 
     // decode dc
-    hc = next_huffcode( huffr, dctree );
+    hc = next_huffcode( huffr, dctree, Billing::EXP0_DC, Billing::EXPN_DC);
     if ( hc < 0 ) return -1; // return error
     else s = ( unsigned char ) hc;
     n = huffr->read( s );
+    if (s) {
+        write_bit_bill(Billing::RES_DC, false, s - 1);
+        write_bit_bill(Billing::SIGN_DC, false, 1);
+    }
     block[ 0 ] = DEVLI( s, n );
     bool eof_fixup = false;
     // decode ac
     for ( bpos = 1; bpos < 64; )
     {
         // decode next
-        hc = next_huffcode( huffr, actree );
+        hc = next_huffcode( huffr, actree,
+                            is_edge(bpos) ? Billing::BITMAP_EDGE : Billing::BITMAP_7x7,
+                            is_edge(bpos) ? Billing::EXPN_EDGE : Billing::EXPN_7x7);
         // analyse code
         if ( hc > 0 ) {
             z = LBITS( hc, 4 );
             s = RBITS( hc, 4 );
             n = huffr->read( s );
+            if (s) {
+                write_bit_bill(is_edge(bpos) ? Billing::RES_EDGE : Billing::RES_7x7, false, s - 1);
+                write_bit_bill(is_edge(bpos) ? Billing::SIGN_EDGE : Billing::SIGN_7x7, false, 1);
+            }
             if ( ( z + bpos ) >= 64 ) {
                 eof_fixup = true;
                 break;
@@ -4397,7 +4413,7 @@ int decode_dc_prg_fs( abitreader* huffr, huffTree* dctree, short* block )
 
 
     // decode dc
-    hc = next_huffcode( huffr, dctree );
+    hc = next_huffcode( huffr, dctree, Billing::EXP0_DC, Billing::EXPN_DC);
     if ( hc < 0 ) return -1; // return error
     else s = ( unsigned char ) hc;
     n = huffr->read( s );
@@ -4459,7 +4475,9 @@ int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block, unsigne
     for ( bpos = from; bpos <= to; )
     {
         // decode next
-        hc = next_huffcode( huffr, actree );
+        hc = next_huffcode( huffr, actree,
+                            is_edge(bpos) ? Billing::BITMAP_EDGE : Billing::BITMAP_7x7,
+                            is_edge(bpos) ? Billing::EXPN_EDGE : Billing::EXPN_7x7);
         if ( hc < 0 ) return -1;
         l = LBITS( hc, 4 );
         r = RBITS( hc, 4 );
@@ -4596,7 +4614,10 @@ int decode_ac_prg_sa( abitreader* huffr, huffTree* actree, short* block, unsigne
     while ( bpos <= to )
     {
         // decode next
-        hc = next_huffcode( huffr, actree );
+        hc = next_huffcode( huffr, actree,
+                            is_edge(bpos) ? Billing::BITMAP_EDGE : Billing::BITMAP_7x7,
+                            is_edge(bpos) ? Billing::EXPN_EDGE : Billing::EXPN_7x7);
+
         if ( hc < 0 ) return -1;
         l = LBITS( hc, 4 );
         r = RBITS( hc, 4 );
@@ -4823,12 +4844,18 @@ int encode_crbits( abitwriter* huffw, abytewriter* storw )
 /* -----------------------------------------------
     returns next code (from huffman-tree & -data)
     ----------------------------------------------- */
-int next_huffcode( abitreader *huffw, huffTree *ctree )
+int next_huffcode( abitreader *huffw, huffTree *ctree, Billing min_bill, Billing max_bill)
 {
     int node = 0;
 
 
     while ( node < 256 ) {
+#ifndef NDEBUG
+        write_bit_bill(min_bill, false, 1);
+        if (min_bill != max_bill) {
+            min_bill = (Billing)((int)min_bill + 1);
+        }
+#endif
         node = ( huffw->read( 1 ) == 1 ) ?
                 ctree->r[ node ] : ctree->l[ node ];
         if ( node == 0 ) break;
