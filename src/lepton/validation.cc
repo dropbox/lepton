@@ -117,7 +117,7 @@ ValidationContinuation validateAndCompress(int *reader,
     } else if (WIFSIGNALED(status)) {
         raise(WTERMSIG(status));
     }
-    fprintf(stderr, "EXIT OK...\n");
+    fprintf(stderr, "EXIT OK...(%ld == %ld)\n", roundtrip_size, size);
     *validation_exit_code = ExitCode::SUCCESS;
     return ValidationContinuation::ROUNDTRIP_OK;
 }
