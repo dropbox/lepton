@@ -64,9 +64,41 @@ template<class T> void print_item(int fd, const char * name, const T &uncompress
     write_string(fd, "%\n");
 
 }
+
+void fixup_bill() {
+    uint32_t bitmap = billing_map[0][(int)Billing::BITMAP_7x7];
+    billing_map[0][(int)Billing::BITMAP_7x7] -= bitmap/2;
+    billing_map[0][(int)Billing::NZ_7x7] += bitmap/2;
+
+    bitmap = billing_map[0][(int)Billing::BITMAP_EDGE];
+    billing_map[0][(int)Billing::BITMAP_EDGE] -= bitmap/2;
+    billing_map[0][(int)Billing::NZ_EDGE] += bitmap/2;
+
+    double sign_ratio = billing_map[1][(int)Billing::SIGN_7x7]
+        / (double)billing_map[0][(int)Billing::SIGN_7x7];
+    int delta_7x7 = billing_map[1][(int)Billing::SIGN_7x7] - billing_map[0][(int)Billing::SIGN_7x7];
+    billing_map[0][(int)Billing::SIGN_7x7] += delta_7x7;
+    billing_map[0][(int)Billing::EXP1_7x7] -= delta_7x7;
+    int delta_edge = sign_ratio * billing_map[0][(int)Billing::SIGN_EDGE]
+        - billing_map[0][(int)Billing::SIGN_EDGE];
+    billing_map[0][(int)Billing::SIGN_EDGE] += delta_edge;
+    billing_map[0][(int)Billing::EXP1_EDGE] -= delta_edge;
+    
+    int delta_dc = sign_ratio * billing_map[0][(int)Billing::SIGN_DC]
+        - billing_map[0][(int)Billing::SIGN_DC];
+    billing_map[0][(int)Billing::SIGN_DC] += delta_dc;
+    billing_map[0][(int)Billing::EXP1_DC] -= delta_dc;
+
+}
+
 void print_bill(int fd) {
+    fixup_bill(); // we made some approximations in mapping the JPEG spec to the new billing items
     write_string(fd, "::::BILL::::\n");
     size_t totals[2] = {0, 0};
+    size_t totals_edge[2] = {0, 0};
+    size_t totals_other[2] = {0, 0};
+    size_t totals7x7[2] = {0, 0};
+    size_t totals_dc[2] = {0, 0};
     for (int i = 0; i < (int)Billing::NUM_BILLING_ELEMENTS; ++i) {
         if (billing_map[0][i] || billing_map[1][i]) {
             totals[0] += billing_map[0][i];
@@ -74,6 +106,44 @@ void print_bill(int fd) {
             print_item(fd, BillingString((Billing)i), billing_map[0][i], billing_map[1][i]);
         }
     }
+    for (int comp = 0; comp < 2; ++comp) {
+
+        totals_other[comp] += billing_map[comp][(int)Billing::HEADER].load();
+        totals_other[comp] += billing_map[comp][(int)Billing::DELIMITERS].load();
+
+
+        totals_edge[comp] += billing_map[comp][(int)Billing::NZ_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::BITMAP_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::EXP1_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::EXP2_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::EXP3_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::EXPN_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::SIGN_EDGE].load();
+        totals_edge[comp] += billing_map[comp][(int)Billing::RES_EDGE].load();
+
+        totals7x7[comp] += billing_map[comp][(int)Billing::NZ_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::BITMAP_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::EXP1_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::EXP2_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::EXP3_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::EXPN_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::SIGN_7x7].load();
+        totals7x7[comp] += billing_map[comp][(int)Billing::RES_7x7].load();
+
+
+        totals_dc[comp] += billing_map[comp][(int)Billing::EXP0_DC].load();
+        totals_dc[comp] += billing_map[comp][(int)Billing::EXP1_DC].load();
+        totals_dc[comp] += billing_map[comp][(int)Billing::EXP2_DC].load();
+        totals_dc[comp] += billing_map[comp][(int)Billing::EXP3_DC].load();
+        totals_dc[comp] += billing_map[comp][(int)Billing::EXPN_DC].load();
+        totals_dc[comp] += billing_map[comp][(int)Billing::SIGN_DC].load();
+        totals_dc[comp] += billing_map[comp][(int)Billing::RES_DC].load();
+
+    }
+    print_item(fd, "Overall 7x7", totals7x7[0], totals7x7[1]);
+    print_item(fd, "Overall Edge", totals_edge[0], totals_edge[1]);
+    print_item(fd, "Overall DC", totals_dc[0], totals_dc[1]);
+    print_item(fd, "Overall Misc", totals_other[0], totals_other[1]);
     print_item(fd, "Total", totals[0], totals[1]);
     write_string(fd, "::::::::::::\n");
 }
