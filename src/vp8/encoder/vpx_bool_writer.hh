@@ -37,7 +37,7 @@ public:
 		       + 1024);
         vpx_start_encode(&boolwriter, output_.data());
     }
-    void put( const bool value, Branch & branch, Billing bill=Billing::RESERVED) {
+    void put( const bool value, Branch & branch, Billing bill) {
 #ifdef DEBUG_ARICODER
         if (!any_written) {
                any_written = true;

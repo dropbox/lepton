@@ -45,7 +45,7 @@ void decode_one_edge(BlockContext mcontext,
     uint8_t num_nonzeros_edge = 0;
     int16_t decoded_so_far = 0;
     for (int i= 2; i >=0; --i) {
-        int cur_bit = decoder.get(prob_edge_eob.at(i, decoded_so_far)) ? 1 : 0;
+        int cur_bit = decoder.get(prob_edge_eob.at(i, decoded_so_far), Billing::NZ_EDGE) ? 1 : 0;
         num_nonzeros_edge |= (cur_bit << i);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -77,7 +77,7 @@ void decode_one_edge(BlockContext mcontext,
         bool nonzero = false;
         auto * exp_branch = exp_array.begin();
         for (; length != MAX_EXPONENT; ++length) {
-            bool cur_bit = decoder.get(*exp_branch++);
+            bool cur_bit = decoder.get(*exp_branch++, (Billing)((int)Billing::BITMAP_EDGE + std::min((int)length, 4)));
             if (!cur_bit) {
                 break;
             }
@@ -87,7 +87,7 @@ void decode_one_edge(BlockContext mcontext,
         if (nonzero) {
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
-            bool neg = !decoder.get(sign_prob);
+            bool neg = !decoder.get(sign_prob, Billing::SIGN_EDGE);
             coef = (1 << (length - 1));
             --num_nonzeros_edge;
             if (length > 1){
@@ -100,7 +100,7 @@ void decode_one_edge(BlockContext mcontext,
                                                                                 min_threshold);
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
-                        int cur_bit = (decoder.get(thresh_prob.at(decoded_so_far)) ? 1 : 0);
+                        int cur_bit = (decoder.get(thresh_prob.at(decoded_so_far), Billing::RES_EDGE) ? 1 : 0);
                         coef |= (cur_bit << i);
                         decoded_so_far <<= 1;
                         if (cur_bit) {
@@ -118,7 +118,7 @@ void decode_one_edge(BlockContext mcontext,
                 }
                 auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
                 for (; i >= 0; --i) {
-                    coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
+                    coef |= ((decoder.get(res_prob.at(i), Billing::RES_EDGE) ? 1 : 0) << i);
                 }
             }
             if (neg) {
@@ -163,7 +163,7 @@ void parse_tokens(BlockContext context,
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
-        int cur_bit = (decoder.get(num_nonzeros_prob.at(index, decoded_so_far))?1:0);
+        int cur_bit = (decoder.get(num_nonzeros_prob.at(index, decoded_so_far), Billing::NZ_7x7)?1:0);
         num_nonzeros_7x7 |= (cur_bit << index);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -198,7 +198,7 @@ void parse_tokens(BlockContext context,
             bool nonzero = false;
             auto exp_branch = exp_prob.begin();
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                bool cur_bit = decoder.get(*exp_branch++);
+                bool cur_bit = decoder.get(*exp_branch++, (Billing)((unsigned int)Billing::BITMAP_7x7 + std::min((int)length, 4)));
                 if (!cur_bit) {
                     break;
                 }
@@ -209,14 +209,14 @@ void parse_tokens(BlockContext context,
             if (nonzero) {
                 --num_nonzeros_left_7x7;
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
-                neg = !decoder.get(sign_prob);
+                neg = !decoder.get(sign_prob, Billing::SIGN_7x7);
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
                 coef = (1 << (length - 1));
                 if (length > 1){
                     auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
                     for (int i = length - 2; i >= 0; --i) {
-                        coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
+                        coef |= ((decoder.get(res_prob.at(i), Billing::RES_7x7) ? 1 : 0) << i);
                     }
                 }
                 if (neg) {
@@ -264,7 +264,7 @@ void parse_tokens(BlockContext context,
                                                              len_abs_offset_to_closest_edge);
         auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
-            bool cur_bit = decoder.get(*exp_branch++);
+            bool cur_bit = decoder.get(*exp_branch++, (Billing)((int)Billing::EXP0_DC + std::min((int)length, 4)));
             if (!cur_bit) {
                 break;
             }
@@ -273,14 +273,14 @@ void parse_tokens(BlockContext context,
         int16_t coef = 0;
         if (nonzero) {
             auto &sign_prob = probability_tables.sign_array_dc(pt, uncertainty, uncertainty2);
-            bool neg = !decoder.get(sign_prob);
+            bool neg = !decoder.get(sign_prob, Billing::SIGN_DC);
             coef = (1 << (length - 1));
             if (length > 1){
                 auto res_prob = probability_tables.residual_array_dc(pt,
                                                                      len_abs_mxm,
                                                                      len_abs_offset_to_closest_edge);
                 for (int i = length - 2; i >= 0; --i) {
-                    coef |= ((decoder.get(res_prob.at(i)) ? 1 : 0) << i);
+                    coef |= ((decoder.get(res_prob.at(i), Billing::RES_DC) ? 1 : 0) << i);
                 }
             }
             if (neg) {

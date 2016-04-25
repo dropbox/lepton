@@ -77,7 +77,7 @@ void encode_one_edge(ConstBlockContext context,
     int16_t serialized_so_far = 0;
     for (int i= 2; i >=0; --i) {
         int cur_bit = (num_nonzeros_edge & (1 << i)) ? 1 : 0;
-        encoder.put(cur_bit, prob_edge_eob.at(i, serialized_so_far));
+        encoder.put(cur_bit, prob_edge_eob.at(i, serialized_so_far), Billing::NZ_EDGE);
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
@@ -111,7 +111,7 @@ void encode_one_edge(ConstBlockContext context,
         uint8_t length = bit_length(abs_coef);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
-            encoder.put(cur_bit, exp_array.at(i));
+            encoder.put(cur_bit, exp_array.at(i), (Billing)((unsigned int)Billing::BITMAP_EDGE + std::min(i, 4U)));
             if (!cur_bit) {
                 break;
             }
@@ -122,7 +122,7 @@ void encode_one_edge(ConstBlockContext context,
         if (coef) {
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
-            encoder.put(coef >= 0, sign_prob);
+            encoder.put(coef >= 0, sign_prob, Billing::SIGN_EDGE);
             --num_nonzeros_edge;
             if (length > 1){
                 int i = length - 2;
@@ -135,7 +135,7 @@ void encode_one_edge(ConstBlockContext context,
                     uint16_t encoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
-                        encoder.put(cur_bit, thresh_prob.at(encoded_so_far));
+                        encoder.put(cur_bit, thresh_prob.at(encoded_so_far), Billing::RES_EDGE);
                         encoded_so_far <<=1;
                         if (cur_bit) {
                             encoded_so_far |=1;
@@ -151,7 +151,7 @@ void encode_one_edge(ConstBlockContext context,
                 }
                 auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior);
                 for (; i >= 0; --i) {
-                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i));
+                    encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i), Billing::RES_EDGE);
                 }
             }
         }
@@ -185,6 +185,7 @@ int amd_err = 0;
 int med_err = 0;
 int avg_err = 0;
 int ori_err = 0;
+
 template <bool all_neighbors_present, BlockType color>
 void serialize_tokens(ConstBlockContext context,
                       BoolEncoder& encoder,
@@ -201,7 +202,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
     for (int index = 5; index >= 0; --index) {
         int cur_bit = (num_nonzeros_7x7 & (1 << index)) ? 1 : 0;
-        encoder.put(cur_bit, num_nonzeros_prob.at(index, serialized_so_far));
+        encoder.put(cur_bit, num_nonzeros_prob.at(index, serialized_so_far), Billing::NZ_7x7);
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
@@ -246,7 +247,8 @@ void serialize_tokens(ConstBlockContext context,
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
                 bool cur_bit = (length != i);
-                encoder.put(cur_bit, exp_prob.at(i));
+                
+                encoder.put(cur_bit, exp_prob.at(i), (Billing)((int)Billing::BITMAP_7x7 + std::min((int)length, 4)));
                 if (!cur_bit) {
                     break;
                 }
@@ -256,7 +258,7 @@ void serialize_tokens(ConstBlockContext context,
             }
             if (length != 0) {
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
-                encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+                encoder.put(coef >= 0 ? 1 : 0, sign_prob, Billing::SIGN_7x7);
                 --num_nonzeros_left_7x7;
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
@@ -267,7 +269,7 @@ void serialize_tokens(ConstBlockContext context,
                 assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
 
                 for (int i = length - 2; i >= 0; --i) {
-                   encoder.put((abs_coef & (1 << i)), res_prob.at(i));
+                    encoder.put((abs_coef & (1 << i)), res_prob.at(i), Billing::RES_7x7);
                 }
             }
         }
@@ -324,7 +326,7 @@ void serialize_tokens(ConstBlockContext context,
                                                              len_abs_offset_to_closest_edge);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
-            encoder.put(cur_bit, exp_prob.at(i));
+            encoder.put(cur_bit, exp_prob.at(i), (Billing)((int)Billing::EXP0_DC + std::min(i, 4U)));
             if (!cur_bit) {
                 break;
             }
@@ -338,7 +340,7 @@ void serialize_tokens(ConstBlockContext context,
                                                                //nb: needs mxm
                                                                //value, not abs
                                                                uncertainty2);
-            encoder.put(coef >= 0 ? 1 : 0, sign_prob);
+            encoder.put(coef >= 0 ? 1 : 0, sign_prob, Billing::SIGN_DC);
         }
         if (length > 1){
             auto res_prob = probability_tables.residual_array_dc(pt,
@@ -347,7 +349,7 @@ void serialize_tokens(ConstBlockContext context,
             assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {
-                encoder.put((abs_coef & (1 << i)), res_prob.at(i));
+                encoder.put((abs_coef & (1 << i)), res_prob.at(i), Billing::RES_DC);
             }
         }
     }
