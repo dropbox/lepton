@@ -398,7 +398,7 @@ unsigned int handle_initial_segments( bounded_iostream * const str_out )
                                               hdrdata[ byte_position + 3 ] );
 
         /* step 4: if it's a DHT (0xC4), DRI (0xDD), or SOS (0xDA), parse to mutable globals */
-        if ( type == 0xC4 or type == 0xDD or type == 0xDA ) {
+        if ( type == 0xC4 || type == 0xDD || type == 0xDA ) {
             /* XXX make sure parse_jfif_jpg can't overrun hdrdata */
             if ( !parse_jfif_jpg( type, len, hdrdata + byte_position ) ) { return -1; }
         }
@@ -539,9 +539,10 @@ void recode_physical_thread(BoundedWriter *stream_out,
     std::tie(logical_thread_start, logical_thread_end)
         = logical_thread_range_from_physical_thread_id(physical_thread_id, num_logical_threads);
     ThreadHandoff th = thread_handoffs[logical_thread_start];
+    size_t original_bound = stream_out->get_bound();
+    bool changed_bounds = false;
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
         TimingHarness::timing[logical_thread_id % MAX_NUM_THREADS][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
-
         if (thread_handoffs[logical_thread_id].is_legacy_mode()) {
             if (logical_thread_id == logical_thread_start) {
                 th.num_overhang_bits = 0; // clean start
@@ -556,6 +557,23 @@ void recode_physical_thread(BoundedWriter *stream_out,
             assert(th.overhang_byte == thread_handoffs[logical_thread_id].overhang_byte);
             assert(th.num_overhang_bits == thread_handoffs[logical_thread_id].num_overhang_bits);
             th = thread_handoffs[logical_thread_id];
+            // in the v1 encoding, the first thread's output is unbounded in size but
+            // following threads are bound to their segment_size.
+            // In the future (v2 and beyond) all threads are bound by their segment size
+            bool legacy_truncation_mode = get_current_file_lepton_version() == 1;
+            bool worker_thread_and_many_to_one_mapping =
+                logical_thread_end - logical_thread_start != 1
+                && logical_thread_id != 0;
+
+            if (worker_thread_and_many_to_one_mapping || !legacy_truncation_mode) {
+                size_t new_bound = stream_out->bytes_written() + thread_handoffs[logical_thread_id].segment_size;
+                if (new_bound < original_bound) {
+                    stream_out->set_bound(new_bound);
+                    changed_bounds = true;
+                } else if (stream_out->get_bound() != original_bound) {
+                    stream_out->set_bound(original_bound);
+                }
+            }
         }
         //if (logical_thread_id != physical_thread_id) {
         g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
@@ -581,6 +599,9 @@ void recode_physical_thread(BoundedWriter *stream_out,
         }
         th = outth;
         TimingHarness::timing[logical_thread_id % MAX_NUM_THREADS][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+    }
+    if (changed_bounds) {
+        stream_out->set_bound(original_bound);
     }
 }
 void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,

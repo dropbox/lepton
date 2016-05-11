@@ -452,8 +452,10 @@ void sig_nop(int){}
     global variables: info about program
     ----------------------------------------------- */
 
-const unsigned char ujgversion   = 1;
-
+unsigned char ujgversion   = 1;
+uint8_t get_current_file_lepton_version() {
+    return ujgversion;
+}
 static const char*  appname      = "lepton";
 static const unsigned char   ujg_header[] = { 'U', 'J' };
 static const unsigned char   lepton_header[] = { 0xcf, 0x84 }; // the tau symbol for a tau lepton in utf-8
@@ -1718,11 +1720,13 @@ unsigned char read_fixed_ujpg_header() {
         custom_exit(ExitCode::SHORT_READ);
     }
     // check version number
-    if (header[ 0 ] != ujgversion ) {
+    if (header[0] != 1 && header[0] != 2 && header[0] != ujgversion) {
+        // let us roll out a new version gently
         fprintf( stderr, "incompatible file, use %s v%i.%i",
             appname, header[ 0 ] / 10, header[ 0 ] % 10 );
         custom_exit(ExitCode::VERSION_UNSUPPORTED);
     }
+    ujgversion = header[0];
     if (header[1] != 'Z' && header[1] != 'Y') {
         char err[] = "X: Unknown Item in header instead of Z";
         err[0] = header[1];

@@ -454,14 +454,15 @@ public:
     bool chkerr();
     unsigned int getsize();
     unsigned int bytes_written()const {
-        return byte_position;
+        return std::max(byte_position,
+                        std::min(byte_position + buffer_position, byte_bound));
     }
     void set_bound(size_t bound); // bound of zero = fine
     size_t get_bound() const {
         return byte_bound;
     }
     bool has_reached_bound() const {
-        return byte_bound && byte_position == byte_bound;
+        return byte_bound && byte_position + buffer_position >= byte_bound;
     }
     bool has_exceeded_bound() const {
         return byte_bound && num_bytes_attempted_to_write > byte_bound;

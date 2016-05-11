@@ -372,10 +372,10 @@ unsigned int bounded_iostream::write_no_buffer(const void *from, size_t bytes_to
     //return iostream::write(from,tpsize,dtsize);
     std::pair<unsigned int, Sirikata::JpegError> retval;
     if (byte_bound != 0 && byte_position + bytes_to_write > byte_bound) {
-        bytes_to_write = byte_bound - byte_position;
-        byte_position += bytes_to_write;
-        retval = parent->Write(reinterpret_cast<const unsigned char*>(from), bytes_to_write);
-        if (retval.first < bytes_to_write) {
+        size_t real_bytes_to_write = byte_bound - byte_position;
+        byte_position += real_bytes_to_write;
+        retval = parent->Write(reinterpret_cast<const unsigned char*>(from), real_bytes_to_write);
+        if (retval.first < real_bytes_to_write) {
             err = retval.second;
             return retval.first;
         }

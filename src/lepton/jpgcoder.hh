@@ -6,6 +6,7 @@
 #include "../vp8/util/options.hh"
 #include "../io/Reader.hh"
 //extern int cmpc;
+extern uint8_t get_current_file_lepton_version();
 extern std::atomic<int> errorlevel;
 extern std::string errormessage;
 extern uint64_t g_time_bound_ms;

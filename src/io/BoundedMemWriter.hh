@@ -1,7 +1,8 @@
 #include "Reader.hh"
+#include "MuxReader.hh"
 namespace Sirikata {
 class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
-    std::vector<Sirikata::uint8, JpegAllocator<uint8_t> > mBuffer;
+    MuxReader::ResizableByteBuffer mBuffer;
     size_t mWriteCursor;
     size_t mNumBytesAttemptedToWrite;
   public:
@@ -41,13 +42,13 @@ class SIRIKATA_EXPORT BoundedMemWriter : public Sirikata::DecoderWriter {
         return std::pair<Sirikata::uint32, Sirikata::JpegError>(bounded_size,
                                                                 err);
     }
-    std::vector<Sirikata::uint8, JpegAllocator<uint8_t> > &buffer() {
+    MuxReader::ResizableByteBuffer &buffer() {
         return mBuffer;
     }
     size_t bytes_written() const{
         return mWriteCursor;
     }
-    const std::vector<Sirikata::uint8, JpegAllocator<uint8_t> > &buffer() const{
+    const MuxReader::ResizableByteBuffer &buffer() const{
         return mBuffer;
     }
     bool has_exceeded_bound() const { // equivalent to an EOF...needs a write
