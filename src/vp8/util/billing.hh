@@ -56,8 +56,8 @@ inline const char * BillingString(Billing bt) {
 }
 extern std::atomic<uint32_t> billing_map[2][(uint32_t)Billing::NUM_BILLING_ELEMENTS];
 inline void write_bit_bill(Billing bt, bool is_compressed, uint32_t num_bits) {
-    assert((uint32_t)bt < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
 #ifndef NDEBUG
+    assert((uint32_t)bt < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
     if (is_compressed && bt == Billing::HEADER) {
         //fprintf(stderr, "Header; %f bytes\n", num_bits / 8.0);
     }
@@ -67,9 +67,11 @@ inline void write_bit_bill(Billing bt, bool is_compressed, uint32_t num_bits) {
 #endif
 }
 inline void write_byte_bill(Billing bt, bool is_compressed, uint32_t num_bytes) {
+#ifndef NDEBUG
     if (num_bytes) {
         write_bit_bill(bt, is_compressed, num_bytes << 3);
     }
+#endif
 }
 #undef BILLING_STRING_CB
 

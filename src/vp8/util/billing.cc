@@ -93,6 +93,7 @@ void fixup_bill() {
 }
 
 void print_bill(int fd) {
+#ifndef NDEBUG
     fixup_bill(); // we made some approximations in mapping the JPEG spec to the new billing items
     write_string(fd, "::::BILL::::\n");
     size_t totals[2] = {0, 0};
@@ -147,4 +148,5 @@ void print_bill(int fd) {
     print_item(fd, "Overall Misc", totals_other[0], totals_other[1]);
     print_item(fd, "Total", totals[0], totals[1]);
     write_string(fd, "::::::::::::\n");
+#endif
 }
