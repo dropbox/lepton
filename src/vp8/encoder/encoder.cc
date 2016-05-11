@@ -248,7 +248,7 @@ void serialize_tokens(ConstBlockContext context,
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
                 bool cur_bit = (length != i);
                 
-                encoder.put(cur_bit, exp_prob.at(i), (Billing)((int)Billing::BITMAP_7x7 + std::min((int)length, 4)));
+                encoder.put(cur_bit, exp_prob.at(i), (Billing)((int)Billing::BITMAP_7x7 + std::min((int)i, 4)));
                 if (!cur_bit) {
                     break;
                 }

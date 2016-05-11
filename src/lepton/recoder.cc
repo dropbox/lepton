@@ -131,8 +131,10 @@ void escape_0xff_huffman_and_write(OutputWriter* str_out,
             uint8_t byte_to_write = local_huff_data[progress_ipos];
             str_out->write_byte(byte_to_write);
             // check current byte, stuff if needed
-            if (__builtin_expect(byte_to_write == 0xFF, 0))
+            if (__builtin_expect(byte_to_write == 0xFF, 0)) {
                 str_out->write_byte(stv);
+                write_byte_bill(Billing::DELIMITERS, false, 1);
+            }
         }
 
         while(true) {
@@ -146,6 +148,7 @@ void escape_0xff_huffman_and_write(OutputWriter* str_out,
                     str_out->write_byte(byte_to_write);
                     // check current byte, stuff if needed
                     if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                        write_byte_bill(Billing::DELIMITERS, false, 1);
                         str_out->write_byte(stv);
                     }
                 }
@@ -161,8 +164,10 @@ void escape_0xff_huffman_and_write(OutputWriter* str_out,
             uint8_t byte_to_write = local_huff_data[progress_ipos];
             str_out->write_byte(byte_to_write);
             // check current byte, stuff if needed
-            if (__builtin_expect(byte_to_write == 0xFF, 0))
+            if (__builtin_expect(byte_to_write == 0xFF, 0)) {
+                write_byte_bill(Billing::DELIMITERS, false, 1);
                 str_out->write_byte(stv);
+            }
         }
     }
 }
@@ -239,7 +244,13 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
     s = uint16bit_length(tmp > 0 ? tmp : -tmp);
     n = ENVLI( s, tmp );
     huffw->write( dctbl->cval[ s ], dctbl->clen[ s ] );
+    write_multi_bit_bill(dctbl->clen[s], false, Billing::EXP0_DC, Billing::EXPN_DC);
     huffw->write( n, s );
+    if (s) {
+        write_bit_bill(Billing::RES_DC, false, s - 1);
+        write_bit_bill(Billing::SIGN_DC, false, 1);
+    }
+
     signed z = -1;
     // encode AC
     z = 0;
@@ -260,19 +271,31 @@ int encode_block_seq( abitwriter* huffw, huffCodes* dctbl, huffCodes* actbl, sho
             // write remaining zeroes
             do {
                 huffw->write( actbl->cval[ 0xF0 ], actbl->clen[ 0xF0 ] );
+                write_multi_bit_bill(actbl->clen[0xF0], false,
+                                     is_edge(bpos) ? Billing::BITMAP_EDGE : Billing::BITMAP_7x7, // this is pure bitmap
+                                     is_edge(bpos) ? Billing::BITMAP_EDGE : Billing::BITMAP_7x7);
                 z -= 16;
             } while ( z & 0xf0 );
         }
         // write to huffman writer
         huffw->write( actbl->cval[ hc ], actbl->clen[ hc ] );
+        write_multi_bit_bill(actbl->clen[hc], false,
+                             is_edge(bpos) ? Billing::BITMAP_EDGE : Billing::BITMAP_7x7, // this is pure bitmap
+                             is_edge(bpos) ? Billing::EXPN_EDGE : Billing::EXPN_7x7);
         huffw->write( n, s );
+        if (s) {
+            write_bit_bill(is_edge(bpos) ? Billing::RES_EDGE : Billing::RES_7x7, false, s - 1);
+            write_bit_bill(is_edge(bpos) ? Billing::SIGN_EDGE : Billing::SIGN_7x7, false, 1);
+        }
+
         // reset zeroes
         z = 0;
     }
     // write eob if needed
-    if ( end != 63 )
+    if ( end != 63 ) {
         huffw->write( actbl->cval[ 0x00 ], actbl->clen[ 0x00 ] );
-
+        write_eob_bill(end, false, actbl->clen[ 0x00 ]);
+    }
 
     return end + 1;
 }
@@ -363,6 +386,7 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
                     str_out->write_byte(0xFF);
                     str_out->write_byte(rst);
                     cumulative_reset_markers++;
+                    write_byte_bill(Billing::DELIMITERS, false, 2);
                 }
                 // (re)set rst wait counter
                 rstw = rsti;

@@ -4322,11 +4322,6 @@ bool rebuild_header_jpg( void )
     return true;
 }
 
-bool is_edge(int bpos) {
-    assert(bpos < 64);
-    return bpos == 0 || bpos == 1 || bpos == 5 || bpos == 6 || bpos == 14 || bpos == 15 || bpos == 27 || bpos == 28 || bpos == 2
-        || bpos == 3 || bpos == 9 || bpos == 10 || bpos == 20 || bpos == 21 || bpos == 35;
-}
 /* -----------------------------------------------
     sequential block decoding routine
     ----------------------------------------------- */

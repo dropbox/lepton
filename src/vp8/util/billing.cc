@@ -67,6 +67,37 @@ template<class T> void print_item(int fd, const char * name, const T &uncompress
 }
 
 void fixup_bill() {
+    size_t edge_cost = billing_map[0][(int)Billing::BITMAP_EDGE].load();
+    edge_cost += billing_map[0][(int)Billing::EXP1_EDGE].load();
+    edge_cost += billing_map[0][(int)Billing::EXP2_EDGE].load();
+    edge_cost += billing_map[0][(int)Billing::EXP3_EDGE].load();
+    edge_cost += billing_map[0][(int)Billing::EXPN_EDGE].load();
+    edge_cost += billing_map[0][(int)Billing::SIGN_EDGE].load();
+    edge_cost += billing_map[0][(int)Billing::RES_EDGE].load();
+
+    size_t cost_7x7 = billing_map[0][(int)Billing::BITMAP_7x7].load();
+    cost_7x7 += billing_map[0][(int)Billing::EXP1_7x7].load();
+    cost_7x7 += billing_map[0][(int)Billing::EXP2_7x7].load();
+    cost_7x7 += billing_map[0][(int)Billing::EXP3_7x7].load();
+    cost_7x7 += billing_map[0][(int)Billing::EXPN_7x7].load();
+    cost_7x7 += billing_map[0][(int)Billing::SIGN_7x7].load();
+    cost_7x7 += billing_map[0][(int)Billing::RES_7x7].load();
+    // we only track overall EOB cost... we divide this among edge vs 7x7 by
+    // using the ratio of other bits used by edge vs 7x7
+    (void)cost_7x7;
+    (void)edge_cost;
+    /*
+    size_t non_nonzero_cost = cost_7x7 + edge_cost;
+    size_t num_nonzero_cost = billing_map[0][(int)Billing::NZ_7x7].load()
+        + billing_map[0][(int)Billing::NZ_EDGE].load();
+    billing_map[0][(int)Billing::NZ_7x7] -= billing_map[0][(int)Billing::NZ_7x7].load();
+    billing_map[0][(int)Billing::NZ_EDGE] -= billing_map[0][(int)Billing::NZ_EDGE].load();
+    billing_map[0][(int)Billing::NZ_EDGE] += num_nonzero_cost * edge_cost / non_nonzero_cost;
+    billing_map[0][(int)Billing::NZ_7x7] += num_nonzero_cost * cost_7x7 / non_nonzero_cost;
+    */
+    // we also tally some of the bitmap cost to EOB cost, since the "not eob" idea gets
+    // partially paid for in the bitmap huffman code cost
+    /*
     uint32_t bitmap = billing_map[0][(int)Billing::BITMAP_7x7];
     billing_map[0][(int)Billing::BITMAP_7x7] -= bitmap/2;
     billing_map[0][(int)Billing::NZ_7x7] += bitmap/2;
@@ -74,7 +105,10 @@ void fixup_bill() {
     bitmap = billing_map[0][(int)Billing::BITMAP_EDGE];
     billing_map[0][(int)Billing::BITMAP_EDGE] -= bitmap/2;
     billing_map[0][(int)Billing::NZ_EDGE] += bitmap/2;
-
+    */
+    // not all signs are created equal in jpeg spec
+    // this balances positive and negative by using the cost of unpredicted signs in
+    // lepton-encoded jpegs to get the 'right' cost in normal jpeg
     double sign_ratio = billing_map[1][(int)Billing::SIGN_7x7]
         / (double)billing_map[0][(int)Billing::SIGN_7x7];
     int delta_7x7 = billing_map[1][(int)Billing::SIGN_7x7] - billing_map[0][(int)Billing::SIGN_7x7];
