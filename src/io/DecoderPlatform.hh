@@ -26,19 +26,22 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "../vp8/util/memory.hh"
 #if defined (__linux) || defined (__APPLE__)
 #define SIRIKATA_FUNCTION_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_PLUGIN_EXPORT __attribute__ ((visibility("default")))
 #else
-#include <sirikata/core/util/Platform.hpp>
+#define SIRIKATA_FUNCTION_EXPORT
+#define SIRIKATA_EXPORT
+#define SIRIKATA_PLUGIN_EXPORT
+#define __builtin_expect(x, y) x
 #endif
-
 #include <stdint.h>
 #include <stddef.h>
 #include <string>
 #include <vector>
+#include <algorithm>
+#include "../vp8/util/memory.hh"
 #define USE_MMAP
 namespace Sirikata{
 
@@ -53,3 +56,22 @@ typedef uint8_t byte;
 typedef int8_t int8;
 
 }
+#ifndef _DECODER_PLATFORM_HH_
+#define _DECODER_PLATFORM_HH_
+#ifdef _WIN32
+#include <io.h>
+inline int write(int fd, const void*data, size_t length) {
+    return _write(fd, data, length);
+}
+inline int read(int fd, void*data, size_t length) {
+    return _read(fd, data, length);
+}
+inline int close(int fd) {
+    return _close(fd);
+}
+typedef int ssize_t;
+using std::size_t;
+#endif
+
+
+#endif

@@ -4,7 +4,6 @@
 #include <vector>
 #include <iostream>
 
-#include "../util/arithmetic_code.hh"
 #include <assert.h>
 #include "branch.hh"
 #include "../../io/MemReadWriter.hh"

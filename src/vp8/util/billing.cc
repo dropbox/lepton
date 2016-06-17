@@ -1,4 +1,8 @@
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include "billing.hh"
 #define BILLING_MAP_INIT(X) 0,

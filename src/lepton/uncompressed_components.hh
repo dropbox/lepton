@@ -6,7 +6,11 @@
 #include <string.h>
 #include <assert.h>
 #include <thread>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include "base_coders.hh"
 #include "component_info.hh"
 #include "../vp8/model/color_context.hh"

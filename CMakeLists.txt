@@ -128,7 +128,9 @@ add_executable(lepton ${LEPTON_SOURCES})
 add_executable(lepton-avx ${LEPTON_SOURCES})
 SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
+IF(NOT WIN32)
     SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -Wl,--no-export-dynamic -lstdc++)
+ENDIF()
 ENDIF()
 SET(ADDITIONAL_COMPILE_FLAGS)
 SET(ADDITIONAL_DEFINES)
@@ -150,8 +152,11 @@ target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
 set_target_properties(localmd5 PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-msse4.2 -include unistd.h ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
+IF(WIN32)
+set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 /arch:AVX2 -D__AVX2__ -D__AVX__ ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
+ELSE()
 set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
-
+ENDIF()
 #add_executable(print-model
 #   src/vp8/util/debug.cc
 #   src/vp8/util/debug.hh

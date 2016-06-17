@@ -33,11 +33,15 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
+#include <algorithm>
+#include <cstdint>
 #include "DecoderPlatform.hh"
 #include "MemMgrAllocator.hh"
-#if defined(__APPLE__) || __cplusplus <= 199711L
+#if (defined(__APPLE__) || __cplusplus <= 199711L) && !defined(_WIN32)
 #define THREAD_LOCAL_STORAGE __thread
 #else
 #include <atomic>
@@ -45,6 +49,7 @@
 #endif
 
 namespace Sirikata {
+using std::size_t;
 union mem_header_union
 {
     typedef char Align[16];
@@ -85,7 +90,7 @@ struct MemMgrState {
 size_t  memmgr_num_memmgrs = 0;
 MemMgrState *memmgrs = NULL;
 size_t memmgr_bytes_allocated = 0;
-#if __cplusplus <= 199711L
+#if __cplusplus <= 199711L && !(defined (_WIN32))
 AtomicValue<size_t> bytes_currently_used(0);
 AtomicValue<size_t> bytes_ever_allocated(0);
 #else
@@ -93,7 +98,7 @@ std::atomic<size_t> bytes_currently_used(0);
 std::atomic<size_t> bytes_ever_allocated(0);
 #endif
 THREAD_LOCAL_STORAGE int memmgr_thread_id_plus_one = 0;
-#if __cplusplus <= 199711L
+#if __cplusplus <= 199711L && !defined(_WIN32)
 AtomicValue<int> memmgr_allocated_threads((0));
 #else
 std::atomic<int> memmgr_allocated_threads((0));
@@ -366,7 +371,9 @@ void* memmgr_alloc(size_t nuint8_ts)
                 assert(is_zero(p + 1, nuint8_ts) && "The item returned from the new pool must be zero");
                 return p + 1;
             } else {
+#ifndef _WIN32
                 (void)is_zero;
+#endif
                 return memset((p + 1), 0, nuint8_ts); // this makes sure we always return zero'd data
             }
         }
@@ -466,9 +473,9 @@ void *MemMgrAllocatorMalloc(void *opaque, size_t nmemb, size_t size) {
 void MemMgrAllocatorFree (void *opaque, void *ptr) {
     memmgr_free(ptr);
 }
-void * MemMgrAllocatorInit(size_t prealloc_size, size_t worker_size, size_t num_workers, unsigned char alignment) {
+void * MemMgrAllocatorInit(size_t prealloc_size, size_t worker_size, size_t num_workers, unsigned char alignment, bool needs_huge_pages) {
     assert(alignment <= sizeof(mem_header_union::Align));
-    memmgr_init(prealloc_size, worker_size, num_workers, 256);
+    memmgr_init(prealloc_size, worker_size, num_workers, 256, needs_huge_pages);
     return memmgr_alloc(1);
 }
 void MemMgrAllocatorDestroy(void *opaque) {

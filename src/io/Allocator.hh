@@ -33,6 +33,8 @@
 namespace Sirikata {
 
 template<class T> class JpegAllocator {
+    typedef std::true_type propagate_on_container_move_assignment;
+    typedef std::true_type propagate_on_container_swap;
     template<class U> friend class JpegAllocator;
     typedef void *(CustomAllocate)(void *opaque, size_t nmemb, size_t size);
     typedef void (CustomDeallocate)(void *opaque, void *ptr);
@@ -51,10 +53,10 @@ template<class T> class JpegAllocator {
         custom_free(ptr);
     }
 public:
-    template <class U> bool operator == (const JpegAllocator<U> &other) {
+    template <class U> bool operator == (const JpegAllocator<U> &other) const {
         return custom_allocate == other.custom_allocate && custom_deallocate == other.custom_deallocate && opaque == other.opaque;
     }
-    template <class U> bool operator != (const JpegAllocator<U> &other) {
+    template <class U> bool operator != (const JpegAllocator<U> &other) const {
         return !((*this) == other);
     }
     typedef size_t size_type;

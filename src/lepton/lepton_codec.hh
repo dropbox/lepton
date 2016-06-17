@@ -179,6 +179,7 @@ protected:
         if (do_threading) {
             num_threads = NUM_THREADS;
         }
+        thread_state_.memset(0);
         always_assert(num_threads <= MAX_NUM_THREADS);
         
         for (unsigned int i = 0; i < num_threads; ++i) {

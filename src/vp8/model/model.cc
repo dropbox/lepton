@@ -1,6 +1,10 @@
 #include "../util/memory.hh"
 #include <assert.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <fstream>
 #include <iostream>
 
@@ -92,28 +96,69 @@ void set_branch_range_identity(Branch * start, Branch * end) {
     assert(all_branches_identity(start, end));
 }
 
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned (16))) = {{0}};
+#ifndef _WIN32
+__attribute__((aligned(16)))
+#endif
+    = {{0}};
 
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 int32_t ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned (16))) = {{0}};
+#ifndef _WIN32
+__attribute__((aligned(16)))
+#endif
+  = {{0}};
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 int32_t ProbabilityTablesBase::icos_idct_linear_8192_dequantized_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned (16))) = {{0}};
+#ifndef _WIN32
+__attribute__((aligned(16)))
+#endif
+   = {{0}};
 #ifdef ANNOTATION_ENABLED
 Context *gctx = (Context*)memset(calloc(sizeof(Context),1), 0xff, sizeof(Context));
 #endif
 
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 uint16_t ProbabilityTablesBase::quantization_table_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned(16)));
-
+#ifndef _WIN32
+__attribute__((aligned(16)))
+#endif
+    ;
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 uint16_t ProbabilityTablesBase::freqmax_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned (16)));
+#ifndef _WIN32
+__attribute__((aligned(16)))
+#endif
+   ;
 
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 uint8_t ProbabilityTablesBase::min_noise_threshold_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned (16)));
+#ifndef _WIN32
+__attribute__((aligned(16)))
+#endif
+    ;
 
+#ifdef _WIN32
+__declspec(align(16))
+#endif
 uint8_t ProbabilityTablesBase::bitlen_freqmax_[(int)ColorChannel::NumBlockTypes][64]
-    __attribute__ ((aligned (16)));
+#ifndef _WIN32
+    __attribute__ ((aligned (16)))
+#endif
+    ;
 int get_sum_median_8(int16_t *dc_estimates) {
     int len_est = 16;
     int min_dc, max_dc;
@@ -151,7 +196,12 @@ void serialize_model(const Model & model, int output_fp )
     size_t left_to_write = sizeof(model);
     const char * data = reinterpret_cast<const char*>( &model );
     while(left_to_write) {
-        size_t written = write(output_fp, data, left_to_write);
+        size_t written;
+#ifdef _WIN32
+        written = _write(output_fp, data, left_to_write);
+#else
+        written = write(output_fp, data, left_to_write);
+#endif
         if (written <= 0) {
             if (errno != EINTR) {
                 break;
@@ -276,6 +326,7 @@ template<class BranchArray> void print_all(const BranchArray &ba,
 const Model &Model::debug_print(const Model * other,
                                                         Model::PrintabilitySpecification spec)const
 {
+#ifndef _WIN32
     print_all(this->num_nonzeros_counts_7x7_,
               other ? &other->num_nonzeros_counts_7x7_ : nullptr,
               "NONZERO 7x7",
@@ -313,7 +364,7 @@ const Model &Model::debug_print(const Model * other,
               other ? &other->sign_counts_ : nullptr,
               "SIGN",
               {"cmp","lakh","exp"}, spec);
-    
+#endif
     return *this;
 }
 

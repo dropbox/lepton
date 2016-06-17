@@ -1,7 +1,13 @@
 #include "memory.hh"
 #include <emmintrin.h>
 #include <assert.h>
+#ifdef _WIN32
+#include <io.h>
+#include <Windows.h>
+#include <fcntl.h>
+#else
 #include <unistd.h>
+#endif
 #include <errno.h>
 #ifdef __linux
 #include <linux/seccomp.h>
@@ -69,10 +75,26 @@ void GenericWorker::activate_work() {
         
     }
 }
+#ifdef _WIN32
+int make_pipe(int pipes[2]) {
+    HANDLE read_pipe, write_pipe;
+    if (CreatePipe(&read_pipe, &write_pipe, NULL, 65536)) {
+        pipes[0] = _open_osfhandle((intptr_t)read_pipe, O_RDONLY);
+        pipes[1] = _open_osfhandle((intptr_t)write_pipe, O_WRONLY);
+        return 0;
+    }
+    errno = EINVAL;
+    return -1;
+}
+#else
+int make_pipe(int pipes[2]) {
+    return pipe(pipes);
+}
+#endif
 Sirikata::Array1d<int, 2> GenericWorker::initiate_pipe(){
     int pipes[2] = {-1, -1};
     if (use_pipes) {
-        while (pipe(pipes) != 0 && errno == EINTR){
+        while (make_pipe(pipes) != 0 && errno == EINTR){
         }
     }
     Sirikata::Array1d<int, 2> retval;
@@ -107,7 +129,9 @@ void GenericWorker::_wait_for_child_to_begin() {
     child_begun = true;
 }
 void GenericWorker::join_via_syscall() {
+#ifndef _WIN32
     signal(SIGPIPE, SIG_IGN);
+#endif
     while (close(work_done_pipe.at(0)) && errno == EINTR) {
     }
     child_.join();

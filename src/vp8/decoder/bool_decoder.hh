@@ -2,8 +2,6 @@
 #define BOOL_DECODER_HH
 #include <vector>
 
-#include "../util/arithmetic_code.hh"
-typedef uint8_t Probability;
 #include "model.hh"
 #include "../../io/Reader.hh"
 #include "JpegArithmeticCoder.hh"

@@ -1,4 +1,6 @@
 #include "../../vp8/util/memory.hh"
+#ifndef _WIN32
+
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -105,8 +107,8 @@ void fork_serve() {
             while (close(1) < 0 && errno == EINTR){ // close stdout
             }
             // leave stderr open for complaints
-            IOUtil::FileReader reader(reader_pipe);
-            IOUtil::FileWriter writer(writer_pipe, false);
+            IOUtil::FileReader reader(reader_pipe, 0, false);
+            IOUtil::FileWriter writer(writer_pipe, false, false);
             process_file(&reader, &writer, 0, false);
             custom_exit(ExitCode::SUCCESS);
         } else {
@@ -125,3 +127,4 @@ void fork_serve() {
         }
     }
 }
+#endif

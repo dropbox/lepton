@@ -8,7 +8,7 @@
 #include "../io/ZlibCompression.hh"
 #include <algorithm>
 
-unsigned int get_cmp(int cur_read_batch[4], int target[4]);
+BlockType bt_get_cmp(int cur_read_batch[3], int target[3]);
 SimpleComponentEncoder::SimpleComponentEncoder() {
     memset(target, 0, sizeof(target));
     memset(cur_read_batch, 0, sizeof(cur_read_batch));
@@ -31,7 +31,7 @@ CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedCompone
             target[cmp] = colldata->component_size_in_blocks(cmp);
         }
     }
-    unsigned int cmp = get_cmp(cur_read_batch, target);
+    unsigned int cmp = (unsigned int)bt_get_cmp(cur_read_batch, target);
     if (cmp == sizeof(cur_read_batch)/sizeof(cur_read_batch[0]) || cur_read_batch[cmp] == target[cmp]) {
         return CODING_DONE;
     }

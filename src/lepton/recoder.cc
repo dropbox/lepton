@@ -768,7 +768,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     }
 
     /* step 3: blit any trailing data */
-    if ( not str_out->has_reached_bound() ) {
+    if (!str_out->has_reached_bound() ) {
         str_out->write( hdrdata + byte_position, hdrs - byte_position );
     }
 

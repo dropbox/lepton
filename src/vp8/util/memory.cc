@@ -1,11 +1,18 @@
 #include "options.hh"
 #include "memory.hh"
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <errno.h>
 #ifdef __linux
 #include <sys/syscall.h>
 #endif
-#if defined(__APPLE__) || __cplusplus <= 199711L
+#ifdef _WIN32
+#define USE_STANDARD_MEMORY_ALLOCATORS
+#endif
+#if defined(__APPLE__) || (__cplusplus <= 199711L && !defined(_WIN32))
 #define THREAD_LOCAL_STORAGE __thread
 #else
 #define THREAD_LOCAL_STORAGE thread_local
@@ -47,7 +54,11 @@ void always_assert_exit(bool value, const char * expr, const char * file, int li
 }
 void* custom_malloc (size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
-    return malloc(size);
+#ifdef _WIN32
+    return _aligned_malloc(size, 32);
+#else
+    return posix_memalign(32, size);
+#endif
 #else
     void * retval = Sirikata::memmgr_alloc(size);
     if (retval == 0) {// did malloc succeed?
@@ -62,7 +73,15 @@ void* custom_malloc (size_t size) {
 
 void* custom_realloc (void * old, size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
-    return realloc(old, size);
+#ifdef _WIN32
+    return _aligned_realloc(old, size, 32);
+#else
+    void *unaligned_retval = realloc(old, size);
+    void *retval = custom_malloc(size);
+    memcpy(retval, unaligned_retval, size);
+    free(unaligned_retval);
+    return retval;
+#endif
 #else
     size_t actual_size = 0;
     void * retval = Sirikata::MemMgrAllocatorRealloc(old, size, &actual_size, true, NULL);
@@ -77,15 +96,31 @@ void* custom_realloc (void * old, size_t size) {
 }
 void custom_free(void* ptr) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
     free(ptr);
+#endif
 #else
     Sirikata::memmgr_free(ptr);
 #endif
 }
-
+void * bzero32(void *aligned_32) {
+#if __AVX2__
+    _mm256_store_si256((__m256i*)aligned_32, _mm256_setzero_si256());
+#else
+    _mm_store_si128((__m128i*)aligned_32, _mm_setzero_si128());
+    _mm_store_si128(((__m128i*)aligned_32) + 1, _mm_setzero_si128());
+#endif
+    return aligned_32;
+}
 void * custom_calloc(size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
-    return calloc(size, 1);
+#ifdef _WIN32
+    return _aligned_recalloc(bzero32(_aligned_malloc(32, 32)), 1, size, 32);
+#else
+    return memset(custom_malloc(size), 0, size);
+#endif
 #else
     void * retval = Sirikata::memmgr_alloc(size); // guaranteed to return 0'd memory
     if (retval == 0) {// did malloc succeed?

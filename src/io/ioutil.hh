@@ -1,9 +1,11 @@
 #ifndef _SIRIKIATA_IO_UTIL_HH_
 #define _SIRIKIATA_IO_UTIL_HH_
+#ifndef _WIN32
 #include <unistd.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#endif
 #include "../vp8/util/nd_array.hh"
 #include "MuxReader.hh"
 namespace Sirikata {
@@ -11,7 +13,11 @@ class DecoderReader;
 class DecoderWriter;
 }
 namespace IOUtil {
-
+//#ifdef _WIN32
+//    typedef void* HANDLE_or_fd;
+//#else
+    typedef int HANDLE_or_fd;
+//#endif
 
 inline Sirikata::uint32 ReadFull(Sirikata::DecoderReader * reader, void * vdata, Sirikata::uint32 size) {
     using namespace Sirikata;
@@ -32,11 +38,16 @@ class FileReader : public Sirikata::DecoderReader {
     int fp;
     uint32_t total_read;
     uint32_t max_read;
+    bool is_fd_socket;
 public:
-    FileReader(int ff, int max_read_allowed = 0) {
+    FileReader(int ff, int max_read_allowed, bool is_socket) {
         fp = ff;
+        this->is_fd_socket = is_socket;
         total_read = 0;
         max_read = max_read_allowed;
+    }
+    bool is_socket()const {
+        return is_fd_socket;
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Read(Sirikata::uint8*data, unsigned int size) {
         if (max_read && total_read + size > max_read) {
@@ -79,11 +90,16 @@ class FileWriter : public Sirikata::DecoderWriter {
     int fp;
     int total_written;
     bool close_stream;
+    bool is_fd_socket;
 public:
-    FileWriter(int ff, bool do_close_stream) {
+    FileWriter(int ff, bool do_close_stream, bool is_fd_socket) {
+        this->is_fd_socket = is_fd_socket;
         fp = ff;
         total_written = 0;
         close_stream = do_close_stream;
+    }
+    bool is_socket() const {
+        return is_fd_socket;
     }
     void Close() {
         if (close_stream) {
@@ -116,17 +132,17 @@ public:
 
 };
 
-SIRIKATA_FUNCTION_EXPORT FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_size_read);
-SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe);
+//SIRIKATA_FUNCTION_EXPORT FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_size_read);
+//SIRIKATA_FUNCTION_EXPORT FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe);
 
-SIRIKATA_FUNCTION_EXPORT FileReader * BindFdToReader(int fd, uint32_t max_size_read);
-SIRIKATA_FUNCTION_EXPORT FileWriter * BindFdToWriter(int fd);
+SIRIKATA_FUNCTION_EXPORT FileReader * BindFdToReader(int fd, uint32_t max_size_read, bool is_socket);
+SIRIKATA_FUNCTION_EXPORT FileWriter * BindFdToWriter(int fd, bool is_socket);
 
 
 Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
                                                    size_t data_size,
-                                                   int send_to_subprocess,
-                                                   int recv_from_subprocess,
+                                                    HANDLE_or_fd send_to_subprocess,
+                                                    HANDLE_or_fd recv_from_subprocess,
                                                    size_t *output_size);
 
 // returns the md5sum of the input and tee'd input stores the output in the ResizableByteBuffer
@@ -134,10 +150,17 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                                                 size_t start_byte,
                                                 size_t end_byte,
                                                 bool send_header,
-                                                int input, int input_tee,
-                                                int output, size_t *input_size,
+                                                int input, HANDLE_or_fd input_tee,
+                                                HANDLE_or_fd output, size_t *input_size,
                                                 Sirikata::MuxReader::ResizableByteBuffer *stored_outpt,
-                                                bool close_input);
+                                                bool is_socket);
 
+struct SubprocessConnection {
+    HANDLE_or_fd pipe_stdin;
+    HANDLE_or_fd pipe_stdout;
+    HANDLE_or_fd pipe_stderr;
+    int sub_pid;
+};
+SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stder);
 }
 #endif

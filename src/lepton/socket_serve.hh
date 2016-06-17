@@ -26,7 +26,8 @@ typedef std::function<void(IOUtil::FileReader*,// data to work upon
                            uint32_t,//max_file_length
                            bool // force_zlib
                           )> SocketServeWorkFunction;
-
+#ifndef _WIN32
 void socket_serve(const SocketServeWorkFunction& work_fn,
                   uint32_t max_file_length,
                   const ServiceInfo &service_info);
+#endif

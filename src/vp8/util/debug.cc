@@ -1,7 +1,12 @@
 #include <sys/types.h>
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#else
 #include <unistd.h>
-#include <errno.h>
 #include <sys/fcntl.h>
+#endif
+#include <errno.h>
 #include "debug.hh"
 #include "memory.hh"
 

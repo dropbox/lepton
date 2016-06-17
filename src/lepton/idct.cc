@@ -394,7 +394,12 @@ void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64]
         xv6 = vget_raster256(5, 8, block);
         xv7 = vget_raster256(3, 8, block);
         if (__builtin_expect(ignore_dc, true)) {
+#ifdef _WIN32
+            __m128i zero_first = _mm256_extractf128_si256(xv0, 0);
+            xv0 = _mm256_insertf128_si256(xv0, _mm_insert_epi32(zero_first, 0, 0), 0);
+#else
             xv0 = _mm256_insert_epi32(xv0, 0, 0);
+#endif
         }
         xv0 = _mm256_add_epi32(_mm256_slli_epi32(vquantize256(0, 8, xv0, q), 11),
                             _mm256_set1_epi32(128));

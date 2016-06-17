@@ -11,6 +11,25 @@
 #include <smmintrin.h>
 #include <emmintrin.h>
 
+#ifdef _WIN32
+#include <intrin.h>
+#pragma intrinsic(_BitScanReverse)
+static uint32_t __inline __builtin_clz(uint32_t x) {
+    unsigned long r = 0;
+    _BitScanReverse(&r, x);
+    return 31 - r;
+}
+static uint64_t __inline __builtin_clzl(uint64_t x) {
+    uint64_t first_half = x;
+    first_half >>= 16;
+    first_half >>= 16;
+    if (first_half) {
+        return __builtin_clz(first_half);
+    }
+    return 32 + __builtin_clz(x & 0xffffffffU);
+}
+#endif
+
 static constexpr uint8_t LogTable16[16] = {
     0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3
 };
@@ -309,11 +328,11 @@ inline uint32_t slow_divide18bit_by_10bit(uint32_t num, uint16_t denom) {
 
 }
 
-
-static constexpr uint8_t NUMERIC_LENGTH_MAX = 12;
-static constexpr uint8_t NUMERIC_LENGTH_BITS = 4;
-
-template<typename intt> intt log2(intt v) {
+enum NumericConstants : uint8_t {
+    NUMERIC_LENGTH_MAX = 12,
+    NUMERIC_LENGTH_BITS = 4,
+};
+template<typename intt> intt local_log2(intt v) {
     constexpr int loop_max = (int)(sizeof(intt) == 1 ? 2
                                    : (sizeof(intt) == 2 ? 3
                                       : (sizeof(intt) == 4 ? 4
@@ -339,12 +358,12 @@ template<typename intt> intt log2(intt v) {
 
 
 template <typename intt> intt bit_length(intt v) {
-    if (sizeof(int) <= 4) {
+    if (sizeof(intt) <= 4) {
         return v ? 32 - __builtin_clz((uint32_t)v) : 0;
     } else {
         return v ? 64 - __builtin_clzl((uint64_t)v) : 0;
     }
-    return v == 0 ? 0 : log2(v) + 1;
+    return v == 0 ? 0 : local_log2(v) + 1;
 }
 
 #endif

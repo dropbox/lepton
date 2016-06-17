@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include "vpx_config.hh"
 #include "billing.hh"
+#include "../model/numeric.hh"
 //#include "vpx_ports/mem.h"
 //#include "vpx/vp8dx.h"
 //#include "vpx/vpx_integer.h"
@@ -164,7 +165,9 @@ inline unsigned int count_leading_zeros_uint8(uint8_t split) {
     return shift;
 }
     */
+#ifndef _WIN32
 __attribute__((always_inline))
+#endif
 inline uint8_t count_leading_zeros_uint8(uint8_t v) {
     return vpx_norm[v];
     assert(v);
@@ -213,7 +216,9 @@ inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split, Billing 
 
     return bit;
 }
+#ifndef _WIN32
 __attribute__((always_inline))
+#endif
 inline bool vpx_read(vpx_reader *r, int prob, Billing bill) {
   unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
   BD_VALUE value = r->value;

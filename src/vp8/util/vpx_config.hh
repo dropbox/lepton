@@ -8,7 +8,23 @@
 #define INLINE inline
 #endif
 
+#ifdef _WIN32
+#include <intrin.h>
+// FIXME: this assumes windows platforms are little endian
+#define htobe64 _byteswap_uint64
+#define be64toh _byteswap_uint64
+#define htobe32 _byteswap_ulong
+#define be32toh _byteswap_ulong
+#define htobe16 _byteswap_ushort
+#define be16toh _byteswap_ushort
+#define htole64(x) (x)
+#define htole32(x) (x)
+#define htole16(x) (x)
+#define le64toh(x) (x)
+#define le32toh(x) (x)
+#define le16toh(x) (x)
 
+#else
 #ifdef __APPLE__
 #include <libkern/OSByteOrder.h>
 # define htobe64 OSSwapHostToBigInt64
@@ -29,4 +45,5 @@
 #define _BSD_SOURCE       /* See feature_test_macros(7) */
 #endif
 #include <endian.h>
+#endif
 #endif

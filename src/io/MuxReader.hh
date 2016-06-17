@@ -29,6 +29,7 @@
 #ifndef _SIRIKATA_MUX_READER_HPP_
 #define _SIRIKATA_MUX_READER_HPP_
 #include <assert.h>
+#include <algorithm>
 #include "Allocator.hh"
 #include "Error.hh"
 #include "Reader.hh"

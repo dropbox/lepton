@@ -11,11 +11,18 @@ uint8_t prefix_unremap(uint8_t v) {
     }
     return v - 3;
 }
+#define LOG_DELTA_X_EDGE LogTable256[raster_to_aligned.kat<2>() - raster_to_aligned.kat<1>()]
+#define LOG_DELTA_Y_EDGE LogTable256[raster_to_aligned.kat<16>() - raster_to_aligned.kat<8>()]
+#ifdef _WIN32
+#define log_delta_x_edge LOG_DELTA_X_EDGE
+#define log_delta_y_edge LOG_DELTA_Y_EDGE
 
+#else
 enum {
-    log_delta_x_edge = LogTable256[raster_to_aligned.kat<2>() - raster_to_aligned.kat<1>()],
-    log_delta_y_edge = LogTable256[raster_to_aligned.kat<16>() - raster_to_aligned.kat<8>()]
+    log_delta_x_edge = LOG_DELTA_X_EDGE,
+    log_delta_y_edge = LOG_DELTA_Y_EDGE,
 };
+#endif
 
 template<bool all_neighbors_present, BlockType color,
          bool horizontal>

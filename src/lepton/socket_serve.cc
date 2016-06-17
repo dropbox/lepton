@@ -1,3 +1,4 @@
+#ifndef _WIN32
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -102,8 +103,8 @@ pid_t accept_new_connection(int active_connection,
                 // close socket lock so future servers may reacquire the lock
             }
         }
-        IOUtil::FileReader reader(active_connection, global_max_length);
-        IOUtil::FileWriter writer(active_connection, false);
+        IOUtil::FileReader reader(active_connection, global_max_length, true);
+        IOUtil::FileWriter writer(active_connection, false, true);
         work(&reader,
              &writer,
              global_max_length,
@@ -380,3 +381,4 @@ void socket_serve(const SocketServeWorkFunction &work_fn,
     serving_loop(socket_fd, zsocket_fd, socket_tcp, zsocket_tcp,
                  work_fn, global_max_length, service_info.max_children, do_cleanup_socket, lock_fd);
 }
+#endif

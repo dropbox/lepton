@@ -31,7 +31,7 @@ void SimpleComponentDecoder::decode_row(int thread_state_id,
                                         int curr_y) {
     custom_exit(ExitCode::ASSERTION_FAILURE);
 }
-BlockType get_cmp(int cur_read_batch[3], int target[3]) {
+BlockType bt_get_cmp(int cur_read_batch[3], int target[3]) {
     BlockType cmp = BlockType::Y;
     double cmp_progress = cur_read_batch[(int)cmp]/(double)target[(int)cmp];
     for (unsigned int icmp = 1; icmp < 3; ++icmp) {
@@ -65,7 +65,7 @@ CodingReturnValue SimpleComponentDecoder::decode_chunk(UncompressedComponents* c
             target[cmp] = colldata->component_size_in_blocks(cmp);
         }
     }
-    BlockType cmp = get_cmp(cur_read_batch, target);
+    BlockType cmp = bt_get_cmp(cur_read_batch, target);
     if ((size_t)cmp == sizeof(cur_read_batch)/sizeof(cur_read_batch[0]) || cur_read_batch[(size_t)cmp] == target[(size_t)cmp]) {
         return CODING_DONE;
     }

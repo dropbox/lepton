@@ -1,12 +1,23 @@
 #include "../../vp8/util/memory.hh"
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#include <thread>
+#define S_IWUSR 0
+#define S_IRUSR 0
+#else
 #include <poll.h>
+#endif
 #include "Reader.hh"
 #include "ioutil.hh"
 #include "../../dependencies/md5/md5.h"
-
+#ifdef _WIN32
+#include <Windows.h>
+#include <tchar.h>
+#endif
 namespace IOUtil {
-
+/*
 FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_size) {
     int fp = 0;
     if (!is_pipe) {
@@ -17,6 +28,7 @@ FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_siz
     }
     return NULL;
 }
+*//*
 FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe) {
     int fp = 1;
     if (!is_pipe) {
@@ -27,39 +39,73 @@ FileWriter * OpenWriteFileOrPipe(const char * filename, int is_pipe) {
     }
     return NULL;
 }
+*/
 
-FileReader * BindFdToReader(int fd, unsigned int max_file_size) {
+FileReader * BindFdToReader(int fd, unsigned int max_file_size, bool is_socket) {
     if (fd >= 0) {
-        return new FileReader(fd, max_file_size);
+        return new FileReader(fd, max_file_size, is_socket);
     }
     return NULL;
 }
-FileWriter * BindFdToWriter(int fd) {
+FileWriter * BindFdToWriter(int fd, bool is_socket) {
     if (fd >= 0) {
-        return new FileWriter(fd, !g_use_seccomp);
+        return new FileWriter(fd, !g_use_seccomp, is_socket);
     }
     return NULL;
+}
+void send_all_and_close(int fd, const uint8_t *data, size_t data_size) {
+    while (data_size > 0) {
+        auto ret = write(fd, data, data_size);
+        if (ret == 0) {
+            break;
+        }
+        if (ret < 0 && errno == EINTR) {
+            continue;
+        }
+        if (ret < 0) {
+            auto local_errno = errno;
+            fprintf(stderr, "Send err %d\n", local_errno);
+            custom_exit(ExitCode::SHORT_READ);
+        }
+        data += ret;
+        data_size -= ret;
+    }
+    while (close(fd) == -1 && errno == EINTR) {}
 }
 Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
                                                    size_t data_size,
                                                    int send_to_subprocess,
                                                    int recv_from_subprocess,
                                                    size_t *output_size){
+    MD5_CTX context;
+    MD5_Init(&context);
+    *output_size = 0;
+    uint8_t buffer[65536];
+#ifdef _WIN32
+    std::thread send_all_thread(std::bind(&send_all_and_close, send_to_subprocess, data, data_size));
+    FILE * fp = _fdopen(recv_from_subprocess, "rb");
+    while (true) {
+        auto ret = fread(buffer, 1, sizeof(buffer), fp);
+        if (ret == 0) {
+            break;
+        }
+        *output_size += ret;
+        MD5_Update(&context, buffer, ret);
+    }
+    fclose(fp);
+    send_all_thread.join();
+#else
     fd_set readfds, writefds, errorfds;
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
     FD_ZERO(&errorfds);
 
 
-    MD5_CTX context;
-    MD5_Init(&context);
-    *output_size = 0;
     int flags = fcntl(send_to_subprocess, F_GETFL, 0);
     fcntl(send_to_subprocess, F_SETFL, flags | O_NONBLOCK);
     flags = fcntl(recv_from_subprocess, F_GETFL, 0);
     fcntl(recv_from_subprocess, F_SETFL, flags | O_NONBLOCK);
     size_t send_cursor = 0;
-    uint8_t buffer[65536];
     bool finished = false;
     while(!finished) {
         int max_fd = 0;
@@ -123,9 +169,69 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
             }
         }
     }
+#endif
     Sirikata::Array1d<uint8_t, 16> retval;
     MD5_Final(&retval[0], &context);
     return retval;
+}
+void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context, size_t *input_size, size_t start_byte, size_t end_byte, bool close_input, bool is_socket) {
+    unsigned char buffer[65536];
+    while (true) {
+        auto del = read(copy_to_input_tee, buffer, sizeof(buffer));
+        if (del == 0) {
+            if (close_input) {
+                while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
+            }
+            break;
+        }
+        else if (del > 0) {
+            if (*input_size + del > start_byte) {
+                if (*input_size >= start_byte) {
+                    MD5_Update(context, &buffer[0], del);
+                } else {
+                    size_t offset = (start_byte - *input_size);
+                    MD5_Update(context, &buffer[offset], del - offset);
+                }
+            }
+            { // write all to the subprocess
+                size_t cursor = 0;
+                while (cursor < (size_t)del) {
+                    auto wdel = write(input_tee, &buffer[cursor], del - cursor);
+                    if (wdel > 0) {
+                        cursor += wdel;
+                    } else if (wdel < 0) {
+                        if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+                            continue;
+                        }
+                        int whatis = errno;
+                        fprintf(stderr, "ERR %d\n", whatis);
+                        fflush(stderr);
+                        perror("UNKNOWN");
+                        fflush(stdout);
+                        fflush(stderr);
+                        custom_exit(ExitCode::SHORT_READ);
+                    } else {
+                        custom_exit(ExitCode::SHORT_READ);
+                    }
+                }
+            }
+            *input_size += del;
+            if (end_byte != 0 && *input_size == end_byte) {
+                if (close_input) {
+                    while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
+                }
+                copy_to_input_tee = -1;
+            }
+        }
+        else if (!(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)) {
+            //fprintf(stderr,"%d) retry Err\n", copy_to_input_tee);
+        }
+        else {
+            //fprintf(stderr, "Error %d\n", errno);
+            break;
+        }
+    }
+    while (close(input_tee) == -1 && errno == EINTR) {}
 }
 Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> header,
                                                 size_t start_byte,
@@ -134,34 +240,92 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                                                 int copy_to_input_tee, int input_tee,
                                                 int copy_to_storage, size_t *input_size,
                                                 Sirikata::MuxReader::ResizableByteBuffer *storage,
-                                                bool close_input) {
+                                                bool is_socket) {
+    bool close_input = false;
+    MD5_CTX context;
+    MD5_Init(&context);
+    if (start_byte < header.size()) {
+        MD5_Update(&context, &header[start_byte], header.size() - start_byte);
+        if (send_header) {
+            size_t offset = start_byte;
+            do {
+                auto delta = write(input_tee, &header[offset], header.size() - offset);
+                if (delta <= 0) {
+                    if (delta < 0 && errno == EINTR) {
+                        continue;
+                    } else {
+                        custom_exit(ExitCode::OS_ERROR);
+                    }
+                }
+                offset += delta;
+            } while (offset < header.size());
+        }
+    }
+    *input_size = header.size();
+    uint8_t buffer[65536] = { 0 };
+#ifdef _WIN32
+    std::thread worker(std::bind(&md5_and_copy_to_tee,
+        copy_to_input_tee, input_tee, &context, input_size, start_byte, end_byte, close_input, is_socket));
+#if 1
+    while(true) {
+        auto old_size = storage->size();
+        if (storage->how_much_reserved() < old_size + 65536) {
+            storage->reserve(storage->how_much_reserved() * 2);
+        }
+        storage->resize(storage->how_much_reserved());
+
+        auto delta = read(copy_to_storage, storage->data() + old_size, storage->size() - old_size);
+        if (delta < 0) {
+            if (errno == EINTR) {
+                storage->resize(old_size);
+                continue;
+            }
+            custom_exit(ExitCode::SHORT_READ);
+        }
+        storage->resize(old_size + delta);
+        if (delta == 0) {
+            break;
+        }
+    }
+#else
+    FILE * fp = _fdopen(copy_to_storage, "rb");
+    while (true) {
+        auto old_size = storage->size();
+        if (storage->how_much_reserved() < old_size + 65536) {
+            storage->reserve(storage->how_much_reserved() * 2);
+        }
+        storage->resize(storage->how_much_reserved());
+        auto ret = fread(storage->data() + old_size, 1, storage->size() - old_size, fp);
+        storage->resize(old_size + ret);
+        if (ret == 0) {
+            break;
+        }        
+    }
+    fclose(fp);
+#endif
+    worker.join();
+#else
     fd_set readfds, writefds, errorfds;
 
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
     FD_ZERO(&errorfds);
     int max_fd = -1;
-    int flags = 0;
+    int copy_to_input_tee_flags = 0;
+    int input_tee_flags = 0;
+    int copy_to_storage_flags = 0;
 #ifndef __APPLE__
-    flags = fcntl(input_tee, F_GETFL, 0);
+    input_tee_flags = fcntl(input_tee, F_GETFL, 0);
 #endif
-    fcntl(input_tee, F_SETFL, flags | O_NONBLOCK);
+    fcntl(input_tee, F_SETFL, input_tee_flags | O_NONBLOCK);
 #ifndef __APPLE__
-    flags = fcntl(copy_to_input_tee, F_GETFL, 0);
+    copy_to_input_tee_flags = fcntl(copy_to_input_tee, F_GETFL, 0);
 #endif
-    fcntl(copy_to_input_tee, F_SETFL, flags | O_NONBLOCK);
+    fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags | O_NONBLOCK);
 #ifndef __APPLE__
-    flags = fcntl(copy_to_storage, F_GETFL, 0);
+    copy_to_storage_flags = fcntl(copy_to_storage, F_GETFL, 0);
 #endif
-    fcntl(copy_to_storage, F_SETFL, flags | O_NONBLOCK);
-
-    MD5_CTX context;
-    MD5_Init(&context);
-    if (start_byte < header.size()) {
-        MD5_Update(&context, &header[start_byte], header.size() - start_byte);
-    }
-    *input_size = header.size();
-    uint8_t buffer[65536] = {0};
+    fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags | O_NONBLOCK);
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;
     bool finished = false;
@@ -219,6 +383,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
             ssize_t del = read(copy_to_input_tee, &buffer[cursor], max_to_read);
             if (del == 0) {
+                fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags);
                 if (close_input) {
                     //fprintf(stderr, "CLosing %d\n", copy_to_input_tee);
                     while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -237,6 +402,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 *input_size += del;
                 cursor += del;
                 if (end_byte != 0 && *input_size == end_byte) {
+                    fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags);
                     if (close_input) {
                         //fprintf(stderr, "CLosing %d\n", copy_to_input_tee);
                         while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -316,9 +482,170 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
         }
         //fprintf(stderr,"F\n");
     }
+    // reset the nonblocking nature of the fd
+    if (input_tee != -1) {
+        fcntl(input_tee, F_SETFL, input_tee_flags);
+    }
+    if (copy_to_storage != -1) {
+        fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags);
+    }
+#endif
+
     *input_size -= start_byte;
     Sirikata::Array1d<uint8_t, 16> retval;
     MD5_Final(&retval[0], &context);
+    return retval;
+}
+void discard_stderr(int fd) {
+    char buffer[4097];
+    buffer[sizeof(buffer) - 1] = '\0';
+    while (true) {
+        auto del = read(fd, buffer, sizeof(buffer) - 1);
+        if (del <= 0) {
+            if (del < 0 && errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        buffer[del] = '\0';
+        fprintf(stderr, "%s", buffer);
+    }
+}
+SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr) {
+    SubprocessConnection retval;
+    memset(&retval, 0, sizeof(retval));
+#ifdef _WIN32
+    SECURITY_ATTRIBUTES saAttr;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
+    HANDLE hChildStd_IN_Rd;
+    HANDLE hChildStd_IN_Wr;
+
+    HANDLE hChildStd_OUT_Rd;
+    HANDLE hChildStd_OUT_Wr;
+
+    HANDLE hChildStd_ERR_Rd;
+    HANDLE hChildStd_ERR_Wr;
+    bool simpler = true;
+    if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0)) {
+        custom_exit(ExitCode::OS_ERROR);
+    }
+    if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0)) {
+        custom_exit(ExitCode::OS_ERROR);
+    }
+    if (pipe_stderr || !simpler) {
+        if (!CreatePipe(&hChildStd_ERR_Rd, &hChildStd_ERR_Wr, &saAttr, 0)) {
+            custom_exit(ExitCode::OS_ERROR);
+        }
+        if (!SetHandleInformation(hChildStd_ERR_Rd, HANDLE_FLAG_INHERIT, 0)) {
+            custom_exit(ExitCode::OS_ERROR);
+        }
+    }
+    if (!CreatePipe(&hChildStd_IN_Rd, &hChildStd_IN_Wr, &saAttr, 0)) {
+        custom_exit(ExitCode::OS_ERROR);
+    }
+    if (!SetHandleInformation(hChildStd_IN_Wr, HANDLE_FLAG_INHERIT, 0)) {
+        custom_exit(ExitCode::OS_ERROR);
+    }
+    PROCESS_INFORMATION piProcInfo;
+    STARTUPINFO siStartInfo;
+    memset(&siStartInfo, 0, sizeof(siStartInfo));
+    memset(&piProcInfo, 0, sizeof(piProcInfo));
+    siStartInfo.cb = sizeof(STARTUPINFO);
+
+    if (pipe_stderr || !simpler) {
+        siStartInfo.hStdError = hChildStd_ERR_Wr;
+    }
+    siStartInfo.hStdOutput = hChildStd_OUT_Wr;
+    siStartInfo.hStdInput = hChildStd_IN_Rd;
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+    std::vector<char> command_line;
+    const char * exe_shorthand = "lepton.exe";
+    command_line.insert(command_line.end(),
+                        exe_shorthand, exe_shorthand + strlen(exe_shorthand));
+    for (int i = 1; i < argc; ++i) {
+        command_line.push_back(' ');
+        command_line.insert(command_line.end(), argv[i], argv[i] + strlen(argv[i]));
+    }
+    command_line.push_back('\0');
+    if (!CreateProcess(argv[0],
+        &command_line[0],
+        NULL, // process security attributes
+        NULL, // primary thread security attributes,
+        TRUE, // handles inherited,
+        0, // flags,
+        NULL, // use parent environment,
+        NULL, // use current dir,
+        &siStartInfo,
+        &piProcInfo)) {
+        fprintf(stderr, "Failed To start subprocess with command line ", command_line);
+        custom_exit(ExitCode::OS_ERROR);
+    }
+    CloseHandle(piProcInfo.hProcess);
+    CloseHandle(piProcInfo.hThread);
+
+    if (pipe_stderr || !simpler) {
+        CloseHandle(hChildStd_ERR_Wr);
+        while ((retval.pipe_stderr = _open_osfhandle((intptr_t)hChildStd_ERR_Rd,
+            O_APPEND | O_RDONLY)) == -1 && errno == EINTR) {
+        }
+    } else {
+        retval.pipe_stderr = -1;
+    }
+    if (simpler == false && !pipe_stderr) {
+        std::thread discard_stderr(std::bind(&discard_stderr, retval.pipe_stderr));
+        discard_stderr.detach();
+        retval.pipe_stderr = -1;
+    }
+    CloseHandle(hChildStd_OUT_Wr);
+    while ((retval.pipe_stdout = _open_osfhandle((intptr_t)hChildStd_OUT_Rd,
+        O_APPEND | O_RDONLY)) == -1 && errno == EINTR) {
+    }
+    CloseHandle(hChildStd_IN_Rd);
+    while ((retval.pipe_stdin = _open_osfhandle((intptr_t)hChildStd_IN_Wr,
+        O_APPEND | O_WRONLY)) == -1 && errno == EINTR) {
+    }
+#else
+    int stdin_pipes[2] = { -1, -1 };
+    int stdout_pipes[2] = { -1, -1 };
+    int stderr_pipes[2] = { -1, -1 };
+    while (pipe(stdin_pipes) < 0 && errno == EINTR) {}
+    while (pipe(stdout_pipes) < 0 && errno == EINTR) {}
+    if (pipe_stderr) {
+        while (pipe(stderr_pipes) < 0 && errno == EINTR) {}
+    }
+    if ((retval.sub_pid = fork()) == 0) {
+        while (close(stdin_pipes[1]) == -1 && errno == EINTR) {}
+        while (close(stdout_pipes[0]) == -1 && errno == EINTR) {}
+        if (pipe_stderr) {
+            while (close(stderr_pipes[0]) == -1 && errno == EINTR) {}
+        }
+        while (close(0) == -1 && errno == EINTR) {}
+        while (dup2(stdin_pipes[0], 0) == -1 && errno == EINTR) {}
+
+        while (close(1) == -1 && errno == EINTR) {}
+        while (dup2(stdout_pipes[1], 1) == -1 && errno == EINTR) {}
+        if (pipe_stderr) {
+            while (close(2) == -1 && errno == EINTR) {}
+            while (dup2(stderr_pipes[1], 2) == -1 && errno == EINTR) {}
+        }
+        std::vector<char*> args(argc + 1);
+        for (int i = 0; i < argc; ++i) {
+            args[i] = (char*)argv[i];
+        }
+        args[argc] = NULL;
+        execvp(args[0], &args[0]);
+    }
+    while (close(stdin_pipes[0]) == -1 && errno == EINTR) {}
+    while (close(stdout_pipes[1]) == -1 && errno == EINTR) {}
+    if (pipe_stderr) {
+        while (close(stderr_pipes[1]) == -1 && errno == EINTR) {}
+    }
+    retval.pipe_stdin = stdin_pipes[1];
+    retval.pipe_stdout = stdout_pipes[0];
+    retval.pipe_stderr = stderr_pipes[0];
+#endif
     return retval;
 }
 

@@ -4,7 +4,9 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
-
+#ifdef _WIN32
+#include <fcntl.h>
+#endif
 #include "bitops.hh"
 #include "component_info.hh"
 #include "uncompressed_components.hh"
@@ -22,6 +24,7 @@
 using namespace std;
 typedef Sirikata::MuxReader::ResizableByteBuffer ResizableByteBuffer;
 void printContext(FILE * fp) {
+#ifdef ANNOTATION_ENABLED
     for (int cm= 0;cm< 3;++cm) {
         for (int y = 0;y < Context::H/8; ++y) {
             for (int x = 0;x < Context::W/8; ++x) {
@@ -29,7 +32,6 @@ void printContext(FILE * fp) {
                     for (int bx = 0; bx < 8; ++bx) {
                         for (int ctx = 0;ctx < NUMCONTEXT;++ctx) {
                             for (int dim = 0; dim < 3; ++dim) {
-#ifdef ANNOTATION_ENABLED
                                 int val = 0;
                                 val = gctx->p[cm][y][x][by][bx][ctx][dim];
                                 const char *nam = "UNKNOWN";
@@ -54,7 +56,6 @@ void printContext(FILE * fp) {
                                     fprintf(fp, "col[%02d] y[%02d]x[%02d] by[%02d]x[%02d] [%s][%d] = %d\n",
                                             cm, y, x, by, bx, nam, dim, val);
                                 }
-#endif
                             }
                         }
                     }
@@ -62,6 +63,7 @@ void printContext(FILE * fp) {
             }
         }
     }
+#endif
 }
 
 VP8ComponentEncoder::VP8ComponentEncoder(bool do_threading)
@@ -433,7 +435,11 @@ int load_model_file_fd_output() {
     if (!out_model_name) {
         return -1;
     }
-    return open(out_model_name, O_CREAT|O_TRUNC|O_WRONLY, S_IWUSR | S_IRUSR);
+    return open(out_model_name, O_CREAT|O_TRUNC|O_WRONLY, 0
+#ifndef _WIN32
+        |S_IWUSR | S_IRUSR
+#endif
+    );
 }
 int model_file_fd = load_model_file_fd_output();
 

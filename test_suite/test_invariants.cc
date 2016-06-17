@@ -387,7 +387,7 @@ int main() {
     for (int i = 0; i < 65536; ++i) {
         always_assert(bit_length((uint16_t)i) == uint16bit_length(i));
         if (i > 0) {
-            always_assert(log2((uint16_t)i) == uint16log2(i));
+            always_assert(local_log2((uint16_t)i) == uint16log2(i));
         }
     }
     for (int denom = 1; denom < 1026; ++denom) {

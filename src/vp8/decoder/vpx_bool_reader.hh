@@ -26,7 +26,9 @@ public:
 #endif
         init(buffer, size);
     }
+#ifndef _WIN32
     __attribute__((always_inline))
+#endif
     bool get(Branch &branch, Billing bill=Billing::RESERVED) {
 #ifdef DEBUG_ARICODER
         if (!any_read) {

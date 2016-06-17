@@ -39,28 +39,31 @@ extern bool g_use_seccomp;
 #define MAKE_EXIT_CODE_ENUM(ITEM, VALUE) ITEM=VALUE,
 #define GENERATE_EXIT_CODE_RETURN(ITEM, VALUE) {if ((ec) == ExitCode::ITEM) { return #ITEM;}}
 
-#if __cplusplus <= 199711L
+#if __cplusplus <= 199711L && !defined(_WIN32)
 namespace ExitCode { enum ExitCode_ {
 #else
 enum class ExitCode {
 #endif
 FOREACH_EXIT_CODE(MAKE_EXIT_CODE_ENUM)
-#if __cplusplus > 199711L
+#if __cplusplus > 199711L || defined(_WIN32)
     };
 #else
 };
 }
 #endif
 
-#if __cplusplus > 199711L
+#if __cplusplus > 199711L || defined(_WIN32)
+#ifndef _WIN32
 [[noreturn]]
+#endif
 void custom_exit(ExitCode exit_code);
 #else
 void custom_exit(ExitCode::ExitCode_ exit_code);
 #endif
 #define always_assert(EXPR) always_assert_outer((EXPR), #EXPR, __FILE__, __LINE__)
 void custom_terminate_this_thread(uint8_t exit_code);
-void custom_atexit(void (*atexit)(void*, uint64_t) , void *arg0, uint64_t arg1);
+typedef void atexit_type(void*, uint64_t);
+void custom_atexit(atexit_type* atexit, void *arg0, uint64_t arg1);
 extern "C" {
 #else
 #include <stdlib.h>

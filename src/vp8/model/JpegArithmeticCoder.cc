@@ -406,7 +406,7 @@ void ArithmeticCoder::arith_encode(DecoderWriter *cinfo, unsigned char *st, bool
   /* Encode & estimation procedures per sections D.1.4 & D.1.5 */
   e->a -= qe;
   assert(e->a > 0);
-  if (val != (sv >> 7)) {
+  if ((int)val != (sv >> 7)) {
     /* Encode the less probable symbol */
     if (e->a >= qe) {
       /* If the interval size (qe) for the less probable symbol (LPS)

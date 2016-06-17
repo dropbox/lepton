@@ -45,6 +45,8 @@
 #include "../io/Zlib0.hh"
 #include "../io/Seccomp.hh"
 #include <immintrin.h>
+int g_argc = 0;
+const char** g_argv = NULL;
 #ifndef GIT_REVISION
 #include "version.hh"
 #ifndef GIT_REVISION
@@ -85,6 +87,8 @@ namespace TimingHarness {
 
 uint64_t timing[MAX_NUM_THREADS][NUM_STAGES] = {{0}};
 uint64_t get_time_us(bool force) {
+#ifndef _WIN32
+    //FIXME
     if (force || !g_use_seccomp) {
         struct timeval val = {0,0};
         gettimeofday(&val,NULL);
@@ -93,6 +97,7 @@ uint64_t get_time_us(bool force) {
         retval += val.tv_usec;
         return retval;
     }
+#endif
     return 0;
 }
 const char * stage_names[] = {FOREACH_TIMING_STAGE(GENERATE_TIMING_STRING) "EOF"};
@@ -166,7 +171,7 @@ void uint32toLE(uint32_t value, uint8_t *retval) {
     ----------------------------------------------- */
 
 // returns the max size of the input file
-int initialize_options( int argc, char** argv );
+int initialize_options( int argc, const char*const* argv );
 void execute(const std::function<bool()> &);
 void show_help( void );
 
@@ -176,7 +181,7 @@ void show_help( void );
     ----------------------------------------------- */
 
 bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
-                Sirikata::Array1d<uint8_t, 2> two_byte_header);
+                Sirikata::Array1d<uint8_t, 2> two_byte_header, bool is_socket);
 
 template <class stream_reader>
 bool read_jpeg(std::vector<std::pair<uint32_t,
@@ -413,7 +418,7 @@ bounded_iostream* str_out = NULL;    // output stream
 IOUtil::FileWriter * ujg_out = NULL;
 IOUtil::FileReader * ujg_base_in = NULL;
 
-char** filelist = NULL;        // list of files to process
+const char** filelist = NULL;        // list of files to process
 int    file_cnt = 0;        // count of files in list (1 for input only)
 int    file_no  = 0;        // number of current file
 
@@ -475,6 +480,7 @@ struct timeval current_operation_end = {0, 0};
 #endif
 
 void timing_operation_start( char operation ) {
+#ifndef _WIN32
     if (g_use_seccomp) {
         return;
     }
@@ -490,9 +496,11 @@ void timing_operation_start( char operation ) {
 #endif
     fprintf(stderr,"START ACHIEVED %ld %ld\n",
             (long)current_operation_begin.tv_sec, (long)current_operation_begin.tv_usec );
+#endif
 }
 
 void timing_operation_first_byte( char operation ) {
+#ifndef _WIN32
     if (g_use_seccomp) {
         return;
     }
@@ -511,9 +519,11 @@ void timing_operation_first_byte( char operation ) {
     }
 
 #endif
+#endif
 }
 
 void timing_operation_complete( char operation ) {
+#ifndef _WIN32
     if (g_use_seccomp) {
         return;
     }
@@ -549,6 +559,7 @@ void timing_operation_complete( char operation ) {
     memset(&current_operation_end, 0, sizeof(current_operation_end));
     memset(&current_operation_begin, 0, sizeof(current_operation_begin));
     memset(&current_operation_first_byte, 0, sizeof(current_operation_first_byte));
+#endif
 #endif
 }
 
@@ -621,6 +632,8 @@ void compute_thread_mem(const char * arg,
 
 int main( int argc, char** argv )
 {
+    g_argc = argc;
+    g_argv = (const char **)argv;
     TimingHarness::timing[0][TimingHarness::TS_MAIN]
         = TimingHarness::get_time_us(true);
     size_t thread_mem_limit = 3 * 1024 * 1024;//8192;
@@ -635,6 +648,7 @@ int main( int argc, char** argv )
                            &avx2upgrade);
 #ifndef __AVX2__
 #ifndef __clang__
+#ifndef _WIN32
         if (avx2upgrade &&
             __builtin_cpu_supports("avx2")
 ) {
@@ -655,6 +669,7 @@ int main( int argc, char** argv )
         }
 #endif
 #endif
+#endif
     }
 
     // the system needs 33 megs of ram ontop of the uncompressed image buffer.
@@ -668,11 +683,13 @@ int main( int argc, char** argv )
 #ifndef __linux
     n_threads += 4;
 #endif
+#ifndef _WIN32
     Sirikata::memmgr_init(mem_limit,
                           thread_mem_limit,
                           n_threads,
                           256,
                           needs_huge_pages);
+#endif
     clock_t begin = 0, end = 1;
 
     int error_cnt = 0;
@@ -718,9 +735,17 @@ int main( int argc, char** argv )
     begin = clock();
     assert(file_cnt <= 2);
     if (action == forkserve) {
+#ifdef _WIN32
+        abort(); // not implemented
+#else
         fork_serve();
+#endif
     } else if (action == socketserve) {
+#ifdef _WIN32
+        abort(); // not implemented
+#else
         socket_serve(&process_file, max_file_size, g_socketserve_info);
+#endif
     } else {
         process_file(nullptr, nullptr, max_file_size, g_force_zlib0_out);
     }
@@ -763,15 +788,15 @@ int main( int argc, char** argv )
     ----------------------------------------------- */
 char g_dash[] = "-";
 // returns the maximum file size
-int initialize_options( int argc, char** argv )
+int initialize_options( int argc, const char*const * argv )
 {
-    char** tmp_flp;
+    const char** tmp_flp;
     int tmp_val;
     int max_file_size = 0;
     // get memory for filelist & preset with NULL
-    filelist = (char**)custom_calloc(argc * sizeof(char*));
+    filelist = (const char**)custom_calloc(argc * sizeof(char*));
 
-    // preset temporary fiolelist pointer
+    // preset temporary filelist pointer
     tmp_flp = filelist;
     // read in arguments
     while ( --argc > 0 ) {
@@ -1091,11 +1116,13 @@ void kill_workers(void * workers, uint64_t num_workers) {
     }
 }
 void test_syscall_injection(std::atomic<int>*value) {
+#ifndef _WIN32
     char buf[128 + 1];
     buf[sizeof(buf) - 1] = 0;
     value->store(-1);
     char * ret = getcwd(buf, sizeof(buf) - 1);
     value->store(ret ? 1 : 2);
+#endif
 }
 bool recode_baseline_jpeg_wrapper() {
     bool retval = recode_baseline_jpeg(str_out, max_file_size);
@@ -1110,6 +1137,7 @@ bool recode_baseline_jpeg_wrapper() {
     } else {
         ujgfilesize = 4096 * 1024;
     }
+#ifndef _WIN32
     if (!g_use_seccomp) {
         clock_t final = clock();
         struct timeval fin = {0,0};
@@ -1130,7 +1158,7 @@ bool recode_baseline_jpeg_wrapper() {
         fprintf(stderr, "Read took: %f\n",
                 (read_done - overall_start)/(double)CLOCKS_PER_SEC);
     }
-
+#endif
     // store last scan & restart positions
     if ( !rstp.empty() )
         rstp[ rstc ] = hufs;
@@ -1145,15 +1173,23 @@ bool recode_baseline_jpeg_wrapper() {
 
 int open_fdin(const char *ifilename,
                    IOUtil::FileReader *reader,
-                   Sirikata::Array1d<uint8_t, 2> &header) {
+                   Sirikata::Array1d<uint8_t, 2> &header,
+    bool *is_socket) {
     int fdin = -1;    
     if (reader != NULL) {
+        *is_socket = reader->is_socket();
         fdin = reader->get_fd();
     } else if (strcmp(ifilename, "-") == 0) {
         fdin = 0;
+        *is_socket = false;
     } else {
+        *is_socket = false;
          do {
-            fdin = open(ifilename, O_RDONLY);
+            fdin = open(ifilename, O_RDONLY
+#ifdef _WIN32
+                |O_BINARY
+#endif
+            );
         } while (fdin == -1 && errno == EINTR);
         if (fdin == -1) {
             const char * errormessage = "Input file unable to be opened for writing:";
@@ -1200,10 +1236,13 @@ std::string postfix_uniq(const std::string &filename, const char * ext) {
 int open_fdout(const char *ifilename,
                     IOUtil::FileWriter *writer,
                     Sirikata::Array1d<uint8_t, 2> fileid,
-                    bool force_compressed_output) {
+                    bool force_compressed_output,
+                    bool *is_socket) {
     if (writer != NULL) {
+        *is_socket = writer->is_socket();
         return writer->get_fd();
     }
+    *is_socket = false;
     if (strcmp(ifilename, "-") == 0) {
         return 1;
     }
@@ -1225,7 +1264,17 @@ int open_fdout(const char *ifilename,
         }
     }
     do {
-        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT|O_TRUNC, S_IWUSR | S_IRUSR);
+        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT|O_TRUNC
+#ifdef _WIN32
+            | O_BINARY
+#endif
+            , 0
+#ifdef _WIN32
+            | S_IREAD| S_IWRITE
+#else
+            | S_IWUSR | S_IRUSR
+#endif
+        );
     }while (retval == -1 && errno == EINTR);
     if (retval == -1) {
         const char * errormessage = "Output file unable to be opened for writing:";
@@ -1273,7 +1322,8 @@ void process_file(IOUtil::FileReader* reader,
 
     Sirikata::Array1d<uint8_t, 2> header = {{0, 0}};
     const char * ifilename = filelist[file_no];
-    int fdin = open_fdin(ifilename, reader, header);
+    bool is_socket = false;
+    int fdin = open_fdin(ifilename, reader, header, &is_socket);
     int fdout = -1;
     if (is_jpeg_header(header) && !g_skip_validation) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
@@ -1281,11 +1331,16 @@ void process_file(IOUtil::FileReader* reader,
         Sirikata::MuxReader::ResizableByteBuffer lepton_data;
         switch (validateAndCompress(&fdin, &fdout, header, start_byte, max_file_size,
                                     &validation_exit_code,
-                                    &lepton_data)) {
+                                    &lepton_data,
+                                    g_argc,
+                                    g_argv,
+                                    is_socket)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
             //fprintf(stderr, "CONTINUE AS JPEG...\n");
+            is_socket = false;
             break;
           case ValidationContinuation::CONTINUE_AS_LEPTON:
+            is_socket = false;
             g_force_zlib0_out = false;
             force_zlib0 = false;
             if (ofiletype ==  UJG) {
@@ -1300,12 +1355,7 @@ void process_file(IOUtil::FileReader* reader,
             //fprintf(stderr, "CONTINUE AS LEPTON...\n");
             break;
           case ValidationContinuation::ROUNDTRIP_OK:
-            fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
-            {
-                int flags = fcntl(fdout, F_GETFL, 0);
-                flags &= ~O_NONBLOCK;
-                fcntl(fdout, F_SETFL, flags);
-            }
+            fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0, &is_socket);
             for (size_t data_sent = 0; data_sent < lepton_data.size();) {
                 ssize_t sent = write(fdout,
                                      lepton_data.data() + data_sent,
@@ -1326,10 +1376,10 @@ void process_file(IOUtil::FileReader* reader,
             custom_exit(validation_exit_code);
         }        
     } else {
-        fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0);
+        fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0, &is_socket);
     }
     // check input file and determine filetype
-    check_file(fdin, fdout, max_file_size, force_zlib0, header);
+    check_file(fdin, fdout, max_file_size, force_zlib0, header, is_socket);
     begin = clock();
     if ( filetype == JPEG )
     {
@@ -1361,6 +1411,8 @@ void process_file(IOUtil::FileReader* reader,
         g_decoder = new SimpleComponentDecoder;
         g_reference_to_free.reset(g_decoder);
     }
+#ifndef _WIN32
+    //FIXME
     if (g_time_bound_ms) {
         struct itimerval bound;
         bound.it_value.tv_sec = g_time_bound_ms / 1000;
@@ -1374,24 +1426,29 @@ void process_file(IOUtil::FileReader* reader,
             exit((int)ExitCode::OS_ERROR);
         }
     }
+#endif
     if (g_unkillable) { // only set this after the time bound has been set
         if (!g_time_bound_ms) {
             fprintf(stderr, "Only allowed to set unkillable for items with a time bound\n");
             exit(1);
         }
         signal(SIGTERM, &sig_nop);
+#ifndef _WIN32
         signal(SIGQUIT, &sig_nop);
+#endif
     }
 
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
+#ifndef _WIN32
     if (g_inject_syscall_test == 1) {
         char buf[128 + 1];
         buf[sizeof(buf) - 1] = 0;
         char * ret = getcwd(buf, sizeof(buf) - 1);
         (void)ret;
     }
+#endif
     // get specific action message
     if ( filetype == UNK ) {
         actionmsg = "unknown filetype";
@@ -1746,11 +1803,14 @@ unsigned char read_fixed_ujpg_header() {
 }
 
 bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
-                Sirikata::Array1d<uint8_t, 2> fileid)
+                Sirikata::Array1d<uint8_t, 2> fileid, bool is_socket)
 {
-    IOUtil::FileReader * reader = IOUtil::BindFdToReader(fd_in, max_file_size);
+    IOUtil::FileReader * reader = IOUtil::BindFdToReader(fd_in, max_file_size, is_socket);
     reader->mark_some_bytes_already_read((uint32_t)fileid.size());
-    IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out);
+    if (is_socket) {
+        assert(fd_in == fd_out);
+    }
+    IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out, is_socket);
     ujg_base_in = reader;
     // check file id, determine filetype
     if (is_jpeg_header(fileid)) {
@@ -2295,6 +2355,8 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     } else {
         ujgfilesize = 4096 * 1024;
     }
+#ifndef _WIN32
+    //FIXME
     if (!g_use_seccomp) {
         clock_t final = clock();
         struct timeval fin = {0,0};
@@ -2323,7 +2385,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         fprintf(stderr, "Read took: %f\n",
                 (read_done - overall_start)/(double)CLOCKS_PER_SEC);
     }
-
+#endif
     return STREAMING_SUCCESS;
 
 }
@@ -3629,6 +3691,7 @@ bool read_ujpg( void )
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
         JpegAllocator<uint8_t> no_free_allocator;
+#ifndef _WIN32
         no_free_allocator.setup_memory_subsystem(32 * 1024 * 1024,
                                                  16,
                                                  &mem_init_nop,
@@ -3636,6 +3699,7 @@ bool read_ujpg( void )
                                                  &mem_nop,
                                                  &mem_realloc_nop,
                                                  &MemMgrAllocatorMsize);
+#endif
         std::pair<std::vector<uint8_t,
                               Sirikata::JpegAllocator<uint8_t> >,
                   JpegError> uncompressed_header_buffer(
