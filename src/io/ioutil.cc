@@ -177,7 +177,11 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
 void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context, size_t *input_size, size_t start_byte, size_t end_byte, bool close_input, bool is_socket) {
     unsigned char buffer[65536];
     while (true) {
-        auto del = read(copy_to_input_tee, buffer, sizeof(buffer));
+        size_t max_to_read = sizeof(buffer);
+        if (end_byte != 0 && max_to_read > end_byte - *input_size) {
+            max_to_read = end_byte - *input_size;
+        }
+        auto del = read(copy_to_input_tee, buffer, max_to_read);
         if (del == 0) {
             if (close_input) {
                 while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -185,6 +189,10 @@ void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context,
             break;
         }
         else if (del > 0) {
+            if (end_byte != 0 && *input_size + del > end_byte && end_byte > *input_size) {
+                assert(false && "UNREACHABLE"); // we limit by max_to_read
+                del = end_byte - *input_size;
+            }
             if (*input_size + del > start_byte) {
                 if (*input_size >= start_byte) {
                     MD5_Update(context, &buffer[0], del);
@@ -206,9 +214,10 @@ void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context,
                         int whatis = errno;
                         fprintf(stderr, "ERR %d\n", whatis);
                         fflush(stderr);
-                        perror("UNKNOWN");
+                        perror("Subprocess exit");
                         fflush(stdout);
                         fflush(stderr);
+                        del = 0;
                         custom_exit(ExitCode::SHORT_READ);
                     } else {
                         custom_exit(ExitCode::SHORT_READ);
@@ -221,6 +230,7 @@ void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context,
                     while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
                 }
                 copy_to_input_tee = -1;
+                break;
             }
         }
         else if (!(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)) {
@@ -246,20 +256,20 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     MD5_Init(&context);
     if (start_byte < header.size()) {
         MD5_Update(&context, &header[start_byte], header.size() - start_byte);
-        if (send_header) {
-            size_t offset = start_byte;
-            do {
-                auto delta = write(input_tee, &header[offset], header.size() - offset);
-                if (delta <= 0) {
-                    if (delta < 0 && errno == EINTR) {
-                        continue;
-                    } else {
-                        custom_exit(ExitCode::OS_ERROR);
-                    }
+    }
+    if (send_header) {
+        size_t offset = 0;
+        do {
+            auto delta = write(input_tee, &header[offset], header.size() - offset);
+            if (delta <= 0) {
+                if (delta < 0 && errno == EINTR) {
+                    continue;
+                } else {
+                    custom_exit(ExitCode::OS_ERROR);
                 }
-                offset += delta;
-            } while (offset < header.size());
-        }
+            }
+            offset += delta;
+        } while (offset < header.size());
     }
     *input_size = header.size();
     uint8_t buffer[65536] = { 0 };
