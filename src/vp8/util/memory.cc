@@ -1,3 +1,4 @@
+#include <emmintrin.h>
 #include "options.hh"
 #include "memory.hh"
 #ifdef _WIN32
