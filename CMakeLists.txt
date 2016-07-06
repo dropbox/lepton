@@ -8,6 +8,10 @@ find_package(LibLZMA REQUIRED)
 ELSE()
 find_path(LIBLZMA_INCLUDE_DIRS lzma.h )
 find_library(LIBLZMA_LIBRARIES lzma)
+IF(NOT WIN32)
+  SET(LIBLZMA_LIBRARIES ${LIBLZMA_LIBRARIES} pthread)
+ENDIF()
+
 ENDIF()
 
 include_directories(
@@ -66,7 +70,6 @@ add_executable(lepton
    src/vp8/encoder/bool_encoder.hh
    src/vp8/decoder/decoder.cc
    src/vp8/decoder/bool_decoder.hh
-   src/vp8/decoder/tree.cc
                )
 target_link_libraries(lepton ${LIBLZMA_LIBRARIES})
 
