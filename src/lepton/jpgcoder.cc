@@ -1762,8 +1762,6 @@ void show_help( void )
     fprintf(msgout, " [-revision]      Source revision of lepton binary\n" );
     fprintf(msgout, " [-unjailed]      Do not jail this process (use only with trusted data)\n" );
     fprintf(msgout, " [-singlethread]  Do not clone threads to operate on the input file\n" );
-    fprintf(msgout, " [-socket]        Serve requests on a Unix Domain Socket\n" );
-    fprintf(msgout, " [-socket=<name>] Path to socket (otherwise random path used and printed)\n");
     fprintf(msgout, " [-maxchildren]   Max codes to ever spawn at the same time in socket mode\n");
     fprintf(msgout, " [-preload]       Preload decoding code\n" );
     fprintf(msgout, " [-unkillable]    Ignore SIGTERM and SIGQUIT after alarm timer is set\n");
@@ -1777,6 +1775,12 @@ void show_help( void )
     fprintf(msgout, " [-hugepages]     Allocate from the hugepages on the system\n");
     fprintf(msgout, " [-avx2upgrade]   Try to exec <binaryname>-avx if avx is available\n");
     fprintf(msgout, " [-injectsyscall={1..4}]  Inject a \"chdir\" syscall & check SECCOMP crashes\n");
+    fprintf(msgout, " [-socket]        Serve requests on a Unix Domain Socket\n" );
+    fprintf(msgout, " [-socket=<name>] Path to socket (otherwise random path used and printed)\n");
+    fprintf(msgout, " [-listen]        Serve requests on a TCP socket on port 2402\n" );
+    fprintf(msgout, " [-listen=<port>] Serve requests on a TCP socket on port <port>\n" );
+    fprintf(msgout, " [-zliblisten]        Serve requests on a TCP socket oi port 2403\n" );
+    fprintf(msgout, " [-zliblisten=<port>] Serve requests on a TCP socket on port <port>\n" );
     fprintf(msgout, " [-recodememory=<>M] Check that a singlethreaded recode only uses <>M mem\n");
 }
 
