@@ -644,6 +644,10 @@ void compute_thread_mem(const char * arg,
         show_help();
         exit(0);
     }
+    if (strcmp(arg, "-h") == 0) {
+        show_help();
+        exit(0);
+    }
     const char mem_arg_name[]="-memory=";
     const char thread_mem_arg_name[]="-threadmemory=";
     if (starts_with(arg, mem_arg_name)) {
