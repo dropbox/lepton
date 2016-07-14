@@ -2,7 +2,7 @@
 
 Lepton is a tool and file format for losslessly compressing JPEGs by an average of 22%.
 
-This can be used to archive large photo collections, or to serve images live and save 22% banwdith.
+This can be used to archive large photo collections, or to serve images live and save 22% bandwidth.
 
 ## Usage
 
