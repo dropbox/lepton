@@ -4,6 +4,20 @@ Lepton is a tool and file format for losslessly compressing JPEGs by an average 
 
 This can be used to archive large photo collections, or to serve images live and save 22% bandwidth.
 
+## Build directions
+Using a single core
+    ./autogen.sh
+    ./configure
+    make
+    make check
+
+For multiprocessor machines:
+    ./autogen.sh
+    ./configure
+    make -j8
+    make check -j8
+
+
 ## Usage
 
 To roundtrip (compress and decompress) an image, `original.jpg`, do the following:
