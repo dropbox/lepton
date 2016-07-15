@@ -64,3 +64,14 @@ must be kept in memory for the duration of the decompression, instead if just 2 
 
     ./lepton -allowprogressive -memory=1024M -threadmemory=128M progressive.jpg compressedprogressive.lep
 
+
+## Submitting pull requests to lepton
+
+Please begin by filling out the contributor form and asserting that
+    The code I'm contributing is mine, and I have the right to license it.
+    I'm granting you a license to distribute said code under the terms of this agreement.
+
+at this page:
+https://opensource.dropbox.com/cla/
+
+Then create a new pull request through the github interface
