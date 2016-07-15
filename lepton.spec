@@ -73,6 +73,9 @@ rm -rf %{buildroot}
 install -dm 755 %{buildroot}%{_bindir}
 install -pm 644 %{name} %{buildroot}%{_bindir}
 
+%check
+%{__make} check %{?_smp_mflags}
+
 %clean
 rm -rf %{buildroot}
 
