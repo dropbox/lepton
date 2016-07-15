@@ -19,6 +19,20 @@ For multiprocessor machines:
     make -j8
     make check -j8
 
+Using CMAKE:
+
+    mkdir -p build
+    cd build
+    cmake ..
+    make -j8
+
+On Windows
+
+    mkdir -p build
+    cd build
+    "c:\Program Files\CMake\bin\cmake" ..
+    start .
+    REM Double click the Visual Studio project
 
 ## Usage
 
