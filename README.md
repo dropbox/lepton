@@ -60,7 +60,7 @@ You may specify higher memory limits than the default for lepton to handle bigge
 
 Additionally you can configure lepton to process progressive jpegs.
 Warning: these take more memory to decode than normal JPEGs since the entire framebuffer
-must be kept in memory for the duration of the decompression, instead if just 2 rows of blocks.
+must be kept in memory for the duration of the decompression, instead of just 2 rows of blocks.
 
     ./lepton -allowprogressive -memory=1024M -threadmemory=128M progressive.jpg compressedprogressive.lep
 
