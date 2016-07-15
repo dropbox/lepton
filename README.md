@@ -6,12 +6,14 @@ This can be used to archive large photo collections, or to serve images live and
 
 ## Build directions
 Using a single core
+
     ./autogen.sh
     ./configure
     make
     make check
 
 For multiprocessor machines:
+
     ./autogen.sh
     ./configure
     make -j8
