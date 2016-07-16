@@ -44,6 +44,10 @@
 #ifndef _BSD_SOURCE
 #define _BSD_SOURCE       /* See feature_test_macros(7) */
 #endif
+#ifdef BSD
+#include <sys/endian.h>
+#else
 #include <endian.h>
+#endif
 #endif
 #endif

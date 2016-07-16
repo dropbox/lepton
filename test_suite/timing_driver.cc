@@ -11,6 +11,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <sys/select.h>
+#include <sys/signal.h>
 #include <sys/time.h>
 #include "smalljpg.hh"
 

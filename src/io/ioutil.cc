@@ -324,17 +324,11 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     int copy_to_input_tee_flags = 0;
     int input_tee_flags = 0;
     int copy_to_storage_flags = 0;
-#ifndef __APPLE__
     input_tee_flags = fcntl(input_tee, F_GETFL, 0);
-#endif
     fcntl(input_tee, F_SETFL, input_tee_flags | O_NONBLOCK);
-#ifndef __APPLE__
     copy_to_input_tee_flags = fcntl(copy_to_input_tee, F_GETFL, 0);
-#endif
     fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags | O_NONBLOCK);
-#ifndef __APPLE__
     copy_to_storage_flags = fcntl(copy_to_storage, F_GETFL, 0);
-#endif
     fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags | O_NONBLOCK);
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;

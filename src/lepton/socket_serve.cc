@@ -11,11 +11,11 @@
 #include <algorithm>
 #include <netinet/in.h>
 #include <sys/time.h>
-#ifndef __APPLE__
+#if defined(__APPLE__) || defined(BSD)
+#include <sys/wait.h>
+#else
 #include <sys/signalfd.h>
 #include <wait.h>
-#else
-#include <sys/wait.h>
 #endif
 #include <poll.h>
 #include <errno.h>
@@ -127,7 +127,7 @@ int should_wait_bitmask(size_t children_size,
 
 int make_sigchld_fd() {
     int fd = -1;
-#ifndef __APPLE__
+#if !(defined(__APPLE__) || defined(BSD))
     sigset_t sigset;
     int err = sigemptyset(&sigset);
     always_assert(err == 0);
@@ -233,7 +233,7 @@ void serving_loop(int unix_domain_socket_server,
             if (fds[i].revents & POLLIN) {
                 fds[i].revents = 0;
                 if (fds[i].fd == sigchild_fd) {
-#ifndef __APPLE__
+#if !(defined(__APPLE__) || defined(BSD))
                     struct signalfd_siginfo info;
                     ssize_t ignore = read(fds[i].fd, &info, sizeof(info));
                     (void)ignore;
@@ -260,7 +260,6 @@ void serving_loop(int unix_domain_socket_server,
                 } else {
                     if (errno != EINTR && errno != EWOULDBLOCK && errno != EAGAIN) {
                         fprintf(stderr, "Error accepting connection: %s", strerror(errno));
-                        
                         cleanup_socket(0);
                     }
                 }

@@ -10,10 +10,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
-#ifndef __APPLE__
-#include <wait.h>
-#else
+#if defined(__APPLE__) || defined(BSD)
 #include <sys/wait.h>
+#else
+#include <wait.h>
 #endif
 #include <errno.h>
 #include "jpgcoder.hh"
