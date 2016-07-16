@@ -64,7 +64,7 @@ ValidationContinuation validateAndCompress(int *reader,
             &roundtrip_size);
     }
     if (roundtrip_size != size || memcmp(&md5[0], &rtmd5[0], md5.size()) != 0) {
-        fprintf(stderr, "Input Size %ld != Roundtrip Size %ld\n", size, roundtrip_size);
+        fprintf(stderr, "Input Size %lu != Roundtrip Size %lu\n", (unsigned long)size, (unsigned long)roundtrip_size);
         for (size_t i = 0; i < md5.size(); ++i) {
             fprintf(stderr, "%02x", md5[i]);
         }

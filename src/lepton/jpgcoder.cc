@@ -1099,21 +1099,6 @@ size_t decompression_memory_bound() {
             + abit_writer + jpgfilesize + sizeof(ProbabilityTablesBase)
             + garbage_augmentation + decode_header_needed_size + non_preloaded_mux;
     }
-    if (false) {
-        fprintf(stderr,
-                "Predicted Decompress %ld\nAllocated This Run %ld vs Max allocated %ld\nMax Peak Size %ld vs %ld\naug-gbg %ld, garbage %ld\nbit_writer %ld\nmux %d\n",
-                decom_memory_bound,
-                Sirikata::memmgr_size_allocated(),
-                Sirikata::memmgr_total_size_ever_allocated(),
-                Sirikata::memmgr_total_size_ever_allocated() - current_run_size
-                    + streaming_buffer_size + single_threaded_model_bonus,
-                Sirikata::memmgr_size_allocated() - current_run_size
-                    + streaming_buffer_size + single_threaded_model_bonus,
-                garbage_augmentation * 2,
-                decode_header_needed_size,
-                bit_writer_augmentation,
-                non_preloaded_mux);
-    }
     return decom_memory_bound;
 }
 

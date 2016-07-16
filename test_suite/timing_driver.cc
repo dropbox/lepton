@@ -79,7 +79,10 @@ void check_out(int output, const unsigned char *data, size_t data_size, bool *ok
             fprintf(stderr, "Files differ in their contents\n");
         }
     } else {
-        fprintf(stderr, "Files differ in size %ld != %ld\n", data_size, roundtrip_size);
+        fprintf(stderr,
+                "Files differ in size %lu != %lu\n",
+                (unsigned long)data_size,
+                (unsigned long)roundtrip_size);
     }
     int status;
     do {
@@ -508,7 +511,7 @@ int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_sy
     }
     for (std::vector<const char *>::const_iterator filename = filenames.begin(); filename != filenames.end(); ++filename) {
         testImage = load(*filename);
-        fprintf(stderr, "Loading iPhone %ld\n", testImage.size());
+        fprintf(stderr, "Loading %lu\n", (unsigned long)testImage.size());
         int retval = run_test(testImage,
                               use_lepton, jailed, inject_syscall_level, allow_progressive_files, multithread,
                               expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, singlethread_recode_memory, thread_memory);
