@@ -211,3 +211,5 @@ ADD_CUSTOM_TARGET(
 )
 
 ADD_DEPENDENCIES(lepton version)
+
+install (TARGETS lepton lepton-avx DESTINATION bin)
