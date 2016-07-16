@@ -54,6 +54,7 @@ void compute_md5(const char * filename, unsigned char *result) {
         MD5_Update(&ctx, buffer, data_read);
     }while(data_read > 0);
     MD5_Final(result, &ctx);
+    fclose(fp);
 }
 /* -----------------------------------------------
 	constructor for abitreader class
