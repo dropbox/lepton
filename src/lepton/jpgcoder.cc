@@ -2463,6 +2463,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
             len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
             if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
                 if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
+                    delete huffr;
                     return false;
                 }
             }
