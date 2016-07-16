@@ -2121,10 +2121,10 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     return memchr(local_huff_data, 0xff, 16) != NULL;
 }
 unsigned char hex_to_nibble(char val) {
-    if (val > 'A' && val <= 'F') {
+    if (val >= 'A' && val <= 'F') {
         return val - 'A' + 10;
     }
-    if (val > 'a' && val <= 'f') {
+    if (val >= 'a' && val <= 'f') {
         return val - 'a' + 10;
     }
     return val - '0';
