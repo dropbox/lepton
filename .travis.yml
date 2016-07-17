@@ -6,3 +6,4 @@ compiler:
 os:
 - linux
 - osx
+script: sh autogen.sh && ./configure && make && make check
