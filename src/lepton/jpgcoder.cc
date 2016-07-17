@@ -442,6 +442,8 @@ BaseDecoder* g_decoder = NULL;
 std::unique_ptr<BaseDecoder> g_reference_to_free;
 ServiceInfo g_socketserve_info;
 bool g_threaded = true;
+// this overrides the progressive bit in the header so that legacy progressive files may be decoded
+bool g_force_progressive = false;
 bool g_allow_progressive = 
 #ifdef DEFAULT_ALLOW_PROGRESSIVE
     true
@@ -899,6 +901,10 @@ int initialize_options( int argc, const char*const * argv )
         }
         else if ( strcmp((*argv), "-allowprogressive" ) == 0)  {
             g_allow_progressive = true;
+        }
+        else if ( strcmp((*argv), "-forceprogressive" ) == 0)  {
+            g_allow_progressive = true;
+            g_force_progressive = true;
         }
         else if ( strcmp((*argv), "-rejectprogressive" ) == 0)  {
             g_allow_progressive = false;
@@ -1837,7 +1843,9 @@ unsigned char read_fixed_ujpg_header() {
         }
     }
     if (header[1] == 'Z' || (header[1] & 1) == ('Y' & 1)) {
-        g_allow_progressive = false;
+        if (!g_force_progressive) {
+            g_allow_progressive = false;
+        }
     }
     unsigned char num_threads_hint = header[2];
     always_assert(num_threads_hint != 0);
