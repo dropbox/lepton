@@ -225,7 +225,7 @@ test_suite_test_progressive_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=i
 test_suite_test_progressive_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_disallowed_SOURCES = test_suite/test_harness.cc
-test_suite_test_progressive_disallowed_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DEXPECT_FAILURE
+test_suite_test_progressive_disallowed_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DEXPECT_FAILURE -DDISALLOW_PROGRESSIVE
 test_suite_test_progressive_disallowed_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_ujg_SOURCES = test_suite/test_harness.cc

@@ -1829,11 +1829,15 @@ unsigned char read_fixed_ujpg_header() {
         custom_exit(ExitCode::VERSION_UNSUPPORTED);
     }
     ujgversion = header[0];
-    if (header[1] != 'Z' && header[1] != 'Y') {
-        char err[] = "X: Unknown Item in header instead of Z";
+    if (header[1] == 'X') {
+    } else if (header[1] != 'Z' && header[1] != 'Y') {
+        char err[] = "?: Unknown Item in header instead of Z";
         err[0] = header[1];
         while(write(2, err, sizeof(err) - 1) < 0 && errno == EINTR) {
         }
+    }
+    if (header[1] == 'Z' || (header[1] & 1) == ('Y' & 1)) {
+        g_allow_progressive = false;
     }
     unsigned char num_threads_hint = header[2];
     always_assert(num_threads_hint != 0);
@@ -2459,7 +2463,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     int cmp, bpos, dpos;
     int mcu, sub, csc;
     int eob, sta;
-
+    bool is_baseline = true;
     max_cmp = 0; // the maximum component in a truncated image
     max_bpos = 0; // the maximum band in a truncated image
     memset(max_dpos, 0, sizeof(max_dpos)); // the maximum dpos in a truncated image
@@ -2544,12 +2548,20 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
 
             // (re)set rst wait counter
             rstw = rsti;
-            if (cs_cmpc != colldata.get_num_components() && !g_allow_progressive) {
-                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+            if (cs_cmpc != colldata.get_num_components()) {
+                if (!g_allow_progressive) {
+                    custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+                } else {
+                    is_baseline = false;
+                }
             }
 
-            if (jpegtype != 1 && !g_allow_progressive) {
-                custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+            if (jpegtype != 1) {
+                if (!g_allow_progressive) {
+                    custom_exit(ExitCode::PROGRESSIVE_UNSUPPORTED);
+                } else {
+                    is_baseline = false;
+                }
             }
             // decoding for interleaved data
             if ( cs_cmpc > 1 )
@@ -2919,7 +2931,9 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     // clean up
     delete( huffr );
 
-
+    if (is_baseline) {
+        g_allow_progressive = false;
+    }
     return true;
 }
 
@@ -3650,7 +3664,14 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     write_byte_bill(Billing::HEADER, false, 2 + hdrs + prefix_grbs + grbs);
     static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
     always_assert(NUM_THREADS <= 255);
-    unsigned char zed[] = {start_byte != 0 ? (unsigned char)'Y' : (unsigned char)'Z'};
+    unsigned char zed[] = {'\0'};
+    if (start_byte != 0) {
+        zed[0] = (unsigned char)'Y';
+    } else if (g_allow_progressive) {
+        zed[0] = (unsigned char)'X';
+    } else {
+        zed[0] = (unsigned char)'Z';
+    }
     err =  ujg_out->Write(zed, sizeof(zed)).second;
     unsigned char num_threads[] = {(unsigned char)NUM_THREADS};
     err =  ujg_out->Write(num_threads, sizeof(num_threads)).second;

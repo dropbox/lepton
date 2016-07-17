@@ -213,7 +213,7 @@ void sleep_a_bit() {
     usleep(250000); // sleep 1/4 second
 }
 int run_test(const std::vector<unsigned char> &testImage,
-             bool use_lepton, bool jailed, int inject_failure_level, bool allow_progressive_files,
+             bool use_lepton, bool jailed, int inject_failure_level, int allow_progressive_files,
              bool multithread,
              bool expect_failure, bool expect_decoder_failure,
              const char* encode_memory, const char *decode_memory, const char * singlethread_recode_memory, const char* thread_memory) {
@@ -251,9 +251,13 @@ int run_test(const std::vector<unsigned char> &testImage,
     if (rand() < RAND_MAX / 2) {
         encode_args[get_last_arg(encode_args)] = "-defermd5";
     }
-    if (allow_progressive_files) {
+    if (allow_progressive_files == 1) {
         encode_args[get_last_arg(encode_args)] = "-allowprogressive";
         decode_args[get_last_arg(decode_args)] = "-allowprogressive";
+    }
+    if (allow_progressive_files == -1) {
+        encode_args[get_last_arg(encode_args)] = "-rejectprogressive";
+        decode_args[get_last_arg(decode_args)] = "-rejectprogressive";
     }
     if (encode_memory) {
         encode_args[get_last_arg(encode_args)] = encode_memory;
@@ -487,7 +491,7 @@ std::vector<unsigned char> load(const char *filename) {
     fclose(fp);
     return retval;
 }
-int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level, bool allow_progressive_files, bool multithread,
+int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level, int allow_progressive_files, bool multithread,
               const std::vector<const char *> &filenames, bool expect_encode_failure, bool expect_decode_failure,
               const char* encode_memory, const char * decode_memory, const char * singlethread_recode_memory, const char* thread_memory) {
     always_assert(argc > 0);

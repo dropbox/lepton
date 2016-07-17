@@ -45,7 +45,7 @@ AC_SUBST(SANITIZE_FLAGS)
 AC_ARG_ENABLE([best-ratio-slow-decompression],
   [AS_HELP_STRING([--enable-best-ratio-slow-decompression],
     [Turn off multithreading to train priors better, add progressive support and allow obscure JPEG formats@<:@no@:>@])],
-  [CODEC_FLAGS="-DDEFAULT_SINGLE_THREAD -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS -DHIGH_MEMORY"],
+  [CODEC_FLAGS="-DDEFAULT_SINGLE_THREAD -DDEFAULT_ALLOW_PROGRESSIVE -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS -DHIGH_MEMORY"],
   [CODEC_FLAGS=""])
 AC_SUBST([CODEC_FLAGS])
 
