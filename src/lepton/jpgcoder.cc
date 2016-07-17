@@ -783,7 +783,10 @@ int main( int argc, char** argv )
 
     // process file(s) - this is the main function routine
     begin = clock();
-    assert(file_cnt <= 2);
+    if (file_cnt > 2) {
+        show_help();
+        custom_exit(ExitCode::FILE_NOT_FOUND);
+    }
     if (action == forkserve) {
 #ifdef _WIN32
         abort(); // not implemented
@@ -1254,7 +1257,7 @@ int open_fdin(const char *ifilename,
         } while (data_read == -1 && errno == EINTR);
     }
     if (data_read < 0) {
-        const char * fail = "Failed to read 2 byte header";
+        const char * fail = "Failed to read 2 byte header\n";
         while(write(2, fail, strlen(fail)) == -1 && errno == EINTR) {}        
     }
     return fdin;
@@ -1862,6 +1865,9 @@ bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
                 Sirikata::Array1d<uint8_t, 2> fileid, bool is_socket)
 {
     IOUtil::FileReader * reader = IOUtil::BindFdToReader(fd_in, max_file_size, is_socket);
+    if (!reader) {
+        custom_exit(ExitCode::FILE_NOT_FOUND);
+    }
     reader->mark_some_bytes_already_read((uint32_t)fileid.size());
     if (is_socket) {
         assert(fd_in == fd_out);

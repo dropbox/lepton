@@ -179,9 +179,9 @@ IF(BEST_RATIO_SLOW_DECOMPRESSION)
 SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DDEFAULT_SINGLE_THREAD")
 ENDIF()
 
-option(ADVANCED_JPEG_FEATURES "Allow large JPEG files, progressive JPEG files and CMYK JPEG files and those with high scaling factors." ON)
-IF(ADVANCED_JPEG_FEATURES)
-SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DHIGH_MEMORY")
+option(BASELINE_JPEG_ONLY "Only support small < 4MB baseline jpegs, instead of progressive and large JPEGS." OFF)
+IF(NOT BASELINE_JPEG_ONLY)
+SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DDEFAULT_ALLOW_PROGRESSIVE -DHIGH_MEMORY")
 ENDIF()
 
 option(UNSAFE_SKIP_VALIDATION "Don't check roundtrip: can cause data corruption unless you have a following validation step" OFF)

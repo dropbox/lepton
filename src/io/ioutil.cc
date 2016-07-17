@@ -564,6 +564,8 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
 
     if (pipe_stderr || !simpler) {
         siStartInfo.hStdError = hChildStd_ERR_Wr;
+    } else {
+        siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
     }
     siStartInfo.hStdOutput = hChildStd_OUT_Wr;
     siStartInfo.hStdInput = hChildStd_IN_Rd;

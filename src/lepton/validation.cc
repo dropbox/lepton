@@ -73,7 +73,7 @@ ValidationContinuation validateAndCompress(int *reader,
             fprintf(stderr, "%02x", rtmd5[i]);
         }
         fprintf(stderr, "\n");
-        custom_exit(ExitCode::ROUNDTRIP_FAILURE);
+        custom_exit(ExitCode::UNSUPPORTED_JPEG);
     }
 #else
     int jpeg_input_pipes[2] = {-1, -1};
