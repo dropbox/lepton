@@ -1696,7 +1696,7 @@ void process_file(IOUtil::FileReader* reader,
         fprintf( msgout,  "\n" );
     LeptonDebug::dumpDebugData();
     if (errorlevel.load()) {
-        custom_exit(ExitCode::ASSERTION_FAILURE); // custom exit will delete generic_workers
+        custom_exit(ExitCode::UNSUPPORTED_JPEG); // custom exit will delete generic_workers
     } else {
         custom_exit(ExitCode::SUCCESS);
     }
@@ -4259,7 +4259,12 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                     custom_exit(ExitCode::SAMPLING_BEYOND_TWO_UNSUPPORTED);
                 }
 #endif
-                cmpnfo[ cmp ].qtable = qtables[ segment[ hpos + 2 ] ].begin();
+                uint32_t quantization_table_value = segment[ hpos + 2 ];
+                if (quantization_table_value >= qtables.size()) {
+                    errorlevel.store(2);
+                    return false;
+                }
+                cmpnfo[ cmp ].qtable = qtables[quantization_table_value].begin();
                 hpos += 3;
             }
     

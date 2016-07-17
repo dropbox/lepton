@@ -34,6 +34,7 @@ extern bool g_use_seccomp;
     CB(TOO_MUCH_MEMORY_NEEDED,38)               \
     CB(EARLY_EXIT,40)                           \
     CB(ROUNDTRIP_FAILURE, 41)                   \
+    CB(UNSUPPORTED_JPEG, 42)                    \
     CB(COULD_NOT_BIND_PORT, 127)                \
 
 #define MAKE_EXIT_CODE_ENUM(ITEM, VALUE) ITEM=VALUE,
