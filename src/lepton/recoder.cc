@@ -98,7 +98,7 @@ int find_aligned_end_64(const int16_t *block) {
 #endif
 
 static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
-#if 1
+#if !defined(__i386__)
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
     __m128i ff = _mm_set1_epi8(-1);
     __m128i res = _mm_cmpeq_epi8(buf, ff);

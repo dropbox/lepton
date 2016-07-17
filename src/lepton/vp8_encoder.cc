@@ -150,29 +150,34 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
     }
 }
 uint32_t aligned_block_cost(const AlignedBlock &block) {
-    uint32_t cost = 16; // .25 cost for zeros
-    if (VECTORIZE) {
-        for (int i = 0; i < 64; i+= 8) {
-            __m128i val = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)(block.raw_data() + i)));
-            __m128i v_cost = _mm_set1_epi16(0);
-            while (!_mm_test_all_zeros(val, val)) {
-                __m128i mask = _mm_cmpgt_epi16(val, _mm_setzero_si128());
-                v_cost = _mm_add_epi16(v_cost, _mm_and_si128(mask, _mm_set1_epi16(2)));
-                val = _mm_srli_epi16(val, 1);
-            }
-            __m128i sum = _mm_add_epi16(v_cost, _mm_srli_si128(v_cost, 8));
-            sum = _mm_add_epi16(sum ,_mm_srli_si128(sum, 4));
-            sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 2));
-            cost += _mm_extract_epi16(sum, 0);
+#ifdef __SSE2__ /* SSE2 or higher instruction set available { */
+    const __m128i zero = _mm_setzero_si128();
+     __m128i v_cost;
+    for (int i = 0; i < 64; i+= 8) {
+        __m128i val = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)(block.raw_data() + i)));
+        v_cost = _mm_set1_epi16(0);
+#ifndef __SSE4_1__
+        while (_mm_movemask_epi8(_mm_cmpeq_epi32(val, zero)) != 0xFFFF)
+#else
+        while (!_mm_test_all_zeros(val, val))
+#endif
+        {
+            __m128i mask = _mm_cmpgt_epi16(val, zero);
+            v_cost = _mm_add_epi16(v_cost, _mm_and_si128(mask, _mm_set1_epi16(2)));
+            val = _mm_srli_epi16(val, 1);
         }
-    } else {
-        uint32_t scost = 0;
-        for (int i = 0; i < 64; ++i) {
-            scost += 1 + 2 * uint16bit_length(abs(block.raw_data()[i]));
-        }
-        cost = scost;
+        v_cost = _mm_add_epi16(v_cost, _mm_srli_si128(v_cost, 8));
+        v_cost = _mm_add_epi16(v_cost ,_mm_srli_si128(v_cost, 4));
+        v_cost = _mm_add_epi16(v_cost, _mm_srli_si128(v_cost, 2));
     }
-    return cost;
+    return 16 + _mm_extract_epi16(v_cost, 0);
+#else /* } No SSE2 instructions { */
+    uint32_t scost = 0;
+    for (int i = 0; i < 64; ++i) {
+        scost += 1 + 2 * uint16bit_length(abs(block.raw_data()[i]));
+    }
+    return scost;
+#endif /* } */
 }
 
 #ifdef ALLOW_FOUR_COLORS

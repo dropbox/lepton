@@ -8,8 +8,8 @@
 // for std::min
 #include <algorithm>
 #include <assert.h>
-#include <smmintrin.h>
-#include <emmintrin.h>
+#include <immintrin.h>
+#include "../util/mm_mullo_epi32.hh"
 
 #ifdef _WIN32
 #include <intrin.h>

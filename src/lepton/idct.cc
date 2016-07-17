@@ -1,8 +1,7 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-#include <emmintrin.h>
-#include <smmintrin.h>
 #include <immintrin.h>
 #include "../vp8/util/aligned_block.hh"
+#include "../vp8/util/mm_mullo_epi32.hh"
 
 namespace idct_local{
 enum {
@@ -23,7 +22,10 @@ enum {
     r2 = 181 // 256/sqrt(2)
 };
 }
-void idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], bool ignore_dc) {
+
+#ifndef __SSE2__
+static void
+idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], bool ignore_dc) {
     int32_t intermed[64];
     using namespace idct_local;
     // Horizontal 1-D IDCT.
@@ -149,6 +151,8 @@ void idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[6
         //outp[i]>>=3;
     }
 }
+#else /* At least SSE2 is available { */
+
 template<int which_vec, int offset, int stride> __m128i vget_raster(const AlignedBlock&block) {
     return _mm_set_epi32(block.coefficients_raster(which_vec + 3 * stride + offset),
                          block.coefficients_raster(which_vec + 2 * stride + offset),
@@ -162,8 +166,8 @@ template<int offset, int stride> __m128i vquantize(int which_vec, __m128i vec, c
                                               q[which_vec + offset]));
 }
 
-
-__m128i epi32l_to_epi16(__m128i lowvec) {
+static __m128i
+epi32l_to_epi16(__m128i lowvec) {
     return _mm_shuffle_epi8(lowvec, _mm_set_epi8(-1, -1, -1, -1, -1, -1, -1, -1,
                                                  0xd, 0xc, 0x9, 0x8, 0x5, 0x4, 0x1, 0x0));
 }
@@ -181,9 +185,8 @@ __m128i epi32l_to_epi16(__m128i lowvec) {
     }while(0)
 
 
-
-
-void idct_sse(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+static void
+idct_sse(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
     
     char vintermed_storage[64 * sizeof(int32_t) + 16];
     // align intermediate storage to 16 bytes
@@ -202,7 +205,12 @@ void idct_sse(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64]
             xv6 = vget_raster<0, 5, 8>(block);
             xv7 = vget_raster<0, 3, 8>(block);
             if (__builtin_expect(ignore_dc, true)) {
+#ifdef __SSE4_1__
                 xv0 = _mm_insert_epi32(xv0, 0, 0);
+#else
+// See http://stackoverflow.com/questions/38384520/is-there-a-sse2-equivalent-for-mm-insert-epi32
+                xv0 = _mm_and_si128(xv0, _mm_set_epi32(-1,-1,-1, 0));
+#endif
             }
         } else {
             xv0 = vget_raster<32, 0, 8>(block);
@@ -378,7 +386,8 @@ __m128i m256_to_epi16(__m256i vec) {
 
     }*/
 #if __AVX2__
-void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+static void
+idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
     // align intermediate storage to 16 bytes
     using namespace idct_local;
     // Horizontal 1-D IDCT.
@@ -589,11 +598,16 @@ void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64]
 #endif
     }
 }
-#else
-void idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
-    idct_sse(block, q, voutp, ignore_dc);
-}
 #endif
-void idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+#endif /* } SSE2 or higher is available */
+
+void
+idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+#ifdef __AVX2__
     idct_avx(block, q, voutp, ignore_dc);
+#elif __SSE2__
+    idct_sse(block, q, voutp, ignore_dc);
+#else
+    idct_scalar(block, q, voutp, ignore_dc);
+#endif
 }
