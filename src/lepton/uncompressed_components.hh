@@ -39,8 +39,9 @@ class UncompressedComponents {
     int cmpc_; // the number of components
     int mcuh_;
     int mcuv_;
-    ExtendedComponentInfo header_[4];
-
+	typedef Sirikata::Array1d<ExtendedComponentInfo, 4> ExtendedInfo;
+    ExtendedInfo header_;
+	
     CounterType coefficient_position_progress_;
     CounterType bit_progress_;
     CounterType worker_start_read_signal_;
@@ -110,10 +111,10 @@ public:
                                       BlockBasedImageBase<force_memory_optimized> *framebuffer,
                                       bool memory_optimized=force_memory_optimized) const {
         uint64_t total_req_blocks = 0;
-        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc_; cmp++) {
+        for (int cmp = 0; cmp < (int)header_.size() && cmp < cmpc_; cmp++) {
             total_req_blocks += header_[cmp].info_.bcv * header_[cmp].info_.bch;
         }
-        for (int cmp = 0; cmp < (int)sizeof(header_)/(int)sizeof(header_[0]) && cmp < cmpc_; cmp++) {
+        for (int cmp = 0; cmp < (int)header_.size() && cmp < cmpc_; cmp++) {
             int bc_allocated = header_[cmp].info_.bc;
             int64_t max_cmp_bc = max_number_of_blocks;
             max_cmp_bc *= header_[cmp].info_.bcv;
@@ -131,7 +132,7 @@ public:
             }
         }
     }
-    void init(Sirikata::Array1d<componentInfo, sizeof(header_)/sizeof(header_[0])> cmpinfo, int cmpc,
+    void init(Sirikata::Array1d<componentInfo, ExtendedInfo::size0> cmpinfo, int cmpc,
               int mcuh, int mcuv, bool memory_optimized_image) {
         mcuh_ = mcuh;
         mcuv_ = mcuv;
