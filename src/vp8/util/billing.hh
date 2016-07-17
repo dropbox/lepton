@@ -1,5 +1,6 @@
-#include "memory.hh"
 #include <atomic>
+#include "memory.hh"
+#include "nd_array.hh"
 #ifndef _BILLING_HH_
 #define _BILLING_HH_
 #define FOREACH_BILLING_TYPE(CB)                \
@@ -54,7 +55,8 @@ inline const char * BillingString(Billing bt) {
     data[3] = (which % 10) + '0';
     return data;
 }
-extern std::atomic<uint32_t> billing_map[2][(uint32_t)Billing::NUM_BILLING_ELEMENTS];
+extern Sirikata::Array1d<typename Sirikata::Array1d<std::atomic<uint32_t>,
+                                                    (uint32_t)Billing::NUM_BILLING_ELEMENTS>, 2> billing_map;
 
 inline void write_bit_bill(Billing bt, bool is_compressed, uint32_t num_bits) {
 #ifndef NDEBUG

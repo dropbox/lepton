@@ -7,7 +7,8 @@
 #include "billing.hh"
 #define BILLING_MAP_INIT(X) 0,
 
-std::atomic<uint32_t> billing_map[2][(uint32_t)Billing::NUM_BILLING_ELEMENTS] = {{}, {}};
+Sirikata::Array1d<Sirikata::Array1d<std::atomic<uint32_t>,
+                                    (uint32_t)Billing::NUM_BILLING_ELEMENTS>, 2> billing_map;
 void write_string(int fd, const char *write_ptr) {
     while(write(fd, write_ptr, strlen(write_ptr)) < 0 && errno == EINTR) {
     }
