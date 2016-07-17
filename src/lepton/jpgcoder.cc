@@ -282,7 +282,7 @@ int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw, i
 int next_mcuposn( int* cmp, int* dpos, int* rstw );
 int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun );
 
-void build_huffcodes( unsigned char *clen, unsigned char *cval,
+bool build_huffcodes( unsigned char *clen, unsigned char *cval,
                 huffCodes *hc, huffTree *ht );
 
 
@@ -4109,8 +4109,11 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 
                 hpos++;
                 // build huffman codes & trees
-                build_huffcodes( &(segment[ hpos + 0 ]), &(segment[ hpos + 16 ]),
-                    &(hcodes[ lval ][ rval ]), &(htrees[ lval ][ rval ]) );
+                if (!build_huffcodes( &(segment[ hpos + 0 ]), &(segment[ hpos + 16 ]),
+                                      &(hcodes[ lval ][ rval ]), &(htrees[ lval ][ rval ]) ))  {
+                    errorlevel.store(2);
+                    return false;
+                }
                 htset[ lval ][ rval ] = 1;
 
                 skip = 16;
@@ -5039,7 +5042,7 @@ int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun )
 /* -----------------------------------------------
     creates huffman-codes & -trees from dht-data
     ----------------------------------------------- */
-void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc, huffTree *ht )
+bool build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc, huffTree *ht )
 {
     int nextfree;
     int code;
@@ -5074,7 +5077,7 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
     // find out eobrun max value
     hc->max_eobrun = 0;
     for ( i = 14; i >= 0; i-- ) {
-        if ( hc->clen[(i << 4) & 255] > 0 ) {
+        if ( hc->clen[(i << 4) & 0xff] > 0 ) {
             hc->max_eobrun = ( 2 << i ) - 1;
             break;
         }
@@ -5086,30 +5089,40 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
     nextfree = 1;
 
     // work through every code creating links between the nodes (represented through ints)
-    for ( i = 0; i < 256; i++ )    {
+    for ( i = 0; i < 256; i++ ) {
         // (re)set current node
         node = 0;
         // go through each code & store path
-        for ( j = hc->clen[i & 255 ] - 1; j > 0; j-- ) {
-            if ( BITN( hc->cval[ i & 255], j ) == 1 ) {
-                if ( ht->r[ node & 255] == 0 )
-                     ht->r[ node & 255] = nextfree++;
-                node = ht->r[ node & 255];
+        for ( j = hc->clen[i & 0xff ] - 1; j > 0; j-- ) {
+            if ( BITN( hc->cval[ i & 0xff], j ) == 1 ) {
+                if ( ht->r[ node & 0xff] == 0 ) {
+                     ht->r[ node & 0xff] = nextfree++;
+                }
+                node = ht->r[ node & 0xff];
+                if (node > 0xff) {
+                    return false;
+                }
             }
             else{
-                if ( ht->l[ node & 255] == 0 )
-                    ht->l[ node & 255] = nextfree++;
-                node = ht->l[ node & 255];
+                if ( ht->l[ node & 0xff] == 0 ) {
+                    ht->l[ node & 0xff] = nextfree++;
+                }
+                node = ht->l[ node & 0xff];
+                if (node > 0xff) {
+                    return false;
+                }
             }
         }
         // last link is number of targetvalue + 256
-        if ( hc->clen[ i & 255] > 0 ) {
-            if ( BITN( hc->cval[ i & 255], 0 ) == 1 )
-                ht->r[ node & 255] = i + 256;
-            else
-                ht->l[ node & 255] = i + 256;
+        if ( hc->clen[ i & 0xff] > 0 ) {
+            if ( BITN( hc->cval[ i & 0xff], 0 ) == 1 ) {
+                ht->r[ node & 0xff] = i + 256;
+            } else {
+                ht->l[ node & 0xff] = i + 256;
+            }
         }
     }
+    return true;
 }
 
 /* ----------------------- End of JPEG specific functions -------------------------- */
