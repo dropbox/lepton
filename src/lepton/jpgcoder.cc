@@ -308,10 +308,10 @@ clock_t overall_start = 0;
     ----------------------------------------------- */
 
 size_t g_decompression_memory_bound = 0;
-unsigned short qtables[4][64];                // quantization tables
-huffCodes      hcodes[2][4];                // huffman codes
-huffTree       htrees[2][4];                // huffman decoding trees
-unsigned char  htset[2][4];                    // 1 if huffman table is set
+Sirikata::Array1d<Sirikata::Array1d<unsigned short, 64>, 4> qtables; // quantization tables
+Sirikata::Array1d<Sirikata::Array1d<huffCodes, 4>, 2> hcodes; // huffman codes
+Sirikata::Array1d<Sirikata::Array1d<huffTree, 4>, 2> htrees; // huffman decoding trees
+Sirikata::Array1d<Sirikata::Array1d<unsigned char, 4>, 2> htset;// 1 if huffman table is set
 unsigned char* grbgdata            =     NULL;    // garbage data
 unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
@@ -4259,7 +4259,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                     custom_exit(ExitCode::SAMPLING_BEYOND_TWO_UNSUPPORTED);
                 }
 #endif
-                cmpnfo[ cmp ].qtable = qtables[ segment[ hpos + 2 ] ];
+                cmpnfo[ cmp ].qtable = qtables[ segment[ hpos + 2 ] ].begin();
                 hpos += 3;
             }
     
@@ -5056,9 +5056,9 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
 
     // symbol-value of code is its position in the table
     for( i = 0; i < 16; i++ ) {
-        for( j = 0; j < (int) clen[ i ]; j++ ) {
-            hc->clen[ (int) cval[k] ] = 1 + i;
-            hc->cval[ (int) cval[k] ] = code;
+        for( j = 0; j < (int) clen[i & 0xff]; j++ ) {
+            hc->clen[ (int) cval[k&0xff]&0xff] = 1 + i;
+            hc->cval[ (int) cval[k&0xff]&0xff] = code;
 
             k++;
             code++;
@@ -5069,7 +5069,7 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
     // find out eobrun max value
     hc->max_eobrun = 0;
     for ( i = 14; i >= 0; i-- ) {
-        if ( hc->clen[ i << 4 ] > 0 ) {
+        if ( hc->clen[(i << 4) & 255] > 0 ) {
             hc->max_eobrun = ( 2 << i ) - 1;
             break;
         }
@@ -5085,24 +5085,24 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
         // (re)set current node
         node = 0;
         // go through each code & store path
-        for ( j = hc->clen[ i ] - 1; j > 0; j-- ) {
-            if ( BITN( hc->cval[ i ], j ) == 1 ) {
-                if ( ht->r[ node ] == 0 )
-                     ht->r[ node ] = nextfree++;
-                node = ht->r[ node ];
+        for ( j = hc->clen[i & 255 ] - 1; j > 0; j-- ) {
+            if ( BITN( hc->cval[ i & 255], j ) == 1 ) {
+                if ( ht->r[ node & 255] == 0 )
+                     ht->r[ node & 255] = nextfree++;
+                node = ht->r[ node & 255];
             }
             else{
-                if ( ht->l[ node ] == 0 )
-                    ht->l[ node ] = nextfree++;
-                node = ht->l[ node ];
+                if ( ht->l[ node & 255] == 0 )
+                    ht->l[ node & 255] = nextfree++;
+                node = ht->l[ node & 255];
             }
         }
         // last link is number of targetvalue + 256
-        if ( hc->clen[ i ] > 0 ) {
-            if ( BITN( hc->cval[ i ], 0 ) == 1 )
-                ht->r[ node ] = i + 256;
+        if ( hc->clen[ i & 255] > 0 ) {
+            if ( BITN( hc->cval[ i & 255], 0 ) == 1 )
+                ht->r[ node & 255] = i + 256;
             else
-                ht->l[ node ] = i + 256;
+                ht->l[ node & 255] = i + 256;
         }
     }
 }
