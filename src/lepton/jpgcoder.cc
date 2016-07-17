@@ -282,7 +282,7 @@ int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw, i
 int next_mcuposn( int* cmp, int* dpos, int* rstw );
 int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun );
 
-void build_huffcodes( unsigned char *clen, unsigned char *cval,
+bool build_huffcodes( unsigned char *clen, unsigned char *cval,
                 huffCodes *hc, huffTree *ht );
 
 
@@ -4109,8 +4109,11 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 
                 hpos++;
                 // build huffman codes & trees
-                build_huffcodes( &(segment[ hpos + 0 ]), &(segment[ hpos + 16 ]),
-                                 &(hcodes[ lval ][ rval ]), &(htrees[ lval ][ rval ]) );
+                if (!build_huffcodes( &(segment[ hpos + 0 ]), &(segment[ hpos + 16 ]),
+                                      &(hcodes[ lval ][ rval ]), &(htrees[ lval ][ rval ]) )) {
+                    errorlevel.store(2);
+                    return false;
+                }
                 htset[ lval ][ rval ] = 1;
 
                 skip = 16;
@@ -5039,7 +5042,7 @@ int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun )
 /* -----------------------------------------------
     creates huffman-codes & -trees from dht-data
     ----------------------------------------------- */
-void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc, huffTree *ht )
+bool build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc, huffTree *ht )
 {
     int nextfree;
     int code;
@@ -5106,6 +5109,9 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
                 }
             } else {
                 while(write(2, huffman_no_space, strlen(huffman_no_space)) == -1 && errno == EINTR) {}
+                if (filetype == JPEG) {
+                    return false;
+                }
             }
         }
         if (node <= 0xff) {
@@ -5119,8 +5125,12 @@ void build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
             }
         } else {
             while(write(2, huffman_no_space, strlen(huffman_no_space)) == -1 && errno == EINTR) {}
+            if (filetype == JPEG) {
+                return false; // we accept any .lep file that was encoded this way
+            }
         }
     }
+    return true;
 }
 
 /* ----------------------- End of JPEG specific functions -------------------------- */
