@@ -1029,7 +1029,7 @@ int initialize_options( int argc, const char*const * argv )
     for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
     }
     if (start_byte != 0) {
-        fprintf(stderr, "Encode of partial progressive images not allowed\n");
+        // Encode of partial progressive images not allowed
         g_allow_progressive = false;
     }
     if (g_time_bound_ms && action == forkserve) {

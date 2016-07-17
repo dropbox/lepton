@@ -41,12 +41,21 @@ AC_ARG_ENABLE([sanitize],
 AC_SUBST(SANITIZE_FLAGS)
 
 
-# Allow sanitizing
+# Make single thread the default
 AC_ARG_ENABLE([best-ratio-slow-decompression],
   [AS_HELP_STRING([--enable-best-ratio-slow-decompression],
-    [Turn off multithreading to train priors better, add progressive support and allow obscure JPEG formats@<:@no@:>@])],
-  [CODEC_FLAGS="-DDEFAULT_SINGLE_THREAD -DDEFAULT_ALLOW_PROGRESSIVE -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS -DHIGH_MEMORY"],
-  [CODEC_FLAGS=""])
+    [Turn off multithreading to train priors better @<:@no@:>@])],
+  [THREAD_FLAGS="-DDEFAULT_SINGLE_THREAD "],
+  [THREAD_FLAGS=""])
+AC_SUBST([THREAD_FLAGS])
+
+CODEC_FLAGS=""
+# Disable advanced features
+AC_ARG_ENABLE([advanced-jpeg-features],
+  [AS_HELP_STRING([--disable-advanced-jpeg-features])])
+
+AS_IF([test "x$enable_advanced_jpeg_features" != "xno"], [
+  CODEC_FLAGS="-DDEFAULT_ALLOW_PROGRESSIVE -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS -DHIGH_MEMORY"])
 AC_SUBST([CODEC_FLAGS])
 
 
