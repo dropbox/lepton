@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(lepton)
 
 FIND_PACKAGE(Git)
-option(USE_SYSTEM_DEPENDENCIES "Use system dependencies for libz and md5" OFF)
+option(USE_SYSTEM_DEPENDENCIES "Use system dependencies for libz and openssl" OFF)
 
 SET(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
 SET(CMAKE_C_FLAGS "-std=c99 -DHAVE_CONFIG_H ")
@@ -139,6 +139,13 @@ ENDIF()
 ENDIF()
 SET(ADDITIONAL_COMPILE_FLAGS)
 SET(ADDITIONAL_DEFINES)
+
+IF(USE_SYSTEM_DEPENDENCIES)
+    SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DUSE_SYSTEM_LIBRARIES -DUSE_SYSTEM_MD5_DEPENDENCY")
+ENDIF()
+
+
+
 option(BEST_RATIO_SLOW_DECOMPRESSION "Turn on single threaded decode in exchange for more compression ratio " OFF)
 
 IF(BEST_RATIO_SLOW_DECOMPRESSION)

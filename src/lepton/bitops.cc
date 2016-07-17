@@ -37,29 +37,9 @@ reading and writing of arrays
 #include <fcntl.h>
 #include <algorithm>
 #include <assert.h>
-extern "C" {
-#ifdef USE_SYSTEM_DEPENDENCIES
-#include <openssl/md5.h>
-#else
-#include "../../dependencies/md5/md5.h"
-#endif
-}
 #include "bitops.hh"
 
 #define BUFFER_SIZE 1024 * 1024
-void compute_md5(const char * filename, unsigned char *result) {
-    FILE * fp = fopen(filename, "rb");
-    size_t data_read;
-    char buffer[128 * 1024];
-    MD5_CTX ctx;
-    MD5_Init(&ctx);
-    do {
-        data_read = fread(buffer, 1, sizeof(buffer), fp);
-        MD5_Update(&ctx, buffer, data_read);
-    }while(data_read > 0);
-    MD5_Final(result, &ctx);
-    fclose(fp);
-}
 /* -----------------------------------------------
 	constructor for abitreader class
 	----------------------------------------------- */	

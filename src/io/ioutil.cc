@@ -11,7 +11,11 @@
 #endif
 #include "Reader.hh"
 #include "ioutil.hh"
+#ifdef USE_SYSTEM_MD5_DEPENDENCY
+#include <openssl/md5.h>
+#else
 #include "../../dependencies/md5/md5.h"
+#endif
 #ifdef _WIN32
 #include <Windows.h>
 #include <tchar.h>

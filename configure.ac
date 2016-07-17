@@ -39,7 +39,15 @@ AC_ARG_ENABLE([sanitize],
   [SANITIZE_FLAGS="-fsanitize=address,undefined"],
   [SANITIZE_FLAGS=""])
 AC_SUBST(SANITIZE_FLAGS)
+SYSTEM_DEPENDENCIES_LDFLAGS="liblocalzlib.a"
 
+AC_ARG_ENABLE([system-dependencies],
+  [AS_HELP_STRING([--enable-system-dependencies],
+    [Rely on system installed version of zlib @<:@no@:>@])],
+  [SYSTEM_DEPENDENCIES_CFLAGS="-DUSE_SYSTEM_LIBRARIES " SYSTEM_DEPENDENCIES_LDFLAGS="-lz"],
+  [SYSTEM_DEPENDENCIES_LDFLAGS="liblocalzlib.a"])
+AC_SUBST([SYSTEM_DEPENDENCIES_LDFLAGS])
+AC_SUBST([SYSTEM_DEPENDENCIES_CFLAGS])
 
 # Make single thread the default
 AC_ARG_ENABLE([best-ratio-slow-decompression],
@@ -64,8 +72,6 @@ AC_PROG_CXX
 AC_PROG_CC
 AC_PROG_RANLIB
 
-# Checks for libraries.
-# PKG_CHECK_MODULES([liblzma], [liblzma])
 # Checks for header files.
 
 # Checks for typedefs, structures, and compiler characteristics.

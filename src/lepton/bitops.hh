@@ -56,8 +56,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../io/ioutil.hh"
 #include "../vp8/util/vpx_config.hh"
 
-void compute_md5(const char * filename, unsigned char *result);
-
 /* -----------------------------------------------
 	class to write arrays bitwise
 	----------------------------------------------- */
