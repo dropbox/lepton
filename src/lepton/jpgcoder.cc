@@ -1028,6 +1028,10 @@ int initialize_options( int argc, const char*const * argv )
     }
     for ( file_cnt = 0; filelist[ file_cnt ] != NULL; file_cnt++ ) {
     }
+    if (start_byte != 0) {
+        fprintf(stderr, "Encode of partial progressive images not allowed\n");
+        g_allow_progressive = false;
+    }
     if (g_time_bound_ms && action == forkserve) {
         fprintf(stderr, "Time bound action only supported with UNIX domain sockets\n");
         exit(1);
