@@ -63,7 +63,7 @@ AC_ARG_ENABLE([advanced-jpeg-features],
   [AS_HELP_STRING([--disable-advanced-jpeg-features])])
 
 AS_IF([test "x$enable_advanced_jpeg_features" != "xno"], [
-  CODEC_FLAGS="-DDEFAULT_ALLOW_PROGRESSIVE -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS -DHIGH_MEMORY"])
+  CODEC_FLAGS="-DDEFAULT_ALLOW_PROGRESSIVE -DHIGH_MEMORY"])
 AC_SUBST([CODEC_FLAGS])
 
 
