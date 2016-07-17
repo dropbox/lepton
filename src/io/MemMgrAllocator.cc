@@ -184,7 +184,7 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
         data = (uint8_t*)calloc(total_size, 1);
     }
     if (!data) {
-        fprintf(stderr, "Insufficient memory: unable to mmap or calloc %ld bytes\n", total_size);
+        fprintf(stderr, "Insufficient memory: unable to mmap or calloc %lu bytes\n", (unsigned long)total_size);
         fflush(stderr);
         exit(37);
     }
