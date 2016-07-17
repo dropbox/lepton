@@ -3,6 +3,7 @@
 #define _JPGCODER_HH_
 #include <atomic>
 #include <functional>
+#include "../vp8/util/nd_array.hh"
 #include "../vp8/util/options.hh"
 #include "../io/Reader.hh"
 //extern int cmpc;
@@ -49,7 +50,7 @@ enum TimingStages_ {
     FOREACH_TIMING_STAGE(MAKE_TIMING_STAGE_ENUM)
     NUM_STAGES,
 };
-extern uint64_t timing[MAX_NUM_THREADS][NUM_STAGES];
+extern Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing;
 extern uint64_t get_time_us(bool force=false);
 void print_results();
 }

@@ -131,7 +131,7 @@ public:
             }
         }
     }
-    void init(componentInfo cmpinfo[ sizeof(header_)/sizeof(header_[0]) ], int cmpc,
+    void init(Sirikata::Array1d<componentInfo, sizeof(header_)/sizeof(header_[0])> cmpinfo, int cmpc,
               int mcuh, int mcuv, bool memory_optimized_image) {
         mcuh_ = mcuh;
         mcuv_ = mcuv;

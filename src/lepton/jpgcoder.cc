@@ -114,7 +114,8 @@ bool g_skip_validation = false;
 size_t local_atoi(const char *data);
 namespace TimingHarness {
 
-uint64_t timing[MAX_NUM_THREADS][NUM_STAGES] = {{0}};
+Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing = {{{0}}};
+
 uint64_t get_time_us(bool force) {
 #ifndef _WIN32
     //FIXME
@@ -343,7 +344,7 @@ UncompressedComponents colldata; // baseline sorted DCT coefficients
     ----------------------------------------------- */
 
 // seperate info for each color component
-componentInfo cmpnfo[ 4 ];
+Sirikata::Array1d<componentInfo, 4> cmpnfo;
 
 int cmpc        = 0; // component count
 int imgwidth    = 0; // width of image
@@ -382,7 +383,7 @@ void early_eof(abytewriter* hdrw, abytewriter* huffw) {
     ----------------------------------------------- */
 
 int cs_cmpc      =   0  ; // component count in current scan
-int cs_cmp[ 4 ]  = { 0 }; // component numbers  in current scan
+Sirikata::Array1d<int, 4> cs_cmp = {{ 0 }}; // component numbers  in current scan
 int cs_from      =   0  ; // begin - band of current scan ( inclusive )
 int cs_to        =   0  ; // end - band of current scan ( inclusive )
 int cs_sah       =   0  ; // successive approximation bit pos high
@@ -1184,7 +1185,7 @@ bool recode_baseline_jpeg_wrapper() {
 #endif
     // store last scan & restart positions
     if ( !rstp.empty() )
-        rstp[ rstc ] = hufs;
+        rstp.at(rstc) = hufs;
 
 
     return retval;
@@ -1984,7 +1985,7 @@ bool read_jpeg(std::vector<std::pair<uint32_t,
                         while (rst_cnt.size() <= (size_t)scnc) {
                             rst_cnt.push_back(0);
                         }
-                        ++rst_cnt[scnc];
+                        ++rst_cnt.at(scnc);
                     }
                     else { // in all other cases leave it to the header parser routines
                         // store number of falsely set rst markers
@@ -2146,7 +2147,7 @@ bool rst_cnt_ok(int scan, unsigned int num_rst_markers_this_scan) {
     if (!rst_cnt_set) {
         return true;
     }
-    return rst_cnt.size() > (size_t)scan - 1 && num_rst_markers_this_scan < rst_cnt[scan - 1];
+    return rst_cnt.size() > (size_t)scan - 1 && num_rst_markers_this_scan < rst_cnt.at(scan - 1);
 }
 
 
@@ -2234,7 +2235,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
 
             // (re)set corrected rst pos
             progress.cpos = 0;
-            progress.ipos = scnp[ progress.scan - 1 ];
+            progress.ipos = scnp.at(progress.scan - 1);
         }
         if ((int)progress.scan > scnc + 1) { // don't want to go beyond our known number of scans (FIXME: danielrh@ is this > or >= )
             break;
@@ -2244,7 +2245,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
         }
         // write & expand huffman coded image data
         unsigned int progress_ipos = progress.ipos;
-        unsigned int progress_scan = scnp[ progress.scan ];
+        unsigned int progress_scan = scnp.at(progress.scan);
         unsigned int rstp_progress_rpos = rstp.empty() ? INT_MAX : rstp[ progress.rpos ];
         const unsigned char mrk = 0xFF; // marker start
         const unsigned char stv = 0x00; // 0xFF stuff value
@@ -2264,7 +2265,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
                     progress.rpos++; progress.cpos++;
-                    rstp_progress_rpos = rstp[ progress.rpos ];
+                    rstp_progress_rpos = rstp.at(progress.rpos);
                     ++progress.num_rst_markers_this_scan;
                 }
             }
@@ -2291,7 +2292,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                                 str_out->write_byte(mrk);
                                 str_out->write_byte(rst);
                                 progress.rpos++; progress.cpos++;
-                                rstp_progress_rpos = rstp[ progress.rpos ];
+                                rstp_progress_rpos = rstp.at(progress.rpos);
                                 ++progress.num_rst_markers_this_scan;
                         }
                     } else {
@@ -2324,25 +2325,25 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
                     str_out->write_byte(mrk);
                     str_out->write_byte(rst);
                     progress.rpos++; progress.cpos++;
-                    rstp_progress_rpos = rstp[ progress.rpos ];
+                    rstp_progress_rpos = rstp.at(progress.rpos);
                     ++progress.num_rst_markers_this_scan;
                 }
             }
         }
         progress.ipos = progress_ipos;
-        if (scnp[progress.scan] == 0 && !flush) {
+        if (scnp.at(progress.scan) == 0 && !flush) {
             return STREAMING_NEED_DATA;
         }
-        if (progress.ipos >= max_byte_coded && progress.ipos != scnp[progress.scan] && !flush) {
+        if (progress.ipos >= max_byte_coded && progress.ipos != scnp.at(progress.scan) && !flush) {
             return STREAMING_NEED_DATA;
         }
         // insert false rst markers at end if needed
         if (progress.scan - 1 < rst_err.size()) {
-            while ( rst_err[ progress.scan - 1 ] > 0 ) {
+            while ( rst_err.at(progress.scan - 1) > 0 ) {
                 const unsigned char rst = 0xD0 + ( progress.cpos & 7 );
                 str_out->write_byte(mrk);
                 str_out->write_byte(rst);
-                progress.cpos++;    rst_err[ progress.scan - 1 ]--;
+                progress.cpos++;    rst_err.at(progress.scan - 1)--;
             }
         }
         progress.num_rst_markers_this_scan = 0;
@@ -2999,8 +3000,8 @@ bool recode_jpeg( void )
         dpos = 0;
 
         // store scan position
-        scnp[ scnc ] = huffw->getpos();
-        scnp[ scnc + 1 ] = 0; // danielrh@ avoid uninitialized memory when doing progressive writeout
+        scnp.at(scnc) = huffw->getpos();
+        scnp.at(scnc + 1) = 0; // danielrh@ avoid uninitialized memory when doing progressive writeout
         bool first_pass = true;
         // JPEG imagedata encoding routines
         while ( true )
@@ -3284,7 +3285,7 @@ bool recode_jpeg( void )
             }
             else if ( sta == 1 ) { // status 1 means restart
                 if ( rsti > 0 ) // store rstp & stay in the loop
-                    rstp[ rstc++ ] = huffw->getpos() - 1;
+                    rstp.at(rstc++) = huffw->getpos() - 1;
             }
             huffw->flush_no_pad();
             assert(huffw->no_remainder() && "this should have been padded");
@@ -3314,9 +3315,9 @@ bool recode_jpeg( void )
         delete storw;
     }
     // store last scan & restart positions
-    scnp[ scnc ] = hufs;
+    scnp.at(scnc) = hufs;
     if ( !rstp.empty() )
-        rstp[ rstc ] = hufs;
+        rstp.at(rstc) = hufs;
 
 
     return true;
@@ -3575,7 +3576,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         uint32toLE((uint32_t)rst_cnt.size(), ujpg_mrk);
         err = mrw.Write( ujpg_mrk, 4).second;
         for (size_t i = 0; i < rst_cnt.size(); ++i) {
-            uint32toLE((uint32_t)rst_cnt[i], ujpg_mrk);
+            uint32toLE((uint32_t)rst_cnt.at(i), ujpg_mrk);
             err = mrw.Write( ujpg_mrk, 4).second;
         }
     }
@@ -3810,7 +3811,7 @@ bool read_ujpg( void )
             rst_cnt.resize(LEtoUint32(ujpg_mrk));
             for (size_t i = 0; i < rst_cnt.size(); ++i) {
                 ReadFull(&header_reader, ujpg_mrk, 4);
-                rst_cnt[i] = LEtoUint32(ujpg_mrk);
+                rst_cnt.at(i) = LEtoUint32(ujpg_mrk);
             }
         } else if ( memcmp( ujpg_mrk, "HHX", 2 ) == 0 ) { // only look at first two bytes
             size_t to_alloc = ThreadHandoff::get_remaining_data_size_from_two_bytes(ujpg_mrk + 1) + 2;
