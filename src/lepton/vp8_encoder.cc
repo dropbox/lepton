@@ -181,7 +181,7 @@ uint32_t aligned_block_cost(const AlignedBlock &block) {
     ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR1>, \
     ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR2>, \
     ProbabilityTables<left && above && right, TEMPLATE_ARG_COLOR3>
-#define EACH_BLOCK_TYPE ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR0>(BlockType::Y, \
+#define EACH_BLOCK_TYPE(left, above, right) ProbabilityTables<left&&above&&right, TEMPLATE_ARG_COLOR0>(BlockType::Y, \
                                                                                    left, \
                                                                                    above, \
                                                                                    right), \

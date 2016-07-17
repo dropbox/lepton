@@ -58,7 +58,7 @@ VP8ComponentDecoder::~VP8ComponentDecoder() {
     ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR1>, \
     ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR2>, \
     ProbabilityTables<left, above, right, TEMPLATE_ARG_COLOR3>
-#define EACH_BLOCK_TYPE BlockType::Y, \
+#define EACH_BLOCK_TYPE(left, above, right) BlockType::Y,   \
                         BlockType::Cb, \
                         BlockType::Cr, \
                         BlockType::Ck
