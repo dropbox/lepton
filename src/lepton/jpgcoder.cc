@@ -334,7 +334,13 @@ std::vector<unsigned int> rst_cnt;
 bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
 size_t            start_byte       =    0;     // support for producing a slice of jpeg
-size_t max_encode_threads = MAX_NUM_THREADS;
+size_t max_encode_threads = 
+#ifdef DEFAULT_SINGLE_THREAD
+                                         1
+#else
+                                         MAX_NUM_THREADS
+#endif
+                                         ;
 UncompressedComponents colldata; // baseline sorted DCT coefficients
 
 
@@ -436,7 +442,13 @@ BaseDecoder* g_decoder = NULL;
 std::unique_ptr<BaseDecoder> g_reference_to_free;
 ServiceInfo g_socketserve_info;
 bool g_threaded = true;
-bool g_allow_progressive = false;
+bool g_allow_progressive = 
+#ifdef DEFAULT_ALLOW_PROGRESSIVE
+    true
+#else
+    false
+#endif
+    ;
 bool g_unkillable = false;
 uint64_t g_time_bound_ms = 0;
 int g_inject_syscall_test = 0;
@@ -670,8 +682,20 @@ int main( int argc, char** argv )
     g_argv = (const char **)argv;
     TimingHarness::timing[0][TimingHarness::TS_MAIN]
         = TimingHarness::get_time_us(true);
-    size_t thread_mem_limit = 3 * 1024 * 1024;//8192;
-    size_t mem_limit = 176 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1);
+    size_t thread_mem_limit = 
+#ifdef HIGH_MEMORY
+        128 * 1024 * 1024
+#else
+        3 * 1024 * 1024
+#endif
+        ;//8192;
+    size_t mem_limit = 
+#ifdef HIGH_MEMORY
+        1280 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1)
+#else
+        176 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1)
+#endif
+        ;
     bool needs_huge_pages = false;
     for (int i = 1; i < argc; ++i) {
         bool avx2upgrade = false;
@@ -875,6 +899,9 @@ int initialize_options( int argc, const char*const * argv )
         }
         else if ( strcmp((*argv), "-allowprogressive" ) == 0)  {
             g_allow_progressive = true;
+        }
+        else if ( strcmp((*argv), "-rejectprogressive" ) == 0)  {
+            g_allow_progressive = false;
         }
         else if ( strcmp((*argv), "-unjailed" ) == 0)  {
             g_use_seccomp = false;

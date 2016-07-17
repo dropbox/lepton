@@ -28,7 +28,11 @@
  */
 
 #include "Reader.hh"
+#ifdef USE_SYSTEM_DEPENDENCIES
+#include <zlib.h>
+#else
 #include "../../dependencies/zlib/zlib.h"
+#endif
 namespace Sirikata{
 class SIRIKATA_EXPORT ZlibDecoderDecompressionReader : public DecoderReader {
 protected:

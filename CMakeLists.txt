@@ -2,10 +2,11 @@ cmake_minimum_required(VERSION 2.8)
 project(lepton)
 
 FIND_PACKAGE(Git)
+option(USE_SYSTEM_DEPENDENCIES "Use system dependencies for libz and md5" OFF)
 
 SET(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
 SET(CMAKE_C_FLAGS "-std=c99 -DHAVE_CONFIG_H ")
-
+IF(NOT USE_SYSTEM_DEPENDENCIES)
 add_library(localmd5 dependencies/md5/md5.c)
 add_library(localzlib
 dependencies/zlib/inflate.c
@@ -34,7 +35,7 @@ dependencies/zlib/uncompr.c
 dependencies/zlib/gzread.c
 dependencies/zlib/deflate.h
 dependencies/zlib/gzlib.c)
-
+ENDIF()
 
 include_directories(
     ${CMAKE_BINARY_DIR}
@@ -129,11 +130,21 @@ add_executable(lepton-avx ${LEPTON_SOURCES})
 SET(ADDITIONAL_FLAGS)
 IF(NOT APPLE)
 IF(NOT WIN32)
-    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -Wl,--no-export-dynamic -lstdc++)
+IF(USE_SYSTEM_DEPENDENCIES)
+    SET(ADDITIONAL_FLAGS -static-libstdc++ pthread -Wl,--no-export-dynamic)
+ELSE()
+    SET(ADDITIONAL_FLAGS -lstdc++ -static-libstdc++ pthread -Wl,--no-export-dynamic)
+ENDIF()
 ENDIF()
 ENDIF()
 SET(ADDITIONAL_COMPILE_FLAGS)
 SET(ADDITIONAL_DEFINES)
+option(BEST_RATIO_SLOW_DECOMPRESSION "Turn on single threaded decode in exchange for more compression ratio " OFF)
+
+IF(BEST_RATIO_SLOW_DECOMPRESSION)
+SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DDEFAULT_SINGLE_THREAD_PROGRESSIVE -DDEFAULT_ALLOW_PROGRESSIVE -DALLOW_3_OR_4_SCALING_FACTOR -DHIGH_MEMORY")
+ENDIF()
+
 option(UNSAFE_SKIP_VALIDATION "Don't check roundtrip: can cause data corruption unless you have a following validation step" OFF)
 IF(UNSAFE_SKIP_VALIDATION)
 SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DSKIP_VALIDATION")
@@ -145,14 +156,25 @@ SET(ADDITIONAL_FLAGS "-fsanitize=address,undefined ${ADDITIONAL_FLAGS} -Wl,-rpat
 ELSE()
 IF(NOT APPLE)
 IF(NOT WIN32)
+IF(NOT USE_SYSTEM_DEPENDENCIES)
     SET(ADDITIONAL_FLAGS "-static ${ADDITIONAL_FLAGS}")
 ENDIF()
 ENDIF()
 ENDIF()
+ENDIF()
+IF(USE_SYSTEM_DEPENDENCIES)
+find_package(ZLIB)
+include_directories(${ZLIB_INCLUDE_DIRS})
+find_package(OpenSSL)
+include_directories(${OPENSSL_INCLUDE_DIRS})
+target_link_libraries(lepton ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+target_link_libraries(lepton-avx ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+ELSE()
 target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
 target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
 set_target_properties(localmd5 PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-msse4.2 -include unistd.h ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
+ENDIF()
 set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 IF(WIN32)
 set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 /arch:AVX2 -D__AVX2__ -D__AVX__ ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
@@ -184,7 +206,11 @@ add_executable(test_invariants
    src/vp8/util/memory.cc
    test_suite/test_invariants.cc
  )
+IF(USE_SYSTEM_DEPENDENCIES)
+target_link_libraries(test_invariants ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+ELSE()
 target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})
+ENDIF()
 #set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2")
 set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "-msse4.2")
 

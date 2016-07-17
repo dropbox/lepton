@@ -38,7 +38,11 @@ reading and writing of arrays
 #include <algorithm>
 #include <assert.h>
 extern "C" {
+#ifdef USE_SYSTEM_DEPENDENCIES
+#include <openssl/md5.h>
+#else
 #include "../../dependencies/md5/md5.h"
+#endif
 }
 #include "bitops.hh"
 
