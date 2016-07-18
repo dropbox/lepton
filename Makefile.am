@@ -112,7 +112,6 @@ dependencies/zlib/crc32.h \
 dependencies/zlib/trees.h \
 dependencies/zlib/inftrees.c \
 dependencies/zlib/zutil.c \
-dependencies/zlib/gzwrite.c \
 dependencies/zlib/zutil.h \
 dependencies/zlib/zlib.h \
 dependencies/zlib/inffixed.h \
@@ -120,9 +119,7 @@ dependencies/zlib/deflate.c \
 dependencies/zlib/inffast.h \
 dependencies/zlib/inffast.c \
 dependencies/zlib/uncompr.c \
-dependencies/zlib/gzread.c \
-dependencies/zlib/deflate.h \
-dependencies/zlib/gzlib.c
+dependencies/zlib/deflate.h
 
 libtestdriver_a_SOURCES = test_suite/timing_driver.cc
 
