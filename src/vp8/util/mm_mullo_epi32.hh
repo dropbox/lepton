@@ -31,9 +31,11 @@
 #ifndef _MM_MULLO_EPI32_HH_
 #define _MM_MULLO_EPI32_HH_
 
-#if defined(__SSE2__) && !defined(__SSE4_1__)
+#if defined(__SSE2__) && !defined(__SSE4_1__) && !defined(__AVX2__) && !defined(__SSE4_2__)
 #define MM_MULLO_EPI32_H
+#include <smmintrin.h>
 #include <immintrin.h>
+#define _mm_mullo_epi32 fallback_mm_mullo_epi32
 // See:	http://stackoverflow.com/questions/10500766/sse-multiplication-of-4-32-bit-integers
 // and	https://software.intel.com/en-us/forums/intel-c-compiler/topic/288768
 static inline __m128i
