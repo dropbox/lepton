@@ -24,8 +24,8 @@ std::pair<Sirikata::uint32, Sirikata::JpegError> MemReadWriter::Read(Sirikata::u
     //fprintf(stderr, "%d READ %02x%02x%02x%02x - %02x%02x%02x%02x\n", (uint32)actualBytesRead, data[0], data[1],data[2], data[3],
     //        data[actualBytesRead-4],data[actualBytesRead-3],data[actualBytesRead-2],data[actualBytesRead-1]);
 
-	//	size_t -> unsigned int is safe because size is unsigned int
-	std::pair<Sirikata::uint32, JpegError> retval(static_cast<unsigned int>(actualBytesRead), err);
+	//	The size_t -> Sirikata::uint32 cast is safe because sizeof(size) is <= sizeof(Sirikata::uint32)
+	std::pair<Sirikata::uint32, JpegError> retval(static_cast<Sirikata::uint32>(actualBytesRead), err);
     return retval;
 }
 }

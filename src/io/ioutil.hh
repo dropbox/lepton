@@ -116,8 +116,8 @@ public:
                 if (errno == EINTR) {
                     continue;
                 }
-				//	size_t -> unsigned int is safe because size is unsigned int
-                return std::pair<Sirikata::uint32, JpegError>(static_cast<unsigned int>(data_written), JpegError::errShortHuffmanData());
+				//	The size_t -> Sirikata::uint32 cast is safe because sizeof(size) is <= sizeof(Sirikata::uint32)
+                return std::pair<Sirikata::uint32, JpegError>(static_cast<uint32_t>(data_written), JpegError::errShortHuffmanData());
             }
             data_written += nwritten;
         }
