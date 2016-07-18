@@ -339,8 +339,8 @@ void test_thread_handoff() {
 
 
 int main() {
-    Sirikata::memmgr_init(768 * 1024 * 1024,
-                          64 * 1024 * 1024,
+    Sirikata::memmgr_init(32 * 1024 * 1024,
+                          16 * 1024 * 1024,
                           3,
                           256);
     test_thread_handoff();

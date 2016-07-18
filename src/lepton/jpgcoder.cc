@@ -114,7 +114,7 @@ bool g_skip_validation = false;
 size_t local_atoi(const char *data);
 namespace TimingHarness {
 
-Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing = {{{0}}};
+Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing = {{{{0}}}};
 
 uint64_t get_time_us(bool force) {
 #ifndef _WIN32
