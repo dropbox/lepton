@@ -3,6 +3,7 @@
 #include <thread>
 #include <string>
 #include <vector>
+#include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
@@ -15,9 +16,7 @@
 #include <sys/time.h>
 #include "smalljpg.hh"
 
-
 #define always_assert(val) do { if (!(val)) {fprintf(stderr, "%s:%d: %s", __FILE__, __LINE__, #val); abort();} } while(false)
-
 
 ssize_t read_until(int fd, void *buf, size_t size) {
     size_t progress = 0;

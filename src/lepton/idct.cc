@@ -1,5 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #include <immintrin.h>
+#include <tmmintrin.h>
 #include "../vp8/util/aligned_block.hh"
 #include "../vp8/util/mm_mullo_epi32.hh"
 

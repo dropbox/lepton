@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <tmmintrin.h>
 #include "../util/debug.hh"
 #include "../util/options.hh"
 #include "../util/nd_array.hh"

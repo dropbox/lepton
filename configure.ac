@@ -29,7 +29,7 @@ AC_ARG_ENABLE([debug],
 AC_SUBST(NODEBUG_CXXFLAGS)
 
 # Add optimizer flags
-ARCH_FLAGS="-march=native"
+ARCH_FLAGS="-mssse3"
 AC_SUBST([ARCH_FLAGS])
 
 # Allow sanitizing

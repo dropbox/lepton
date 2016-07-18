@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <immintrin.h>
+#include <tmmintrin.h>
 #include "../util/mm_mullo_epi32.hh"
 
 #ifdef _WIN32
