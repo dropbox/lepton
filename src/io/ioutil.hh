@@ -109,14 +109,15 @@ public:
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Write(const Sirikata::uint8*data, unsigned int size) {
         using namespace Sirikata;
-        size_t data_written = 0;
+		size_t data_written = 0;
         while (data_written < size) {
             signed long nwritten = write(fp, data + data_written, size - data_written);
             if (nwritten <= 0) {
                 if (errno == EINTR) {
                     continue;
                 }
-                return std::pair<Sirikata::uint32, JpegError>(data_written, JpegError::errShortHuffmanData());
+				//	size_t -> unsigned int is safe because size is unsigned int
+                return std::pair<Sirikata::uint32, JpegError>(static_cast<unsigned int>(data_written), JpegError::errShortHuffmanData());
             }
             data_written += nwritten;
         }
