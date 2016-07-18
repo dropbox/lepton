@@ -1,12 +1,12 @@
 /**
     # $FreeBSD$
 	#       @(#)COPYRIGHT   8.2 (Berkeley) 3/21/94
-	
+
 	The compilation of software known as the FreeBSD Ports Collection is
 	distributed under the following terms:
-	
+
 	Copyright (C) 1994-2016 The FreeBSD Project. All rights reserved.
-	
+
     Redistribution and use in source and binary forms, with or without
 	modification, are permitted provided that the following conditions
 	are met:
@@ -15,7 +15,7 @@
 	2. Redistributions in binary form must reproduce the above copyright
 	   notice, this list of conditions and the following disclaimer in the
        documentation and/or other materials provided with the distribution.
-	
+
 	THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
 	ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -28,8 +28,10 @@
 	OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 	SUCH DAMAGE.
 */
+#ifndef _MM_MULLO_EPI32_HH_
+#define _MM_MULLO_EPI32_HH_
 
-#if defined(__SSE2__) && !defined(__SSE4_1__) && !defined(MM_MULLO_EPI32_H)
+#if defined(__SSE2__) && !defined(__SSE4_1__)
 #define MM_MULLO_EPI32_H
 #include <immintrin.h>
 // See:	http://stackoverflow.com/questions/10500766/sse-multiplication-of-4-32-bit-integers
@@ -44,4 +46,5 @@ _mm_mullo_epi32(const __m128i &a, const __m128i &b)
 	    _mm_shuffle_epi32(tmp1, _MM_SHUFFLE (0,0,2,0)),
 	    _mm_shuffle_epi32(tmp2, _MM_SHUFFLE (0,0,2,0)));
 }
+#endif
 #endif
