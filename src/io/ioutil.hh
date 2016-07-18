@@ -117,7 +117,7 @@ public:
                     continue;
                 }
 				//	The size_t -> Sirikata::uint32 cast is safe because sizeof(size) is <= sizeof(Sirikata::uint32)
-                return std::pair<Sirikata::uint32, JpegError>(static_cast<uint32_t>(data_written), JpegError::errShortHuffmanData());
+                return std::pair<Sirikata::uint32, JpegError>(static_cast<Sirikata::uint32>(data_written), JpegError::errShortHuffmanData());
             }
             data_written += nwritten;
         }
