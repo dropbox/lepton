@@ -60,17 +60,16 @@ typedef int8_t int8;
 #define _DECODER_PLATFORM_HH_
 #ifdef _WIN32
 #include <io.h>
-inline int write(int fd, const void*data, size_t length) {
+inline int write(int fd, const void*data, unsigned int length) {
     return _write(fd, data, length);
 }
-inline int read(int fd, void*data, size_t length) {
+inline int read(int fd, void*data, unsigned int length) {
     return _read(fd, data, length);
 }
 inline int close(int fd) {
     return _close(fd);
 }
 typedef int ssize_t;
-using std::size_t;
 #endif
 
 
