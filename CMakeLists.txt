@@ -31,8 +31,16 @@ IF(WIN32)
 ENDIF()
 
 
+if(WIN32)
+SET(CMAKE_CXX_FLAGS "-D_HAS_EXCEPTIONS=0 -GR-")
+else()
 SET(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
+endif()
+if(WIN32)
+SET(CMAKE_C_FLAGS "-DHAVE_CONFIG_H")
+else()
 SET(CMAKE_C_FLAGS "-std=c99 -DHAVE_CONFIG_H ")
+endif()
 IF(NOT USE_SYSTEM_DEPENDENCIES)
 add_library(localmd5 dependencies/md5/md5.c)
 add_library(localzlib
@@ -169,7 +177,21 @@ IF(USE_SYSTEM_DEPENDENCIES)
     SET(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DUSE_SYSTEM_LIBRARIES -DUSE_SYSTEM_MD5_DEPENDENCY")
 ENDIF()
 
+IF(WIN32)
+IF("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
+SET(ARCH_SSE2_FLAGS "/D__SSE2__")
+ELSE()
+SET(ARCH_SSE2_FLAGS "/arch:SSE2")
+ENDIF()
+ELSE()
+set(ARCH_SSE2_FLAGS "-msse4.2")
+ENDIF()
 
+IF(WIN32)
+SET(ARCH_AVX2_FLAGS "/arch:AVX2 /D__SSE2__")
+ELSE()
+set(ARCH_AVX2_FLAGS "-march=core-avx2")
+ENDIF()
 
 option(BEST_RATIO_SLOW_DECOMPRESSION "Turn on single threaded decode in exchange for more compression ratio " OFF)
 
@@ -211,7 +233,7 @@ ELSE()
 target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
 target_link_libraries(lepton-slow-best-ratio localzlib localmd5 ${ADDITIONAL_FLAGS})
 target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
-set_target_properties(localmd5 PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
+set_target_properties(localmd5 PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 
 IF(WIN32)
 SET(ZLIB_EXTRA_INCLUDE_DIRS)
@@ -219,15 +241,11 @@ ELSE()
 SET(ZLIB_EXTRA_INCLUDE_DIRS " -include unistd.h")
 ENDIF()
 
-set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "-msse4.2 ${ZLIB_EXTRA_INCLUDE_DIRS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
+set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS} ${ZLIB_EXTRA_INCLUDE_DIRS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 ENDIF()
-set_target_properties(lepton PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
-set_target_properties(lepton-slow-best-ratio PROPERTIES COMPILE_FLAGS "-msse4.2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} -DDEFAULT_SINGLE_THREAD")
-IF(WIN32)
-set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 /arch:AVX2 -D__AVX2__ -D__AVX__ ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
-ELSE()
-set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "-march=core-avx2 ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
-ENDIF()
+set_target_properties(lepton PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
+set_target_properties(lepton-slow-best-ratio PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} -DDEFAULT_SINGLE_THREAD")
+set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "${ARCH_AVX2_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 #add_executable(print-model
 #   src/vp8/util/debug.cc
 #   src/vp8/util/debug.hh
@@ -258,8 +276,8 @@ target_link_libraries(test_invariants ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
 ELSE()
 target_link_libraries(test_invariants localzlib ${ADDITIONAL_FLAGS})
 ENDIF()
-#set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2")
-set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "-msse4.2")
+#set_target_properties(print-model PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS}")
+set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS}")
 
 FILE(WRITE ${CMAKE_BINARY_DIR}/version.hh.in
 "\#define GIT_REVISION \"@VERSION@\"\n"
