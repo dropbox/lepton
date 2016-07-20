@@ -91,10 +91,13 @@ This will stop verification and let you debug the app as a single process applic
 If the bug happens in single threaded mode, also you can pass -singlethread which makes
 it easier to step through the code without other threads hitting breakpoints.
 
+## Bindings for other languages
+
+* NodeJS: https://github.com/whitef0x0/node-lepton
 
 ## Acknowledgements
 
-Many thanks to Matthias Stirner and HTW Aalen University for the development of the [uncmpJPG](http://packjpg.encode.ru/?page_id=178)
+Many thanks to Matthias Stirner and HTW Aalen University for the development of the [uncmpJPG](http://packjpg.encode.ru/?page_id=178) library
 Thanks to the VPX authors for their highly tuned bool reader and bool writer implementations.
 
 ## Related Work
