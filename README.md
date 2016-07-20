@@ -90,3 +90,7 @@ To avoid setting follow fork flags, please pass -skipverify to the command line.
 This will stop verification and let you debug the app as a single process application.
 If the bug happens in single threaded mode, also you can pass -singlethread which makes
 it easier to step through the code without other threads hitting breakpoints.
+
+## Wrapper Libraries
+
+* NodeJS: https://github.com/whitef0x0/node-lepton
