@@ -30,7 +30,7 @@ IF(WIN32)
 ENDIF()
 
 
-set(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
+set(CMAKE_CXX_FLAGS "-mssse3 -std=c++11 -fno-exceptions -fno-rtti -s TOTAL_MEMORY=1892679680")
 set(CMAKE_C_FLAGS "-std=c99 -DHAVE_CONFIG_H ")
 
 if(NOT USE_SYSTEM_DEPENDENCIES)
