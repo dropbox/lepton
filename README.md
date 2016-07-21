@@ -90,3 +90,17 @@ To avoid setting follow fork flags, please pass -skipverify to the command line.
 This will stop verification and let you debug the app as a single process application.
 If the bug happens in single threaded mode, also you can pass -singlethread which makes
 it easier to step through the code without other threads hitting breakpoints.
+
+
+## Acknowledgements
+
+Many thanks to Matthias Stirner and HTW Aalen University for the development of the [uncmpJPG](http://packjpg.encode.ru/?page_id=178)
+Thanks to the VPX authors for their highly tuned bool reader and bool writer implementations.
+
+## Related Work
+
+Be sure to read the groundbreaking research done by Matthias Stirner, Gehard Seelman and HTW Aalen University in their [2007 paper](http://www.elektronik.htw-aalen.de/packjpg/_notes/PCS2007_PJPG_paper_final.pdf) and check out their excellent [PackJPG](http://github.com/packjpg) repositories for compression of JPEG MP3 BMP and PMN formats.
+
+Also the [paq](http://mattmahoney.net/dc/) algorithms combine for a highly compressed JPEG result when decompression time is less critical.
+
+When the compressed JPEG needs to also be a JPEG, there is [mozjpg](https://github.com/mozilla/mozjpeg) to explore as well.
