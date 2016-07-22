@@ -13,7 +13,7 @@
 #ifdef __linux
 #include <sys/syscall.h>
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(EMSCRIPTEN)
 #define USE_STANDARD_MEMORY_ALLOCATORS
 #endif
 #if defined(__APPLE__) || (__cplusplus <= 199711L && !defined(_WIN32))
@@ -58,8 +58,10 @@ void always_assert_exit(bool value, const char * expr, const char * file, int li
 }
 void* custom_malloc (size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
-#ifdef _WIN32
+#if defined(_WIN32)
     return _aligned_malloc(size, 32);
+#elif defined(EMSCRIPTEN)
+    return memalign(32, size);
 #else
     return posix_memalign(32, size);
 #endif

@@ -747,7 +747,7 @@ int main( int argc, char** argv )
 #ifndef __linux
     n_threads += 4;
 #endif
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(EMSCRIPTEN)
     Sirikata::memmgr_init(mem_limit,
                           thread_mem_limit,
                           n_threads,
@@ -3780,7 +3780,7 @@ bool read_ujpg( void )
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
         JpegAllocator<uint8_t> no_free_allocator;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(EMSCRIPTEN)
         no_free_allocator.setup_memory_subsystem(32 * 1024 * 1024,
                                                  16,
                                                  &mem_init_nop,
