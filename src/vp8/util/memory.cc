@@ -1,4 +1,7 @@
+#ifndef USE_SCALAR
 #include <immintrin.h>
+#endif
+
 #include "options.hh"
 #include "memory.hh"
 #ifdef _WIN32
@@ -106,15 +109,25 @@ void custom_free(void* ptr) {
     Sirikata::memmgr_free(ptr);
 #endif
 }
+
+/**
+ * Zero out a 32byte chunk of memmory.
+ * If AVX2 is enabled using 256bit vector instructions
+ * If SSE is enabled use 128bit vector instructions
+ * Otherwise use plain old memset
+ */
 void * bzero32(void *aligned_32) {
 #if __AVX2__
     _mm256_store_si256((__m256i*)aligned_32, _mm256_setzero_si256());
-#else
+#elif !defined(USE_SCALAR)
     _mm_store_si128((__m128i*)aligned_32, _mm_setzero_si128());
     _mm_store_si128(((__m128i*)aligned_32) + 1, _mm_setzero_si128());
+#else
+    memset(aligned_32, 0, 32);
 #endif
     return aligned_32;
 }
+
 void * custom_calloc(size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
 #ifdef _WIN32

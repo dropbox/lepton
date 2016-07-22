@@ -54,7 +54,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/syscall.h>
 
 #endif
+
+#ifndef USE_SCALAR
 #include <emmintrin.h>
+#include <immintrin.h>
+#endif
+
 #include "jpgcoder.hh"
 #include "recoder.hh"
 #include "bitops.hh"
@@ -73,7 +78,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
 #include "../io/Seccomp.hh"
-#include <immintrin.h>
 int g_argc = 0;
 const char** g_argv = NULL;
 #ifndef GIT_REVISION
@@ -2143,8 +2147,11 @@ enum MergeJpegStreamingStatus{
     STREAMING_NEED_DATA = 2,
     STREAMING_DISABLED = 3
 };
+
 bool aligned_memchr16ff(const unsigned char *local_huff_data) {
-#if 1
+#if USE_SCALAR
+    return memchr(local_huff_data, 0xff, 16) != NULL;
+#else
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
     __m128i ff = _mm_set1_epi8(-1);
     __m128i res = _mm_cmpeq_epi8(buf, ff);
@@ -2153,8 +2160,8 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
     return retval;
 #endif
-    return memchr(local_huff_data, 0xff, 16) != NULL;
 }
+
 unsigned char hex_to_nibble(char val) {
     if (val >= 'A' && val <= 'F') {
         return val - 'A' + 10;

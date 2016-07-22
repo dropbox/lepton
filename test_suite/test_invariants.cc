@@ -398,6 +398,7 @@ int main() {
                 always_assert(fast_divide16bit(num, denom) == (unsigned int)num / denom);
                 if (denom == 5) {
                     always_assert(templ_divide16bit<5>(num) == (unsigned int)num / denom);
+#ifndef USE_SCALAR
                     __m128i retval = divide16bit_vec_signed<5>(_mm_set_epi32(num,(int)-num, -num-1, -num + 1));
                     int ret[4];
                     _mm_storeu_si128((__m128i*)(char *)ret, retval);
@@ -405,7 +406,9 @@ int main() {
                     always_assert(ret[2] == -num / denom);
                     always_assert(ret[1] == (-num-1)/denom);
                     always_assert(ret[0] == (-num + 1) / denom);
+#endif
                 }
+#ifndef USE_SCALAR
                 if (denom == 767) {
                     __m128i retval = divide16bit_vec<767>(_mm_set_epi32(num,num + 1, 0, num * 2));
                     int ret[4];
@@ -414,8 +417,8 @@ int main() {
                     always_assert(ret[2] == (1 + num) / denom);
                     always_assert(ret[1] == 0);
                     always_assert(ret[0] == (num * 2) / denom);
-
                 }
+#endif
             }
         }
     }
