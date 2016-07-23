@@ -97,7 +97,8 @@ it easier to step through the code without other threads hitting breakpoints.
 
 ## Acknowledgements
 
-Many thanks to Matthias Stirner and HTW Aalen University for the development of the [uncmpJPG](http://packjpg.encode.ru/?page_id=178) library
+Many thanks to Matthias Stirner and HTW Aalen University for the development of the [uncmpJPG](http://packjpg.encode.ru/?page_id=178) library.
+
 Thanks to the VPX authors for their highly tuned bool reader and bool writer implementations.
 
 ## Related Work
