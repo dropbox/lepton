@@ -686,14 +686,14 @@ int main( int argc, char** argv )
         = TimingHarness::get_time_us(true);
     size_t thread_mem_limit = 
 #ifdef HIGH_MEMORY
-        128 * 1024 * 1024
+        64 * 1024 * 1024
 #else
         3 * 1024 * 1024
 #endif
         ;//8192;
     size_t mem_limit = 
 #ifdef HIGH_MEMORY
-        1280 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1)
+        1024 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1)
 #else
         176 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1)
 #endif
