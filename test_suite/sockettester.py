@@ -32,7 +32,7 @@ def read_all_sock(sock):
                 break
         except OSError:
             pass
-    return ''.join(datas)
+    return b''.join(datas)
 
 def test_compression(binary_name, socket_name = None, too_short_time_bound=False, is_zlib=False):
     global jpg_name
@@ -54,12 +54,12 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         dup_proc = subprocess.Popen(xargs,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE)
-        duplicate_socket_name = ''
+        duplicate_socket_name = b''
         duplicate_socket_name = dup_proc.stdout.readline().strip()
-        assert not duplicate_socket_name
+        assert (not duplicate_socket_name)
     if is_zlib:
-        socket_name = socket_name.replace('.uport', '') + '.z0'
-    with open(jpg_name) as f:
+        socket_name = socket_name.replace(b'.uport', b'') + b'.z0'
+    with open(jpg_name, 'rb') as f:
         jpg = f.read()
     def encoder():
         try:
@@ -85,8 +85,8 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
     lepton_socket.close()
     t.join()
     
-    print 'encode time ',encode_end - encode_start
-    print len(jpg),len(dat)
+    print ('encode time ',encode_end - encode_start)
+    print (len(jpg),len(dat))
 
     while True:
         v=threading.Thread(target=decoder)
@@ -103,18 +103,18 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         v.join()
         if is_zlib:
             ojpg = zlib.decompress(ojpg)
-        print len(ojpg)
-        print len(jpg)
-        assert ojpg == jpg
-        print 'decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')'
+        print (len(ojpg))
+        print (len(jpg))
+        assert (ojpg == jpg)
+        print ('decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')')
         if not parsed_args.benchmark:
             break
         
-    print 'yay',len(ojpg),len(dat),len(dat)/float(len(ojpg)), 'parent pid is ',proc.pid
+    print ('yay',len(ojpg),len(dat),len(dat)/float(len(ojpg)), 'parent pid is ',proc.pid)
 
     proc.terminate()
     proc.wait()
-    assert not os.path.exists(socket_name)
+    assert (not os.path.exists(socket_name))
 
 has_avx2 = False
 try:
@@ -140,5 +140,5 @@ if not parsed_args.benchmark:
     except (AssertionError, EnvironmentError):
         ok = True
     finally:
-        assert ok and "the time bound must stop the process"
-    print "SUCCESS DONE"
+        assert (ok and "the time bound must stop the process")
+    print ("SUCCESS DONE")
