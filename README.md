@@ -94,6 +94,7 @@ it easier to step through the code without other threads hitting breakpoints.
 ## Bindings for other languages
 
 * NodeJS: https://github.com/whitef0x0/node-lepton
+* PHP: https://github.com/gtuk/php-lepton
 
 ## Acknowledgements
 
