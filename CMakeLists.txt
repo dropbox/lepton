@@ -32,7 +32,7 @@ endif()
 
 set(VECTOR_FLAGS "-mssse3 -msse4.2")
 if(EMSCRIPTEN)
-    set(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti -s DEMANGLE_SUPPORT=1 -O2 -s TOTAL_MEMORY=184549376 --embed-file ./iphone.lep --embed-file ./iphone.jpg")
+    set(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti -s DEMANGLE_SUPPORT=1 -s TOTAL_MEMORY=184549376 --pre-js pre.js --post-js post.js -O2")
 else()
     set(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti")
 endif()
@@ -302,7 +302,8 @@ add_custom_target(
                      -D DST=${CMAKE_BINARY_DIR}/version.hh
                      -P ${CMAKE_BINARY_DIR}/version.cmake
 )
-
+file(GLOB JS_FILES "src/js/*")
+file(COPY ${JS_FILES} DESTINATION ${CMAKE_BINARY_DIR})
 add_dependencies(lepton version)
 
 install (TARGETS lepton lepton-slow-best-ratio lepton-avx lepton-scalar DESTINATION bin)
