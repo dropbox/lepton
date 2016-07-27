@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import subprocess
 import sys
 import threading
@@ -85,8 +86,8 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
     lepton_socket.close()
     t.join()
     
-    print ('encode time ',encode_end - encode_start)
-    print (len(jpg),len(dat))
+    print('encode time ', encode_end - encode_start)
+    print(len(jpg), len(dat))
 
     while True:
         v=threading.Thread(target=decoder)
@@ -103,14 +104,14 @@ def test_compression(binary_name, socket_name = None, too_short_time_bound=False
         v.join()
         if is_zlib:
             ojpg = zlib.decompress(ojpg)
-        print (len(ojpg))
-        print (len(jpg))
+        print(len(ojpg))
+        print(len(jpg))
         assert (ojpg == jpg)
-        print ('decode time ',decode_end - decode_start, '(', decode_mid-decode_start,')')
+        print('decode time ', decode_end - decode_start, '(', decode_mid - decode_start,')')
         if not parsed_args.benchmark:
             break
         
-    print ('yay',len(ojpg),len(dat),len(dat)/float(len(ojpg)), 'parent pid is ',proc.pid)
+    print('yay', len(ojpg), len(dat), len(dat) / float(len(ojpg)), 'parent pid is ', proc.pid)
 
     proc.terminate()
     proc.wait()
@@ -133,12 +134,10 @@ if not parsed_args.benchmark:
     test_compression('./lepton', '/tmp/' + str(uuid.uuid4()))
     test_compression('./lepton', '/tmp/' + str(uuid.uuid4()), is_zlib=True)
 
-
-    ok = False
     try:
         test_compression('./lepton', '/tmp/' + str(uuid.uuid4()), True)
     except (AssertionError, EnvironmentError):
-        ok = True
-    finally:
-        assert (ok and "the time bound must stop the process")
-    print ("SUCCESS DONE")
+        pass
+    else:
+        raise AssertionError("the time bound must stop the process")
+    print("SUCCESS DONE")
