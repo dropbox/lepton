@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function, division
 import subprocess
 import sys
 import threading
@@ -31,30 +32,30 @@ with open(jpg_name, 'rb') as f:
     jpg = f.read()
 def fn():
     valid_fds[0][0].write(jpg)
-    print ('written ',valid_fds[0][0])
+    print('written ', valid_fds[0][0])
     valid_fds[0][0].close()
-    print ('closed')
+    print('closed')
 def fn1():
     valid_fds[1][0].write(dat)
-    print ('written ',valid_fds[1][0])
+    print('written ', valid_fds[1][0])
     valid_fds[1][0].close()
-    print ('xclosed ',valid_fds[1][0])
-u=threading.Thread(target=add4)
+    print('xclosed ', valid_fds[1][0])
+u = threading.Thread(target=add4)
 u.start()
-t=threading.Thread(target=fn)
+t = threading.Thread(target=fn)
 t.start()
 
 dat = valid_fds[0][1].read()
 valid_fds[0][1].close()
 t.join()
-print (len(jpg),len(dat))
-v=threading.Thread(target=fn1)
+print(len(jpg), len(dat))
+v = threading.Thread(target=fn1)
 v.start()
 ojpg = valid_fds[1][1].read()
 valid_fds[1][1].close()
 t.join()
 
-assert (ojpg == jpg)
+assert ojpg == jpg
 
-print ('yay',len(ojpg),len(dat),len(dat)/float(len(ojpg)))
+print('yay', len(ojpg), len(dat), len(dat) / len(ojpg))
 u.join()
