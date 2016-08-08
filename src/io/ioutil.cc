@@ -7,7 +7,7 @@
 #define S_IWUSR 0
 #define S_IRUSR 0
 #else
-#include <poll.h>
+#include <sys/select.h>
 #endif
 #include "Reader.hh"
 #include "ioutil.hh"
