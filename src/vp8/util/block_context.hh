@@ -1,7 +1,11 @@
 #ifndef _BLOCK_CONTEXT_HH_
 #define _BLOCK_CONTEXT_HH_
 #include "options.hh"
+
+#ifndef USE_SCALAR
 #include "tmmintrin.h"
+#endif
+
 enum {
     IDCTSCALE = 1,
     xIDCTSCALE = 8
@@ -30,41 +34,45 @@ struct NeighborSummary {
     const int16_t* horizontal_ptr() const {
         return &edge_pixels[8];
     }
+
 #define shift_right_round_zero_epi16(vec, imm8) (_mm_sign_epi16(_mm_srli_epi16(_mm_sign_epi16(vec, vec), imm8), vec));
+
     void set_horizontal(int16_t * data_aligned, uint16_t* quantization_table, int16_t dc) {
-        if (VECTORIZE) {
-            __m128i cur_row = _mm_load_si128((const __m128i*)(data_aligned + 56));
-            __m128i prev_row = _mm_load_si128((const __m128i*)(data_aligned + 48));
-            __m128i delta = _mm_sub_epi16(cur_row, prev_row);
-            __m128i half_delta = shift_right_round_zero_epi16(delta, 1);
-            __m128i pred_row = _mm_add_epi16(_mm_add_epi16(cur_row, half_delta), _mm_set1_epi16(128 * xIDCTSCALE));
-            pred_row = _mm_add_epi16(pred_row, _mm_set1_epi16(quantization_table[0] * dc));
-            _mm_storeu_si128((__m128i*)&edge_pixels[8], pred_row);
-        } else {
-            for (int i = 0; i < 8 ; ++i) {
-                int delta = data_aligned[i + 56] - data_aligned[i + 48];
-                //if (i == 7) delta = 0;
-                edge_pixels[i + 8] = dc * quantization_table[0] + data_aligned[i + 56] + 128 * xIDCTSCALE + (delta/2);
-            }
+#ifdef USE_SCALAR
+        for (int i = 0; i < 8 ; ++i) {
+            int delta = data_aligned[i + 56] - data_aligned[i + 48];
+            //if (i == 7) delta = 0;
+            edge_pixels[i + 8] = dc * quantization_table[0] + data_aligned[i + 56] + 128 * xIDCTSCALE + (delta/2);
         }
+#else
+        __m128i cur_row = _mm_load_si128((const __m128i*)(data_aligned + 56));
+        __m128i prev_row = _mm_load_si128((const __m128i*)(data_aligned + 48));
+        __m128i delta = _mm_sub_epi16(cur_row, prev_row);
+        __m128i half_delta = shift_right_round_zero_epi16(delta, 1);
+        __m128i pred_row = _mm_add_epi16(_mm_add_epi16(cur_row, half_delta), _mm_set1_epi16(128 * xIDCTSCALE));
+        pred_row = _mm_add_epi16(pred_row, _mm_set1_epi16(quantization_table[0] * dc));
+        _mm_storeu_si128((__m128i*)&edge_pixels[8], pred_row);
+#endif
     }
+
     void set_vertical(int16_t * data, uint16_t* quantization_table, int16_t dc) {
-        if (VECTORIZE) {
-            __m128i cur_row = _mm_set_epi16(data[63], data[55], data[47], data[39], data[31], data[23], data[15], data[7]);
-            __m128i prev_row = _mm_set_epi16(data[62], data[54], data[46], data[38], data[30], data[22], data[14], data[6]);
-            __m128i delta = _mm_sub_epi16(cur_row, prev_row);
-            __m128i half_delta = shift_right_round_zero_epi16(delta, 1);
-            __m128i pred_row = _mm_add_epi16(_mm_add_epi16(cur_row, half_delta), _mm_set1_epi16(128 * xIDCTSCALE));
-            pred_row = _mm_add_epi16(pred_row, _mm_set1_epi16(quantization_table[0] * dc));
-            _mm_storeu_si128((__m128i*)&edge_pixels[0], pred_row);
-        }else {
-            for (int i = 0; i < 8 ; ++i) {
-                int delta = data[i * 8 + 7] - data[i * 8 + 6];
-                //if (i == 7) delta = 0;
-                edge_pixels[i] = dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + (delta/2);
-            }
+#ifdef USE_SCALAR
+        for (int i = 0; i < 8 ; ++i) {
+            int delta = data[i * 8 + 7] - data[i * 8 + 6];
+            //if (i == 7) delta = 0;
+            edge_pixels[i] = dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + (delta/2);
         }
+#else
+        __m128i cur_row = _mm_set_epi16(data[63], data[55], data[47], data[39], data[31], data[23], data[15], data[7]);
+        __m128i prev_row = _mm_set_epi16(data[62], data[54], data[46], data[38], data[30], data[22], data[14], data[6]);
+        __m128i delta = _mm_sub_epi16(cur_row, prev_row);
+        __m128i half_delta = shift_right_round_zero_epi16(delta, 1);
+        __m128i pred_row = _mm_add_epi16(_mm_add_epi16(cur_row, half_delta), _mm_set1_epi16(128 * xIDCTSCALE));
+        pred_row = _mm_add_epi16(pred_row, _mm_set1_epi16(quantization_table[0] * dc));
+        _mm_storeu_si128((__m128i*)&edge_pixels[0], pred_row);
+#endif
     }
+
     void set_horizontal_dc_included(int * data) {
         for (int i = 0; i < 8 ; ++i) {
             int delta = data[i + 56] - data[i + 48];
@@ -72,6 +80,7 @@ struct NeighborSummary {
             edge_pixels[i + 8] = data[i + 56] + delta / 2;
         }
     }
+
     void set_vertical_dc_included(int * data) {
         for (int i = 0; i < 7 ; ++i) {
             int delta = data[i * 8 + 7] - data[i * 8 + 6];

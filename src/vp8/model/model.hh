@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <memory>
-#include <tmmintrin.h>
+
 #include "../util/debug.hh"
 #include "../util/options.hh"
 #include "../util/nd_array.hh"
@@ -12,7 +12,11 @@
 #include "branch.hh"
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
+
+#ifndef USE_SCALAR
+#include <tmmintrin.h>
 #include "../util/mm_mullo_epi32.hh"
+#endif
 
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
@@ -374,16 +378,21 @@ public:
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8(uint8_t coefficient,
                                                    const ConstBlockContext block, uint8_t num_nonzeros_x) {
         CoefficientContext retval = {0, 0, 0};
+#ifndef USE_SCALAR
         if (MICROVECTORIZE) {
             retval.best_prior = (coefficient & 7)
             ? compute_lak_horizontal(block, coefficient) : compute_lak_vertical(block, coefficient);
         } else {
             retval.best_prior = compute_lak(block, coefficient);
         }
+#else
+        retval.best_prior = compute_lak(block, coefficient);
+#endif
         retval.num_nonzeros_bin = num_nonzeros_x;
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         return retval;
     }
+#ifndef USE_SCALAR
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8_horiz(uint8_t coefficient,
                                                    const ConstBlockContext block, uint8_t num_nonzeros_x) {
         CoefficientContext retval = {0, 0, 0};
@@ -400,6 +409,7 @@ public:
         retval.bsr_best_prior = bit_length(std::min(abs(retval.best_prior), 1023));
         return retval;
     }
+
 #define INSTANTIATE_TEMPLATE_METHOD(N)  \
     ProbabilityTablesBase::CoefficientContext update_coefficient_context8_templ##N(const ConstBlockContext block, \
                                                    uint8_t num_nonzeros_x) { \
@@ -423,6 +433,8 @@ public:
     INSTANTIATE_TEMPLATE_METHOD(40)
     INSTANTIATE_TEMPLATE_METHOD(48)
     INSTANTIATE_TEMPLATE_METHOD(56)
+#endif
+
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(ProbabilityTablesBase &pt,
                                                                const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
@@ -642,72 +654,72 @@ public:
         dc_estimates.memset(0);
         int32_t avgmed = 0;
         if(all_present || left_present || above_present) {
-            if ((VECTORIZE || MICROVECTORIZE)) {
-                if (all_present || above_present) { //above goes first to prime the cache
-		  __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
-                                                             .neighbor_context_above_unchecked()
-                                                             .horizontal_ptr());
-                    __m128i pixels_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)pixels_sans_dc);
-                    __m128i pixels2_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)(pixels_sans_dc + 8));
-                    __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
-                                                         pixels2_sans_dc_reg);
-                    __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
-                    __m128i pixels_sans_dc_recentered = _mm_add_epi16(pixels_sans_dc_reg,
-                                                                      _mm_set1_epi16(1024));
-                    __m128i above_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_above, pixels_delta_div2),
-                                                              pixels_sans_dc_recentered);
+#ifndef USE_SCALAR
+            if (all_present || above_present) { //above goes first to prime the cache
+                __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
+                                                         .neighbor_context_above_unchecked()
+                                                         .horizontal_ptr());
+                __m128i pixels_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)pixels_sans_dc);
+                __m128i pixels2_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)(pixels_sans_dc + 8));
+                __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
+                                                     pixels2_sans_dc_reg);
+                __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
+                __m128i pixels_sans_dc_recentered = _mm_add_epi16(pixels_sans_dc_reg,
+                                                                  _mm_set1_epi16(1024));
+                __m128i above_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_above, pixels_delta_div2),
+                                                          pixels_sans_dc_recentered);
 
-                    _mm_store_si128((__m128i*)(char*)(dc_estimates.begin()
-                                                      + ((all_present || left_present) ? 8 : 0)),
-                                    above_dc_estimate);
-                }
-                if (all_present || left_present) {
-                    const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
-                    __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)(const char*)horiz_data);
-                    //neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
-                    __m128i pixels_sans_dc_reg = _mm_set_epi16(pixels_sans_dc[56],
-                                                               pixels_sans_dc[48],
-                                                               pixels_sans_dc[40],
-                                                               pixels_sans_dc[32],
-                                                               pixels_sans_dc[24],
-                                                               pixels_sans_dc[16],
-                                                               pixels_sans_dc[8],
-                                                               pixels_sans_dc[0]);
-                    __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
-                                                         _mm_set_epi16(pixels_sans_dc[57],
-                                                                       pixels_sans_dc[49],
-                                                                       pixels_sans_dc[41],
-                                                                       pixels_sans_dc[33],
-                                                                       pixels_sans_dc[25],
-                                                                       pixels_sans_dc[17],
-                                                                       pixels_sans_dc[9],
-                                                                       pixels_sans_dc[1]));
-                    
-                    __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
-                    __m128i left_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_horiz, pixels_delta_div2),
-                                                              _mm_add_epi16(pixels_sans_dc_reg,
-                                                                            _mm_set1_epi16(1024)));
-                    
-                    _mm_store_si128((__m128i*)(char*)dc_estimates.begin(), left_dc_estimate);
-                }
-            } else {
-                if (all_present || left_present) {
-                    for (int i = 0; i < 8;++i) {
-                        int a = pixels_sans_dc[i << 3] + 1024;
-                        int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
-                        int b = context.neighbor_context_left_unchecked().vertical(i) - (pixel_delta / 2); //round to zero
-                        dc_estimates[i] = b - a;
-                    }
-                }
-                if (all_present || above_present) {
-                    for (int i = 0; i < 8;++i) {
-                        int a = pixels_sans_dc[i] + 1024;
-                        int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
-                        int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
-                        dc_estimates[i + ((all_present || left_present) ? 8 : 0)] = b - a;
-                    }
+                _mm_store_si128((__m128i*)(char*)(dc_estimates.begin()
+                                                  + ((all_present || left_present) ? 8 : 0)),
+                                above_dc_estimate);
+            }
+            if (all_present || left_present) {
+                const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
+                __m128i neighbor_horiz = _mm_loadu_si128((const __m128i*)(const char*)horiz_data);
+                //neighbor_horiz = _mm_insert_epi16(neighbor_horiz, horiz_data[NeighborSummary::VERTICAL_LAST_PIXEL_OFFSET_FROM_FIRST_PIXEL], 7);
+                __m128i pixels_sans_dc_reg = _mm_set_epi16(pixels_sans_dc[56],
+                                                           pixels_sans_dc[48],
+                                                           pixels_sans_dc[40],
+                                                           pixels_sans_dc[32],
+                                                           pixels_sans_dc[24],
+                                                           pixels_sans_dc[16],
+                                                           pixels_sans_dc[8],
+                                                           pixels_sans_dc[0]);
+                __m128i pixels_delta = _mm_sub_epi16(pixels_sans_dc_reg,
+                                                     _mm_set_epi16(pixels_sans_dc[57],
+                                                                   pixels_sans_dc[49],
+                                                                   pixels_sans_dc[41],
+                                                                   pixels_sans_dc[33],
+                                                                   pixels_sans_dc[25],
+                                                                   pixels_sans_dc[17],
+                                                                   pixels_sans_dc[9],
+                                                                   pixels_sans_dc[1]));
+
+                __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
+                __m128i left_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_horiz, pixels_delta_div2),
+                                                          _mm_add_epi16(pixels_sans_dc_reg,
+                                                                        _mm_set1_epi16(1024)));
+
+                _mm_store_si128((__m128i*)(char*)dc_estimates.begin(), left_dc_estimate);
+            }
+#else
+            if (all_present || left_present) {
+                for (int i = 0; i < 8;++i) {
+                    int a = pixels_sans_dc[i << 3] + 1024;
+                    int pixel_delta = pixels_sans_dc[i << 3] - pixels_sans_dc[(i << 3) + 1];
+                    int b = context.neighbor_context_left_unchecked().vertical(i) - (pixel_delta / 2); //round to zero
+                    dc_estimates[i] = b - a;
                 }
             }
+            if (all_present || above_present) {
+                for (int i = 0; i < 8;++i) {
+                    int a = pixels_sans_dc[i] + 1024;
+                    int pixel_delta = pixels_sans_dc[i] - pixels_sans_dc[i + 8];
+                    int b = context.neighbor_context_above_unchecked().horizontal(i) - (pixel_delta / 2); //round to zero
+                    dc_estimates[i + ((all_present || left_present) ? 8 : 0)] = b - a;
+                }
+            }
+#endif
             int32_t avg_h_v[2] = {0, 0};
             int32_t min_dc = dc_estimates[0];
             int32_t max_dc = dc_estimates[0];
@@ -832,7 +844,7 @@ public:
         //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
     }
-#ifdef OPTIMIZED_7x7
+#if defined(OPTIMIZED_7x7) && !defined(USE_SCALAR)
     bool aavrg_vec_matches(__m128i retval, unsigned int aligned_zz, ConstBlockContext context) {
         short ret[8];
         _mm_storeu_si128((__m128i*)(char*)ret, retval);
@@ -854,6 +866,7 @@ public:
 #else
 #define x_mm_loadu_si64 _mm_loadu_si64
 #endif
+
     __m128i compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context) {
         if (all_present == false && left_present == false && above_present == false) {
             return _mm_setzero_si128();
@@ -885,6 +898,8 @@ public:
         //}
     }
 #endif
+
+#ifndef USE_SCALAR
     static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i 
 #ifdef _WIN32
         &
@@ -916,6 +931,7 @@ public:
         //}
         return prediction / icos_deq[0];
     }
+
 #define ITER(x_var, a_var, i, step) \
         (x_var = _mm_set_epi32(   context.here().coefficients_raster(band + step * ((i) + 3)), \
                                   context.here().coefficients_raster(band + step * ((i) + 2)), \
@@ -988,6 +1004,7 @@ public:
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
                         icos);
     }
+#endif
     int32_t compute_lak(const ConstBlockContext&context, unsigned int band) {
         int coeffs_x[8];
         int coeffs_a[8];
@@ -1020,8 +1037,11 @@ public:
             prediction -= coef_idct[i] * (coeffs_x[i] + sign * coeffs_a[i]);
         }
         prediction /= coef_idct[0];
+#if _DEBUG
+        // In DEBUG mode verify that the scalar compute_lak matches the vectorized ones
         assert(((band & 7) ? compute_lak_horizontal(context,band): compute_lak_vertical(context,band)) == prediction
                && "Vectorized version must match sequential version");
+#endif
         return prediction;
     }
     Sirikata::Array1d<Branch,
