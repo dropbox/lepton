@@ -1270,7 +1270,6 @@ std::string uniq_filename(std::string filename) {
         filename += "_";
         fp = fopen(filename.c_str(), "rb");
     }
-    fclose(fp);
     return filename;
 }
 
