@@ -397,6 +397,7 @@ void load_model(Model&model, const char * filename) {
     FILE * fp = fopen(filename, "rb");
     if (fp) {
         const size_t expected_size = fread(&model, 1, sizeof(model), fp);
+        fclose(fp);
         (void)expected_size;
         always_assert(sizeof(model) == expected_size && "unexpected model file size.");
     } else {
