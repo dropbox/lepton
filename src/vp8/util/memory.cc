@@ -58,7 +58,15 @@ void* custom_malloc (size_t size) {
 #ifdef _WIN32
     return _aligned_malloc(size, 32);
 #else
-    return posix_memalign(32, size);
+    void *ptr;
+    int retval = posix_memalign(&ptr, 32, size);
+    if (!g_use_seccomp) {
+        assert(retval == 0 && "posix_memalign returned non-zero");
+    }
+    if (retval != 0) {
+        custom_exit(ExitCode::MALLOCED_NULL);
+    }
+    return ptr;
 #endif
 #else
     void * retval = Sirikata::memmgr_alloc(size);
