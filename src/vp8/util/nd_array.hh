@@ -35,7 +35,7 @@
 #include <assert.h>
 #include <cstddef>
 #include <cstring>
-#if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L || defined(_WIN32)
+#if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus > 199711L || defined(_WIN32)
 #include <cstdint>
 #else
 #include <assert.h>
@@ -1238,7 +1238,7 @@ uint32_t s3, uint32_t s4, uint32_t s5,
 }
 
 
-#if __GXX_EXPERIMENTAL_CXX0X__ || __cplusplus > 199711L
+#if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus > 199711L
 #undef constexpr
 #undef NOCONSTEXPR
 #endif
