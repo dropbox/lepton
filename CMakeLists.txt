@@ -279,28 +279,27 @@ ENDIF()
 #set_target_properties(print-model PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS}")
 set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS}")
 
-FILE(WRITE ${CMAKE_BINARY_DIR}/version.hh.in
-"\#define GIT_REVISION \"@VERSION@\"\n"
+# Creates the version.cmake in ${CMAKE_BINARY_DIR}
+file(WRITE "${CMAKE_BINARY_DIR}/version.cmake"
+"execute_process(
+    COMMAND \"${GIT_EXECUTABLE}\" --git-dir=${PROJECT_SOURCE_DIR}/.git --work-tree=${PROJECT_SOURCE_DIR} describe --dirty
+    OUTPUT_VARIABLE VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-
-FILE(WRITE ${CMAKE_BINARY_DIR}/version.cmake
-"EXECUTE_PROCESS(
-     COMMAND ${GIT_EXECUTABLE} --git-dir=${PROJECT_SOURCE_DIR}/.git --work-tree=${PROJECT_SOURCE_DIR} rev-parse HEAD
-     OUTPUT_VARIABLE VERSION
-     OUTPUT_STRIP_TRAILING_WHITESPACE
- )
- CONFIGURE_FILE(\${SRC} \${DST} @ONLY)
+message(\"Version: \${VERSION}\")
+file(WRITE \"\${OUTPUT}.txt\" \"#define GIT_REVISION \\\"\${VERSION}\\\"\\n\")
+execute_process(COMMAND \"${CMAKE_COMMAND}\" -E copy_if_different \"\${OUTPUT}.txt\" \"\${OUTPUT}\")
 ")
 
-INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR})
 
-ADD_CUSTOM_TARGET(
-    version
-    ${CMAKE_COMMAND} -D SRC=${CMAKE_BINARY_DIR}/version.hh.in
-                     -D DST=${CMAKE_BINARY_DIR}/version.hh
-                     -P ${CMAKE_BINARY_DIR}/version.cmake
-)
+add_custom_target(
+    version ALL
+    DEPENDS "${CMAKE_BINARY_DIR}/version.cmake"
+    COMMAND "${CMAKE_COMMAND}" -D OUTPUT="${CMAKE_BINARY_DIR}/version.hh" -P "${CMAKE_BINARY_DIR}/version.cmake")
 
-ADD_DEPENDENCIES(lepton version)
+add_dependencies(lepton version)
+add_dependencies(lepton-slow-best-ratio version)
+add_dependencies(lepton-avx version)
 
-install (TARGETS lepton lepton-slow-best-ratio lepton-avx DESTINATION bin)
+
+install(TARGETS lepton lepton-slow-best-ratio lepton-avx DESTINATION bin)
