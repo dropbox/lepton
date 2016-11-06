@@ -2475,7 +2475,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     int rstw; // restart wait counter
 
     int cmp, bpos, dpos;
-    int mcu, sub, csc;
+    int mcu = 0, sub, csc;
     int eob, sta;
     bool is_baseline = true;
     max_cmp = 0; // the maximum component in a truncated image
