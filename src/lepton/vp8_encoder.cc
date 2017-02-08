@@ -104,7 +104,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          pt);
         uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
                                                                                         true,
-                                                                                        curr_y);
+                                                                                        curr_y,1);
         context.at((int)middle_model.COLOR) = state;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
@@ -126,7 +126,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          pt);
         uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
                                                                                         true,
-                                                                                        curr_y);
+                                                                                        curr_y,1);
         context.at((int)middle_model.COLOR) = state;
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
@@ -145,7 +145,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          right_model,
                          pt);
-        colldata->full_component_nosync((int)middle_model.COLOR).next(state, false, curr_y);
+        colldata->full_component_nosync((int)middle_model.COLOR).next(state, false, curr_y,1);
         context.at((int)middle_model.COLOR) = state;
     }
 }

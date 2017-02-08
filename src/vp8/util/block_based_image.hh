@@ -112,8 +112,8 @@ public:
                 (y & 1) ? num_nonzeros_begin + width_ : num_nonzeros_begin,
                 (y & 1) ? num_nonzeros_begin : num_nonzeros_begin + width_};
     }
-    template <class BlockContext> uint32_t next(BlockContext& it, bool has_left, int component_y) const {
-        it.cur += 1;
+    template <class BlockContext> uint32_t next(BlockContext& it, bool has_left, int component_y, int step) const {
+        it.cur += step;
         ptrdiff_t offset = it.cur - image_;
         uint32_t retval = offset;
         if (force_memory_optimization || memory_optimized_image_) {
