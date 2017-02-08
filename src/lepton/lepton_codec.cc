@@ -2,7 +2,9 @@
 #include "uncompressed_components.hh"
 #include "../vp8/decoder/decoder.hh"
 
-
+constexpr int nextOfThree(BlockType color) {
+  return ((int)color == 0 || (int)color == 1)? 1+ (int)color : 0;
+}
 
 template<class Left, class Middle, class Right, bool force_memory_optimization>
 void LeptonCodec::ThreadState::decode_row(Left & left_model,
@@ -12,6 +14,16 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           int component_size_in_block) {
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
+    Sirikata::Array1d<BlockContext, (size_t)ColorChannel::NumBlockTypes > context_;
+    context_.at((int)middle_model.COLOR)
+      = image_data[(int)middle_model.COLOR]->off_y(curr_y,
+                                       num_nonzeros_.at((int)middle_model.COLOR).begin());
+    /*
+    uint32_t estep0 = image_data[(int)middle_model.COLOR]->block_width() / image_data[nextOfThree(middle_model.COLOR)]->block_width();
+    uint32_t ostep0 = (image_data[(int)middle_model.COLOR]->block_width() % image_data[nextOfThree(middle_model.COLOR)]->block_width()) ? 1 : 0;
+    uint32_t estep1 = image_data[(int)middle_model.COLOR]->block_width() / image_data[nextOfThree(nextOfThree(middle_model.COLOR))]->block_width();
+    uint32_t ostep1 = (image_data[(int)middle_model.COLOR]->block_width() % image_data[nextOfThree(nextOfThree(middle_model.COLOR))]->block_width()) ? 1 : 0;
+    */
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR);
         parse_tokens(context,
@@ -111,9 +123,6 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
     tuple<ProbabilityTablesTuple(true, true, true)> middle(EACH_BLOCK_TYPE(true,true,true));
     tuple<ProbabilityTablesTuple(true, true, false)> midright(EACH_BLOCK_TYPE(true, true, false));
     tuple<ProbabilityTablesTuple(false, true, false)> width_one(EACH_BLOCK_TYPE(false, true, false));
-    context_.at(component)
-        = image_data[component]->off_y(curr_y,
-                                       num_nonzeros_.at(component).begin());
     
     int block_width = image_data[component]->block_width();
     if (is_top_row_.at(component)) {
