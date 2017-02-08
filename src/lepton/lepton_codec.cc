@@ -13,7 +13,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           int curr_y,
                                           BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           int component_size_in_block) {
-    MultiChannelBlockContext<force_memory_optimization> multi_context(curr_y, middle_model.COLOR, image_data, num_nonzeros_);
+  MultiChannelBlockContext<BlockBasedImageBase<force_memory_optimization>, BlockContext> multi_context(curr_y, middle_model.COLOR, image_data, num_nonzeros_);
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
     if (block_width > 0) {
         BlockContext context = multi_context.context_.at((int)middle_model.COLOR);

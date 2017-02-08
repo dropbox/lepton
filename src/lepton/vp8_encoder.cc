@@ -88,16 +88,18 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       Sirikata::Array1d<std::vector<NeighborSummary>,
                                                         (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros,
                                       BoolEncoder &bool_encoder) {
-    Sirikata::Array1d<ConstBlockContext,
-                      (uint32_t)ColorChannel::NumBlockTypes> context;
-    context[(int)middle_model.COLOR]
-        = colldata->full_component_nosync((int)middle_model.COLOR).off_y(curr_y,
-                                                             num_nonzeros->at((int)middle_model.COLOR).begin());
-    
+    Sirikata::Array1d<const BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> channels;
+    for (uint32_t i = 0; i < (uint32_t)ColorChannel::NumBlockTypes; ++i) {
+        channels.at(i) = &colldata->full_component_nosync((int)middle_model.COLOR);
+    }
+    MultiChannelBlockContext<const BlockBasedImage, ConstBlockContext> multi_context(curr_y,
+                                                  middle_model.COLOR,
+                                                  channels,
+                                                  *num_nonzeros);
 
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
-        ConstBlockContext state = context.at((int)middle_model.COLOR);
+        ConstBlockContext state = multi_context.context_.at((int)middle_model.COLOR);
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -109,17 +111,14 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          left_model,
                          pt);
-        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
-                                                                                        true,
-                                                                                        curr_y,1);
-        context.at((int)middle_model.COLOR) = state;
+        uint32_t offset = multi_context.next(curr_y, (int)middle_model.COLOR);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
         
     }
     for ( unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        ConstBlockContext state = context.at((int)middle_model.COLOR);
+        ConstBlockContext state = multi_context.context_.at((int)middle_model.COLOR);
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -131,16 +130,13 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          middle_model,
                          pt);
-        uint32_t offset = colldata->full_component_nosync((int)middle_model.COLOR).next(state,
-                                                                                        true,
-                                                                                        curr_y,1);
-        context.at((int)middle_model.COLOR) = state;
+        uint32_t offset = multi_context.next(curr_y, (int)middle_model.COLOR);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
     }
     if (block_width > 1) {
-        ConstBlockContext state = context.at((int)middle_model.COLOR);
+        ConstBlockContext state = multi_context.context_.at((int)middle_model.COLOR);
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = middle_model.COLOR; // for debug purposes only, not to be used in production
@@ -152,8 +148,6 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          right_model,
                          pt);
-        colldata->full_component_nosync((int)middle_model.COLOR).next(state, false, curr_y,1);
-        context.at((int)middle_model.COLOR) = state;
     }
 }
 uint32_t aligned_block_cost(const AlignedBlock &block) {
@@ -280,11 +274,6 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
         if (cur_row.luma_y < min_y) {
             continue;
         }
-        /*
-        context[cur_row.component]
-            = image_data.at(cur_row.component)->off_y(cur_row.curr_y,
-                                                      num_nonzeros->at(cur_row.component).begin());
-        */
         // DEBUG only fprintf(stderr, "Thread %d min_y %d - max_y %d cmp[%d] y = %d\n", thread_id, min_y, max_y, (int)component, curr_y);
         int block_width = image_data.at(cur_row.component)->block_width();
         if (is_top_row[cur_row.component]) {

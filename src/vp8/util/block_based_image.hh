@@ -253,17 +253,18 @@ public:
         this->memset(0);
     }
 };
-template<bool force_memory_optimization> class MultiChannelBlockContext {
+template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockContext {
 public:
-  Sirikata::Array1d<BlockContext, (size_t)ColorChannel::NumBlockTypes > context_;
+  Sirikata::Array1d<BlockContextType, (size_t)ColorChannel::NumBlockTypes > context_;
   Sirikata::Array2d<size_t, 2, (size_t)ColorChannel::NumBlockTypes > eostep;
-  Sirikata::Array1d<BlockBasedImageBase<force_memory_optimization> *,
+  Sirikata::Array1d<BlockBasedImage*,
 		    (uint32_t)ColorChannel::NumBlockTypes> image_data_;
-  template<class ColorChan> MultiChannelBlockContext(int curr_y,
-			   ColorChan original_color,
-			   BlockBasedImagePerChannel<force_memory_optimization> &in_image_data,
-			   Sirikata::Array1d<std::vector<NeighborSummary>,
-						     (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
+  template<class ColorChan> MultiChannelBlockContext(
+			  int curr_y,
+			  ColorChan original_color,
+  			  Sirikata::Array1d<BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> &in_image_data,
+			  Sirikata::Array1d<std::vector<NeighborSummary>,
+					     (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
 			   ) {
     for (size_t col = 0 ; col < (size_t)ColorChannel::NumBlockTypes; ++col) {
       size_t fixed_index = col;
