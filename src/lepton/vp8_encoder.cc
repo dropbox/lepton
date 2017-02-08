@@ -99,7 +99,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
 
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
-        ConstBlockContext state = multi_context.context_.at((int)middle_model.COLOR);
+        ConstBlockContext state = multi_context.getBaseContext();
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -111,14 +111,14 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          left_model,
                          pt);
-        uint32_t offset = multi_context.next(curr_y, (int)middle_model.COLOR);
+        uint32_t offset = multi_context.next(curr_y);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
         
     }
     for ( unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        ConstBlockContext state = multi_context.context_.at((int)middle_model.COLOR);
+        ConstBlockContext state = multi_context.getBaseContext();
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -130,13 +130,13 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          middle_model,
                          pt);
-        uint32_t offset = multi_context.next(curr_y, (int)middle_model.COLOR);
+        uint32_t offset = multi_context.next(curr_y);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
     }
     if (block_width > 1) {
-        ConstBlockContext state = multi_context.context_.at((int)middle_model.COLOR);
+        ConstBlockContext state = multi_context.getBaseContext();
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = middle_model.COLOR; // for debug purposes only, not to be used in production

@@ -3,6 +3,7 @@
 #include "memory.hh"
 #include "aligned_block.hh"
 #include "block_context.hh"
+#include <atomic>
 #include <map>
 extern bool g_allow_progressive;
 template<bool force_memory_optimization=false>
@@ -18,6 +19,15 @@ class BlockBasedImageBase {
     BlockBasedImageBase(const BlockBasedImageBase&) = delete;
     BlockBasedImageBase& operator=(const BlockBasedImageBase&) = delete;
 public:
+    BlockBasedImageBase(uint32_t width, uint32_t height, uint32_t nblocks, bool mem_optimized, uint8_t *custom_storage)
+      : memory_optimized_image_(force_memory_optimization) {
+        image_ = nullptr;
+        storage_ = nullptr;
+        width_ = 0;
+        nblocks_ = 0;
+        theoretical_component_height_ = 0;
+	init(width, height, nblocks, mem_optimized, custom_storage);
+    }
     BlockBasedImageBase()
       : memory_optimized_image_(force_memory_optimization) {
         image_ = nullptr;
@@ -42,7 +52,7 @@ public:
     size_t original_height() const {
         return theoretical_component_height_;
     }
-    void init (uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image) {
+    void init(uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image, uint8_t *custom_storage = nullptr) {
         theoretical_component_height_ = height;
         if (force_memory_optimization) {
             always_assert(memory_optimized_image && "MemoryOptimized must match template");
@@ -58,13 +68,20 @@ public:
 #endif
         }
         nblocks_ = nblocks;
-        storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
+	if (custom_storage) {
+	  storage_ = custom_storage;
+	} else {
+	  storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
+	}
         size_t offset = storage_ - (uint8_t*)nullptr;
         if (offset & 31) { //needs alignment adjustment
             image_ = (Block*)(storage_ + 32 - (offset & 31));
         } else { // already aligned
             image_ = (Block*)storage_;
         }
+	if (custom_storage) {
+	  storage_ = nullptr;
+	}
     }
     BlockContext begin(std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
         return {image_, nullptr, num_nonzeros_begin, num_nonzeros_begin + width_};
@@ -149,8 +166,8 @@ public:
         } else {
             it.above = it.cur - width_;
         }
-        ++it.num_nonzeros_here;
-        ++it.num_nonzeros_above;
+        it.num_nonzeros_here += step;
+        it.num_nonzeros_above += step;
         if (!has_left) {
             bool cur_row_first = (it.num_nonzeros_here < it.num_nonzeros_above);
             if (cur_row_first) {
@@ -234,6 +251,9 @@ class BlockBasedImage : public BlockBasedImageBase<false> {
     BlockBasedImage(const BlockBasedImage&) = delete;
     BlockBasedImage& operator=(const BlockBasedImage&) = delete;
 public:
+  BlockBasedImage(uint32_t width, uint32_t height, uint32_t nblocks, bool mem_optimized, uint8_t *custom_storage)
+    : BlockBasedImageBase(width, height, nblocks, mem_optimized, custom_storage) {}
+
     BlockBasedImage() {}
 };
 template<bool force_memory_optimization=false> class BlockBasedImagePerChannel :
@@ -253,26 +273,71 @@ public:
         this->memset(0);
     }
 };
+static std::atomic<std::vector<NeighborSummary> *>gNopNeighbor;
+static uint8_t custom_nop_storage[sizeof(AlignedBlock) * 4 + 31] = {0};
+
 template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockContext {
-public:
-  Sirikata::Array1d<BlockContextType, (size_t)ColorChannel::NumBlockTypes > context_;
-  Sirikata::Array2d<size_t, 2, (size_t)ColorChannel::NumBlockTypes > eostep;
+  enum {
+    NUM_PRIORS = 2
+  };
+  Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1> context_;
+  Sirikata::Array2d<size_t, 2, NUM_PRIORS + 1 > eostep;
   Sirikata::Array1d<BlockBasedImage*,
-		    (uint32_t)ColorChannel::NumBlockTypes> image_data_;
+		    (uint32_t)NUM_PRIORS + 1> image_data_;
+  BlockBasedImage nop_image;
+public:
+  BlockContextType getBaseContext() {
+    return context_.at(0);
+  }
   template<class ColorChan> MultiChannelBlockContext(
 			  int curr_y,
 			  ColorChan original_color,
   			  Sirikata::Array1d<BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> &in_image_data,
 			  Sirikata::Array1d<std::vector<NeighborSummary>,
 					     (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
-			   ) {
+						     ) : nop_image(2, 2, 4, true, custom_nop_storage) {
+    std::vector<NeighborSummary> * nopNeighbor= gNopNeighbor.load();
+    if(!nopNeighbor) {
+      auto * tmp = new std::vector<NeighborSummary>(4);
+      memset(&(*tmp)[0], 0, 4 * sizeof(NeighborSummary));
+      gNopNeighbor.store(tmp);
+      nopNeighbor= gNopNeighbor.load();
+      always_assert(nopNeighbor != nullptr);
+    }
+    static_assert(NUM_PRIORS + 1 <= (int)ColorChannel::NumBlockTypes,
+		  "We need to have room for at least as many priors in max number of channels we support");
+    for (int i = 0; i <= NUM_PRIORS; ++i) {
+      eostep.at(0, i) = 0;
+      eostep.at(1, i) = 0;
+      image_data_.at(i) = &nop_image;
+      context_.at(i) = image_data_.at(i)->off_y(1, nopNeighbor->begin());
+    }
     for (size_t col = 0 ; col < (size_t)ColorChannel::NumBlockTypes; ++col) {
-      size_t fixed_index = col;
-      if (!in_image_data.at(col)) { // if we don't have this channel, fall back to zero
-	fixed_index = 0;
+      BlockBasedImage*cur = &nop_image;
+      std::vector<NeighborSummary>::iterator neighborNonzeros = nopNeighbor->begin();
+      size_t out_index = 0;
+      if ((
+#ifdef REVERSE_CMP
+	  (col <= (size_t)original_color)
+#else
+	  (col >= (size_t)original_color)
+#endif
+	  ) && in_image_data.at(col)) {
+	  cur = in_image_data.at(col);
+	  neighborNonzeros = num_nonzeros_[col].begin();
+	  if (col >= (size_t) original_color) {
+	    out_index = col - (size_t) original_color;
+	  } else {
+	    out_index = (size_t) original_color - col;
+	  }
+      } else {
+	continue;
       }
-      image_data_.at(col) = in_image_data.at(fixed_index);
-      size_t vertical_count = image_data_.at(col)->original_height();
+      if (out_index > NUM_PRIORS) {
+	continue; //no need to record a 3rd prior if we have 4 channels
+      }
+      image_data_.at(out_index) = cur;
+      size_t vertical_count = cur->original_height();
       size_t orig_vertical_count = in_image_data.at(original_color)->original_height();
       size_t vratio = vertical_count / orig_vertical_count;
       size_t voffset = vratio;
@@ -280,35 +345,33 @@ public:
 	voffset -= 1; // one less than the edge of this block
       }
       uint32_t adjusted_curr_y = (curr_y * vertical_count + voffset)/ orig_vertical_count;
-      context_.at(col)
-	= image_data_[col]->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
-				 num_nonzeros_.at((int)fixed_index).begin());
-      size_t horizontal_count = image_data_.at(col)->block_width();
+      context_.at(out_index)
+	= cur->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
+		     neighborNonzeros);
+      size_t horizontal_count = cur->block_width();
       size_t orig_horizontal_count = in_image_data.at((size_t)original_color)->block_width();
       size_t hratio = horizontal_count / orig_horizontal_count;
       if (hratio == 0) {
-	eostep.at(0, col) = 0;
+	eostep.at(0, out_index) = 0;
 	if (2 * vertical_count == orig_vertical_count) {
-	  eostep.at(1, col) = 1;
+	  eostep.at(1, out_index) = 1;
 	} else {
-	  eostep.at(1, col) = 0; // avoid prior if we have > 2x ratio of Y to Cb or Cr
+	  eostep.at(1, out_index) = 0; // avoid prior if we have > 2x ratio of Y to Cb or Cr
+	  // this can happen for the nop image or for a 3:1 ratio
 	}
       } else {
-	eostep.at(0, col) = hratio;
-	eostep.at(1, col) = hratio;
+	eostep.at(0, out_index) = hratio;
+	eostep.at(1, out_index) = hratio;
 	for(size_t off = 1; off < hratio; ++off) { // lets advance to the bottom right edge
-	  image_data_[col]->next(context_.at(col), true, adjusted_curr_y, 1);
+	  cur->next(context_.at(out_index), true, adjusted_curr_y, 1);
 	}
       }
     }
   }
-  template<class ColorChan> int next(int curr_y ,ColorChan original_color) {
+  int next(int curr_y) {
     int retval = 0;
-    for (int i = 0; i < (int)ColorChannel::NumBlockTypes; ++i) {
-      int ret =image_data_[i]->next(context_.at(i), true, curr_y, eostep.at(0, (int)i));
-      if (i == (int)original_color) {
-	retval = ret;
-      }
+    for (int i = NUM_PRIORS; i >= 0; --i) { // we have NUM_PRIORS + 1 entries here
+      retval = image_data_[i]->next(context_.at(i), true, curr_y, eostep.at(0, (int)i));
     }
     return retval;
   }
