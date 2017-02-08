@@ -94,28 +94,12 @@ public:
         retval.min_row_luma_y = (mcu_row) * component_multiple[0];
         retval.next_row_luma_y =  retval.min_row_luma_y + component_multiple[0];
         retval.luma_y = retval.min_row_luma_y;
-        for (uint32_t i =
-               #ifdef REVERSE_CMP
-               0
-               #else
-               num_cmp - 1
-               #endif
-               ; true;
-             #ifdef REVERSE_CMP
-               ++i
-               #else
-               --i
-               #endif
-             ) {
+        for (uint32_t i = (REVERSE_CMP ? 0 : (num_cmp - 1)); true; i += (REVERSE_CMP ? 1: -1)) {
             if (place_within_scan < component_multiple[i]) {
                 retval.component = i;
                 retval.curr_y = mcu_row * component_multiple[i] + place_within_scan;
                 retval.last_row_to_complete_mcu = (place_within_scan + 1 == component_multiple[i] &&
-                                                   #ifdef REVERSE_CMP
-                                                   i == num_cmp - 1
-                                                   #else
-                                                   i == 0
-                                                   #endif
+                                                   (REVERSE_CMP ? (i == num_cmp - 1) : (i == 0))
                                                    );
                 if (retval.curr_y >= int( max_coded_heights[i] ) ) {
                     retval.skip = true;
@@ -135,14 +119,8 @@ public:
             } else {
                 place_within_scan -= component_multiple[i];
             }
-            if (i ==
-                #ifdef REVERSE_CMP
-                num_cmp - 1
-                #else
-                0
-                #endif
-                ) {
-                assert(false);
+            if (i == (REVERSE_CMP ?num_cmp - 1:0)) {
+                always_assert(false);
                 retval.skip = true;
                 retval.done = true;
                 break;

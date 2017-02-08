@@ -111,7 +111,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          left_model,
                          pt);
-        uint32_t offset = multi_context.next(curr_y);
+        uint32_t offset = multi_context.next(0, curr_y);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
@@ -130,7 +130,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          middle_model,
                          pt);
-        uint32_t offset = multi_context.next(curr_y);
+        uint32_t offset = multi_context.next(jpeg_x, curr_y);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }

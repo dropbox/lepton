@@ -21,7 +21,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        int offset = multi_context.next(curr_y);
+        int offset = multi_context.next(0, curr_y);
         if (offset >= component_size_in_block) {
             return;
         }
@@ -32,7 +32,7 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
-        int offset = multi_context.next(curr_y);
+        int offset = multi_context.next(jpeg_x, curr_y);
         if (offset >= component_size_in_block) {
             return;
         }

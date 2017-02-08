@@ -275,19 +275,26 @@ public:
 };
 static std::atomic<std::vector<NeighborSummary> *>gNopNeighbor;
 static uint8_t custom_nop_storage[sizeof(AlignedBlock) * 4 + 31] = {0};
-
+enum {
+  // if this is true, then luma is used to seed priors for the color channels instead
+  // of vice versa
+  REVERSE_CMP = 0
+};
 template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockContext {
   enum {
     NUM_PRIORS = 2
   };
   Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1> context_;
-  Sirikata::Array2d<size_t, 2, NUM_PRIORS + 1 > eostep;
+  Sirikata::Array2d<uint32_t, 2, NUM_PRIORS + 1 > eostep;
   Sirikata::Array1d<BlockBasedImage*,
 		    (uint32_t)NUM_PRIORS + 1> image_data_;
   BlockBasedImage nop_image;
 public:
   BlockContextType getBaseContext() {
     return context_.at(0);
+  }
+  BlockContextType getPrior(int which) {
+    return context_.at(1 + which);
   }
   template<class ColorChan> MultiChannelBlockContext(
 			  int curr_y,
@@ -317,12 +324,10 @@ public:
       std::vector<NeighborSummary>::iterator neighborNonzeros = nopNeighbor->begin();
       size_t out_index = 0;
       if ((
-#ifdef REVERSE_CMP
-	  (col <= (size_t)original_color)
-#else
-	  (col >= (size_t)original_color)
-#endif
-	  ) && in_image_data.at(col)) {
+	   (REVERSE_CMP && col <= (size_t)original_color)
+	   ||
+	   (REVERSE_CMP ==0 && col >= (size_t)original_color)
+	   ) && in_image_data.at(col)) {
 	  cur = in_image_data.at(col);
 	  neighborNonzeros = num_nonzeros_[col].begin();
 	  if (col >= (size_t) original_color) {
@@ -368,10 +373,12 @@ public:
       }
     }
   }
-  int next(int curr_y) {
+  int next(int curr_x, int curr_y) {
+    int oddness = (curr_x & 1);
     int retval = 0;
     for (int i = NUM_PRIORS; i >= 0; --i) { // we have NUM_PRIORS + 1 entries here
-      retval = image_data_[i]->next(context_.at(i), true, curr_y, eostep.at(0, (int)i));
+      //fprintf(stderr,"Prior %d stepping %d\n", i, eostep.at(oddness, i));
+      retval = image_data_[i]->next(context_.at(i), true, curr_y, eostep.at(oddness, i));
     }
     return retval;
   }
