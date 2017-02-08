@@ -14,8 +14,8 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
                          Right& right_model,
                          int curr_y,
                          const UncompressedComponents * const colldata,
-                         Sirikata::Array1d<ConstBlockContext,
-                                           (uint32_t)ColorChannel::NumBlockTypes> &context,
+                         Sirikata::Array1d<std::vector<NeighborSummary>,
+                            (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros,
                          BoolEncoder &bool_encoder);
     void process_row_range(unsigned int thread_id,
                            const UncompressedComponents * const colldata,

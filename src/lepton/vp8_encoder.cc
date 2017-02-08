@@ -85,9 +85,16 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       Right& right_model,
                                       int curr_y,
                                       const UncompressedComponents * const colldata,
-                                      Sirikata::Array1d<ConstBlockContext,
-                                              (uint32_t)ColorChannel::NumBlockTypes> &context,
+                                      Sirikata::Array1d<std::vector<NeighborSummary>,
+                                                        (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros,
                                       BoolEncoder &bool_encoder) {
+    Sirikata::Array1d<ConstBlockContext,
+                      (uint32_t)ColorChannel::NumBlockTypes> context;
+    context[(int)middle_model.COLOR]
+        = colldata->full_component_nosync((int)middle_model.COLOR).off_y(curr_y,
+                                                             num_nonzeros->at((int)middle_model.COLOR).begin());
+    
+
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
         ConstBlockContext state = context.at((int)middle_model.COLOR);
@@ -240,10 +247,6 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
 
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     using namespace Sirikata;
-    Array1d<ConstBlockContext, (uint32_t)ColorChannel::NumBlockTypes> context;
-    for (size_t i = 0; i < context.size(); ++i) {
-        context[i] = colldata->full_component_nosync(i).begin(num_nonzeros->at(i).begin());
-    }
     uint8_t is_top_row[(uint32_t)ColorChannel::NumBlockTypes];
     memset(is_top_row, true, sizeof(is_top_row));
     ProbabilityTablesBase *model = nullptr;
@@ -277,9 +280,11 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
         if (cur_row.luma_y < min_y) {
             continue;
         }
+        /*
         context[cur_row.component]
             = image_data.at(cur_row.component)->off_y(cur_row.curr_y,
                                                       num_nonzeros->at(cur_row.component).begin());
+        */
         // DEBUG only fprintf(stderr, "Thread %d min_y %d - max_y %d cmp[%d] y = %d\n", thread_id, min_y, max_y, (int)component, curr_y);
         int block_width = image_data.at(cur_row.component)->block_width();
         if (is_top_row[cur_row.component]) {
@@ -292,7 +297,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Y>(top),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
                 case BlockType::Cb:
@@ -302,7 +307,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Cb>(top),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
                 case BlockType::Cr:
@@ -312,7 +317,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Cr>(top),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
 #ifdef ALLOW_FOUR_COLORS
@@ -323,7 +328,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Ck>(top),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
 #endif
@@ -337,7 +342,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Y>(midright),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
                 case BlockType::Cb:
@@ -347,7 +352,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Cb>(midright),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
                 case BlockType::Cr:
@@ -357,7 +362,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Cr>(midright),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
 #ifdef ALLOW_FOUR_COLORS
@@ -368,7 +373,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Ck>(midright),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
 #endif
@@ -383,7 +388,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Y>(width_one),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
                 case BlockType::Cb:
@@ -393,7 +398,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Cb>(width_one),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                 break;
                 case BlockType::Cr:
@@ -403,7 +408,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Cr>(width_one),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
 #ifdef ALLOW_FOUR_COLORS
@@ -414,7 +419,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                             std::get<(int)BlockType::Ck>(width_one),
                             cur_row.curr_y,
                             colldata,
-                            context,
+                            num_nonzeros,
                             *bool_encoder);
                     break;
 #endif
