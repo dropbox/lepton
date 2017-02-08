@@ -253,5 +253,63 @@ public:
         this->memset(0);
     }
 };
-
+template<bool force_memory_optimization> class MultiChannelBlockContext {
+public:
+  Sirikata::Array1d<BlockContext, (size_t)ColorChannel::NumBlockTypes > context_;
+  Sirikata::Array2d<size_t, 2, (size_t)ColorChannel::NumBlockTypes > eostep;
+  Sirikata::Array1d<BlockBasedImageBase<force_memory_optimization> *,
+		    (uint32_t)ColorChannel::NumBlockTypes> image_data_;
+  template<class ColorChan> MultiChannelBlockContext(int curr_y,
+			   ColorChan original_color,
+			   BlockBasedImagePerChannel<force_memory_optimization> &in_image_data,
+			   Sirikata::Array1d<std::vector<NeighborSummary>,
+						     (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
+			   ) {
+    for (size_t col = 0 ; col < (size_t)ColorChannel::NumBlockTypes; ++col) {
+      size_t fixed_index = col;
+      if (!in_image_data.at(col)) { // if we don't have this channel, fall back to zero
+	fixed_index = 0;
+      }
+      image_data_.at(col) = in_image_data.at(fixed_index);
+      size_t vertical_count = image_data_.at(col)->original_height();
+      size_t orig_vertical_count = in_image_data.at(original_color)->original_height();
+      size_t vratio = vertical_count / orig_vertical_count;
+      size_t voffset = vratio;
+      if (vratio) {
+	voffset -= 1; // one less than the edge of this block
+      }
+      uint32_t adjusted_curr_y = (curr_y * vertical_count + voffset)/ orig_vertical_count;
+      context_.at(col)
+	= image_data_[col]->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
+				 num_nonzeros_.at((int)fixed_index).begin());
+      size_t horizontal_count = image_data_.at(col)->block_width();
+      size_t orig_horizontal_count = in_image_data.at((size_t)original_color)->block_width();
+      size_t hratio = horizontal_count / orig_horizontal_count;
+      if (hratio == 0) {
+	eostep.at(0, col) = 0;
+	if (2 * vertical_count == orig_vertical_count) {
+	  eostep.at(1, col) = 1;
+	} else {
+	  eostep.at(1, col) = 0; // avoid prior if we have > 2x ratio of Y to Cb or Cr
+	}
+      } else {
+	eostep.at(0, col) = hratio;
+	eostep.at(1, col) = hratio;
+	for(size_t off = 1; off < hratio; ++off) { // lets advance to the bottom right edge
+	  image_data_[col]->next(context_.at(col), true, adjusted_curr_y, 1);
+	}
+      }
+    }
+  }
+  template<class ColorChan> int next(int curr_y ,ColorChan original_color) {
+    int retval = 0;
+    for (int i = 0; i < (int)ColorChannel::NumBlockTypes; ++i) {
+      int ret =image_data_[i]->next(context_.at(i), true, curr_y, eostep.at(0, (int)i));
+      if (i == (int)original_color) {
+	retval = ret;
+      }
+    }
+    return retval;
+  }
+};
 #endif

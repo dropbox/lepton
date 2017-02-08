@@ -13,79 +13,32 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           int curr_y,
                                           BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           int component_size_in_block) {
+    MultiChannelBlockContext<force_memory_optimization> multi_context(curr_y, middle_model.COLOR, image_data, num_nonzeros_);
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
-    Sirikata::Array1d<BlockContext, (size_t)ColorChannel::NumBlockTypes > context_;
-    Sirikata::Array2d<size_t, 2, (size_t)ColorChannel::NumBlockTypes > eostep;
-    for (size_t col_index = 0 ; col_index < (size_t)ColorChannel::NumBlockTypes; ++col_index) {
-      size_t col = col_index;
-      if (!image_data.at(col_index)) { // if we don't have this channel, fall back to zero
-	col = 0;
-      }
-      size_t vertical_count = image_data.at(col)->original_height();
-      size_t orig_vertical_count = image_data.at((size_t)middle_model.COLOR)->original_height();
-      size_t vratio = vertical_count / orig_vertical_count;
-      size_t voffset = vratio;
-      if (vratio) {
-	voffset -= 1; // one less than the edge of this block
-      }
-      uint32_t adjusted_curr_y = (curr_y * vertical_count + voffset)/ orig_vertical_count;
-      context_.at(col_index)
-	= image_data[col]->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
-				 num_nonzeros_.at((int)col).begin());
-      size_t horizontal_count = image_data.at(col)->block_width();
-      size_t orig_horizontal_count = image_data.at((size_t)middle_model.COLOR)->block_width();
-      size_t hratio = horizontal_count / orig_horizontal_count;
-      if (hratio == 0) {
-	eostep.at(0, col) = 0;
-	if (2 * vertical_count == orig_vertical_count) {
-	  eostep.at(1, col) = 1;
-	} else {
-	  eostep.at(1, col) = 0; // avoid prior if we have > 2x ratio of Y to Cb or Cr
-	}
-      } else {
-	eostep.at(0, col) = hratio;
-	eostep.at(1, col) = hratio;
-	for(size_t off = 1; off < hratio; ++off) { // lets advance to the bottom right edge
-	  image_data[col]->next(context_.at(col), true, adjusted_curr_y, 1);
-	}
-      }
-    }
     if (block_width > 0) {
-        BlockContext context = context_.at((int)middle_model.COLOR);
+        BlockContext context = multi_context.context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
-        int offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true, curr_y, 1);
+        int offset = multi_context.next(curr_y, middle_model.COLOR);
         if (offset >= component_size_in_block) {
             return;
         }
-	for (int i = 0; i < (int)ColorChannel::NumBlockTypes; ++i) {
-	  if (i != (int)middle_model.COLOR) {
-	    image_data[middle_model.COLOR]->next(context_.at(i), true, curr_y, eostep.at(0, (int)i));
-	  }
-	}
     }
     for (unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
-        BlockContext context = context_.at((int)middle_model.COLOR);
+        BlockContext context = multi_context.context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
-        int offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR),
-							  true,
-							  curr_y, 1);
+        int offset = multi_context.next(curr_y, middle_model.COLOR);
         if (offset >= component_size_in_block) {
             return;
         }
-	for (int i = 0; i < (int)ColorChannel::NumBlockTypes; ++i) {
-	  if (i != (int)middle_model.COLOR) {
-	    image_data[middle_model.COLOR]->next(context_.at(i), true, curr_y, eostep.at(jpeg_x & 1, (int)i));
-	  }
-	}
     }
     if (block_width > 1) {
-        BlockContext context = context_.at((int)middle_model.COLOR);
+        BlockContext context = multi_context.context_.at((int)middle_model.COLOR);
         parse_tokens(context,
                      bool_decoder_,
                      right_model,
