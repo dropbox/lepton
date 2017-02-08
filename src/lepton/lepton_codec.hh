@@ -67,7 +67,7 @@ public:
     template<class BlockBasedImagePerChannels>
     static RowSpec row_spec_from_index(uint32_t decode_index,
                                        const BlockBasedImagePerChannels& image_data,
-				       int mcuv, // number of mcus
+                                       int mcuv, // number of mcus
                                        Sirikata::Array1d<uint32_t,
                                                          (size_t)ColorChannel
                                                          ::NumBlockTypes> max_coded_heights) {
@@ -77,6 +77,9 @@ public:
         uint32_t component_multiple[(uint32_t)ColorChannel::NumBlockTypes] = {0};
         uint32_t mcu_multiple = 0;
         for (uint32_t i = 0; i < num_cmp; ++i) {
+            if (num_cmp > i && !image_data[i]) {
+                num_cmp = i;
+            }
             heights[i] = image_data[i] ? image_data[i]->original_height() : 0;
             component_multiple[i] = heights[i] / mcuv;
             mcu_multiple += component_multiple[i];
@@ -91,12 +94,29 @@ public:
         retval.min_row_luma_y = (mcu_row) * component_multiple[0];
         retval.next_row_luma_y =  retval.min_row_luma_y + component_multiple[0];
         retval.luma_y = retval.min_row_luma_y;
-        for (uint32_t i = num_cmp - 1; true; --i) {
+        for (uint32_t i =
+               #ifdef REVERSE_CMP
+               0
+               #else
+               num_cmp - 1
+               #endif
+               ; true;
+             #ifdef REVERSE_CMP
+               ++i
+               #else
+               --i
+               #endif
+             ) {
             if (place_within_scan < component_multiple[i]) {
                 retval.component = i;
                 retval.curr_y = mcu_row * component_multiple[i] + place_within_scan;
-                retval.last_row_to_complete_mcu = (place_within_scan + 1 == component_multiple[i]
-                                                   && i == 0);
+                retval.last_row_to_complete_mcu = (place_within_scan + 1 == component_multiple[i] &&
+                                                   #ifdef REVERSE_CMP
+                                                   i == num_cmp - 1
+                                                   #else
+                                                   i == 0
+                                                   #endif
+                                                   );
                 if (retval.curr_y >= int( max_coded_heights[i] ) ) {
                     retval.skip = true;
                     retval.done = true; // assume true, but if we find something that needs coding, set false
@@ -115,7 +135,13 @@ public:
             } else {
                 place_within_scan -= component_multiple[i];
             }
-            if (i == 0) {
+            if (i ==
+                #ifdef REVERSE_CMP
+                num_cmp - 1
+                #else
+                0
+                #endif
+                ) {
                 assert(false);
                 retval.skip = true;
                 retval.done = true;
