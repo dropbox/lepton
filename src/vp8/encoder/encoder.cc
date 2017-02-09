@@ -193,6 +193,8 @@ void serialize_tokens(EncodeChannelContext chan_context,
                       ProbabilityTables<all_neighbors_present, color> & probability_tables,
                       ProbabilityTablesBase &pt)
 {
+    UniversalPrior uprior;
+    uprior.init(chan_context, color);
     auto context = chan_context.at(0);
     auto shadow_context0 = chan_context.at(1);
     auto shadow_context1 = chan_context.at(2);

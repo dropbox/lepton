@@ -47,9 +47,13 @@ struct UniversalPrior {
   // all the blocks around the block being decoded. Many may be missing
   // (eg LUMA 1,2,3, if the image is 4:4:4 instead of 4:2:2 or 4:1:1)
   Sirikata::Aligned256Array1d<AlignedBlock, NUM_PRIOR_VALUES> raw;
+  struct {
   int16_t neighboring_pixels[16];// do we want edge pixels of other channels? so far no
   uint8_t nz[NUM_PRIOR_VALUES];
   uint8_t cur_nz;
+  int color;
+  int is_x_odd;
+  int is_y_odd;
   uint8_t nz_x;
   uint8_t nz_y;
   uint32_t best_prior;
@@ -57,14 +61,14 @@ struct UniversalPrior {
   uint32_t nz_prior;
   uint32_t nz_scaled;
   uint8_t zigzag_index;
-  int is_x_odd;
-  int is_y_odd;
-  int color;
   int16_t value_so_far;
   int bit_type;
   int bit_index;
+  } z;
   UniversalPrior() {
       raw.memset(0);
+      memset(&z, 0, sizeof(z));
+      /*
       memset(neighboring_pixels, 0, sizeof(neighboring_pixels));
       memset(nz, 0, sizeof(nz));
       cur_nz = 0;
@@ -78,6 +82,47 @@ struct UniversalPrior {
       value_so_far = 0;
       bit_type = 0;
       bit_index = 0;
+      */
+  }
+  template <class BlockContext> void init(const ChannelContext<BlockContext> &input,
+					  BlockType color_channel) {
+    z.color = (int)color_channel;
+    z.is_x_odd = (input.jpeg_x & 1);
+    z.is_y_odd = (input.jpeg_y & 1);
+    z.nz[CUR] = 0;
+    if (input.jpeg_x > 0) {
+      memcpy(z.neighboring_pixels,
+	     input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7(),
+	     sizeof(int16_t) * 8);
+      z.nz[LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
+      raw[LEFT] = input.at(0).left_unchecked();
+    }
+    if (input.jpeg_y > 0) {
+      memcpy(z.neighboring_pixels + 8,
+	     input.at(0).neighbor_context_above_unchecked().horizontal_ptr(),
+	     sizeof(int16_t) * 8);
+      z.nz[ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
+      raw[ABOVE] = input.at(0).above_unchecked();
+    }
+    if (input.jpeg_y > 0 && input.jpeg_x > 0) {
+      raw[ABOVE_LEFT] = input.at(0).above_left_unchecked();
+    }
+    if (input.jpeg_x > 1) {
+      z.nz[LUMA1] = input.at(1).nonzeros_left_7x7_unchecked();
+      raw[LUMA1] = input.at(1).left_unchecked();
+    }
+    if (input.jpeg_y > 1) {
+      z.nz[LUMA2] = input.at(1).nonzeros_above_7x7_unchecked();
+      raw[LUMA2] = input.at(1).above_unchecked();
+    }
+    if (input.jpeg_y > 1 && input.jpeg_x > 1) {
+      z.nz[LUMA3] = input.at(1).nonzeros_above_left_7x7_unchecked();
+      raw[LUMA3] = input.at(1).above_left_unchecked();
+    }
+    raw[LUMA0] = input.at(1).here();
+    z.nz[LUMA0] = input.at(1).num_nonzeros_here->num_nonzeros();
+    raw[CHROMA] = input.at(2).here();
+    z.nz[CHROMA] = input.at(2).num_nonzeros_here->num_nonzeros();
   }
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {

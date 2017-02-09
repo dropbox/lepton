@@ -164,6 +164,12 @@ template <class ABlock> struct MBlockContext {
         // too slow // assert(num_nonzeros_check(*tmp, left_unchecked()));
         return tmp->num_nonzeros();
     }
+    uint8_t nonzeros_above_left_7x7_unchecked() const{
+        std::vector<NeighborSummary>::iterator  tmp = num_nonzeros_above;
+        --tmp;
+        // too slow // assert(num_nonzeros_check(*tmp, left_unchecked()));
+        return tmp->num_nonzeros();
+    }
     const NeighborSummary& neighbor_context_above_unchecked() const{
         // too slow // assert(num_nonzeros_check(*num_nonzeros_above, above_unchecked()));
         return *num_nonzeros_above;
