@@ -196,8 +196,8 @@ void serialize_tokens(EncodeChannelContext chan_context,
     auto context = chan_context.at(0);
     auto shadow_context0 = chan_context.at(1);
     auto shadow_context1 = chan_context.at(2);
-    //auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7_chan(pt, shadow_context0, shadow_context1);
-    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context);
+    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7_chan(pt, shadow_context0, shadow_context1);
+    //auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context);
     int serialized_so_far = 0;
     uint8_t num_nonzeros_7x7 = context.num_nonzeros_here->num_nonzeros();
 #if 0

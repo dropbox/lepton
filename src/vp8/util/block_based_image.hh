@@ -297,7 +297,7 @@ public:
     return context_.at(1 + which);
   }
   void print(int curr_x, int curr_y) const {
-      return; // this was useful to debug any differences
+      return;
       for (int i = 1; i <= NUM_PRIORS; ++i) {
           auto ctx = context_.at(i);
           auto block = ctx.here();
@@ -342,7 +342,7 @@ public:
            (REVERSE_CMP && col <= (size_t)original_color)
            ||
            (REVERSE_CMP ==0 && col >= (size_t)original_color)
-           ) && in_image_data.at(col)) {
+               ) && in_image_data.at(col) && in_image_data.at(col)->blocks_allocated()) {
           cur = in_image_data.at(col);
           neighborNonzeros = num_nonzeros_[col].begin();
           if (col >= (size_t) original_color) {
