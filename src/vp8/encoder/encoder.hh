@@ -2,7 +2,7 @@
 #ifndef ENCODER_HH
 #define ENCODER_HH
 #include "model.hh"
-typedef Sirikata::Array1d<ConstBlockContext, 3> EncodeChannelContext;
+typedef ChannelContext<ConstBlockContext> EncodeChannelContext;
 template<bool all_neighbors_present, BlockType color>
 void serialize_tokens(EncodeChannelContext context,
                       BoolEncoder & encoder,

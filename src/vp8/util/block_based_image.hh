@@ -280,21 +280,30 @@ enum {
   // of vice versa
   REVERSE_CMP = 0
 };
+enum {
+  NUM_PRIORS = 2
+};
+template<class BlockContextType> class ChannelContext {
+public:
+  Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1> context;
+  uint32_t jpeg_x;
+  uint32_t jpeg_y;
+  BlockContextType& at(uint32_t i) {
+    return context.at(i);
+  }
+  const BlockContextType& at(uint32_t i) const {
+    return context.at(i);
+  }
+};
 template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockContext {
-  enum {
-    NUM_PRIORS = 2
-  };
-  Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1> context_;
+  ChannelContext<BlockContextType> context_;
   Sirikata::Array2d<uint32_t, 2, NUM_PRIORS + 1 > eostep;
   Sirikata::Array1d<BlockBasedImage*,
                     (uint32_t)NUM_PRIORS + 1> image_data_;
   BlockBasedImage nop_image;
 public:
-  Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1>& getContext() {
+  ChannelContext<BlockContextType>& getContext() {
     return context_;
-  }
-  BlockContextType getPrior(int which) {
-    return context_.at(1 + which);
   }
   void print(int curr_x, int curr_y) const {
       return;
@@ -318,6 +327,8 @@ public:
                           Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
                                                      ) : nop_image(2, 2, 4, true, custom_nop_storage) {
+    context_.jpeg_x = 0;
+    context_.jpeg_y = curr_y;
     std::vector<NeighborSummary> * nopNeighbor= gNopNeighbor.load();
     if(!nopNeighbor) {
       auto * tmp = new std::vector<NeighborSummary>(4);
@@ -345,11 +356,15 @@ public:
                ) && in_image_data.at(col) && in_image_data.at(col)->blocks_allocated()) {
           cur = in_image_data.at(col);
           neighborNonzeros = num_nonzeros_[col].begin();
-          if (col >= (size_t) original_color) {
-            out_index = col - (size_t) original_color;
-          } else {
-            out_index = (size_t) original_color - col;
-          }
+	  if (original_color == 0) {
+	    out_index = col;
+          } else if (col == 0) {
+	    out_index = 1; // make sure luma comes first
+	  } else if (col == original_color) {
+	    out_index = 0;
+	  } else {
+	    out_index = 2;
+	  }
       } else {
         continue;
       }
@@ -389,6 +404,8 @@ public:
     }
   }
   int next(int curr_x, int curr_y) {
+    context_.jpeg_x = curr_x;
+    context_.jpeg_y = curr_y;
     int oddness = (curr_x & 1);
     int retval = 0;
     for (int i = NUM_PRIORS; i >= 0; --i) { // we have NUM_PRIORS + 1 entries here

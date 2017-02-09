@@ -31,7 +31,55 @@ enum TableParams : unsigned int {
 };
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
-
+struct UniversalPrior {
+  enum PRIOR_VALUES {
+    CUR,
+    LEFT,
+    ABOVE,
+    ABOVE_LEFT,
+    LUMA0,
+    LUMA1,// <-- not yet implemented
+    LUMA2,// <-- not yet implemented
+    LUMA3,// <-- not yet implemented
+    CHROMA,
+    NUM_PRIOR_VALUES
+  };
+  // all the blocks around the block being decoded. Many may be missing
+  // (eg LUMA 1,2,3, if the image is 4:4:4 instead of 4:2:2 or 4:1:1)
+  Sirikata::Aligned256Array1d<AlignedBlock, NUM_PRIOR_VALUES> raw;
+  int16_t neighboring_pixels[16];// do we want edge pixels of other channels? so far no
+  uint8_t nz[NUM_PRIOR_VALUES];
+  uint8_t cur_nz;
+  uint8_t nz_x;
+  uint8_t nz_y;
+  uint32_t best_prior;
+  uint32_t best_prior_scaled;
+  uint32_t nz_prior;
+  uint32_t nz_scaled;
+  uint8_t zigzag_index;
+  int is_x_odd;
+  int is_y_odd;
+  int color;
+  int16_t value_so_far;
+  int bit_type;
+  int bit_index;
+  UniversalPrior() {
+      raw.memset(0);
+      memset(neighboring_pixels, 0, sizeof(neighboring_pixels));
+      memset(nz, 0, sizeof(nz));
+      cur_nz = 0;
+      nz_x = 0;
+      nz_y = 0;
+      best_prior = best_prior_scaled = nz_prior = nz_scaled = 0;
+      zigzag_index = 0;
+      is_x_odd = 0;
+      is_y_odd = 0;
+      color = 0;
+      value_so_far = 0;
+      bit_type = 0;
+      bit_index = 0;
+  }
+};
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
     auto end = branches.end();
