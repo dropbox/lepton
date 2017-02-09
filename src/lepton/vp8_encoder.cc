@@ -90,7 +90,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                                       BoolEncoder &bool_encoder) {
     Sirikata::Array1d<const BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> channels;
     for (uint32_t i = 0; i < (uint32_t)ColorChannel::NumBlockTypes; ++i) {
-        channels.at(i) = &colldata->full_component_nosync((int)middle_model.COLOR);
+        channels.at(i) = &colldata->full_component_nosync(i);
     }
     MultiChannelBlockContext<const BlockBasedImage, ConstBlockContext> multi_context(curr_y,
                                                   middle_model.COLOR,
@@ -99,7 +99,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
 
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
-        ConstBlockContext state = multi_context.getBaseContext();
+        const ConstBlockContext &state = multi_context.getBaseContext();
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -111,6 +111,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          left_model,
                          pt);
+        multi_context.print(0, curr_y);
         uint32_t offset = multi_context.next(0, curr_y);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
@@ -118,7 +119,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         
     }
     for ( unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        ConstBlockContext state = multi_context.getBaseContext();
+        const ConstBlockContext &state = multi_context.getBaseContext();
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
@@ -130,13 +131,14 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          middle_model,
                          pt);
+        multi_context.print(jpeg_x, curr_y);
         uint32_t offset = multi_context.next(jpeg_x, curr_y);
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
     }
     if (block_width > 1) {
-        ConstBlockContext state = multi_context.getBaseContext();
+        const ConstBlockContext &state = multi_context.getBaseContext();
         const AlignedBlock &block = state.here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = middle_model.COLOR; // for debug purposes only, not to be used in production
@@ -148,6 +150,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
                          bool_encoder,
                          right_model,
                          pt);
+        multi_context.print(block_width -1, curr_y);
     }
 }
 uint32_t aligned_block_cost(const AlignedBlock &block) {

@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <immintrin.h>
 #include <tmmintrin.h>
+#include "../util/memory.hh"
 #include "../util/mm_mullo_epi32.hh"
 
 #ifdef _WIN32
@@ -84,7 +85,7 @@ inline uint8_t uint16log2(uint16_t v) {
     return 31 - __builtin_clz((uint32_t)v);
 }
 inline uint8_t nonzero_bit_length(uint16_t v) {
-    assert(v);
+    dev_assert(v);
     return 32 - __builtin_clz((uint32_t)v);
 }
 inline uint8_t uint16bit_length(uint16_t v) {
@@ -313,7 +314,7 @@ inline uint32_t slow_divide18bit_by_10bit(uint32_t num, uint16_t denom) {
 #if 0
     uint64_t m = DivisorMultipliers[denom];
     int log2d = k16log2(denom);
-    //assert(log2d==DivisorAndLog2Table[denom].len);
+    //dev_assert(log2d==DivisorAndLog2Table[denom].len);
 #else
     auto dl = DivisorAndLog2Table[denom];
     uint64_t m = dl.divisor;
@@ -322,9 +323,9 @@ inline uint32_t slow_divide18bit_by_10bit(uint32_t num, uint16_t denom) {
     uint32_t t = (m * num) >> log_max_numerator;
     uint32_t n_minus_t = num - t;
     uint32_t t_plus_shr = t + (n_minus_t >> 1);
-    //assert(uint16bit_length(denom) - 1 == log2d);
+    //dev_assert(uint16bit_length(denom) - 1 == log2d);
     uint32_t retval = t_plus_shr >> (log2d);
-    //assert(num / denom == retval);
+    //dev_assert(num / denom == retval);
     return retval;
 
 }

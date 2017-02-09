@@ -227,7 +227,7 @@ public:
 #else
             offset = offset % (width_ << 1);
 #endif
-            assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
+            dev_assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
         } else if (offset >= nblocks_) {
             custom_exit(ExitCode::OOM);
         }
@@ -240,7 +240,7 @@ public:
 #else
             offset = offset % (width_ << 1);
 #endif
-            assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
+            dev_assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
         } else if (__builtin_expect(offset >= nblocks_, 0)) {
             custom_exit(ExitCode::OOM);
         }
@@ -290,11 +290,26 @@ template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockC
 		    (uint32_t)NUM_PRIORS + 1> image_data_;
   BlockBasedImage nop_image;
 public:
-  BlockContextType getBaseContext() {
+  BlockContextType& getBaseContext() {
     return context_.at(0);
   }
   BlockContextType getPrior(int which) {
     return context_.at(1 + which);
+  }
+  void print(int curr_x, int curr_y) const {
+      return; // this was useful to debug any differences
+      for (int i = 1; i <= NUM_PRIORS; ++i) {
+          auto ctx = context_.at(i);
+          auto block = ctx.here();
+          auto nz = *ctx.num_nonzeros_here;
+          fprintf(stderr, "(%d,%d) NZ: %d/%d [%d %d %d %d...] ft[%d %d %d %d]\n",
+                  curr_x, curr_y,
+                  (int) nz.num_nonzeros_,
+                  (int)block.recalculate_coded_length(),
+                  (int)nz.edge_pixels[0], (int)nz.edge_pixels[1], (int)nz.edge_pixels[8], (int)nz.edge_pixels[9],
+                  (int)block.dc(), (int)block.coefficients_raster(1),(int)block.coefficients_raster(8),(int)block.coefficients_raster(9));
+          
+      }
   }
   template<class ColorChan> MultiChannelBlockContext(
 			  int curr_y,

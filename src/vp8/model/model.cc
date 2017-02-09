@@ -93,7 +93,7 @@ void set_branch_range_identity(Branch * start, Branch * end) {
         write_cursor += 3;
     }
 #endif
-    assert(all_branches_identity(start, end));
+    dev_assert(all_branches_identity(start, end));
 }
 
 #ifdef _WIN32

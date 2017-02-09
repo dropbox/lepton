@@ -16,33 +16,36 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
   MultiChannelBlockContext<BlockBasedImageBase<force_memory_optimization>, BlockContext> multi_context(curr_y, middle_model.COLOR, image_data, num_nonzeros_);
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
     if (block_width > 0) {
-        BlockContext context = multi_context.getBaseContext();
+        BlockContext &context = multi_context.getBaseContext();
         parse_tokens(context,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
+        multi_context.print(0, curr_y);
         int offset = multi_context.next(0, curr_y);
         if (offset >= component_size_in_block) {
             return;
         }
     }
     for (unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
-        BlockContext context = multi_context.getBaseContext();
+        BlockContext &context = multi_context.getBaseContext();
         parse_tokens(context,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
+        multi_context.print(jpeg_x, curr_y);
         int offset = multi_context.next(jpeg_x, curr_y);
         if (offset >= component_size_in_block) {
             return;
         }
     }
     if (block_width > 1) {
-        BlockContext context = multi_context.getBaseContext();
+        BlockContext &context = multi_context.getBaseContext();
         parse_tokens(context,
                      bool_decoder_,
                      right_model,
                      model_);
+        multi_context.print(block_width - 1, curr_y);
     }
 }
 #ifdef ALLOW_FOUR_COLORS
