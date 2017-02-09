@@ -167,7 +167,10 @@ void parse_tokens(DecodeChannelContext chan_context,
                   ProbabilityTables<all_neighbors_present, color> & probability_tables,
                   ProbabilityTablesBase &pt) {
     BlockContext context = chan_context.at(0);
+    BlockContext shadow_context0 = chan_context.at(1);
+    BlockContext shadow_context1 = chan_context.at(2);
     context.here().bzero();
+    //auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7_chan(pt, shadow_context0.copy(), shadow_context1.copy());
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context.copy());
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;

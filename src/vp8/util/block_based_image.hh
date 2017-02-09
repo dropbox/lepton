@@ -68,20 +68,20 @@ public:
 #endif
         }
         nblocks_ = nblocks;
-	if (custom_storage) {
-	  storage_ = custom_storage;
-	} else {
-	  storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
-	}
+        if (custom_storage) {
+          storage_ = custom_storage;
+        } else {
+          storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
+        }
         size_t offset = storage_ - (uint8_t*)nullptr;
         if (offset & 31) { //needs alignment adjustment
             image_ = (Block*)(storage_ + 32 - (offset & 31));
         } else { // already aligned
             image_ = (Block*)storage_;
         }
-	if (custom_storage) {
-	  storage_ = nullptr;
-	}
+        if (custom_storage) {
+          storage_ = nullptr;
+        }
     }
     BlockContext begin(std::vector<NeighborSummary>::iterator num_nonzeros_begin) {
         return {image_, nullptr, num_nonzeros_begin, num_nonzeros_begin + width_};
@@ -287,7 +287,7 @@ template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockC
   Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1> context_;
   Sirikata::Array2d<uint32_t, 2, NUM_PRIORS + 1 > eostep;
   Sirikata::Array1d<BlockBasedImage*,
-		    (uint32_t)NUM_PRIORS + 1> image_data_;
+                    (uint32_t)NUM_PRIORS + 1> image_data_;
   BlockBasedImage nop_image;
 public:
   Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1>& getContext() {
@@ -312,12 +312,12 @@ public:
       }
   }
   template<class ColorChan> MultiChannelBlockContext(
-			  int curr_y,
-			  ColorChan original_color,
-  			  Sirikata::Array1d<BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> &in_image_data,
-			  Sirikata::Array1d<std::vector<NeighborSummary>,
-					     (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
-						     ) : nop_image(2, 2, 4, true, custom_nop_storage) {
+                          int curr_y,
+                          ColorChan original_color,
+                            Sirikata::Array1d<BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> &in_image_data,
+                          Sirikata::Array1d<std::vector<NeighborSummary>,
+                                             (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
+                                                     ) : nop_image(2, 2, 4, true, custom_nop_storage) {
     std::vector<NeighborSummary> * nopNeighbor= gNopNeighbor.load();
     if(!nopNeighbor) {
       auto * tmp = new std::vector<NeighborSummary>(4);
@@ -327,7 +327,7 @@ public:
       always_assert(nopNeighbor != nullptr);
     }
     static_assert(NUM_PRIORS + 1 <= (int)ColorChannel::NumBlockTypes,
-		  "We need to have room for at least as many priors in max number of channels we support");
+                  "We need to have room for at least as many priors in max number of channels we support");
     for (int i = 0; i <= NUM_PRIORS; ++i) {
       eostep.at(0, i) = 0;
       eostep.at(1, i) = 0;
@@ -339,22 +339,22 @@ public:
       std::vector<NeighborSummary>::iterator neighborNonzeros = nopNeighbor->begin();
       size_t out_index = 0;
       if ((
-	   (REVERSE_CMP && col <= (size_t)original_color)
-	   ||
-	   (REVERSE_CMP ==0 && col >= (size_t)original_color)
-	   ) && in_image_data.at(col)) {
-	  cur = in_image_data.at(col);
-	  neighborNonzeros = num_nonzeros_[col].begin();
-	  if (col >= (size_t) original_color) {
-	    out_index = col - (size_t) original_color;
-	  } else {
-	    out_index = (size_t) original_color - col;
-	  }
+           (REVERSE_CMP && col <= (size_t)original_color)
+           ||
+           (REVERSE_CMP ==0 && col >= (size_t)original_color)
+           ) && in_image_data.at(col)) {
+          cur = in_image_data.at(col);
+          neighborNonzeros = num_nonzeros_[col].begin();
+          if (col >= (size_t) original_color) {
+            out_index = col - (size_t) original_color;
+          } else {
+            out_index = (size_t) original_color - col;
+          }
       } else {
-	continue;
+        continue;
       }
       if (out_index > NUM_PRIORS) {
-	continue; //no need to record a 3rd prior if we have 4 channels
+        continue; //no need to record a 3rd prior if we have 4 channels
       }
       image_data_.at(out_index) = cur;
       size_t vertical_count = cur->original_height();
@@ -362,29 +362,29 @@ public:
       size_t vratio = vertical_count / orig_vertical_count;
       size_t voffset = vratio;
       if (vratio) {
-	voffset -= 1; // one less than the edge of this block
+        voffset -= 1; // one less than the edge of this block
       }
       uint32_t adjusted_curr_y = (curr_y * vertical_count + voffset)/ orig_vertical_count;
       context_.at(out_index)
-	= cur->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
-		     neighborNonzeros);
+        = cur->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
+                     neighborNonzeros);
       size_t horizontal_count = cur->block_width();
       size_t orig_horizontal_count = in_image_data.at((size_t)original_color)->block_width();
       size_t hratio = horizontal_count / orig_horizontal_count;
       if (hratio == 0) {
-	eostep.at(0, out_index) = 0;
-	if (2 * vertical_count == orig_vertical_count) {
-	  eostep.at(1, out_index) = 1;
-	} else {
-	  eostep.at(1, out_index) = 0; // avoid prior if we have > 2x ratio of Y to Cb or Cr
-	  // this can happen for the nop image or for a 3:1 ratio
-	}
+        eostep.at(0, out_index) = 0;
+        if (2 * vertical_count == orig_vertical_count) {
+          eostep.at(1, out_index) = 1;
+        } else {
+          eostep.at(1, out_index) = 0; // avoid prior if we have > 2x ratio of Y to Cb or Cr
+          // this can happen for the nop image or for a 3:1 ratio
+        }
       } else {
-	eostep.at(0, out_index) = hratio;
-	eostep.at(1, out_index) = hratio;
-	for(size_t off = 1; off < hratio; ++off) { // lets advance to the bottom right edge
-	  cur->next(context_.at(out_index), true, adjusted_curr_y, 1);
-	}
+        eostep.at(0, out_index) = hratio;
+        eostep.at(1, out_index) = hratio;
+        for(size_t off = 1; off < hratio; ++off) { // lets advance to the bottom right edge
+          cur->next(context_.at(out_index), true, adjusted_curr_y, 1);
+        }
       }
     }
   }

@@ -423,6 +423,20 @@ public:
     INSTANTIATE_TEMPLATE_METHOD(40)
     INSTANTIATE_TEMPLATE_METHOD(48)
     INSTANTIATE_TEMPLATE_METHOD(56)
+
+    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7_chan(ProbabilityTablesBase &pt,
+                                                                    const ConstBlockContext chan0,
+                                                                    const ConstBlockContext chan1) {
+
+        uint8_t num_nonzeros0 = chan0.num_nonzeros_here->num_nonzeros();
+        ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
+        uint8_t num_nonzeros1 = chan1.num_nonzeros_here->num_nonzeros();
+        ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
+        uint8_t num_nonzeros_context = (num_nonzeros0 + num_nonzeros1 + 2) / 4;
+        return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
+                                                      num_nonzeros_to_bin(num_nonzeros_context));
+    }
+
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(ProbabilityTablesBase &pt,
                                                                const ConstBlockContext block) {
         uint8_t num_nonzeros_above = 0;
