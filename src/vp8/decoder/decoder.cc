@@ -2,6 +2,7 @@
 #include "boolreader.hh"
 #include "model.hh"
 #include "../../lepton/idct.hh"
+#include "decoder.hh"
 using namespace std;
 
 
@@ -26,13 +27,13 @@ enum {
 
 template<bool all_neighbors_present, BlockType color,
          bool horizontal>
-void decode_one_edge(BlockContext mcontext,
+void decode_one_edge(DecodeChannelContext chan_context,
                  BoolDecoder& decoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t est_eob,
                  ProbabilityTablesBase& pt) {
 
-    ConstBlockContext context = mcontext.copy();
+    ConstBlockContext context = chan_context.at(0).copy();
     auto prob_edge_eob = horizontal
         ? probability_tables.x_nonzero_counts_8x1(pt, est_eob,
                                                   num_nonzeros_7x7)
@@ -132,12 +133,12 @@ void decode_one_edge(BlockContext mcontext,
                 coef = -coef;
             }
         }
-        mcontext.here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
+        chan_context.at(0).here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
     }
 }
 
 template<bool all_neighbors_present, BlockType color>
-void decode_edge(BlockContext mcontext,
+void decode_edge(DecodeChannelContext mcontext,
                  BoolDecoder& decoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
@@ -161,10 +162,11 @@ void decode_edge(BlockContext mcontext,
 
 
 template<bool all_neighbors_present, BlockType color>
-void parse_tokens(BlockContext context,
+void parse_tokens(DecodeChannelContext chan_context,
                   BoolDecoder& decoder,
                   ProbabilityTables<all_neighbors_present, color> & probability_tables,
                   ProbabilityTablesBase &pt) {
+    BlockContext context = chan_context.at(0);
     context.here().bzero();
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context.copy());
     uint8_t num_nonzeros_7x7 = 0;
@@ -238,7 +240,7 @@ void parse_tokens(BlockContext context,
 #endif
         }
     }
-    decode_edge(context,
+    decode_edge(chan_context,
                 decoder,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
@@ -309,13 +311,13 @@ void parse_tokens(BlockContext context,
                                             context.here().dc());
 }
 #ifdef ALLOW_FOUR_COLORS
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
 #endif
 
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void parse_tokens(DecodeChannelContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);

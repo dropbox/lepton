@@ -99,14 +99,14 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
 
     uint32_t block_width = colldata->full_component_nosync((int)middle_model.COLOR).block_width();
     if (block_width > 0) {
-        const ConstBlockContext &state = multi_context.getBaseContext();
-        const AlignedBlock &block = state.here();
+        const auto &state = multi_context.getContext();
+        const AlignedBlock &block = state.at(0).here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = 0;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        state.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
+        state.at(0).num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
         serialize_tokens(state,
                          bool_encoder,
                          left_model,
@@ -119,14 +119,14 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         
     }
     for ( unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
-        const ConstBlockContext &state = multi_context.getBaseContext();
-        const AlignedBlock &block = state.here();
+        const auto &state = multi_context.getContext();
+        const AlignedBlock &block = state.at(0).here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = component; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = jpeg_x;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        state.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
+        state.at(0).num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length()); //FIXME set edge pixels too
         serialize_tokens(state,
                          bool_encoder,
                          middle_model,
@@ -138,14 +138,14 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         }
     }
     if (block_width > 1) {
-        const ConstBlockContext &state = multi_context.getBaseContext();
-        const AlignedBlock &block = state.here();
+        const auto &state = multi_context.getContext();
+        const AlignedBlock &block = state.at(0).here();
 #ifdef ANNOTATION_ENABLED
         gctx->cur_cmp = middle_model.COLOR; // for debug purposes only, not to be used in production
         gctx->cur_jpeg_x = block_width - 1;
         gctx->cur_jpeg_y = curr_y;
 #endif
-        state.num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
+        state.at(0).num_nonzeros_here->set_num_nonzeros(block.recalculate_coded_length());
         serialize_tokens(state,
                          bool_encoder,
                          right_model,

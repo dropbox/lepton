@@ -38,11 +38,12 @@ enum {
 
 template<bool all_neighbors_present, BlockType color,
          bool horizontal>
-void encode_one_edge(ConstBlockContext context,
+void encode_one_edge(EncodeChannelContext chan_context,
                  BoolEncoder& encoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t est_eob,
                  ProbabilityTablesBase& pt) {
+    auto context = chan_context.at(0);
     uint8_t num_nonzeros_edge;
     const AlignedBlock &block = context.here();
 
@@ -159,7 +160,7 @@ void encode_one_edge(ConstBlockContext context,
 }
 
 template<bool all_neighbors_present, BlockType color>
-void encode_edge(ConstBlockContext context,
+void encode_edge(EncodeChannelContext context,
                  BoolEncoder& encoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
@@ -187,11 +188,12 @@ int avg_err = 0;
 int ori_err = 0;
 
 template <bool all_neighbors_present, BlockType color>
-void serialize_tokens(ConstBlockContext context,
+void serialize_tokens(EncodeChannelContext chan_context,
                       BoolEncoder& encoder,
                       ProbabilityTables<all_neighbors_present, color> & probability_tables,
                       ProbabilityTablesBase &pt)
 {
+    auto context = chan_context.at(0);
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context);
     int serialized_so_far = 0;
     uint8_t num_nonzeros_7x7 = context.num_nonzeros_here->num_nonzeros();
@@ -274,7 +276,7 @@ void serialize_tokens(ConstBlockContext context,
             }
         }
     }
-    encode_edge(context,
+    encode_edge(chan_context,
                 encoder,
                 probability_tables,
                 num_nonzeros_7x7, eob_x, eob_y,
@@ -392,14 +394,14 @@ void serialize_tokens(ConstBlockContext context,
     }
 }
 #ifdef ALLOW_FOUR_COLORS
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
 #endif
 
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(EncodeChannelContext, BoolEncoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
 

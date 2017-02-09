@@ -290,8 +290,8 @@ template<class BlockBasedImage, class BlockContextType> class MultiChannelBlockC
 		    (uint32_t)NUM_PRIORS + 1> image_data_;
   BlockBasedImage nop_image;
 public:
-  BlockContextType& getBaseContext() {
-    return context_.at(0);
+  Sirikata::Array1d<BlockContextType, NUM_PRIORS + 1>& getContext() {
+    return context_;
   }
   BlockContextType getPrior(int which) {
     return context_.at(1 + which);
