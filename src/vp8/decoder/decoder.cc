@@ -62,7 +62,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
     if (num_nonzeros_edge > 7) {
         custom_exit(ExitCode::STREAM_INCONSISTENT);
     }
-    uprior.update_nonzero_edge(horizontal, num_nonzeros_edge);
+    uprior.set_nonzero_edge(horizontal, num_nonzeros_edge);
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
         ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
@@ -77,8 +77,9 @@ void decode_one_edge(DecodeChannelContext chan_context,
                                                                             num_nonzeros_edge);
             }
         } else {
-            prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
+	    prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
         }
+	uprior.update_by_prior(aligned_block_offset + (lane << log_edge_step), prior);
         auto exp_array = probability_tables.exponent_array_x(pt,
                                                              coord,
                                                              zig15offset,
@@ -217,6 +218,7 @@ void parse_tokens(DecodeChannelContext chan_context,
 #else
             prior = probability_tables.update_coefficient_context7x7(coord, zz, context.copy(), num_nonzeros_left_7x7);
 #endif
+	    uprior.update_by_prior(zz + AlignedBlock::AC_7x7_INDEX, prior);
             auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior);
             uint8_t length;
             bool nonzero = false;
@@ -280,13 +282,22 @@ void parse_tokens(DecodeChannelContext chan_context,
         uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
         uint16_t len_abs_offset_to_closest_edge
           = uint16bit_length(abs(uncertainty2));
+
+
         if (!advanced_dc_prediction) {
             ProbabilityTablesBase::CoefficientContext prior;
 
             prior = probability_tables.update_coefficient_context7x7(0, raster_to_aligned.at(0), context.copy(), num_nonzeros_7x7);
             len_abs_mxm = prior.bsr_best_prior;
             len_abs_offset_to_closest_edge = prior.num_nonzeros_bin;
-        }
+	    uprior.update_by_prior(AlignedBlock::DC_INDEX, prior);
+        } else {
+	  uprior.z.best_prior = uncertainty;
+	  uprior.z.best_prior_scaled = uint16bit_length(abs(uncertainty));
+	  uprior.z.best_prior2 = uncertainty2;
+	  uprior.z.best_prior2_scaled = uint16bit_length(abs(uncertainty2));
+	  uprior.z.zigzag_index = AlignedBlock::DC_INDEX;
+	}
         auto exp_prob = probability_tables.exponent_array_dc(pt,
                                                              len_abs_mxm,
                                                              len_abs_offset_to_closest_edge);

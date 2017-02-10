@@ -56,8 +56,6 @@ struct UniversalPrior {
       int is_y_odd;
       int is_edge; // we probably want to learn different rules if this is an edge
 
-      // populated once we read the 7x7 (along with nz[CUR])
-      uint32_t nz_scaled;
 
       uint8_t num_nonzeros_left;
       uint8_t cur_nz_x; // populated as we read the zero map of the 7x7
@@ -65,8 +63,13 @@ struct UniversalPrior {
       uint8_t num_nz_x_left;
       uint8_t num_nz_y_left;
 
-      uint32_t best_prior;
-      uint32_t best_prior_scaled;
+      int32_t best_prior;
+      int32_t best_prior_scaled;
+      int32_t best_prior2; // only used for DC
+      int32_t best_prior2_scaled; // only used for DC
+      // populated once we read the 7x7 (along with nz[CUR])
+      uint8_t nz_scaled;
+
       uint8_t zigzag_index;
       int16_t value_so_far;
       int bit_type;
@@ -91,29 +94,41 @@ struct UniversalPrior {
       bit_index = 0;
       */
   }
-    void update_coef(uint8_t index, int16_t val) {
-        raw[CUR].raw_data()[index] = val;
+  template<class Prior>void update_by_prior(uint8_t aligned_zz, const Prior&context) {
+    z.zigzag_index = aligned_zz;
+    z.best_prior = context.best_prior;
+    z.best_prior_scaled = context.bsr_best_prior;
+    z.nz_scaled = context.num_nonzeros_bin;
+  }
+  void update_coef(uint8_t index, int16_t val) {
+    raw[CUR].raw_data()[index] = val;
+  }
+  void set_nonzero_edge(bool horizontal, uint8_t num_nonzero_edge) {
+    if (horizontal) {
+      z.num_nz_x_left = z.cur_nz_x = num_nonzero_edge;
+    } else {
+      z.num_nz_y_left = z.cur_nz_y = num_nonzero_edge;
     }
-    void update_nonzero_edge(bool horizontal, uint8_t num_nonzero_edge) {
-        if (horizontal) {
-            z.num_nz_x_left = z.cur_nz_x = num_nonzero_edge;
-        } else {
-            z.num_nz_y_left = z.cur_nz_y = num_nonzero_edge;
-        }
-        
+  }
+  void update_nonzero_edge(bool horizontal, uint8_t lane) {
+    if (horizontal) {
+      z.num_nz_x_left--;
+    } else {
+      z.num_nz_y_left--;
     }
-    void set_nonzeros7x7(uint8_t nz) {
-        z.nz[CUR] = z.num_nonzeros_left = nz;
+  }
+  void set_nonzeros7x7(uint8_t nz) {
+    z.nz[CUR] = z.num_nonzeros_left = nz;
+  }
+  void update_nonzero(uint8_t bx, uint8_t by) {
+    z.num_nonzeros_left  -= 1;
+    if (bx > z.cur_nz_x) {
+      z.cur_nz_x = bx;
     }
-    void update_nonzero(uint8_t bx, uint8_t by) {
-        z.num_nonzeros_left  -= 1;
-        if (bx > z.cur_nz_x) {
-            z.cur_nz_x = bx;
-        }
-        if (by > z.cur_nz_y) {
-            z.cur_nz_y = by;
-        }
+    if (by > z.cur_nz_y) {
+      z.cur_nz_y = by;
     }
+  }
   template <class BlockContext> void init(const ChannelContext<BlockContext> &input,
 					  BlockType color_channel) {
     z.color = (int)color_channel;
