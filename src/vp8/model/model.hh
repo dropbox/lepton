@@ -637,7 +637,8 @@ public:
 
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7_chan(ProbabilityTablesBase &pt,
                                                                     const ConstBlockContext chan0,
-                                                                    const ConstBlockContext chan1) {
+                                                                    const ConstBlockContext chan1,
+                                                                    const UniversalPrior&uprior) {
 
         uint8_t num_nonzeros0 = chan0.num_nonzeros_here->num_nonzeros();
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
@@ -649,7 +650,8 @@ public:
     }
 
     Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(ProbabilityTablesBase &pt,
-                                                               const ConstBlockContext block) {
+                                                               const ConstBlockContext block,
+                                                               const UniversalPrior&uprior) {
         uint8_t num_nonzeros_above = 0;
         uint8_t num_nonzeros_left = 0;
         if (all_present || above_present) {
@@ -672,20 +674,26 @@ public:
                                                       num_nonzeros_to_bin(num_nonzeros_context));
     }
     Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(ProbabilityTablesBase &pt,
-                                                          unsigned int eob_x,
-                                                          unsigned int num_nonzeros) {
+                                                                  unsigned int eob_x,
+                                                                  unsigned int num_nonzeros,
+                                                                  const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, ZEROS8x1, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, ZEROS8x1, 1, eob_x);
         return pt.model().num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
     Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(ProbabilityTablesBase &pt,
-                                                          unsigned int eob_x,
-                                                          unsigned int num_nonzeros) {
+                                                                  unsigned int eob_x,
+                                                                  unsigned int num_nonzeros,
+                                                                  const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, ZEROS1x8, 1, eob_x);
         return pt.model().num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt, int band, int zig15, CoefficientContext context) {
+    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt,
+                                                                    int band,
+                                                                    int zig15,
+                                                                    CoefficientContext context,
+                                                                    const UniversalPrior &uprior) {
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         dev_assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
@@ -697,7 +705,8 @@ public:
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(ProbabilityTablesBase &pt,
                                                                       const unsigned int band,
                                                                       const unsigned int zig49,
-                                                                      const CoefficientContext context) {
+                                                                      const CoefficientContext context,
+                                                                      const UniversalPrior&uprior) {
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
         return pt.model().exponent_counts_.at(color_index(),
@@ -707,8 +716,9 @@ public:
     }
     Sirikata::Array1d<Branch,
                       MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
-							     uint16_t len_abs_mxm,
-							     uint16_t len_abs_offset_to_closest_edge) {
+                                                             uint16_t len_abs_mxm,
+                                                             uint16_t len_abs_offset_to_closest_edge,
+                                                             const UniversalPrior&uprior) {
         return pt.model().exponent_counts_dc_.
 	  at(std::min(len_abs_mxm,
 		      (uint16_t)(Model::ExponentCountsDC::size0 - 1)),
@@ -716,36 +726,40 @@ public:
 		      (uint16_t)(Model::ExponentCountsDC::size1 - 1)));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
-                                                                     uint16_t len_abs_mxm
-                                                                  , uint16_t len_abs_offset_to_closest_edge) {
+                                                                  uint16_t len_abs_mxm,
+                                                                  uint16_t len_abs_offset_to_closest_edge,
+                                                                  const UniversalPrior&uprior) {
         return pt.model().residual_noise_counts_dc_
 	  .at(std::min((uint16_t)(Model::ResidualNoiseCountsDc::size0 - 1),
 		       len_abs_mxm));
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
-                                                          const unsigned int band,
-                                                          const CoefficientContext context) {
+                                                                       const unsigned int band,
+                                                                       const CoefficientContext context,
+                                                                       const UniversalPrior&uprior) {
         ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
         return residual_noise_array_shared(pt, band,
-                                           context);
+                                           context, uprior);
     }
 
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(ProbabilityTablesBase &pt,
                                                             const unsigned int band,
-                                                            const CoefficientContext context) {
+                                                                            const CoefficientContext context,
+                                                                            const UniversalPrior&uprior) {
         return pt.model().residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
                                                             const unsigned int band,
-                                                            const CoefficientContext context) {
+                                                                         const CoefficientContext context,
+                                                                         const UniversalPrior&uprior) {
         if (band == 0) {
             ANNOTATE_CTX(0, RESDC, 0, num_nonzeros_to_bin(num_nonzeros));
         } else {
             ANNOTATE_CTX(band, RES7x7, 0, num_nonzeros_to_bin(num_nonzeros));
         }
-        return residual_noise_array_shared(pt, band, context);
+        return residual_noise_array_shared(pt, band, context, uprior);
     }
     unsigned int num_nonzeros_to_bin(uint8_t num_nonzeros) {
         return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
@@ -1255,7 +1269,8 @@ public:
                               const unsigned int band,
                               const uint8_t cur_exponent,
                               const CoefficientContext context,
-                              int min_threshold) {
+                              int min_threshold,
+                              const UniversalPrior&uprior) {
         uint16_t ctx_abs = abs(context.best_prior);
         ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
         ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
@@ -1279,7 +1294,8 @@ public:
     };
     Branch& sign_array_dc(ProbabilityTablesBase &pt,
                           int avg_delta,
-                          int offset_to_closest_edge) {
+                          int offset_to_closest_edge,
+                          const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, SIGNDC, 0, 1);
         return pt.model().sign_counts_.at(color_index(),
                                           0,
@@ -1287,11 +1303,13 @@ public:
                                           ? offset_to_closest_edge == 0
                                           ? 3 : 2 : 1);
     }
-    Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
+    Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context,
+                           const UniversalPrior&uprior) {
         ANNOTATE_CTX(band, SIGN7x7, 0, 0);
         return pt.model().sign_counts_.at(color_index(), 0, 0);
     }
-    Branch& sign_array_8(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context) {
+    Branch& sign_array_8(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context,
+                         const UniversalPrior&uprior) {
 
         int16_t val = context.best_prior;
         uint8_t ctx0 = context.bsr_best_prior;
