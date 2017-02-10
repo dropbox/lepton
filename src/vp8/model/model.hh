@@ -47,6 +47,24 @@ struct UniversalPrior {
   // all the blocks around the block being decoded. Many may be missing
   // (eg LUMA 1,2,3, if the image is 4:4:4 instead of 4:2:2 or 4:1:1)
   Sirikata::Aligned256Array1d<AlignedBlock, NUM_PRIOR_VALUES> raw;
+  enum BitDecodeType{
+    TYPE_NZ_7x7,
+    TYPE_EXP_7x7,
+    TYPE_SIGN_7x7,
+    TYPE_RES_7x7,
+    TYPE_NZ_8x1,
+    TYPE_EXP_8x1,
+    TYPE_SIGN_8x1,
+    TYPE_RES_8x1,
+    TYPE_NZ_1x8,
+    TYPE_EXP_1x8,
+    TYPE_SIGN_1x8,
+    TYPE_RES_1x8,
+    TYPE_EXP_DC,
+    TYPE_SIGN_DC,
+    TYPE_RES_DC,
+    NUM_TYPES
+  };
   struct {
       // populated on block begin
       int16_t neighboring_pixels[16];// do we want edge pixels of other channels? so far no
@@ -100,6 +118,58 @@ struct UniversalPrior {
     z.best_prior_scaled = context.bsr_best_prior;
     z.nz_scaled = context.num_nonzeros_bin;
   }
+  void set_7x7_nz_bit_id(uint8_t index, uint8_t value_so_far) {
+    z.value_so_far =  value_so_far;
+    z.bit_index = index;
+    z.bit_type = TYPE_NZ_7x7;
+  }
+  void set_7x7_exp_id(uint8_t index) {
+    z.bit_index = index;
+    z.bit_type = TYPE_EXP_7x7;
+  }
+  void set_7x7_sign() {
+    z.bit_index = 0;
+    z.bit_type = TYPE_SIGN_7x7;
+  }
+  void set_7x7_residual(uint8_t index, uint8_t value_so_far) {
+    z.bit_index = index;
+    z.value_so_far = value_so_far;
+    z.bit_type = TYPE_RES_7x7;
+  }
+
+  void set_8x1_nz_bit_id(bool horiz, uint8_t index, uint8_t value_so_far) {
+    z.value_so_far =  value_so_far;
+    z.bit_index = index;
+    z.bit_type = horiz ? TYPE_NZ_8x1 : TYPE_NZ_1x8;
+  }
+  void set_8x1_exp_id(bool horiz, uint8_t index) {
+    z.bit_index = index;
+    z.bit_type = horiz ? TYPE_EXP_8x1 : TYPE_EXP_1x8;
+  }
+  void set_8x1_sign(bool horiz) {
+    z.bit_index = 0;
+    z.bit_type = horiz ? TYPE_SIGN_8x1 : TYPE_SIGN_1x8;
+  }
+  void set_8x1_residual(bool horiz, uint8_t index, uint8_t value_so_far) {
+    z.bit_index = index;
+    z.value_so_far = value_so_far;
+    z.bit_type = horiz ? TYPE_RES_8x1 : TYPE_RES_1x8;
+  }
+
+  void set_dc_exp_id(uint8_t index) {
+    z.bit_index = index;
+    z.bit_type = TYPE_EXP_DC;
+  }
+  void set_dc_sign() {
+    z.bit_index = 0;
+    z.bit_type = TYPE_SIGN_DC;
+  }
+  void set_dc_residual(uint8_t index, uint8_t value_so_far) {
+    z.bit_index = index;
+    z.value_so_far = value_so_far;
+    z.bit_type = TYPE_RES_DC;
+  }
+
   void update_coef(uint8_t index, int16_t val) {
     raw[CUR].raw_data()[index] = val;
   }
