@@ -41,6 +41,7 @@ template<bool all_neighbors_present, BlockType color,
 void encode_one_edge(EncodeChannelContext chan_context,
                  BoolEncoder& encoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
+                 UniversalPrior &uprior,
                  uint8_t num_nonzeros_7x7, uint8_t est_eob,
                  ProbabilityTablesBase& pt) {
     auto context = chan_context.at(0);
@@ -82,7 +83,7 @@ void encode_one_edge(EncodeChannelContext chan_context,
         serialized_so_far <<= 1;
         serialized_so_far |= cur_bit;
     }
-
+    uprior.update_nonzero_edge(horizontal, num_nonzeros_edge);
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
 
@@ -121,6 +122,7 @@ void encode_one_edge(EncodeChannelContext chan_context,
             custom_exit(ExitCode::COEFFICIENT_OUT_OF_RANGE);
         }
         if (coef) {
+            uprior.update_nonzero_edge(aligned_block_offset, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
             encoder.put(coef >= 0, sign_prob, Billing::SIGN_EDGE);
@@ -155,6 +157,7 @@ void encode_one_edge(EncodeChannelContext chan_context,
                     encoder.put((abs_coef & (1 << i)) ? 1 : 0, res_prob.at(i), Billing::RES_EDGE);
                 }
             }
+            uprior.update_coef(aligned_block_offset + (lane << log_edge_step), coef);
         }
     }
 }
@@ -163,20 +166,23 @@ template<bool all_neighbors_present, BlockType color>
 void encode_edge(EncodeChannelContext context,
                  BoolEncoder& encoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
+                 UniversalPrior &uprior,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
                  ProbabilityTablesBase& pt) {
     encode_one_edge<all_neighbors_present, color, true>(context,
-                                                                        encoder,
-                                                                        probability_tables,
-                                                                        num_nonzeros_7x7,
-                                                                        eob_x,
-                                                                        pt);
+                                                        encoder,
+                                                        probability_tables,
+                                                        uprior,
+                                                        num_nonzeros_7x7,
+                                                        eob_x,
+                                                        pt);
     encode_one_edge<all_neighbors_present, color, false>(context,
-                                                                        encoder,
-                                                                        probability_tables,
-                                                                        num_nonzeros_7x7,
-                                                                        eob_y,
-                                                                        pt);
+                                                         encoder,
+                                                         probability_tables,
+                                                         uprior,
+                                                         num_nonzeros_7x7,
+                                                         eob_y,
+                                                         pt);
 }
 // used for debugging
 static int k_debug_block[(int)ColorChannel::NumBlockTypes];
@@ -216,7 +222,7 @@ void serialize_tokens(EncodeChannelContext chan_context,
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
-
+    uprior.set_nonzeros7x7(num_nonzeros_7x7);
     Sirikata::AlignedArray1d<short, 8> avg;
     for (unsigned int zz = 0; zz < 49 && num_nonzeros_left_7x7; ++zz) {
         if ((zz & 7) == 0) {
@@ -264,11 +270,13 @@ void serialize_tokens(EncodeChannelContext chan_context,
                 custom_exit(ExitCode::COEFFICIENT_OUT_OF_RANGE);
             }
             if (length != 0) {
+                uprior.update_nonzero(b_x, b_y);
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
                 encoder.put(coef >= 0 ? 1 : 0, sign_prob, Billing::SIGN_7x7);
                 --num_nonzeros_left_7x7;
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
+                uprior.update_nonzero(b_x, b_y);
             }
             if (length > 1){
                 auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
@@ -279,11 +287,17 @@ void serialize_tokens(EncodeChannelContext chan_context,
                     encoder.put((abs_coef & (1 << i)), res_prob.at(i), Billing::RES_7x7);
                 }
             }
+#ifdef OPTIMIZED_7x7
+            uprior.update_coef(zz + AlignedBlock::AC_7x7_INDEX, coef);
+#else
+            uprior.update_coef(raster_to_aligned.at(coord), coef);
+#endif
         }
     }
     encode_edge(chan_context,
                 encoder,
                 probability_tables,
+                uprior,
                 num_nonzeros_7x7, eob_x, eob_y,
                 pt);
 

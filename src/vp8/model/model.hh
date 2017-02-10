@@ -38,9 +38,9 @@ struct UniversalPrior {
     ABOVE,
     ABOVE_LEFT,
     LUMA0,
-    LUMA1,// <-- not yet implemented
-    LUMA2,// <-- not yet implemented
-    LUMA3,// <-- not yet implemented
+    LUMA1,
+    LUMA2,
+    LUMA3,
     CHROMA,
     NUM_PRIOR_VALUES
   };
@@ -48,22 +48,29 @@ struct UniversalPrior {
   // (eg LUMA 1,2,3, if the image is 4:4:4 instead of 4:2:2 or 4:1:1)
   Sirikata::Aligned256Array1d<AlignedBlock, NUM_PRIOR_VALUES> raw;
   struct {
-  int16_t neighboring_pixels[16];// do we want edge pixels of other channels? so far no
-  uint8_t nz[NUM_PRIOR_VALUES];
-  uint8_t cur_nz;
-  int color;
-  int is_x_odd;
-  int is_y_odd;
-  uint8_t nz_x;
-  uint8_t nz_y;
-  uint32_t best_prior;
-  uint32_t best_prior_scaled;
-  uint32_t nz_prior;
-  uint32_t nz_scaled;
-  uint8_t zigzag_index;
-  int16_t value_so_far;
-  int bit_type;
-  int bit_index;
+      // populated on block begin
+      int16_t neighboring_pixels[16];// do we want edge pixels of other channels? so far no
+      uint8_t nz[NUM_PRIOR_VALUES];
+      int color;
+      int is_x_odd;
+      int is_y_odd;
+      int is_edge; // we probably want to learn different rules if this is an edge
+
+      // populated once we read the 7x7 (along with nz[CUR])
+      uint32_t nz_scaled;
+
+      uint8_t num_nonzeros_left;
+      uint8_t cur_nz_x; // populated as we read the zero map of the 7x7
+      uint8_t cur_nz_y;
+      uint8_t num_nz_x_left;
+      uint8_t num_nz_y_left;
+
+      uint32_t best_prior;
+      uint32_t best_prior_scaled;
+      uint8_t zigzag_index;
+      int16_t value_so_far;
+      int bit_type;
+      int bit_index;
   } z;
   UniversalPrior() {
       raw.memset(0);
@@ -84,11 +91,37 @@ struct UniversalPrior {
       bit_index = 0;
       */
   }
+    void update_coef(uint8_t index, int16_t val) {
+        raw[CUR].raw_data()[index] = val;
+    }
+    void update_nonzero_edge(bool horizontal, uint8_t num_nonzero_edge) {
+        if (horizontal) {
+            z.num_nz_x_left = z.cur_nz_x = num_nonzero_edge;
+        } else {
+            z.num_nz_y_left = z.cur_nz_y = num_nonzero_edge;
+        }
+        
+    }
+    void set_nonzeros7x7(uint8_t nz) {
+        z.nz[CUR] = z.num_nonzeros_left = nz;
+    }
+    void update_nonzero(uint8_t bx, uint8_t by) {
+        z.num_nonzeros_left  -= 1;
+        if (bx > z.cur_nz_x) {
+            z.cur_nz_x = bx;
+        }
+        if (by > z.cur_nz_y) {
+            z.cur_nz_y = by;
+        }
+    }
   template <class BlockContext> void init(const ChannelContext<BlockContext> &input,
 					  BlockType color_channel) {
     z.color = (int)color_channel;
     z.is_x_odd = (input.jpeg_x & 1);
     z.is_y_odd = (input.jpeg_y & 1);
+    // edge is 1 if either up or left is next to an edge...and 2 if it's the edge
+    z.is_edge = input.jpeg_x != 0 ? input.jpeg_x != 1 ? 0 : 1 : 2;
+    z.is_edge += 4 * (input.jpeg_y != 0 ? input.jpeg_y != 1 ? 0 : 1 : 2);
     z.nz[CUR] = 0;
     if (input.jpeg_x > 0) {
       memcpy(z.neighboring_pixels,

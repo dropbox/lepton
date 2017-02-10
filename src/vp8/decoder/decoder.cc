@@ -30,6 +30,7 @@ template<bool all_neighbors_present, BlockType color,
 void decode_one_edge(DecodeChannelContext chan_context,
                  BoolDecoder& decoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
+                 UniversalPrior &uprior,
                  uint8_t num_nonzeros_7x7, uint8_t est_eob,
                  ProbabilityTablesBase& pt) {
 
@@ -61,6 +62,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
     if (num_nonzeros_edge > 7) {
         custom_exit(ExitCode::STREAM_INCONSISTENT);
     }
+    uprior.update_nonzero_edge(horizontal, num_nonzeros_edge);
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
         ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
@@ -93,11 +95,13 @@ void decode_one_edge(DecodeChannelContext chan_context,
         }
         int16_t coef = 0;
         if (nonzero) {
+            uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior);
             bool neg = !decoder.get(sign_prob, Billing::SIGN_EDGE);
             coef = (1 << (length - 1));
             --num_nonzeros_edge;
+
             if (length > 1){
                 int i = length - 2;
                 if (i >= min_threshold) {
@@ -134,6 +138,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
             }
         }
         chan_context.at(0).here().raw_data()[aligned_block_offset + (lane << log_edge_step)] = coef;
+        uprior.update_coef(aligned_block_offset + (lane << log_edge_step), coef);
     }
 }
 
@@ -141,17 +146,20 @@ template<bool all_neighbors_present, BlockType color>
 void decode_edge(DecodeChannelContext mcontext,
                  BoolDecoder& decoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
+                 UniversalPrior &uprior,
                  uint8_t num_nonzeros_7x7, uint8_t eob_x, uint8_t eob_y,
                  ProbabilityTablesBase& pt) {
     decode_one_edge<all_neighbors_present, color, true>(mcontext,
                                                                         decoder,
                                                                         probability_tables,
+                                                        uprior,
                                                                         num_nonzeros_7x7,
                                                                         eob_x,
                                                                         pt);
     decode_one_edge<all_neighbors_present, color, false>(mcontext,
                                                                         decoder,
                                                                         probability_tables,
+                                                         uprior,
                                                                         num_nonzeros_7x7,
                                                                         eob_y,
                                                                         pt);
@@ -186,6 +194,7 @@ void parse_tokens(DecodeChannelContext chan_context,
     if (num_nonzeros_7x7 > 49) {
         custom_exit(ExitCode::STREAM_INCONSISTENT); // this is a corrupt file: dont decode further
     }
+    uprior.set_nonzeros7x7(num_nonzeros_7x7);
     uint8_t eob_x = 0;
     uint8_t eob_y = 0;
     uint8_t num_nonzeros_left_7x7 = num_nonzeros_7x7;
@@ -222,6 +231,7 @@ void parse_tokens(DecodeChannelContext chan_context,
             int16_t coef = 0;
             bool neg = false;
             if (nonzero) {
+                uprior.update_nonzero(b_x, b_y);
                 --num_nonzeros_left_7x7;
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior);
                 neg = !decoder.get(sign_prob, Billing::SIGN_7x7);
@@ -240,15 +250,18 @@ void parse_tokens(DecodeChannelContext chan_context,
             }
 #ifdef OPTIMIZED_7x7
             context.here().coef.at(zz + AlignedBlock::AC_7x7_INDEX) = coef;
+            uprior.update_coef(zz + AlignedBlock::AC_7x7_INDEX, coef);
 #else
             // this should work in all cases but doesn't utilize that the zz is related
             context.here().mutable_coefficients_raster(raster_to_aligned.at(coord)) = coef;
+            uprior.update_coef(raster_to_aligned.at(coord), coef);
 #endif
         }
     }
     decode_edge(chan_context,
                 decoder,
                 probability_tables,
+                uprior,
                 num_nonzeros_7x7, eob_x, eob_y,
                 pt);
     Sirikata::AlignedArray1d<int16_t, 64> outp_sans_dc;
