@@ -159,6 +159,23 @@ public:
   int16_t & mutable_coefficients_zigzag(uint8_t index) {return coef.at(zigzag_to_aligned.at(index)); }
   int16_t coefficients_zigzag(uint8_t index) const { return coef.at(zigzag_to_aligned.at(index)); }
 
+  std::string toString() const{
+      int eob = 0;
+      for (int i = 0;i < 64; ++i) {
+          if (coefficients_zigzag(i) != 0) {
+              eob = i;
+          }
+      }
+      char oneVal[11];
+      sprintf(oneVal, "%d", coefficients_zigzag(0));
+      std::string retval;
+      retval += oneVal;
+      for (int i = 1;i < eob; ++i) {
+          sprintf(oneVal, ",%d", coefficients_zigzag(i));
+          retval += oneVal;
+      }
+      return retval;
+  }
 };
 
 

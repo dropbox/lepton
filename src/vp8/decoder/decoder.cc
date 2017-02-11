@@ -186,7 +186,10 @@ void parse_tokens(DecodeChannelContext chan_context,
                   ProbabilityTables<all_neighbors_present, color> & probability_tables,
                   ProbabilityTablesBase &pt) {
     UniversalPrior uprior;
-    uprior.init(chan_context, color);
+    uprior.init(chan_context, color,
+                all_neighbors_present || probability_tables.left_present,
+                all_neighbors_present || probability_tables.above_present,
+                all_neighbors_present || probability_tables.above_right_present);
 
     BlockContext context = chan_context.at(0);
     BlockContext shadow_context0 = chan_context.at(1);

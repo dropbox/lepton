@@ -129,7 +129,7 @@ void encode_one_edge(EncodeChannelContext chan_context,
         }
         int16_t coef_so_far = 0;
         if (coef) {
-            uprior.update_nonzero_edge(aligned_block_offset, lane);
+            uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);      
             uprior.set_8x1_sign(horizontal);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior, uprior);
@@ -218,7 +218,10 @@ void serialize_tokens(EncodeChannelContext chan_context,
                       ProbabilityTablesBase &pt)
 {
     UniversalPrior uprior;
-    uprior.init(chan_context, color);
+    uprior.init(chan_context, color,
+                all_neighbors_present || probability_tables.left_present,
+                all_neighbors_present || probability_tables.above_present,
+                all_neighbors_present || probability_tables.above_right_present);
     auto context = chan_context.at(0);
     auto shadow_context0 = chan_context.at(1);
     auto shadow_context1 = chan_context.at(2);
@@ -303,7 +306,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
                 --num_nonzeros_left_7x7;
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
-                uprior.update_nonzero(b_x, b_y);
             }
             int16_t coef_so_far = (1 << (length - 1));
             if (length > 1){

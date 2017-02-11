@@ -10,6 +10,7 @@
 
 #include <emmintrin.h>
 #include "model.hh"
+int pcount =0;
 bool all_branches_identity(const Branch * start, const Branch * end) {
     for (const Branch * i = start;i != end; ++i) {
         if (!i->is_identity()){

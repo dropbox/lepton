@@ -29,6 +29,7 @@ enum TableParams : unsigned int {
     RESIDUAL_NOISE_FLOOR = 7,
     COEF_BITS = MAX_EXPONENT - 1, // the last item of the length is always 1
 };
+//extern int pcount;
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -75,23 +76,26 @@ struct UniversalPrior {
       int is_edge; // we probably want to learn different rules if this is an edge
 
 
-      uint8_t num_nonzeros_left;
-      uint8_t cur_nz_x; // populated as we read the zero map of the 7x7
-      uint8_t cur_nz_y;
-      uint8_t num_nz_x_left;
-      uint8_t num_nz_y_left;
 
       int32_t best_prior;
       int32_t best_prior_scaled;
       int32_t best_prior2; // only used for DC
       int32_t best_prior2_scaled; // only used for DC
+
+      int bit_type;
+      int bit_index;
+
+      int16_t value_so_far;
+      uint8_t num_nonzeros_left;
+      uint8_t cur_nz_x; // populated as we read the zero map of the 7x7
+      uint8_t cur_nz_y;
+      uint8_t num_nz_x_left;
+      uint8_t num_nz_y_left;
       // populated once we read the 7x7 (along with nz[CUR])
       uint8_t nz_scaled;
 
       uint8_t zigzag_index;
-      int16_t value_so_far;
-      int bit_type;
-      int bit_index;
+      uint8_t must_be_zero;
   } z;
   UniversalPrior() {
       raw.memset(0);
@@ -199,8 +203,12 @@ struct UniversalPrior {
       z.cur_nz_y = by;
     }
   }
-  template <class BlockContext> void init(const ChannelContext<BlockContext> &input,
-					  BlockType color_channel) {
+  template <class BlockContext> void init(
+      const ChannelContext<BlockContext> &input,
+      BlockType color_channel,
+      bool left_present,
+      bool above_present,
+      bool above_right_present) {
     z.color = (int)color_channel;
     z.is_x_odd = (input.jpeg_x & 1);
     z.is_y_odd = (input.jpeg_y & 1);
@@ -208,32 +216,32 @@ struct UniversalPrior {
     z.is_edge = input.jpeg_x != 0 ? input.jpeg_x != 1 ? 0 : 1 : 2;
     z.is_edge += 4 * (input.jpeg_y != 0 ? input.jpeg_y != 1 ? 0 : 1 : 2);
     z.nz[CUR] = 0;
-    if (input.jpeg_x > 0) {
-      memcpy(z.neighboring_pixels,
-	     input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7(),
-	     sizeof(int16_t) * 8);
-      z.nz[LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
-      raw[LEFT] = input.at(0).left_unchecked();
+    if (left_present) {
+        memcpy(z.neighboring_pixels,
+               input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7(),
+               sizeof(int16_t) * 8);
+        z.nz[LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
+        raw[LEFT] = input.at(0).left_unchecked();
     }
-    if (input.jpeg_y > 0) {
-      memcpy(z.neighboring_pixels + 8,
-	     input.at(0).neighbor_context_above_unchecked().horizontal_ptr(),
-	     sizeof(int16_t) * 8);
-      z.nz[ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
-      raw[ABOVE] = input.at(0).above_unchecked();
+    if (above_present) {
+        memcpy(z.neighboring_pixels + 8,
+               input.at(0).neighbor_context_above_unchecked().horizontal_ptr(),
+               sizeof(int16_t) * 8);
+        z.nz[ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
+        raw[ABOVE] = input.at(0).above_unchecked();
     }
-    if (input.jpeg_y > 0 && input.jpeg_x > 0) {
+    if (left_present && above_present) {
       raw[ABOVE_LEFT] = input.at(0).above_left_unchecked();
     }
-    if (input.jpeg_x > 1) {
+    if (left_present && color_channel != BlockType::Y) {
       z.nz[LUMA1] = input.at(1).nonzeros_left_7x7_unchecked();
       raw[LUMA1] = input.at(1).left_unchecked();
     }
-    if (input.jpeg_y > 1) {
+    if (above_present && color_channel != BlockType::Y) {
       z.nz[LUMA2] = input.at(1).nonzeros_above_7x7_unchecked();
       raw[LUMA2] = input.at(1).above_unchecked();
     }
-    if (input.jpeg_y > 1 && input.jpeg_x > 1) {
+    if (left_present && above_present && color_channel != BlockType::Y) {
       z.nz[LUMA3] = input.at(1).nonzeros_above_left_7x7_unchecked();
       raw[LUMA3] = input.at(1).above_left_unchecked();
     }
@@ -517,10 +525,10 @@ class ProbabilityTables
 {
 private:
     typedef ProbabilityTablesBase::CoefficientContext CoefficientContext;
+public:
     const bool left_present;
     const bool above_present;
     const bool above_right_present;
-public:
 #ifdef USE_TEMPLATIZED_COLOR
     enum {
         COLOR = (int)color
@@ -766,9 +774,13 @@ public:
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         MD5_CTX md5;
         MD5_Init(&md5);
-        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 2);//(UniversalPrior::NUM_PRIOR_VALUES - 2));
-        MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
-        MD5_Update(&md5, &uprior.z, sizeof(uprior.z.neighboring_pixels) + sizeof(uprior.z.nz));
+        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 4);
+        //MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
+        /*
+        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * (UniversalPrior::NUM_PRIOR_VALUES - 2));
+        */
+        MD5_Update(&md5, &uprior.z, sizeof(uprior.z));
+        
         unsigned char rez[16];
         MD5_Final(rez, &md5);
         return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index, rez[0]&7);
