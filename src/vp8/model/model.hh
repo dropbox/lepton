@@ -13,7 +13,7 @@
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 #include "../util/mm_mullo_epi32.hh"
-
+#include "../../../dependencies/md5/md5.h"
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
 enum TableParams : unsigned int {
@@ -260,9 +260,10 @@ struct Model
     typedef Sirikata::Array5d<Branch, BLOCK_TYPES, 8, 8, 3, 4> NonzeroCounts1x8;
     NonzeroCounts1x8 num_nonzeros_counts_1x8_;
     NonzeroCounts1x8 num_nonzeros_counts_8x1_;
-    Sirikata::Array2d<Branch,
+    Sirikata::Array3d<Branch,
                       UniversalPrior::NUM_TYPES,
-                      16> univ_prob_array;
+                      16,
+                      256> univ_prob_array;
     typedef Sirikata::Array4d<Branch,
                               BLOCK_TYPES,
                               COEF_BANDS,
@@ -763,7 +764,14 @@ public:
     }
     
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
-        return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index);
+        MD5_CTX md5;
+        MD5_Init(&md5);
+        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 2);//(UniversalPrior::NUM_PRIOR_VALUES - 2));
+        MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
+        MD5_Update(&md5, &uprior.z, sizeof(uprior.z.neighboring_pixels) + sizeof(uprior.z.nz));
+        unsigned char rez[16];
+        MD5_Final(rez, &md5);
+        return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index, rez[0]&7);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
                                                             const unsigned int band,
