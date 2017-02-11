@@ -55,7 +55,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
     int16_t decoded_so_far = 0;
     for (int i= 2; i >=0; --i) {
         uprior.set_8x1_nz_bit_id(horizontal, i, decoded_so_far);
-        int cur_bit = decoder.get(prob_edge_eob.at(i, decoded_so_far), Billing::NZ_EDGE) ? 1 : 0;
+        int cur_bit = decoder.get(probability_tables.get_universal_prob(pt, uprior), Billing::NZ_EDGE) ? 1 : 0;
         num_nonzeros_edge |= (cur_bit << i);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -91,7 +91,8 @@ void decode_one_edge(DecodeChannelContext chan_context,
         auto * exp_branch = exp_array.begin();
         for (; length != MAX_EXPONENT; ++length) {
             uprior.set_8x1_exp_id(horizontal, length);
-            bool cur_bit = decoder.get(*exp_branch++, (Billing)((int)Billing::BITMAP_EDGE + std::min((int)length, 4)));
+            bool cur_bit = decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                       (Billing)((int)Billing::BITMAP_EDGE + std::min((int)length, 4)));
             if (!cur_bit) {
                 break;
             }
@@ -103,7 +104,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             uprior.set_8x1_sign(horizontal);
             auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior, uprior);
-            bool neg = !decoder.get(sign_prob, Billing::SIGN_EDGE);
+            bool neg = !decoder.get(probability_tables.get_universal_prob(pt, uprior), Billing::SIGN_EDGE);
             coef = (1 << (length - 1));
             --num_nonzeros_edge;
 
@@ -119,7 +120,8 @@ void decode_one_edge(DecodeChannelContext chan_context,
                     uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         uprior.set_8x1_residual(horizontal, i, coef);
-                        int cur_bit = (decoder.get(thresh_prob.at(decoded_so_far), Billing::RES_EDGE) ? 1 : 0);
+                        int cur_bit = (decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                                   Billing::RES_EDGE) ? 1 : 0);
                         coef |= (cur_bit << i);
                         decoded_so_far <<= 1;
                         if (cur_bit) {
@@ -138,7 +140,8 @@ void decode_one_edge(DecodeChannelContext chan_context,
                 auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior, uprior);
                 for (; i >= 0; --i) {
                     uprior.set_8x1_residual(horizontal, i, coef);
-                    coef |= ((decoder.get(res_prob.at(i), Billing::RES_EDGE) ? 1 : 0) << i);
+                    coef |= ((decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                          Billing::RES_EDGE) ? 1 : 0) << i);
                 }
             }
             if (neg) {
@@ -195,7 +198,8 @@ void parse_tokens(DecodeChannelContext chan_context,
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
         uprior.set_7x7_nz_bit_id(index, decoded_so_far);
-        int cur_bit = (decoder.get(num_nonzeros_prob.at(index, decoded_so_far), Billing::NZ_7x7)?1:0);
+        int cur_bit = (decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                   Billing::NZ_7x7)?1:0);
         num_nonzeros_7x7 |= (cur_bit << index);
         decoded_so_far <<= 1;
         decoded_so_far |= cur_bit;
@@ -233,7 +237,9 @@ void parse_tokens(DecodeChannelContext chan_context,
             auto exp_branch = exp_prob.begin();
             for (length = 0; length != MAX_EXPONENT; ++length) {
                 uprior.set_7x7_exp_id(length);
-                bool cur_bit = decoder.get(*exp_branch++, (Billing)((unsigned int)Billing::BITMAP_7x7 + std::min((int)length, 4)));
+                bool cur_bit = decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                           (Billing)((unsigned int)Billing::BITMAP_7x7 +
+                                                     std::min((int)length, 4)));
                 if (!cur_bit) {
                     break;
                 }
@@ -246,7 +252,7 @@ void parse_tokens(DecodeChannelContext chan_context,
                 --num_nonzeros_left_7x7;
                 auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior, uprior);
                 uprior.set_7x7_sign();
-                neg = !decoder.get(sign_prob, Billing::SIGN_7x7);
+                neg = !decoder.get(probability_tables.get_universal_prob(pt, uprior), Billing::SIGN_7x7);
                 eob_x = std::max(eob_x, (uint8_t)b_x);
                 eob_y = std::max(eob_y, (uint8_t)b_y);
                 coef = (1 << (length - 1));
@@ -254,7 +260,8 @@ void parse_tokens(DecodeChannelContext chan_context,
                     auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior, uprior);
                     for (int i = length - 2; i >= 0; --i) {
                         uprior.set_7x7_residual(i, coef);
-                        coef |= ((decoder.get(res_prob.at(i), Billing::RES_7x7) ? 1 : 0) << i);
+                        coef |= ((decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                              Billing::RES_7x7) ? 1 : 0) << i);
                     }
                 }
                 if (neg) {
@@ -316,7 +323,8 @@ void parse_tokens(DecodeChannelContext chan_context,
         auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
             uprior.set_dc_exp_id(length);
-            bool cur_bit = decoder.get(*exp_branch++, (Billing)((int)Billing::EXP0_DC + std::min((int)length, 4)));
+            bool cur_bit = decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                       (Billing)((int)Billing::EXP0_DC + std::min((int)length, 4)));
             if (!cur_bit) {
                 break;
             }
@@ -326,7 +334,7 @@ void parse_tokens(DecodeChannelContext chan_context,
         if (nonzero) {
             auto &sign_prob = probability_tables.sign_array_dc(pt, uncertainty, uncertainty2, uprior);
             uprior.set_dc_sign();
-            bool neg = !decoder.get(sign_prob, Billing::SIGN_DC);
+            bool neg = !decoder.get(probability_tables.get_universal_prob(pt, uprior),Billing::SIGN_DC);
             coef = (1 << (length - 1));
             if (length > 1){
                 auto res_prob = probability_tables.residual_array_dc(pt,
@@ -335,7 +343,8 @@ void parse_tokens(DecodeChannelContext chan_context,
                                                                      uprior);
                 for (int i = length - 2; i >= 0; --i) {
                     uprior.set_dc_residual(i, coef);
-                    coef |= ((decoder.get(res_prob.at(i), Billing::RES_DC) ? 1 : 0) << i);
+                    coef |= ((decoder.get(probability_tables.get_universal_prob(pt, uprior),
+                                          Billing::RES_DC) ? 1 : 0) << i);
                 }
             }
             if (neg) {

@@ -260,7 +260,9 @@ struct Model
     typedef Sirikata::Array5d<Branch, BLOCK_TYPES, 8, 8, 3, 4> NonzeroCounts1x8;
     NonzeroCounts1x8 num_nonzeros_counts_1x8_;
     NonzeroCounts1x8 num_nonzeros_counts_8x1_;
-
+    Sirikata::Array2d<Branch,
+                      UniversalPrior::NUM_TYPES,
+                      16> univ_prob_array;
     typedef Sirikata::Array4d<Branch,
                               BLOCK_TYPES,
                               COEF_BANDS,
@@ -758,6 +760,10 @@ public:
         return pt.model().residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
+    }
+    
+    Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
+        return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
                                                             const unsigned int band,
