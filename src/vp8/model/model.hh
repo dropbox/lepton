@@ -645,6 +645,8 @@ public:
         uint8_t num_nonzeros1 = chan1.num_nonzeros_here->num_nonzeros();
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
         uint8_t num_nonzeros_context = (num_nonzeros0 + num_nonzeros1 + 2) / 4;
+        always_assert(uprior.z.nz[UniversalPrior::LUMA0] == num_nonzeros0);
+        always_assert(uprior.z.nz[UniversalPrior::CHROMA] == num_nonzeros1);
         return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
                                                       num_nonzeros_to_bin(num_nonzeros_context));
     }
@@ -670,6 +672,8 @@ public:
             num_nonzeros_context = (num_nonzeros_above + num_nonzeros_left + 2) / 4;
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
+        always_assert(uprior.z.nz[UniversalPrior::ABOVE] == num_nonzeros_above);
+        always_assert(uprior.z.nz[UniversalPrior::LEFT] == num_nonzeros_left);
         return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
                                                       num_nonzeros_to_bin(num_nonzeros_context));
     }
@@ -679,6 +683,7 @@ public:
                                                                   const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, ZEROS8x1, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, ZEROS8x1, 1, eob_x);
+        always_assert(uprior.z.cur_nz_x == eob_x);
         return pt.model().num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
     Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(ProbabilityTablesBase &pt,
@@ -687,6 +692,7 @@ public:
                                                                   const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, ZEROS1x8, 1, eob_x);
+        always_assert(uprior.z.cur_nz_y == eob_x);
         return pt.model().num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt,
@@ -697,6 +703,7 @@ public:
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         dev_assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
+        always_assert(uprior.z.best_prior_scaled == context.bsr_best_prior);
         return pt.model().exponent_counts_x_.at(color_index(),
                                              context.num_nonzeros_bin,
                                              zig15,
@@ -709,6 +716,7 @@ public:
                                                                       const UniversalPrior&uprior) {
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
+        always_assert(uprior.z.best_prior_scaled == context.bsr_best_prior);
         return pt.model().exponent_counts_.at(color_index(),
             context.num_nonzeros_bin,
             zig49,
@@ -746,6 +754,7 @@ public:
                                                             const unsigned int band,
                                                                             const CoefficientContext context,
                                                                             const UniversalPrior&uprior) {
+        always_assert(uprior.z.nz_scaled == context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
