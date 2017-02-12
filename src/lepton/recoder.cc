@@ -483,7 +483,7 @@ ThreadHandoff recode_row_range(BoundedWriter *stream_out,
                                                                         mcuv,
                                                                         max_coded_heights);
         if (cur_row.min_row_luma_y >= 178) {
-           fprintf(stderr, "WARN: %d %d\n", cur_row.min_row_luma_y, cur_row.component);
+            //fprintf(stderr, "WARN: %d %d\n", cur_row.min_row_luma_y, cur_row.component);
         }
         /*
         fprintf(stderr, "%d] (%d) %d - %d  %d[%d]  [%d %d %d]\n",

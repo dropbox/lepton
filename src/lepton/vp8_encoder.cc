@@ -267,7 +267,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                                               max_coded_heights);
         
         if (cur_row.min_row_luma_y >= 178) {
-           fprintf(stderr, "XARN: %d %d\n", cur_row.min_row_luma_y, cur_row.component);
+            //fprintf(stderr, "XARN: %d %d\n", cur_row.min_row_luma_y, cur_row.component);
         }
         if(cur_row.done) {
             break;

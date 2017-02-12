@@ -776,10 +776,10 @@ public:
         MD5_Init(&md5);
         MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 7);
         if (pcount == 315802) {
-            fprintf(stderr, "OK %s\n", uprior.raw.at(4).toString().c_str());
+            //fprintf(stderr, "OK %s\n", uprior.raw.at(4).toString().c_str());
         }
         if (pcount == 315803) {
-            fprintf(stderr, "ER %s\n", uprior.raw.at(4).toString().c_str());
+            //fprintf(stderr, "ER %s\n", uprior.raw.at(4).toString().c_str());
         }
         //fprintf(stderr, "%d,%s\n", pcount, uprior.raw.at(4).toString().c_str());
         ++pcount;
