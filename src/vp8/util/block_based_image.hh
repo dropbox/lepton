@@ -19,14 +19,14 @@ class BlockBasedImageBase {
     BlockBasedImageBase(const BlockBasedImageBase&) = delete;
     BlockBasedImageBase& operator=(const BlockBasedImageBase&) = delete;
 public:
-    BlockBasedImageBase(uint32_t width, uint32_t height, uint32_t nblocks, bool mem_optimized, uint8_t *custom_storage)
+    BlockBasedImageBase(uint32_t width, uint32_t height, uint32_t nblocks, bool mem_optimized, uint8_t *custom_storage, size_t custom_storage_byte_size)
       : memory_optimized_image_(force_memory_optimization) {
         image_ = nullptr;
         storage_ = nullptr;
         width_ = 0;
         nblocks_ = 0;
         theoretical_component_height_ = 0;
-	init(width, height, nblocks, mem_optimized, custom_storage);
+        init(width, height, nblocks, mem_optimized, custom_storage, custom_storage_byte_size);
     }
     BlockBasedImageBase()
       : memory_optimized_image_(force_memory_optimization) {
@@ -52,7 +52,10 @@ public:
     size_t original_height() const {
         return theoretical_component_height_;
     }
-    void init(uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image, uint8_t *custom_storage = nullptr) {
+    void init(uint32_t width, uint32_t height, uint32_t nblocks, bool memory_optimized_image, uint8_t *custom_storage = nullptr, size_t custom_storage_byte_size=0) {
+        size_t alignment_padding = 31;
+        always_assert(custom_storage == nullptr ||
+                      custom_storage_byte_size == alignment_padding + nblocks * sizeof(Block));
         theoretical_component_height_ = height;
         if (force_memory_optimization) {
             always_assert(memory_optimized_image && "MemoryOptimized must match template");
@@ -71,11 +74,11 @@ public:
         if (custom_storage) {
           storage_ = custom_storage;
         } else {
-          storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + 31);
+          storage_ = (uint8_t*)custom_calloc(nblocks * sizeof(Block) + alignment_padding);
         }
         size_t offset = storage_ - (uint8_t*)nullptr;
         if (offset & 31) { //needs alignment adjustment
-            image_ = (Block*)(storage_ + 32 - (offset & 31));
+            image_ = (Block*)(storage_ + (alignment_padding + 1) - (offset & alignment_padding));
         } else { // already aligned
             image_ = (Block*)storage_;
         }
@@ -168,6 +171,7 @@ public:
         }
         it.num_nonzeros_here += step;
         it.num_nonzeros_above += step;
+        /*
         if (!has_left) {
             bool cur_row_first = (it.num_nonzeros_here < it.num_nonzeros_above);
             if (cur_row_first) {
@@ -177,7 +181,7 @@ public:
                 it.num_nonzeros_here -= width_;
                 it.num_nonzeros_here -= width_;
             }
-        }
+            }*/
         return retval;
     }
     AlignedBlock& at(uint32_t y, uint32_t x) {
@@ -251,8 +255,9 @@ class BlockBasedImage : public BlockBasedImageBase<false> {
     BlockBasedImage(const BlockBasedImage&) = delete;
     BlockBasedImage& operator=(const BlockBasedImage&) = delete;
 public:
-  BlockBasedImage(uint32_t width, uint32_t height, uint32_t nblocks, bool mem_optimized, uint8_t *custom_storage)
-    : BlockBasedImageBase(width, height, nblocks, mem_optimized, custom_storage) {}
+    BlockBasedImage(uint32_t width, uint32_t height, uint32_t nblocks, bool mem_optimized, uint8_t *custom_storage, size_t custom_storage_byte_size)
+      : BlockBasedImageBase(width, height, nblocks, mem_optimized,
+                            custom_storage, custom_storage_byte_size) {}
 
     BlockBasedImage() {}
 };
@@ -273,8 +278,8 @@ public:
         this->memset(0);
     }
 };
-static std::atomic<std::vector<NeighborSummary> *>gNopNeighbor;
-static uint8_t custom_nop_storage[sizeof(AlignedBlock) * 4 + 31] = {0};
+extern std::atomic<std::vector<NeighborSummary> *>gNopNeighbor;
+extern uint8_t custom_nop_storage[sizeof(AlignedBlock) * 6 + 31];
 enum {
   // if this is true, then luma is used to seed priors for the color channels instead
   // of vice versa
@@ -326,16 +331,17 @@ public:
                             Sirikata::Array1d<BlockBasedImage*, (uint32_t)ColorChannel::NumBlockTypes> &in_image_data,
                           Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (size_t)ColorChannel::NumBlockTypes> &num_nonzeros_
-                                                     ) : nop_image(2, 2, 4, true, custom_nop_storage) {
+      ) : nop_image(3, 2, 3 * 2, true, custom_nop_storage, sizeof(custom_nop_storage)) {
     context_.jpeg_x = 0;
     context_.jpeg_y = curr_y;
     std::vector<NeighborSummary> * nopNeighbor= gNopNeighbor.load();
     if(!nopNeighbor) {
-      auto * tmp = new std::vector<NeighborSummary>(4);
-      memset(&(*tmp)[0], 0, 4 * sizeof(NeighborSummary));
-      gNopNeighbor.store(tmp);
-      nopNeighbor= gNopNeighbor.load();
-      always_assert(nopNeighbor != nullptr);
+        size_t size = sizeof(custom_nop_storage)/sizeof(AlignedBlock);
+        auto * tmp = new std::vector<NeighborSummary>(size);
+        memset(&(*tmp)[0], 0, size * sizeof(NeighborSummary));
+        gNopNeighbor.store(tmp);
+        nopNeighbor= gNopNeighbor.load();
+        always_assert(nopNeighbor != nullptr);
     }
     static_assert(NUM_PRIORS + 1 <= (int)ColorChannel::NumBlockTypes,
                   "We need to have room for at least as many priors in max number of channels we support");
@@ -344,32 +350,32 @@ public:
       eostep.at(1, i) = 0;
       image_data_.at(i) = &nop_image;
       context_.at(i) = image_data_.at(i)->off_y(1, nopNeighbor->begin());
+      image_data_.at(i)->next(context_.at(i), false, 1, 1);
     }
     for (size_t col = 0 ; col < (size_t)ColorChannel::NumBlockTypes; ++col) {
-      BlockBasedImage*cur = &nop_image;
-      std::vector<NeighborSummary>::iterator neighborNonzeros = nopNeighbor->begin();
+      BlockBasedImage*cur = nullptr;
+      std::vector<NeighborSummary>::iterator neighborNonzeros;
       size_t out_index = 0;
-      if ((
-           (REVERSE_CMP && col <= (size_t)original_color)
+      if (((REVERSE_CMP && col <= (size_t)original_color)
            ||
            (REVERSE_CMP ==0 && col >= (size_t)original_color)
-               ) && in_image_data.at(col) && in_image_data.at(col)->blocks_allocated()) {
+              ) && in_image_data.at(col) && in_image_data.at(col)->blocks_allocated()) {
           cur = in_image_data.at(col);
           neighborNonzeros = num_nonzeros_[col].begin();
-	  if (original_color == 0) {
-	    out_index = col;
+          if (original_color == 0) {
+              out_index = col;
           } else if (col == 0) {
-	    out_index = 1; // make sure luma comes first
-	  } else if (col == original_color) {
-	    out_index = 0;
-	  } else {
-	    out_index = 2;
-	  }
+              out_index = 1; // make sure luma comes first
+          } else if (col == original_color) {
+              out_index = 0;
+          } else {
+              out_index = 2;
+          }
       } else {
-        continue;
+          continue;
       }
       if (out_index > NUM_PRIORS) {
-        continue; //no need to record a 3rd prior if we have 4 channels
+          continue; //no need to record a 3rd prior if we have 4 channels
       }
       image_data_.at(out_index) = cur;
       size_t vertical_count = cur->original_height();
@@ -377,7 +383,7 @@ public:
       size_t vratio = vertical_count / orig_vertical_count;
       size_t voffset = vratio;
       if (vratio) {
-        voffset -= 1; // one less than the edge of this block
+          voffset -= 1; // one less than the edge of this block
       }
       uint32_t adjusted_curr_y = (curr_y * vertical_count + voffset)/ orig_vertical_count;
       context_.at(out_index)

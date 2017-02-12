@@ -774,17 +774,18 @@ public:
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         MD5_CTX md5;
         MD5_Init(&md5);
-        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 7);
-        if (pcount == 315802) {
-            //fprintf(stderr, "OK %s\n", uprior.raw.at(4).toString().c_str());
+        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * UniversalPrior::NUM_PRIOR_VALUES);
+        /*
+        if (pcount == 107920) {
+            fprintf(stderr, "OK %s\n", uprior.raw.at(7).toString().c_str());
         }
-        if (pcount == 315803) {
-            //fprintf(stderr, "ER %s\n", uprior.raw.at(4).toString().c_str());
+        if (pcount == 107921) {
+            fprintf(stderr, "ER %s\n", uprior.raw.at(7).toString().c_str());
         }
-        //fprintf(stderr, "%d,%s\n", pcount, uprior.raw.at(4).toString().c_str());
+        //fprintf(stderr, "%d,%s\n", pcount, uprior.raw.at(7).toString().c_str());
         ++pcount;
-
-        MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
+        */
+        //MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
         /*
         MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * (UniversalPrior::NUM_PRIOR_VALUES - 2));
         */

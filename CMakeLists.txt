@@ -136,6 +136,7 @@ SET(LEPTON_SOURCES
    src/vp8/util/nd_array.hh
    src/vp8/util/aligned_block.hh
    src/vp8/util/block_based_image.hh
+   src/vp8/util/block_based_image.cc
    src/vp8/model/JpegArithmeticCoder.cc
    src/vp8/model/JpegArithmeticCoder.hh
    src/vp8/model/branch.hh
