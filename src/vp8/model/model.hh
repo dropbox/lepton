@@ -29,7 +29,7 @@ enum TableParams : unsigned int {
     RESIDUAL_NOISE_FLOOR = 7,
     COEF_BITS = MAX_EXPONENT - 1, // the last item of the length is always 1
 };
-//extern int pcount;
+extern int pcount;
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -774,8 +774,17 @@ public:
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         MD5_CTX md5;
         MD5_Init(&md5);
-        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 4);
-        //MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
+        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * 7);
+        if (pcount == 315802) {
+            fprintf(stderr, "OK %s\n", uprior.raw.at(4).toString().c_str());
+        }
+        if (pcount == 315803) {
+            fprintf(stderr, "ER %s\n", uprior.raw.at(4).toString().c_str());
+        }
+        //fprintf(stderr, "%d,%s\n", pcount, uprior.raw.at(4).toString().c_str());
+        ++pcount;
+
+        MD5_Update(&md5, &uprior.raw.at(UniversalPrior::NUM_PRIOR_VALUES - 1), sizeof(AlignedBlock));
         /*
         MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * (UniversalPrior::NUM_PRIOR_VALUES - 2));
         */
