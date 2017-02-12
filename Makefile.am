@@ -197,11 +197,11 @@ test_suite_test_iphone_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphone
 test_suite_test_iphone_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_SLR_SOURCES = test_suite/test_harness.cc
-test_suite_test_SLR_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DTEST_FILE1=slrcity -DMORE_MEMORY=\"256M\"
+test_suite_test_SLR_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DMORE_MEMORY=\"512M\"
 test_suite_test_SLR_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_hq_SOURCES = test_suite/test_harness.cc
-test_suite_test_hq_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=hq -DMORE_MEMORY=\"360M\" -DTHREAD_MEMORY=\"24M\" -DSINGLETHREAD_MEMORY=\"87M\"
+test_suite_test_hq_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=hq -DMORE_MEMORY=\"512M\" -DTHREAD_MEMORY=\"36M\" -DSINGLETHREAD_MEMORY=\"128M\"
 test_suite_test_hq_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_misc_SOURCES = test_suite/test_harness.cc

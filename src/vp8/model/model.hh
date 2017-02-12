@@ -38,6 +38,7 @@ struct UniversalPrior {
     LEFT,
     ABOVE,
     ABOVE_LEFT,
+    ABOVE_RIGHT,
     LUMA0,
     LUMA1,
     LUMA2,
@@ -229,6 +230,10 @@ struct UniversalPrior {
                sizeof(int16_t) * 8);
         z.nz[ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
         raw[ABOVE] = input.at(0).above_unchecked();
+    }
+    if (above_right_present) {
+        z.nz[ABOVE_RIGHT] = input.at(0).nonzeros_above_right_7x7_unchecked();
+        raw[ABOVE_RIGHT] = input.at(0).above_right_unchecked();
     }
     if (left_present && above_present) {
       raw[ABOVE_LEFT] = input.at(0).above_left_unchecked();
@@ -772,9 +777,12 @@ public:
     }
     
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
-        MD5_CTX md5;
-        MD5_Init(&md5);
-        MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * UniversalPrior::NUM_PRIOR_VALUES);
+        unsigned char rez[16];
+        {
+            MD5_CTX md5;
+            MD5_Init(&md5);
+            MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * UniversalPrior::NUM_PRIOR_VALUES);
+            MD5_Update(&md5, &uprior.z, sizeof(uprior.z));
         /*
         if (pcount == 107920) {
             fprintf(stderr, "OK %s\n", uprior.raw.at(7).toString().c_str());
@@ -789,11 +797,10 @@ public:
         /*
         MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * (UniversalPrior::NUM_PRIOR_VALUES - 2));
         */
-        MD5_Update(&md5, &uprior.z, sizeof(uprior.z));
         
-        unsigned char rez[16];
-        MD5_Final(rez, &md5);
-        return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index, rez[0]&7);
+             MD5_Final(rez, &md5);
+        }
+        return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index, rez[0]&15);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
                                                             const unsigned int band,

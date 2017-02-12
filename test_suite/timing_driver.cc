@@ -216,8 +216,7 @@ int run_test(const std::vector<unsigned char> &testImage,
              bool multithread,
              bool expect_failure, bool expect_decoder_failure,
              const char* encode_memory, const char *decode_memory, const char * singlethread_recode_memory, const char* thread_memory) {
-    std::vector<unsigned char> leptonBuffer(use_lepton ? testImage.size()
-                                           : testImage.size() * 40 + 4096 * 1024);
+    std::vector<unsigned char> leptonBuffer(testImage.size() * 40 + 4096 * 1024);
     std::vector<unsigned char> roundtripBuffer(testImage.size());
 
     if (expect_failure || expect_decoder_failure) {

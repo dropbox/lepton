@@ -118,6 +118,9 @@ template <class ABlock> struct MBlockContext {
     constexpr const ABlock& above_left_unchecked() const {
         return above[-1];
     }
+    constexpr const ABlock& above_right_unchecked() const {
+        return above[1];
+    }
     static MBlockContext nil() {
         MBlockContext retval;
         memset(&retval, 0, sizeof(retval));
@@ -139,6 +142,9 @@ template <class ABlock> struct MBlockContext {
     }
     ABlock& above_left_unchecked() {
         return above[-1];
+    }
+    ABlock& above_right_unchecked() {
+        return above[1];
     }
     bool num_nonzeros_check(uint8_t nz7x7, ABlock& block) const{
         int nz = 0;
@@ -167,6 +173,12 @@ template <class ABlock> struct MBlockContext {
     uint8_t nonzeros_above_left_7x7_unchecked() const{
         std::vector<NeighborSummary>::iterator  tmp = num_nonzeros_above;
         --tmp;
+        // too slow // assert(num_nonzeros_check(*tmp, left_unchecked()));
+        return tmp->num_nonzeros();
+    }
+    uint8_t nonzeros_above_right_7x7_unchecked() const{
+        std::vector<NeighborSummary>::iterator  tmp = num_nonzeros_above;
+        ++tmp;
         // too slow // assert(num_nonzeros_check(*tmp, left_unchecked()));
         return tmp->num_nonzeros();
     }
