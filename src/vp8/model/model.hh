@@ -75,7 +75,9 @@ struct UniversalPrior {
       int is_x_odd;
       int is_y_odd;
       int is_edge; // we probably want to learn different rules if this is an edge
-
+      int has_above;
+      int has_left;
+      int has_above_right;
 
 
       int32_t best_prior;
@@ -214,8 +216,10 @@ struct UniversalPrior {
     z.is_x_odd = (input.jpeg_x & 1);
     z.is_y_odd = (input.jpeg_y & 1);
     // edge is 1 if either up or left is next to an edge...and 2 if it's the edge
-    z.is_edge = input.jpeg_x != 0 ? input.jpeg_x != 1 ? 0 : 1 : 2;
-    z.is_edge += 4 * (input.jpeg_y != 0 ? input.jpeg_y != 1 ? 0 : 1 : 2);
+    z.is_edge = (left_present && above_present && above_right_present) ? 0 : 1;
+    z.has_above = above_present ? 1 : 0;
+    z.has_left = left_present ? 1 : 0;
+    z.has_above_right = above_right_present ? 1 : 0;
     z.nz[CUR] = 0;
     if (left_present) {
         memcpy(z.neighboring_pixels,
@@ -323,6 +327,7 @@ typedef Sirikata::Array3d<Branch,
   ExponentCounts8 exponent_counts_x_;
   ExponentCountsDC exponent_counts_dc_;
   void set_tables_identity() {
+      set_branch_array_identity(univ_prob_array);
       set_branch_array_identity(num_nonzeros_counts_7x7_);
       set_branch_array_identity(num_nonzeros_counts_1x8_);
       set_branch_array_identity(num_nonzeros_counts_8x1_);
@@ -787,10 +792,21 @@ public:
                                                           (uprior.z.nz[UniversalPrior::CUR] + 3) / 7 + 10 * uprior.z.value_so_far)));
             
           case UniversalPrior::TYPE_NZ_7x7:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 0*uprior.z.bit_index,
-                                                 (uprior.z.color?1:0) +
-                                                 2 * num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + uprior.z.nz[UniversalPrior::LEFT]) / 2));
+              {
+                  uint32_t i0 = uprior.z.color?1:0;
+                  uint32_t i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + 1)/2);
+                  if (uprior.z.has_above && uprior.z.has_left) {
+                      i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + uprior.z.nz[UniversalPrior::LEFT] + 2) / 4);
+                  } else if (uprior.z.has_left) {
+                      i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::LEFT] + 1)/2);
+                  }
+                  //uint32_t i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::LUMA0] + uprior.z.nz[UniversalPrior::CHROMA] + 2) / 4);
+                  uint32_t i2 = uprior.z.value_so_far;
+                  return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                       uprior.z.bit_index,
+                                                       (uprior.z.color?1:0) +
+                                                       2 * (i1 + 6 * i2));
+              }
           case UniversalPrior::TYPE_EXP_7x7:
             return pt.model().univ_prob_array.at(uprior.z.bit_type,
                                                  uprior.z.bit_index,
