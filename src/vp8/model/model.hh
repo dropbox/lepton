@@ -276,7 +276,7 @@ struct Model
     Sirikata::Array3d<Branch,
                       UniversalPrior::NUM_TYPES,
                       16,
-                      256> univ_prob_array;
+                      256 * 64> univ_prob_array;
     typedef Sirikata::Array4d<Branch,
                               BLOCK_TYPES,
                               COEF_BANDS,
@@ -777,6 +777,53 @@ public:
     }
     
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
+        switch (uprior.z.bit_type) {
+          case UniversalPrior::TYPE_NZ_8x1:
+          case UniversalPrior::TYPE_NZ_1x8:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 0*uprior.z.bit_index,
+                                                 (uprior.z.color?1:0) +
+                                                 2 * (uprior.z.num_nz_x_left + 8 * (
+                                                          (uprior.z.nz[UniversalPrior::CUR] + 3) / 7 + 10 * uprior.z.value_so_far)));
+            
+          case UniversalPrior::TYPE_NZ_7x7:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 0*uprior.z.bit_index,
+                                                 (uprior.z.color?1:0) +
+                                                 2 * num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + uprior.z.nz[UniversalPrior::LEFT]) / 2));
+          case UniversalPrior::TYPE_EXP_7x7:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 uprior.z.bit_index,
+                                                 (uprior.z.color? 1:0) + 2 * (uprior.z.nz_scaled + 10 * (uprior.z.zigzag_index + 64 * uprior.z.best_prior_scaled)));
+            
+          case UniversalPrior::TYPE_EXP_8x1:
+          case UniversalPrior::TYPE_EXP_1x8:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 uprior.z.bit_index,
+                                                 (uprior.z.color? 1:0) + 2 * (uprior.z.nz_scaled + 10 * (uprior.z.zigzag_index + 64 * uprior.z.best_prior_scaled)));
+            
+          case UniversalPrior::TYPE_SIGN_8x1:
+          case UniversalPrior::TYPE_SIGN_1x8:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 0*uprior.z.bit_index,
+                                                 (uprior.z.color?1:0) + 2 * ((uprior.z.best_prior == 0 ? 0 : (uprior.z.best_prior > 0 ? 1 : 2)) + 3 * uprior.z.best_prior_scaled));
+          case UniversalPrior::TYPE_SIGN_7x7:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 0*uprior.z.bit_index,
+                                                 0);
+          case UniversalPrior::TYPE_RES_7x7:
+          case UniversalPrior::TYPE_RES_1x8:
+          case UniversalPrior::TYPE_RES_8x1:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 0 * uprior.z.bit_index,
+                                                 (uprior.z.color?1:0) + 2 * (
+                                                     uprior.z.zigzag_index + 64 * (uprior.z.nz[UniversalPrior::CUR])));
+            
+          default:
+            return pt.model().univ_prob_array.at(uprior.z.bit_type,
+                                                 uprior.z.bit_index,
+                                                 (uprior.z.color?1:0) + 2 * (uprior.z.best_prior2_scaled + 16 * uprior.z.best_prior_scaled));
+        }
         unsigned char rez[16];
         {
             MD5_CTX md5;
