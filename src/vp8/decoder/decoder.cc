@@ -35,11 +35,6 @@ void decode_one_edge(DecodeChannelContext chan_context,
                  ProbabilityTablesBase& pt) {
 
     ConstBlockContext context = chan_context.at(0).copy();
-    auto prob_edge_eob = horizontal
-        ? probability_tables.x_nonzero_counts_8x1(pt, est_eob,
-                                                  num_nonzeros_7x7, uprior)
-        : probability_tables.y_nonzero_counts_1x8(pt, est_eob,
-                                                  num_nonzeros_7x7, uprior);
 
     uint8_t aligned_block_offset = raster_to_aligned.at(1);
     unsigned int log_edge_step = log_delta_x_edge;
@@ -84,14 +79,8 @@ void decode_one_edge(DecodeChannelContext chan_context,
 	    prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
         }
         uprior.update_by_prior(aligned_block_offset + (lane << log_edge_step), prior);
-        auto exp_array = probability_tables.exponent_array_x(pt,
-                                                             coord,
-                                                             zig15offset,
-                                                             prior,
-                                                             uprior);
         uint8_t length = 0;
         bool nonzero = false;
-        auto * exp_branch = exp_array.begin();
         for (; length != MAX_EXPONENT; ++length) {
             uprior.set_8x1_exp_id(horizontal, length);
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
@@ -108,7 +97,6 @@ void decode_one_edge(DecodeChannelContext chan_context,
             uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
             uprior.set_8x1_sign(horizontal);
-            auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior, uprior);
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
             bool neg = !decoder.get(ubranch,
                                     Billing::SIGN_EDGE);
@@ -119,13 +107,6 @@ void decode_one_edge(DecodeChannelContext chan_context,
             if (length > 1){
                 int i = length - 2;
                 if (i >= min_threshold) {
-                    auto thresh_prob = probability_tables.residual_thresh_array(pt,
-                                                                                coord,
-                                                                                length,
-                                                                                prior,
-                                                                                min_threshold,
-                                                                                uprior);
-                    uint16_t decoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         uprior.set_8x1_residual(horizontal, i, coef);
                         Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
@@ -133,21 +114,13 @@ void decode_one_edge(DecodeChannelContext chan_context,
                                                    Billing::RES_EDGE) ? 1 : 0);
                         probability_tables.update_universal_prob(pt, uprior, ubranch, cur_bit);
                         coef |= (cur_bit << i);
-                        decoded_so_far <<= 1;
-                        if (cur_bit) {
-                            decoded_so_far |= 1;
-                        }
                         // since we are not strict about rejecting jpegs with out of range coefs
                         // we just make those less efficient by reusing the same probability bucket
-                        decoded_so_far = std::min(decoded_so_far,
-                                                  (uint16_t)(thresh_prob.size() - 1));
-
                     }
 #ifdef ANNOTATION_ENABLED
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
 #endif
                 }
-                auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior, uprior);
                 for (; i >= 0; --i) {
                     uprior.set_8x1_residual(horizontal, i, coef);
                     Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
@@ -205,11 +178,9 @@ void parse_tokens(DecodeChannelContext chan_context,
                 all_neighbors_present || probability_tables.above_right_present);
 
     BlockContext context = chan_context.at(0);
-    BlockContext shadow_context0 = chan_context.at(1);
-    BlockContext shadow_context1 = chan_context.at(2);
+    //BlockContext shadow_context0 = chan_context.at(1);
+    //BlockContext shadow_context1 = chan_context.at(2);
     context.here().bzero();
-    auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7_chan(pt, shadow_context0.copy(), shadow_context1.copy(), uprior);
-    //auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context.copy());
     uint8_t num_nonzeros_7x7 = 0;
     int decoded_so_far = 0;
     for (int index = 5; index >= 0; --index) {
@@ -249,10 +220,8 @@ void parse_tokens(DecodeChannelContext chan_context,
             prior = probability_tables.update_coefficient_context7x7(coord, zz, context.copy(), num_nonzeros_left_7x7);
 #endif
             uprior.update_by_prior(zz + AlignedBlock::AC_7x7_INDEX, prior);
-            auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior, uprior);
             uint8_t length;
             bool nonzero = false;
-            auto exp_branch = exp_prob.begin();
             for (length = 0; length != MAX_EXPONENT; ++length) {
                 uprior.set_7x7_exp_id(length);
                 Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
@@ -270,7 +239,6 @@ void parse_tokens(DecodeChannelContext chan_context,
             if (nonzero) {
                 uprior.update_nonzero(b_x, b_y);
                 --num_nonzeros_left_7x7;
-                auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior, uprior);
                 uprior.set_7x7_sign();
                 Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
                 neg = !decoder.get(ubranch,
@@ -280,7 +248,6 @@ void parse_tokens(DecodeChannelContext chan_context,
                 eob_y = std::max(eob_y, (uint8_t)b_y);
                 coef = (1 << (length - 1));
                 if (length > 1){
-                    auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior, uprior);
                     for (int i = length - 2; i >= 0; --i) {
                         uprior.set_7x7_residual(i, coef);
                         Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
@@ -342,11 +309,6 @@ void parse_tokens(DecodeChannelContext chan_context,
             uprior.z.best_prior2_scaled = uint16bit_length(abs(uncertainty2));
             uprior.z.zigzag_index = AlignedBlock::DC_INDEX;
         }
-        auto exp_prob = probability_tables.exponent_array_dc(pt,
-                                                             len_abs_mxm,
-                                                             len_abs_offset_to_closest_edge,
-                                                             uprior);
-        auto *exp_branch = exp_prob.begin();
         for (length = 0; length < MAX_EXPONENT; ++length) {
             uprior.set_dc_exp_id(length);
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
@@ -360,17 +322,12 @@ void parse_tokens(DecodeChannelContext chan_context,
         }
         int16_t coef = 0;
         if (nonzero) {
-            auto &sign_prob = probability_tables.sign_array_dc(pt, uncertainty, uncertainty2, uprior);
             uprior.set_dc_sign();
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
             bool neg = !decoder.get(ubranch,Billing::SIGN_DC);
             probability_tables.update_universal_prob(pt, uprior, ubranch, neg ? 0 : 1);
             coef = (1 << (length - 1));
             if (length > 1){
-                auto res_prob = probability_tables.residual_array_dc(pt,
-                                                                     len_abs_mxm,
-                                                                     len_abs_offset_to_closest_edge,
-                                                                     uprior);
                 for (int i = length - 2; i >= 0; --i) {
                     uprior.set_dc_residual(i, coef);
                     Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);

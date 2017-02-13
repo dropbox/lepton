@@ -60,11 +60,6 @@ void encode_one_edge(EncodeChannelContext chan_context,
             + (!!block.coefficients_raster(6*8)) + (!!block.coefficients_raster(7*8));
     }
 
-    auto prob_edge_eob = horizontal
-        ? probability_tables.x_nonzero_counts_8x1(pt, est_eob,
-                                                  num_nonzeros_7x7, uprior)
-        : probability_tables.y_nonzero_counts_1x8(pt, est_eob,
-                                                  num_nonzeros_7x7, uprior);
 
     uint8_t aligned_block_offset = raster_to_aligned.at(1);
     unsigned int log_edge_step = log_delta_x_edge;
@@ -106,11 +101,6 @@ void encode_one_edge(EncodeChannelContext chan_context,
         }
         uprior.update_by_prior(aligned_block_offset + (lane << log_edge_step), prior);
 
-        auto exp_array = probability_tables.exponent_array_x(pt,
-                                                             coord,
-                                                             zig15offset,
-                                                             prior,
-                                                             uprior);
         int16_t coef = block.raw_data()[aligned_block_offset + (lane << log_edge_step)];
 #ifdef TRACK_HISTOGRAM
             ++histogram[2][coef];
@@ -136,7 +126,6 @@ void encode_one_edge(EncodeChannelContext chan_context,
             uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);      
             uprior.set_8x1_sign(horizontal);
-            auto &sign_prob = probability_tables.sign_array_8(pt, coord, prior, uprior);
             Branch&ubranch=probability_tables.get_universal_prob(pt, uprior);
             encoder.put(coef >= 0, ubranch,
                         Billing::SIGN_EDGE);
@@ -146,13 +135,6 @@ void encode_one_edge(EncodeChannelContext chan_context,
             if (length > 1){
                 int i = length - 2;
                 if (i >= min_threshold) {
-                    auto thresh_prob = probability_tables.residual_thresh_array(pt,
-                                                                                coord,
-                                                                                length,
-                                                                                prior,
-                                                                                min_threshold,
-                                                                                uprior);
-                    uint16_t encoded_so_far = 1;
                     for (; i >= min_threshold; --i) {
                         int cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
                         uprior.set_8x1_residual(horizontal, i, coef_so_far);
@@ -160,21 +142,14 @@ void encode_one_edge(EncodeChannelContext chan_context,
                         encoder.put(cur_bit, ubranch,
                                     Billing::RES_EDGE);
                         probability_tables.update_universal_prob(pt, uprior, ubranch, cur_bit);
-                        encoded_so_far <<=1;
                         coef_so_far |= (cur_bit << i);
-                        if (cur_bit) {
-                            encoded_so_far |=1;
-                        }
                         // since we are not strict about rejecting jpegs with out of range coefs
                         // we just make those less efficient by reusing the same probability bucket
-                        encoded_so_far = std::min(encoded_so_far,
-                                                  (uint16_t)(thresh_prob.size() - 1));
                     }
 #ifdef ANNOTATION_ENABLED
                     probability_tables.residual_thresh_array_annot_update(coord, decoded_so_far >> 2);
 #endif
                 }
-                auto res_prob = probability_tables.residual_noise_array_x(pt, coord, prior, uprior);
                 for (; i >= 0; --i) {
                     uprior.set_8x1_residual(horizontal, i, coef_so_far);
                     int16_t cur_bit = (abs_coef & (1 << i)) ? 1 : 0;
@@ -232,10 +207,10 @@ void serialize_tokens(EncodeChannelContext chan_context,
                 all_neighbors_present || probability_tables.left_present,
                 all_neighbors_present || probability_tables.above_present,
                 all_neighbors_present || probability_tables.above_right_present);
-    auto context = chan_context.at(0);
-    auto shadow_context0 = chan_context.at(1);
-    auto shadow_context1 = chan_context.at(2);
+    //auto shadow_context0 = chan_context.at(1);
+    //auto shadow_context1 = chan_context.at(2);
     //auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7_chan(pt, shadow_context0, shadow_context1, uprior);
+    auto context = chan_context.at(0);
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context, uprior);
     int serialized_so_far = 0;
     uint8_t num_nonzeros_7x7 = context.num_nonzeros_here->num_nonzeros();
@@ -293,7 +268,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
 #endif
             uprior.update_by_prior(zz + AlignedBlock::AC_7x7_INDEX, prior);
 
-            auto exp_prob = probability_tables.exponent_array_7x7(pt, coord, zz, prior, uprior);
             uint8_t length = bit_length(abs_coef);
             for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
                 uprior.set_7x7_exp_id(i);
@@ -312,7 +286,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
             if (length != 0) {
                 uprior.update_nonzero(b_x, b_y);
                 uprior.set_7x7_sign();
-                auto &sign_prob = probability_tables.sign_array_7x7(pt, coord, prior, uprior);
                 Branch &ubranch=probability_tables.get_universal_prob(pt, uprior);
                 encoder.put(coef >= 0 ? 1 : 0,
                             ubranch,
@@ -324,8 +297,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
             }
             int16_t coef_so_far = (1 << (length - 1));
             if (length > 1){
-                auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior,
-                                                                            uprior);
                 dev_assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
                 dev_assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
                 for (int i = length - 2; i >= 0; --i) {
@@ -402,10 +373,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
             uprior.z.zigzag_index = AlignedBlock::DC_INDEX;
         }
 
-        auto exp_prob = probability_tables.exponent_array_dc(pt,
-                                                             len_abs_mxm,
-                                                             len_abs_offset_to_closest_edge,
-                                                             uprior);
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
             bool cur_bit = (length != i);
             uprior.set_dc_exp_id(i);
@@ -422,12 +389,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
         }
         if (length != 0) {
             uprior.set_dc_sign();
-            auto &sign_prob = probability_tables.sign_array_dc(pt,
-                                                               uncertainty,
-                                                               //nb: needs mxm
-                                                               //value, not abs
-                                                               uncertainty2,
-                                                               uprior);
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
             encoder.put(coef >= 0 ? 1 : 0,
                         ubranch,
@@ -436,10 +397,6 @@ void serialize_tokens(EncodeChannelContext chan_context,
         }
         if (length > 1){
             int16_t coef_so_far = (1 << (length - 1));
-            auto res_prob = probability_tables.residual_array_dc(pt,
-                                                                 len_abs_mxm,
-                                                                 len_abs_offset_to_closest_edge,
-                                                                 uprior);
             dev_assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
             dev_assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {

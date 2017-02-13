@@ -800,7 +800,6 @@ public:
 
           case UniversalPrior::TYPE_NZ_7x7:
               {
-                  uint32_t i0 = uprior.z.color?1:0;
                   uint32_t i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + 1)/2);
                   if (uprior.z.has_above && uprior.z.has_left) {
                       i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + uprior.z.nz[UniversalPrior::LEFT] + 2) / 4);
