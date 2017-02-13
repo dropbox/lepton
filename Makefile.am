@@ -197,7 +197,7 @@ test_suite_test_iphone_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphone
 test_suite_test_iphone_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_SLR_SOURCES = test_suite/test_harness.cc
-test_suite_test_SLR_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DMORE_MEMORY=\"512M\"
+test_suite_test_SLR_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=slrindoor -DTEST_FILE0=slrhills -DMORE_MEMORY=\"512M\" -DDECODE_MEMORY=\"512M\" -DSINGLETHREAD_MEMORY=\"512M\" -DTHREAD_MEMORY=\"36M\"
 test_suite_test_SLR_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_hq_SOURCES = test_suite/test_harness.cc
@@ -217,11 +217,11 @@ test_suite_test_recode_memory_bound_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTES
 test_suite_test_recode_memory_bound_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_ujg_SOURCES = test_suite/test_harness.cc
-test_suite_test_progressive_ujg_CXXFLAGS = $(AM_CXXFLAGS) -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE
+test_suite_test_progressive_ujg_CXXFLAGS = $(AM_CXXFLAGS) -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE 
 test_suite_test_progressive_ujg_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_SOURCES = test_suite/test_harness.cc
-test_suite_test_progressive_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE
+test_suite_test_progressive_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphoneprogressive -DTEST_FILE0=androidprogressive -DTEST_FILE1=iphoneprogressive2 -DALLOW_PROGRESSIVE -DDECODE_MEMORY=\"512M\" -DSINGLETHREAD_MEMORY=\"512M\" -DTHREAD_MEMORY=\"36M\"
 test_suite_test_progressive_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_progressive_disallowed_SOURCES = test_suite/test_harness.cc
@@ -229,15 +229,15 @@ test_suite_test_progressive_disallowed_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -D
 test_suite_test_progressive_disallowed_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_SOURCES = test_suite/test_harness.cc
-test_suite_test_truncate_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trunc
+test_suite_test_truncate_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trunc -DDECODE_MEMORY=\"32M\" -DSINGLETHREAD_MEMORY=\"32M\"
 test_suite_test_truncate_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_truncate_lowmem_SOURCES = test_suite/test_harness.cc
-test_suite_test_truncate_lowmem_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trunc -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
+test_suite_test_truncate_lowmem_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trunc -DSINGLETHREAD -DDECODE_MEMORY=\"32M\" -DSINGLETHREAD_MEMORY=\"32M\"
 test_suite_test_truncate_lowmem_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_android_lowmem_SOURCES = test_suite/test_harness.cc
-test_suite_test_android_lowmem_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=android -DTEST_FILE0=grayscale -DSINGLETHREAD -DDECODE_MEMORY=\"18M\" -DTHREAD_MEMORY=\"0M\"
+test_suite_test_android_lowmem_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=android -DTEST_FILE0=grayscale -DSINGLETHREAD -DDECODE_MEMORY=\"32M\" -DSINGLETHREAD_MEMORY=\"32M\" -DTHREAD_MEMORY=\"0M\"
 test_suite_test_android_lowmem_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_nofsync_SOURCES = test_suite/test_harness.cc
