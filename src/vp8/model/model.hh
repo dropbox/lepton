@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <tmmintrin.h>
+#include <cstring>
 #include "../util/debug.hh"
 #include "../util/options.hh"
 #include "../util/nd_array.hh"
@@ -69,143 +70,126 @@ struct UniversalPrior {
     TYPE_RES_DC,
     NUM_TYPES
   };
-  struct {
-      // populated on block begin
-      int16_t neighboring_pixels[16];// do we want edge pixels of other channels? so far no
-      uint8_t nz[NUM_PRIOR_VALUES];
-      int color;
-      int is_x_odd;
-      int is_y_odd;
-      int is_edge; // we probably want to learn different rules if this is an edge
-      int has_above;
-      int has_left;
-      int has_above_right;
+  enum {
+      OFFSET_RAW = 0,
+      OFFSET_NONZERO = NUM_PRIOR_VALUES * 64,
+      OFFSET_NEIGHBORING_PIXELS = NUM_PRIOR_VALUES * 64 + NUM_PRIOR_VALUES,
+      OFFSET_COLOR = NUM_PRIOR_VALUES * 64 + NUM_PRIOR_VALUES + 16,
+  };
+  enum {
+      OFFSET_IS_X_ODD = OFFSET_COLOR + 1,
+      OFFSET_IS_Y_ODD,
+      OFFSET_IS_EDGE,
+      OFFSET_HAS_LEFT,
+      OFFSET_HAS_ABOVE,
+      OFFSET_HAS_ABOVE_RIGHT,
+      OFFSET_BEST_PRIOR,
+      OFFSET_BEST_PRIOR_SCALED,
+      OFFSET_BEST_PRIOR2,
+      OFFSET_BEST_PRIOR2_SCALED,
+      OFFSET_BIT_TYPE,
+      OFFSET_BIT_INDEX,
+      OFFSET_NUM_NONZEROS_LEFT,
+      OFFSET_CUR_NZ_X,
+      OFFSET_CUR_NZ_Y,
+      OFFSET_NUM_NZ_X_LEFT,
+      OFFSET_NUM_NZ_Y_LEFT,
+      OFFSET_CUR_NZ_SCALED,
+      OFFSET_NZ_SCALED,
+      OFFSET_ZZ_INDEX,
+      OFFSET_VALUE_SO_FAR,
+      PRIOR_SIZE,
+  };
 
-
-      int32_t best_prior;
-      int32_t best_prior_scaled;
-      int32_t best_prior2; // only used for DC
-      int32_t best_prior2_scaled; // only used for DC
-
-      int bit_type;
-      int bit_index;
-
-      int16_t value_so_far;
-      uint8_t num_nonzeros_left;
-      uint8_t cur_nz_x; // populated as we read the zero map of the 7x7
-      uint8_t cur_nz_y;
-      uint8_t num_nz_x_left;
-      uint8_t num_nz_y_left;
-      // populated once we read the 7x7 (along with nz[CUR])
-      uint8_t nz_scaled;
-
-      uint8_t zigzag_index;
-      uint8_t must_be_zero;
-  } z;
+  int16_t priors[PRIOR_SIZE];
   UniversalPrior() {
-      raw.memset(0);
-      memset(&z, 0, sizeof(z));
-      /*
-      memset(neighboring_pixels, 0, sizeof(neighboring_pixels));
-      memset(nz, 0, sizeof(nz));
-      cur_nz = 0;
-      nz_x = 0;
-      nz_y = 0;
-      best_prior = best_prior_scaled = nz_prior = nz_scaled = 0;
-      zigzag_index = 0;
-      is_x_odd = 0;
-      is_y_odd = 0;
-      color = 0;
-      value_so_far = 0;
-      bit_type = 0;
-      bit_index = 0;
-      */
+      memset(priors, 0, sizeof(priors));
   }
   template<class Prior>void update_by_prior(uint8_t aligned_zz, const Prior&context) {
-    z.zigzag_index = aligned_zz;
-    z.best_prior = context.best_prior;
-    z.best_prior_scaled = context.bsr_best_prior;
-    z.nz_scaled = context.num_nonzeros_bin;
+    priors[OFFSET_ZZ_INDEX] = aligned_zz;
+    priors[OFFSET_BEST_PRIOR] = context.best_prior;
+    priors[OFFSET_BEST_PRIOR_SCALED] = context.bsr_best_prior;
+    priors[OFFSET_NZ_SCALED] = context.num_nonzeros_bin;
   }
   void set_7x7_nz_bit_id(uint8_t index, uint8_t value_so_far) {
-    z.value_so_far =  value_so_far;
-    z.bit_index = index;
-    z.bit_type = TYPE_NZ_7x7;
+    priors[OFFSET_VALUE_SO_FAR] =  value_so_far;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_BIT_TYPE] = TYPE_NZ_7x7;
   }
   void set_7x7_exp_id(uint8_t index) {
-    z.bit_index = index;
-    z.bit_type = TYPE_EXP_7x7;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_BIT_TYPE] = TYPE_EXP_7x7;
   }
   void set_7x7_sign() {
-    z.bit_index = 0;
-    z.bit_type = TYPE_SIGN_7x7;
+    priors[OFFSET_BIT_INDEX] = 0;
+    priors[OFFSET_BIT_TYPE] = TYPE_SIGN_7x7;
   }
   void set_7x7_residual(uint8_t index, uint8_t value_so_far) {
-    z.bit_index = index;
-    z.value_so_far = value_so_far;
-    z.bit_type = TYPE_RES_7x7;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_VALUE_SO_FAR] = value_so_far;
+    priors[OFFSET_BIT_TYPE] = TYPE_RES_7x7;
   }
 
   void set_8x1_nz_bit_id(bool horiz, uint8_t index, uint8_t value_so_far) {
-    z.value_so_far =  value_so_far;
-    z.bit_index = index;
-    z.bit_type = horiz ? TYPE_NZ_8x1 : TYPE_NZ_1x8;
+    priors[OFFSET_VALUE_SO_FAR] =  value_so_far;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_BIT_TYPE] = horiz ? TYPE_NZ_8x1 : TYPE_NZ_1x8;
   }
   void set_8x1_exp_id(bool horiz, uint8_t index) {
-    z.bit_index = index;
-    z.bit_type = horiz ? TYPE_EXP_8x1 : TYPE_EXP_1x8;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_BIT_TYPE] = horiz ? TYPE_EXP_8x1 : TYPE_EXP_1x8;
   }
   void set_8x1_sign(bool horiz) {
-    z.bit_index = 0;
-    z.bit_type = horiz ? TYPE_SIGN_8x1 : TYPE_SIGN_1x8;
+    priors[OFFSET_BIT_INDEX] = 0;
+    priors[OFFSET_BIT_TYPE] = horiz ? TYPE_SIGN_8x1 : TYPE_SIGN_1x8;
   }
   void set_8x1_residual(bool horiz, uint8_t index, uint8_t value_so_far) {
-    z.bit_index = index;
-    z.value_so_far = value_so_far;
-    z.bit_type = horiz ? TYPE_RES_8x1 : TYPE_RES_1x8;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_VALUE_SO_FAR] = value_so_far;
+    priors[OFFSET_BIT_TYPE] = horiz ? TYPE_RES_8x1 : TYPE_RES_1x8;
   }
 
   void set_dc_exp_id(uint8_t index) {
-    z.bit_index = index;
-    z.bit_type = TYPE_EXP_DC;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_BIT_TYPE] = TYPE_EXP_DC;
   }
   void set_dc_sign() {
-    z.bit_index = 0;
-    z.bit_type = TYPE_SIGN_DC;
+    priors[OFFSET_BIT_INDEX] = 0;
+    priors[OFFSET_BIT_TYPE] = TYPE_SIGN_DC;
   }
   void set_dc_residual(uint8_t index, uint8_t value_so_far) {
-    z.bit_index = index;
-    z.value_so_far = value_so_far;
-    z.bit_type = TYPE_RES_DC;
+    priors[OFFSET_BIT_INDEX] = index;
+    priors[OFFSET_VALUE_SO_FAR] = value_so_far;
+    priors[OFFSET_BIT_TYPE] = TYPE_RES_DC;
   }
 
   void update_coef(uint8_t index, int16_t val) {
-    raw[CUR].raw_data()[index] = val;
+    priors[OFFSET_RAW + 64 * CUR + index] = val;
   }
   void set_nonzero_edge(bool horizontal, uint8_t num_nonzero_edge) {
     if (horizontal) {
-      z.num_nz_x_left = z.cur_nz_x = num_nonzero_edge;
+      priors[OFFSET_NUM_NZ_X_LEFT] = priors[OFFSET_CUR_NZ_X] = num_nonzero_edge;
     } else {
-      z.num_nz_y_left = z.cur_nz_y = num_nonzero_edge;
+      priors[OFFSET_NUM_NZ_Y_LEFT] = priors[OFFSET_CUR_NZ_Y] = num_nonzero_edge;
     }
   }
   void update_nonzero_edge(bool horizontal, uint8_t lane) {
     if (horizontal) {
-      z.num_nz_x_left--;
+        priors[OFFSET_NUM_NZ_X_LEFT]--;
     } else {
-      z.num_nz_y_left--;
+        priors[OFFSET_NUM_NZ_Y_LEFT]--;
     }
   }
   void set_nonzeros7x7(uint8_t nz) {
-    z.nz[CUR] = z.num_nonzeros_left = nz;
+    priors[OFFSET_NONZERO + CUR] = priors[OFFSET_NUM_NONZEROS_LEFT] = nz;
   }
   void update_nonzero(uint8_t bx, uint8_t by) {
-    z.num_nonzeros_left  -= 1;
-    if (bx > z.cur_nz_x) {
-      z.cur_nz_x = bx;
+    priors[OFFSET_NUM_NONZEROS_LEFT] -= 1;
+    if (bx > priors[OFFSET_CUR_NZ_X]) {
+      priors[OFFSET_CUR_NZ_X] = bx;
     }
-    if (by > z.cur_nz_y) {
-      z.cur_nz_y = by;
+    if (by > priors[OFFSET_CUR_NZ_Y]) {
+      priors[OFFSET_CUR_NZ_Y] = by;
     }
   }
   template <class BlockContext> void init(
@@ -214,52 +198,63 @@ struct UniversalPrior {
       bool left_present,
       bool above_present,
       bool above_right_present) {
-    z.color = (int)color_channel;
-    z.is_x_odd = (input.jpeg_x & 1);
-    z.is_y_odd = (input.jpeg_y & 1);
+    priors[OFFSET_COLOR] = (int)color_channel;
+    priors[OFFSET_IS_X_ODD] = (input.jpeg_x & 1);
+    priors[OFFSET_IS_Y_ODD] = (input.jpeg_y & 1);
     // edge is 1 if either up or left is next to an edge...and 2 if it's the edge
-    z.is_edge = (left_present && above_present && above_right_present) ? 0 : 1;
-    z.has_above = above_present ? 1 : 0;
-    z.has_left = left_present ? 1 : 0;
-    z.has_above_right = above_right_present ? 1 : 0;
-    z.nz[CUR] = 0;
+    priors[OFFSET_IS_EDGE] = (left_present && above_present && above_right_present) ? 0 : 1;
+    priors[OFFSET_HAS_ABOVE] = above_present ? 1 : 0;
+    priors[OFFSET_HAS_LEFT] = left_present ? 1 : 0;
+    priors[OFFSET_HAS_ABOVE_RIGHT] = above_right_present ? 1 : 0;
+    priors[OFFSET_NONZERO + CUR] = 0;
+    const size_t offset = OFFSET_RAW;
+    using namespace std;
     if (left_present) {
-        memcpy(z.neighboring_pixels,
+        memcpy(&priors[OFFSET_NEIGHBORING_PIXELS],
                input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7(),
                sizeof(int16_t) * 8);
-        z.nz[LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
-        raw[LEFT] = input.at(0).left_unchecked();
+        priors[OFFSET_NONZERO + LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
+        memcpy(&priors[offset + 64 * LEFT], input.at(0).left_unchecked().raw_data(),
+               64 * sizeof(int16_t));
     }
     if (above_present) {
-        memcpy(z.neighboring_pixels + 8,
+        memcpy(&priors[OFFSET_NEIGHBORING_PIXELS] + 8,
                input.at(0).neighbor_context_above_unchecked().horizontal_ptr(),
                sizeof(int16_t) * 8);
-        z.nz[ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
-        raw[ABOVE] = input.at(0).above_unchecked();
+        priors[OFFSET_NONZERO + ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
+        memcpy(&priors[offset + 64 * ABOVE], input.at(0).above_unchecked().raw_data(),
+               64 * sizeof(int16_t));
     }
     if (above_right_present) {
-        z.nz[ABOVE_RIGHT] = input.at(0).nonzeros_above_right_7x7_unchecked();
-        raw[ABOVE_RIGHT] = input.at(0).above_right_unchecked();
+        priors[OFFSET_NONZERO + ABOVE_RIGHT] = input.at(0).nonzeros_above_right_7x7_unchecked();
+        memcpy(&priors[offset + 64 * ABOVE_RIGHT], input.at(0).above_right_unchecked().raw_data(),
+               64 * sizeof(int16_t));
     }
     if (left_present && above_present) {
-      raw[ABOVE_LEFT] = input.at(0).above_left_unchecked();
+        memcpy(&priors[offset + 64 * ABOVE_LEFT], input.at(0).above_left_unchecked().raw_data(),
+               64 * sizeof(int16_t));
     }
     if (left_present && color_channel != BlockType::Y) {
-      z.nz[LUMA1] = input.at(1).nonzeros_left_7x7_unchecked();
-      raw[LUMA1] = input.at(1).left_unchecked();
+      priors[OFFSET_NONZERO + LUMA1] = input.at(1).nonzeros_left_7x7_unchecked();
+        memcpy(&priors[offset + 64 * LUMA1], input.at(1).left_unchecked().raw_data(),
+               64 * sizeof(int16_t));
     }
     if (above_present && color_channel != BlockType::Y) {
-      z.nz[LUMA2] = input.at(1).nonzeros_above_7x7_unchecked();
-      raw[LUMA2] = input.at(1).above_unchecked();
+      priors[OFFSET_NONZERO + LUMA2] = input.at(1).nonzeros_above_7x7_unchecked();
+      memcpy(&priors[offset + 64 * LUMA2], input.at(1).above_unchecked().raw_data(),
+             64 * sizeof(int16_t));
     }
     if (left_present && above_present && color_channel != BlockType::Y) {
-      z.nz[LUMA3] = input.at(1).nonzeros_above_left_7x7_unchecked();
-      raw[LUMA3] = input.at(1).above_left_unchecked();
+      priors[OFFSET_NONZERO + LUMA3] = input.at(1).nonzeros_above_left_7x7_unchecked();
+      memcpy(&priors[offset + 64 * LUMA3], input.at(1).above_left_unchecked().raw_data(),
+             64 * sizeof(int16_t));
     }
-    raw[LUMA0] = input.at(1).here();
-    z.nz[LUMA0] = input.at(1).num_nonzeros_here->num_nonzeros();
-    raw[CHROMA] = input.at(2).here();
-    z.nz[CHROMA] = input.at(2).num_nonzeros_here->num_nonzeros();
+    memcpy(&priors[offset + 64 * LUMA0], input.at(1).here().raw_data(),
+           64 * sizeof(int16_t));
+    priors[OFFSET_NONZERO + LUMA0] = input.at(1).num_nonzeros_here->num_nonzeros();
+    memcpy(&priors[offset + 64 * CHROMA], input.at(2).here().raw_data(),
+           64 * sizeof(int16_t));
+    priors[OFFSET_NONZERO + CHROMA] = input.at(2).num_nonzeros_here->num_nonzeros();
   }
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
@@ -668,8 +663,8 @@ public:
         uint8_t num_nonzeros1 = chan1.num_nonzeros_here->num_nonzeros();
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
         uint8_t num_nonzeros_context = (num_nonzeros0 + num_nonzeros1 + 2) / 4;
-        always_assert(uprior.z.nz[UniversalPrior::LUMA0] == num_nonzeros0);
-        always_assert(uprior.z.nz[UniversalPrior::CHROMA] == num_nonzeros1);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LUMA0] == num_nonzeros0);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CHROMA] == num_nonzeros1);
         return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
                                                       num_nonzeros_to_bin(num_nonzeros_context));
     }
@@ -695,8 +690,8 @@ public:
             num_nonzeros_context = (num_nonzeros_above + num_nonzeros_left + 2) / 4;
         }
         ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
-        always_assert(uprior.z.nz[UniversalPrior::ABOVE] == num_nonzeros_above);
-        always_assert(uprior.z.nz[UniversalPrior::LEFT] == num_nonzeros_left);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::ABOVE] == num_nonzeros_above);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LEFT] == num_nonzeros_left);
         return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
                                                       num_nonzeros_to_bin(num_nonzeros_context));
     }
@@ -706,7 +701,7 @@ public:
                                                                   const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, ZEROS8x1, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, ZEROS8x1, 1, eob_x);
-        always_assert(uprior.z.cur_nz_x == eob_x);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_CUR_NZ_X] == (uint16_t)eob_x);
         return pt.model().num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
     Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(ProbabilityTablesBase &pt,
@@ -715,7 +710,7 @@ public:
                                                                   const UniversalPrior&uprior) {
         ANNOTATE_CTX(0, ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
         ANNOTATE_CTX(0, ZEROS1x8, 1, eob_x);
-        always_assert(uprior.z.cur_nz_y == eob_x);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_CUR_NZ_Y] == (uint16_t)eob_x);
         return pt.model().num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
     }
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt,
@@ -726,7 +721,7 @@ public:
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
         dev_assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
-        always_assert(uprior.z.best_prior_scaled == context.bsr_best_prior);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED] == context.bsr_best_prior);
         return pt.model().exponent_counts_x_.at(color_index(),
                                              context.num_nonzeros_bin,
                                              zig15,
@@ -739,7 +734,7 @@ public:
                                                                       const UniversalPrior&uprior) {
         ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
-        always_assert(uprior.z.best_prior_scaled == context.bsr_best_prior);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED] == context.bsr_best_prior);
         return pt.model().exponent_counts_.at(color_index(),
             context.num_nonzeros_bin,
             zig49,
@@ -777,7 +772,7 @@ public:
                                                             const unsigned int band,
                                                                             const CoefficientContext context,
                                                                             const UniversalPrior&uprior) {
-        always_assert(uprior.z.nz_scaled == context.num_nonzeros_bin);
+        always_assert(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] == context.num_nonzeros_bin);
         return pt.model().residual_noise_counts_.at(color_index(),
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
@@ -789,69 +784,67 @@ public:
     }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         ++num_univ_prior_gets;
-        switch (uprior.z.bit_type) {
+        switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
           case UniversalPrior::TYPE_NZ_1x8:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 uprior.z.bit_index,
-                                                 (uprior.z.color?1:0) +
-                                                 2 * (uprior.z.num_nz_x_left + 8 * (
-                                                          (uprior.z.nz[UniversalPrior::CUR] + 3) / 7 + 10 * uprior.z.value_so_far)));
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) +
+                                                 2 * (uprior.priors[UniversalPrior::OFFSET_NUM_NZ_X_LEFT] + 8 * (
+                                                                                                                 (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR] + 3) / 7 + 10 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])));
 
           case UniversalPrior::TYPE_NZ_7x7:
               {
-                  uint32_t i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + 1)/2);
-                  if (uprior.z.has_above && uprior.z.has_left) {
-                      i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::ABOVE] + uprior.z.nz[UniversalPrior::LEFT] + 2) / 4);
-                  } else if (uprior.z.has_left) {
-                      i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::LEFT] + 1)/2);
+                  uint32_t i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::ABOVE] + 1)/2);
+                  if (uprior.priors[UniversalPrior::OFFSET_HAS_ABOVE] && uprior.priors[UniversalPrior::OFFSET_HAS_LEFT]) {
+                      i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::ABOVE] + uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LEFT] + 2) / 4);
+                  } else if (uprior.priors[UniversalPrior::OFFSET_HAS_LEFT]) {
+                      i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LEFT] + 1)/2);
                   }
-                  //uint32_t i1 = num_nonzeros_to_bin((uprior.z.nz[UniversalPrior::LUMA0] + uprior.z.nz[UniversalPrior::CHROMA] + 2) / 4);
-                  uint32_t i2 = uprior.z.value_so_far;
-                  return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                       uprior.z.bit_index,
-                                                       (uprior.z.color?1:0) +
+                  //uint32_t i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LUMA0] + uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CHROMA] + 2) / 4);
+                  uint32_t i2 = uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR];
+                  return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                       (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) +
                                                        2 * (i1 + 6 * i2));
               }
           case UniversalPrior::TYPE_EXP_7x7:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 uprior.z.bit_index,
-                                                 (uprior.z.color? 1:0) + 2 * (uprior.z.nz_scaled + 10 * (uprior.z.zigzag_index + 64 * uprior.z.best_prior_scaled)));
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]? 1:0) + 2 * (uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED])));
             
           case UniversalPrior::TYPE_EXP_8x1:
           case UniversalPrior::TYPE_EXP_1x8:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 uprior.z.bit_index,
-                                                 (uprior.z.color? 1:0) + 2 * (uprior.z.nz_scaled + 10 * (uprior.z.zigzag_index + 64 * uprior.z.best_prior_scaled)));
-            
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]? 1:0) + 2 * (uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED])));
           case UniversalPrior::TYPE_SIGN_8x1:
           case UniversalPrior::TYPE_SIGN_1x8:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 0*uprior.z.bit_index,
-                                                 (uprior.z.color?1:0) + 2 * ((uprior.z.best_prior == 0 ? 0 : (uprior.z.best_prior > 0 ? 1 : 2)) + 3 * uprior.z.best_prior_scaled));
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 0*uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) + 2 * ((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
           case UniversalPrior::TYPE_SIGN_7x7:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 0*uprior.z.bit_index,
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 0*uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                                                  0);
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:
           case UniversalPrior::TYPE_RES_8x1:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 0 * uprior.z.bit_index,
-                                                 (uprior.z.color?1:0) + 2 * (
-                                                     uprior.z.zigzag_index + 64 * (uprior.z.nz[UniversalPrior::CUR])));
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) + 2 * (
+                                                     uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR])));
             
           default:
-            return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 uprior.z.bit_index,
-                                                 (uprior.z.color?1:0) + 2 * (uprior.z.best_prior2_scaled + 16 * uprior.z.best_prior_scaled));
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) + 2 * (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] + 16 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
         }
         unsigned char rez[16];
         {
             MD5_CTX md5;
             MD5_Init(&md5);
-            MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * UniversalPrior::NUM_PRIOR_VALUES);
-            MD5_Update(&md5, &uprior.z, sizeof(uprior.z));
+            MD5_Update(&md5, &uprior.priors[0], sizeof(uprior.priors));
         /*
         if (pcount == 107920) {
             fprintf(stderr, "OK %s\n", uprior.raw.at(7).toString().c_str());
@@ -869,7 +862,7 @@ public:
         
              MD5_Final(rez, &md5);
         }
-        return pt.model().univ_prob_array.at(uprior.z.bit_type, uprior.z.bit_index, rez[0]&15);
+        return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE], uprior.priors[UniversalPrior::OFFSET_BIT_INDEX], rez[0]&15);
     }
     Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
                                                             const unsigned int band,

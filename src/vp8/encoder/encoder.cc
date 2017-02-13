@@ -366,11 +366,11 @@ void serialize_tokens(EncodeChannelContext chan_context,
             len_abs_offset_to_closest_edge = prior.num_nonzeros_bin;
             uprior.update_by_prior(AlignedBlock::DC_INDEX, prior);
         } else {
-            uprior.z.best_prior = uncertainty;
-            uprior.z.best_prior_scaled = uint16bit_length(abs(uncertainty));
-            uprior.z.best_prior2 = uncertainty2;
-            uprior.z.best_prior2_scaled = uint16bit_length(abs(uncertainty2));
-            uprior.z.zigzag_index = AlignedBlock::DC_INDEX;
+            uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] = uncertainty;
+            uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED] = uint16bit_length(abs(uncertainty));
+            uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2] = uncertainty2;
+            uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] = uint16bit_length(abs(uncertainty2));
+            uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] = AlignedBlock::DC_INDEX;
         }
 
         for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
