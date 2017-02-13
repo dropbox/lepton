@@ -30,6 +30,8 @@ enum TableParams : unsigned int {
     COEF_BITS = MAX_EXPONENT - 1, // the last item of the length is always 1
 };
 extern int pcount;
+extern std::atomic<uint64_t> num_univ_prior_gets;
+extern std::atomic<uint64_t> num_univ_prior_updates;
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -780,17 +782,21 @@ public:
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
     }
-    
+    void update_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior, int bit) {
+        ++num_univ_prior_updates;
+
+    }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
+        ++num_univ_prior_gets;
         switch (uprior.z.bit_type) {
           case UniversalPrior::TYPE_NZ_8x1:
           case UniversalPrior::TYPE_NZ_1x8:
             return pt.model().univ_prob_array.at(uprior.z.bit_type,
-                                                 0*uprior.z.bit_index,
+                                                 uprior.z.bit_index,
                                                  (uprior.z.color?1:0) +
                                                  2 * (uprior.z.num_nz_x_left + 8 * (
                                                           (uprior.z.nz[UniversalPrior::CUR] + 3) / 7 + 10 * uprior.z.value_so_far)));
-            
+
           case UniversalPrior::TYPE_NZ_7x7:
               {
                   uint32_t i0 = uprior.z.color?1:0;

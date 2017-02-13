@@ -11,6 +11,9 @@
 #include <emmintrin.h>
 #include "model.hh"
 int pcount =0;
+std::atomic<uint64_t> num_univ_prior_gets(0);
+std::atomic<uint64_t> num_univ_prior_updates(0);
+
 bool all_branches_identity(const Branch * start, const Branch * end) {
     for (const Branch * i = start;i != end; ++i) {
         if (!i->is_identity()){
