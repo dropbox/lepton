@@ -782,7 +782,8 @@ public:
                                                  band/band_divisor,
                                                  context.num_nonzeros_bin);
     }
-    void update_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior, int bit) {
+    void update_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior,
+                               Branch& selected_branch, int bit) {
         ++num_univ_prior_updates;
 
     }
