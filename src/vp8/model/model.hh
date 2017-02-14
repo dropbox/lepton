@@ -35,6 +35,7 @@ enum TableParams : unsigned int {
     COEF_BITS = MAX_EXPONENT - 1, // the last item of the length is always 1
 };
 extern bool g_print_priors;
+extern bool g_print_reduced_prior;
 extern int pcount;
 extern FILE * g_binary_priors;
 extern std::atomic<uint64_t> num_univ_prior_gets;
@@ -80,12 +81,10 @@ struct UniversalPrior {
     NUM_TYPES
   };
   enum {
-      OFFSET_RAW = 0,
-      OFFSET_NONZERO = NUM_PRIOR_VALUES * 64,
-      OFFSET_NEIGHBORING_PIXELS = NUM_PRIOR_VALUES * 64 + NUM_PRIOR_VALUES,
-      OFFSET_COLOR = NUM_PRIOR_VALUES * 64 + NUM_PRIOR_VALUES + 16,
-  };
-  enum {
+      OFFSET_BIT_TYPE,
+      OFFSET_BIT_INDEX,
+      OFFSET_ZZ_INDEX,
+      OFFSET_COLOR,
       OFFSET_IS_X_ODD = OFFSET_COLOR + 1,
       OFFSET_IS_Y_ODD,
       OFFSET_IS_EDGE,
@@ -96,17 +95,19 @@ struct UniversalPrior {
       OFFSET_BEST_PRIOR_SCALED,
       OFFSET_BEST_PRIOR2,
       OFFSET_BEST_PRIOR2_SCALED,
-      OFFSET_BIT_TYPE,
-      OFFSET_BIT_INDEX,
       OFFSET_NUM_NONZEROS_LEFT,
       OFFSET_CUR_NZ_X,
       OFFSET_CUR_NZ_Y,
       OFFSET_NUM_NZ_X_LEFT,
       OFFSET_NUM_NZ_Y_LEFT,
       OFFSET_NZ_SCALED,
-      OFFSET_ZZ_INDEX,
       OFFSET_VALUE_SO_FAR,
-      PRIOR_SIZE,
+  };
+  enum {
+      OFFSET_NONZERO = OFFSET_VALUE_SO_FAR + 1,
+      OFFSET_RAW = OFFSET_VALUE_SO_FAR + 1 + NUM_PRIOR_VALUES,
+      OFFSET_NEIGHBORING_PIXELS = OFFSET_VALUE_SO_FAR + 1 + NUM_PRIOR_VALUES * 64 + NUM_PRIOR_VALUES,
+      PRIOR_SIZE = OFFSET_VALUE_SO_FAR + 1 + NUM_PRIOR_VALUES * 64 + NUM_PRIOR_VALUES + 16,
   };
   struct MeanMinMax {
       int16_t mean;
@@ -285,6 +286,7 @@ struct UniversalPrior {
     if (left_present) {
         for (int i = 0; i < 8;++i) {
             priors[OFFSET_NEIGHBORING_PIXELS + i] = (input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7()[i] >> 3) - 128; // moved to between -128 and 127
+            always_assert(OFFSET_NEIGHBORING_PIXELS + i < PRIOR_SIZE);
         }
         priors[OFFSET_NONZERO + LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
         memcpy(&priors[offset + 64 * LEFT], input.at(0).left_unchecked().raw_data(),
@@ -293,6 +295,7 @@ struct UniversalPrior {
     if (above_present) {
         for (int i = 0; i < 8;++i) {
             priors[OFFSET_NEIGHBORING_PIXELS + i + 8] = (input.at(0).neighbor_context_above_unchecked().horizontal_ptr()[i] >> 3) - 128; // moved to between -128 and 127
+            always_assert(OFFSET_NEIGHBORING_PIXELS + i + 8 < PRIOR_SIZE);
         }
         priors[OFFSET_NONZERO + ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
         memcpy(&priors[offset + 64 * ABOVE], input.at(0).above_unchecked().raw_data(),
@@ -585,6 +588,23 @@ public:
     void load(ProbabilityTablesBase&base, const char * filename) {
         load_model(base.model(), filename);
     }
+    /*
+    bool allowed_prior_zz_index(uint8_t typ, uint8_t prior_zz_index, uint8_t cur_zz_index) {
+        uint8_t cur_raster = aligned_to_raster(cur_zz_index);
+        uint8_t prior_raster = aligned_to_raster(prior_zz_index);
+        if (typ >= UniversalPrior::LUMA0) {
+            uint8_t cur_x = cur_raster & 7;
+            uint8_t cur_y = (cur_raster >> 3);
+            uint8_t prior_x = cur_raster & 7;
+            uint8_t prior_y = (cur_raster >> 3);
+            return prior_raster == cur_raster || (cur_x == prior_x && (prior_y << 1) == cur_y)
+                || (cur_x == prior_x && (cur_y << 1) == prior_y)
+                || (cur_y == prior_y && (prior_x << 1) == cur_x)
+                || (cur_y == prior_y && (cur_x << 1) == prior_x);
+        }else {
+            return prior_raster + 1 == cur_raster || prior_raster == cur_raster || prior_raster == cur_raster + 1 || prior_raster == cur_raster + 8 || prior_raster + 8 == cur_raster;
+        }
+    }*/
     int color_index() {
         if (BLOCK_TYPES == 2) {
             if (0 == (int)COLOR) {
@@ -695,13 +715,16 @@ public:
             return;
         }
         always_assert(g_threaded == false && "Do not support printing arrays with multithreading");
-        int16_t output[UniversalPrior::PRIOR_SIZE + 4];
+        int16_t output[UniversalPrior::PRIOR_SIZE + 4] = {0};
         output[0] = bit;
         output[1] = selected_branch.true_count();
         output[2] = selected_branch.false_count();
         output[3] = array_index;
+        int counter = 4;
+        int original_counter = counter;
         for (size_t i= 0; i < UniversalPrior::PRIOR_SIZE; ++i) {
             int16_t tmp_output = uprior.priors[i];
+#if DO_INPUT_SCALING
             if (uprior.ranges[i].min == 0 && uprior.ranges[i].max == 1) {
                 if (uprior.priors[i]) {
                     tmp_output = 1023;
@@ -716,10 +739,69 @@ public:
                 }
                 tmp_output = del;
             }
-            output[i + 4] = tmp_output;
+#endif
+            if (g_print_reduced_prior && i >= UniversalPrior::OFFSET_RAW) {
+                break;
+            } else {
+                output[counter] = tmp_output;
+                ++counter;
+            }
+        }
+        if (g_print_reduced_prior) {
+            for (size_t i = UniversalPrior::OFFSET_RAW; i < UniversalPrior::OFFSET_NEIGHBORING_PIXELS;i += 64) {
+                uint32_t offset = i - UniversalPrior::OFFSET_RAW;
+                uint8_t typ = (offset >> 6);
+                uint8_t zz_index = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
+                output[counter] = uprior.priors[i];
+                int raster = aligned_to_raster.at(zz_index);
+                int above_raster = raster > 8 ? raster - 8 : raster;
+                int below_raster = raster < 64 - 8 ? raster + 8 : raster;
+                int left_raster = (raster & 7) > 0 ? raster - 1 : raster;
+                int right_raster = (raster & 7) < 7 ? raster + 1 : raster;
+                if (typ >= UniversalPrior::LUMA0) {
+                    int x = (raster & 7);
+                    int y = (raster >> 3);
+                    left_raster = (x >> 1) + (y << 3);
+                    above_raster = x + (y << 2);
+                    if (x < 4) {
+                        right_raster = (x << 1) + (y << 3);
+                    }
+                    if (y < 4) {
+                        below_raster = x + (y << 4);
+                    }
+                }
+                output[counter] = uprior.priors[i + uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]];
+                output[counter + 1] = uprior.priors[i + raster_to_aligned.at(left_raster)];
+                output[counter + 2] = uprior.priors[i + raster_to_aligned.at(right_raster)];
+                output[counter + 3] = uprior.priors[i + raster_to_aligned.at(above_raster)];
+                output[counter + 4 ] = uprior.priors[i + raster_to_aligned.at(below_raster)];
+                counter += 5;
+            }
+        }
+        static bool first = true;
+        if (first) {
+            first = false;
+            if (g_binary_priors) {
+                int16_t sub_output[UniversalPrior::PRIOR_SIZE + 4];
+                for (int i = 0; i < counter ;++i) {
+                    sub_output[i] = i < original_counter ? original_counter : counter;
+                }
+                ssize_t bytes_left = counter * sizeof(output[0]);
+                const char * data = (const char*)sub_output;
+                while(bytes_left) {
+                    int written = write(fileno(g_binary_priors), data, bytes_left);
+                    if (written > 0) {
+                        bytes_left -= written;
+                        data += written;
+                    }
+                    if (written < 0 && errno != EINTR) {
+                        always_assert(written >= 0 && "Error writing binary priors");
+                    }
+                }
+            }
         }
         if (g_binary_priors) {
-            ssize_t bytes_left = sizeof(output);
+            ssize_t bytes_left = counter * sizeof(output[0]);
             const char * data = (const char*)output;
             while(bytes_left) {
                 int written = write(fileno(g_binary_priors), data, bytes_left);
@@ -731,10 +813,9 @@ public:
                     always_assert(written >= 0 && "Error writing binary priors");
                 }
             }
-            fwrite(output, sizeof(output), 1, g_binary_priors);
         }else {
             fprintf(stderr, "%d", output[0]);
-            for (size_t i= 1; i < sizeof(output) / sizeof(output[0]); ++i) {
+            for (size_t i= 1; i < counter * sizeof(output[0]); ++i) {
                 fprintf(stderr, ",%d", (int)output[i]);
             }
             fprintf(stderr, "\n");

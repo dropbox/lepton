@@ -916,6 +916,9 @@ int initialize_options( int argc, const char*const * argv )
         else if ( strcmp((*argv), "-printpriors" ) == 0)  {
             g_print_priors = true;
         }
+        else if ( strcmp((*argv), "-richerpriors" ) == 0)  {
+            g_print_reduced_prior = false;
+        }
         else if ( strcmp((*argv), "-collapsezigzag" ) == 0)  {
             g_collapse_zigzag = true;
         }
