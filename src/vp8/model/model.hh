@@ -5,6 +5,7 @@
 #include <memory>
 #include <tmmintrin.h>
 #include <cstring>
+#include <cstdio>
 #include "../util/debug.hh"
 #include "../util/options.hh"
 #include "../util/nd_array.hh"
@@ -780,7 +781,13 @@ public:
     void update_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior,
                                Branch& selected_branch, int bit) {
         ++num_univ_prior_updates;
-
+        fprintf(stderr, "%d,", bit);
+        fprintf(stderr, "%d,%d,", selected_branch.true_count(), selected_branch.false_count());
+        for (int i = 0; i < uprior.PRIOR_SIZE; i++) {
+          fprintf(stderr, "%d,", uprior.priors[i]);
+        }
+        fprintf(stderr,"\n");
+        // run in single-threaded mode with skip-verify, unjailed
     }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         ++num_univ_prior_gets;
