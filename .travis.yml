@@ -7,4 +7,4 @@ compiler:
 os:
 - linux
 - osx
-script: sh autogen.sh && ./configure && make && make check && make clean && ./configure --disable-advanced-jpeg-features && make && make check && make clean && CXXFLAGS="-O2 -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS" ./configure && make && make check
+script: sh autogen.sh && ./configure && make && make check && make clean

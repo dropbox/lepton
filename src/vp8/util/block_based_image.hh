@@ -65,6 +65,7 @@ public:
         width_ = width;
         if (force_memory_optimization || memory_optimized_image_) {
 #ifdef ALLOW_3_OR_4_SCALING_FACTOR
+#error "CURRENTLY NO LONGER SUPPORTED"
             nblocks = width * 4;
 #else
             nblocks = width * 2;
