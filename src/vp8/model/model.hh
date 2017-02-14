@@ -5,6 +5,7 @@
 #include <memory>
 #include <tmmintrin.h>
 #include <cstring>
+#include <cstdio>
 #include "../util/debug.hh"
 #include "../util/options.hh"
 #include "../util/nd_array.hh"
