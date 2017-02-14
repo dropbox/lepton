@@ -74,6 +74,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../io/Zlib0.hh"
 #include "../io/Seccomp.hh"
 #include <immintrin.h>
+extern bool g_draconian;
 int g_argc = 0;
 const char** g_argv = NULL;
 #ifndef GIT_REVISION
@@ -901,6 +902,15 @@ int initialize_options( int argc, const char*const * argv )
         }
         else if ( strcmp((*argv), "-singlethread" ) == 0)  {
             g_threaded = false;
+        }
+        else if ( strcmp((*argv), "-draconian" ) == 0)  {
+            g_draconian = true;
+        }
+        else if ( strcmp((*argv), "-collapsezigzag" ) == 0)  {
+            g_collapse_zigzag = true;
+        }
+        else if ( strcmp((*argv), "-oldleptonstatespace" ) == 0)  {
+            g_draconian = false;
         }
         else if ( strcmp((*argv), "-allowprogressive" ) == 0)  {
             g_allow_progressive = true;

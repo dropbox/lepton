@@ -34,6 +34,7 @@ enum TableParams : unsigned int {
 extern int pcount;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
+
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -269,73 +270,21 @@ template <class BranchArray> void set_branch_array_identity(BranchArray &branche
 }
 struct Model
 {
-    typedef Sirikata::Array4d<Branch, BLOCK_TYPES, 26, 6, 32> NonzeroCounts7x7;
-    NonzeroCounts7x7 num_nonzeros_counts_7x7_;
-
-    typedef Sirikata::Array5d<Branch, BLOCK_TYPES, 8, 8, 3, 4> NonzeroCounts1x8;
-    NonzeroCounts1x8 num_nonzeros_counts_1x8_;
-    NonzeroCounts1x8 num_nonzeros_counts_8x1_;
-    Sirikata::Array3d<Branch,
+    Sirikata::Array4d<Branch,
                       UniversalPrior::NUM_TYPES,
-                      16,
-                      256 * 64> univ_prob_array;
-    typedef Sirikata::Array4d<Branch,
-                              BLOCK_TYPES,
-                              COEF_BANDS,
-                              (8 > NUM_NONZEROS_BINS?8:(unsigned int)NUM_NONZEROS_BINS),
-                              COEF_BITS> ResidualNoiseCounts;
+                      12,
+                      2,// color
+                      256 *32> univ_prob_array_base;
 
-    ResidualNoiseCounts residual_noise_counts_;
-
-    typedef Sirikata::Array2d<Branch,
-                              NUMERIC_LENGTH_MAX,
-                              COEF_BITS> ResidualNoiseCountsDc;
-
-    ResidualNoiseCountsDc residual_noise_counts_dc_;
-
-    typedef Sirikata::Array4d<Branch,
-                              BLOCK_TYPES,
-                              (1<<(1 + RESIDUAL_NOISE_FLOOR)),
-                              1 + RESIDUAL_NOISE_FLOOR,
-                              1<<RESIDUAL_NOISE_FLOOR > ResidualThresholdCounts;
-
-    ResidualThresholdCounts residual_threshold_counts_;
-
-    typedef Sirikata::Array5d<Branch,
-                    BLOCK_TYPES,
-                    NUM_NONZEROS_BINS,
-                    15,
-                    NUMERIC_LENGTH_MAX,
-                    MAX_EXPONENT> ExponentCounts8;
-
-    typedef Sirikata::Array5d<Branch,
-                              BLOCK_TYPES,
-                              NUM_NONZEROS_BINS,
-                              49,
-                              NUMERIC_LENGTH_MAX,
-                              MAX_EXPONENT> ExponentCounts7x7;
-
-typedef Sirikata::Array3d<Branch,
-                          ((unsigned int)NUM_NONZEROS_BINS <= (unsigned int)NUMERIC_LENGTH_MAX
-                           ? (unsigned int)NUMERIC_LENGTH_MAX : (unsigned int)NUM_NONZEROS_BINS),
-                          17/*any 16 bit number should fit*/,
-                          MAX_EXPONENT> ExponentCountsDC;
-
-  ExponentCounts7x7 exponent_counts_;
-  ExponentCounts8 exponent_counts_x_;
-  ExponentCountsDC exponent_counts_dc_;
+    Sirikata::Array5d<Branch,
+                      UniversalPrior::NUM_TYPES,
+                      12,
+                      3,// color
+                      64, // zz_index(or 0)
+                      32> univ_prob_array_draconian; //actual value
   void set_tables_identity() {
-      set_branch_array_identity(univ_prob_array);
-      set_branch_array_identity(num_nonzeros_counts_7x7_);
-      set_branch_array_identity(num_nonzeros_counts_1x8_);
-      set_branch_array_identity(num_nonzeros_counts_8x1_);
-      set_branch_array_identity(residual_noise_counts_);
-      set_branch_array_identity(residual_noise_counts_dc_);
-      set_branch_array_identity(residual_threshold_counts_);
-      set_branch_array_identity(exponent_counts_);
-      set_branch_array_identity(exponent_counts_x_);
-      set_branch_array_identity(exponent_counts_dc_);
-      set_branch_array_identity(sign_counts_);
+      set_branch_array_identity(univ_prob_array_base);
+      set_branch_array_identity(univ_prob_array_draconian);
   }
   typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, NUMERIC_LENGTH_MAX> SignCounts;
   SignCounts sign_counts_;
@@ -343,16 +292,8 @@ typedef Sirikata::Array3d<Branch,
   template <typename lambda>
   void forall( const lambda & proc )
   {
-      num_nonzeros_counts_7x7_.foreach(proc);
-      num_nonzeros_counts_1x8_.foreach(proc);
-      num_nonzeros_counts_8x1_.foreach(proc);
-      exponent_counts_x_.foreach(proc);
-      exponent_counts_.foreach(proc);
-      exponent_counts_dc_.foreach(proc);
-
-      residual_noise_counts_.foreach(proc);
-      residual_threshold_counts_.foreach(proc);
-      sign_counts_.foreach(proc);
+      univ_prob_array_base.foreach(proc);
+      univ_prob_array_draconian.foreach(proc);
   }
     enum Printability{
         PRINTABLE_INSIGNIFICANT = 1,
@@ -508,6 +449,8 @@ public:
         MICROVECTORIZE = ::MICROVECTORIZE
     };
 };
+extern bool g_draconian;// true if we use a very restricted index space of 32 values
+extern bool g_collapse_zigzag;
 
 #define USE_TEMPLATIZED_COLOR
 #ifdef USE_TEMPLATIZED_COLOR
@@ -654,130 +597,6 @@ public:
     INSTANTIATE_TEMPLATE_METHOD(48)
     INSTANTIATE_TEMPLATE_METHOD(56)
 
-    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7_chan(ProbabilityTablesBase &pt,
-                                                                    const ConstBlockContext chan0,
-                                                                    const ConstBlockContext chan1,
-                                                                    const UniversalPrior&uprior) {
-
-        uint8_t num_nonzeros0 = chan0.num_nonzeros_here->num_nonzeros();
-        ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
-        uint8_t num_nonzeros1 = chan1.num_nonzeros_here->num_nonzeros();
-        ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
-        uint8_t num_nonzeros_context = (num_nonzeros0 + num_nonzeros1 + 2) / 4;
-        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LUMA0] == num_nonzeros0);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CHROMA] == num_nonzeros1);
-        return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
-                                                      num_nonzeros_to_bin(num_nonzeros_context));
-    }
-
-    Sirikata::Array2d<Branch, 6, 32>::Slice nonzero_counts_7x7(ProbabilityTablesBase &pt,
-                                                               const ConstBlockContext block,
-                                                               const UniversalPrior&uprior) {
-        uint8_t num_nonzeros_above = 0;
-        uint8_t num_nonzeros_left = 0;
-        if (all_present || above_present) {
-            num_nonzeros_above = block.nonzeros_above_7x7_unchecked();
-        }
-        if (all_present || left_present) {
-            num_nonzeros_left = block.nonzeros_left_7x7_unchecked();
-        }
-
-        uint8_t num_nonzeros_context = 0;
-        if ((!all_present) && above_present && !left_present) {
-            num_nonzeros_context = (num_nonzeros_above + 1) / 2;
-        } else if ((!all_present) && left_present && !above_present) {
-            num_nonzeros_context = (num_nonzeros_left + 1) / 2;
-        } else if (all_present || (left_present && above_present)) {
-            num_nonzeros_context = (num_nonzeros_above + num_nonzeros_left + 2) / 4;
-        }
-        ANNOTATE_CTX(0, ZEROS7x7, 0, num_nonzeros_context);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::ABOVE] == num_nonzeros_above);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LEFT] == num_nonzeros_left);
-        return pt.model().num_nonzeros_counts_7x7_.at(color_index(),
-                                                      num_nonzeros_to_bin(num_nonzeros_context));
-    }
-    Sirikata::Array2d<Branch, 3u, 4u>::Slice x_nonzero_counts_8x1(ProbabilityTablesBase &pt,
-                                                                  unsigned int eob_x,
-                                                                  unsigned int num_nonzeros,
-                                                                  const UniversalPrior&uprior) {
-        ANNOTATE_CTX(0, ZEROS8x1, 0, ((num_nonzeros + 3) / 7));
-        ANNOTATE_CTX(0, ZEROS8x1, 1, eob_x);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_CUR_NZ_X] == (uint16_t)eob_x);
-        return pt.model().num_nonzeros_counts_8x1_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
-    }
-    Sirikata::Array2d<Branch, 3u, 4u>::Slice y_nonzero_counts_1x8(ProbabilityTablesBase &pt,
-                                                                  unsigned int eob_x,
-                                                                  unsigned int num_nonzeros,
-                                                                  const UniversalPrior&uprior) {
-        ANNOTATE_CTX(0, ZEROS1x8, 0, ((num_nonzeros + 3) / 7));
-        ANNOTATE_CTX(0, ZEROS1x8, 1, eob_x);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_CUR_NZ_Y] == (uint16_t)eob_x);
-        return pt.model().num_nonzeros_counts_1x8_.at(color_index(), eob_x, ((num_nonzeros + 3) / 7));
-    }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt,
-                                                                    int band,
-                                                                    int zig15,
-                                                                    CoefficientContext context,
-                                                                    const UniversalPrior &uprior) {
-        ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
-        ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
-        dev_assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED] == context.bsr_best_prior);
-        return pt.model().exponent_counts_x_.at(color_index(),
-                                             context.num_nonzeros_bin,
-                                             zig15,
-                                             context.bsr_best_prior);
-    }
-    Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_7x7(ProbabilityTablesBase &pt,
-                                                                      const unsigned int band,
-                                                                      const unsigned int zig49,
-                                                                      const CoefficientContext context,
-                                                                      const UniversalPrior&uprior) {
-        ANNOTATE_CTX(band, EXP7x7, 0, context.bsr_best_prior);
-        ANNOTATE_CTX(band, EXP7x7, 1, context.num_nonzeros_bin);
-        always_assert(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED] == context.bsr_best_prior);
-        return pt.model().exponent_counts_.at(color_index(),
-            context.num_nonzeros_bin,
-            zig49,
-            context.bsr_best_prior);
-    }
-    Sirikata::Array1d<Branch,
-                      MAX_EXPONENT>::Slice exponent_array_dc(ProbabilityTablesBase &pt,
-                                                             uint16_t len_abs_mxm,
-                                                             uint16_t len_abs_offset_to_closest_edge,
-                                                             const UniversalPrior&uprior) {
-        return pt.model().exponent_counts_dc_.
-	  at(std::min(len_abs_mxm,
-		      (uint16_t)(Model::ExponentCountsDC::size0 - 1)),
-	     std::min(len_abs_offset_to_closest_edge,
-		      (uint16_t)(Model::ExponentCountsDC::size1 - 1)));
-    }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_array_dc(ProbabilityTablesBase &pt,
-                                                                  uint16_t len_abs_mxm,
-                                                                  uint16_t len_abs_offset_to_closest_edge,
-                                                                  const UniversalPrior&uprior) {
-        return pt.model().residual_noise_counts_dc_
-	  .at(std::min((uint16_t)(Model::ResidualNoiseCountsDc::size0 - 1),
-		       len_abs_mxm));
-    }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_x(ProbabilityTablesBase &pt,
-                                                                       const unsigned int band,
-                                                                       const CoefficientContext context,
-                                                                       const UniversalPrior&uprior) {
-        ANNOTATE_CTX(band, RES8, 0, num_nonzeros_x);
-        return residual_noise_array_shared(pt, band,
-                                           context, uprior);
-    }
-
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_shared(ProbabilityTablesBase &pt,
-                                                            const unsigned int band,
-                                                                            const CoefficientContext context,
-                                                                            const UniversalPrior&uprior) {
-        always_assert(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] == context.num_nonzeros_bin);
-        return pt.model().residual_noise_counts_.at(color_index(),
-                                                 band/band_divisor,
-                                                 context.num_nonzeros_bin);
-    }
     void update_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior,
                                Branch& selected_branch, int bit) {
         ++num_univ_prior_updates;
@@ -789,17 +608,90 @@ public:
         fprintf(stderr,"\n");
         // run in single-threaded mode with skip-verify, unjailed
     }
+    template<unsigned int bits> uint8_t to_u(int16_t val) {
+        return val&((1<< bits) - 1);
+    }
+    template<unsigned int bits> uint8_t to_s(int16_t val) {
+        int16_t uval;
+        if (val < 0) {
+            uval = -val;
+            return 1 + (to_u<bits - 1>(uval) << 1);
+        } else {
+            uval = val;
+            return to_u<bits - 1>(uval) << 1;
+        }
+    }
+    template<unsigned int bits> uint8_t to_a(int16_t val) {
+        int16_t uval;
+        if (val < 0) {
+            uval = -val;
+        } else {
+            uval = val;
+        }
+        return to_u<bits>(uval);
+    }
+    template<unsigned int bits> uint8_t clamp_u(int16_t val) {
+        if (val >= (1 << bits)) {
+            return (1<<bits) - 1;
+        }
+        return val;
+    }
+    template<unsigned int bits> uint8_t clamp_s(int16_t val) {
+        int16_t uval;
+        if (val < 0) {
+            uval = -val;
+            return 1 + (clamp_u<bits - 1>(uval) << 1);
+        } else {
+            uval = val;
+            return clamp_u<bits - 1>(uval) << 1;
+        }
+    }
+    template<unsigned int bits> uint8_t clamp_a(int16_t val) {
+        int16_t uval;
+        if (val < 0) {
+            uval = -val;
+        } else {
+            uval = val;
+        }
+        return clamp_u<bits>(uval);
+    }
+    // this takes everything to the right of the msb started with the second most significant bit
+    template<unsigned int bits> uint8_t lclamp_u(int16_t val) {
+        int len = uint16bit_length(val);
+        uint8_t retval = 0;
+        int shift = 0;
+        for (int index = len - 1; index >= 0; --index) {
+            if ((val << index)) {
+                retval |= (1 << shift);
+            }
+            ++shift;
+        }
+        return retval;
+    }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         ++num_univ_prior_gets;
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
-          case UniversalPrior::TYPE_NZ_1x8:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) +
-                                                 2 * (uprior.priors[UniversalPrior::OFFSET_NUM_NZ_X_LEFT] + 8 * (
-                                                                                                                 (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR] + 3) / 7 + 10 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])));
+        case UniversalPrior::TYPE_NZ_1x8: {
+             int16_t num_item_left = UniversalPrior::OFFSET_BIT_TYPE==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_NUM_NZ_X_LEFT:UniversalPrior::OFFSET_NUM_NZ_Y_LEFT;
+              if (g_draconian) {
+                  return pt.model().univ_prob_array_draconian
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR],
+                      0,
+                      clamp_u<2>(uprior.priors[num_item_left]) + 4 * (clamp_u<3>((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR] + 3) / 7) ^ lclamp_u<3>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])));
+              } else {
+                  return pt.model().univ_prob_array_base
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                      uprior.priors[num_item_left] + 8 * (
+                          (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR] + 3) / 7
+                          + 10 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
 
+              }
+        }
           case UniversalPrior::TYPE_NZ_7x7:
               {
                   uint32_t i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::ABOVE] + 1)/2);
@@ -810,42 +702,122 @@ public:
                   }
                   //uint32_t i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LUMA0] + uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CHROMA] + 2) / 4);
                   uint32_t i2 = uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR];
-                  return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                       (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) +
-                                                       2 * (i1 + 6 * i2));
+                  if (g_draconian) {
+                      uint8_t ri2 = lclamp_u<3>(i2);
+                      if (ri2 >= 5) {
+                          ri2 = 5;
+                      }
+                      return pt.model().univ_prob_array_draconian
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR],
+                          0,
+                          clamp_u<5>(i1 + 6 * ri2));
+
+                  } else {
+                      return pt.model().univ_prob_array_base
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                          (i1 + 6 * i2));
+                  }
               }
           case UniversalPrior::TYPE_EXP_7x7:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]? 1:0) + 2 * (uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED])));
-            
+              if (g_draconian) {
+
+                      return pt.model().univ_prob_array_draconian
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR],
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
+                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
+              } else {
+                      return pt.model().univ_prob_array_base
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                          uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              }
           case UniversalPrior::TYPE_EXP_8x1:
           case UniversalPrior::TYPE_EXP_1x8:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]? 1:0) + 2 * (uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED])));
+              if (g_draconian) {
+                      return pt.model().univ_prob_array_draconian
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR],
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// <-- really want this
+                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
+              } else {
+                      return pt.model().univ_prob_array_base
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                          uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              }
           case UniversalPrior::TYPE_SIGN_8x1:
           case UniversalPrior::TYPE_SIGN_1x8:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 0*uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) + 2 * ((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              if (g_draconian) {
+                      return pt.model().univ_prob_array_draconian
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR],
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// maybe set to 0
+                          std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31));
+              } else {
+                  return pt.model().univ_prob_array_base
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                      (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+              }
           case UniversalPrior::TYPE_SIGN_7x7:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 0*uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 0);
+              if (g_draconian) {
+                      return pt.model().univ_prob_array_draconian
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                          uprior.priors[UniversalPrior::OFFSET_COLOR],
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
+                          0);
+              }else {
+                      return pt.model().univ_prob_array_base
+                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                          0,
+                          uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                          0);
+              }
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:
           case UniversalPrior::TYPE_RES_8x1:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) + 2 * (
-                                                     uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR])));
-            
+              if (g_draconian) {
+                  return pt.model().univ_prob_array_draconian
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR],
+                      g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
+                      std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31));
+
+              }else {
+                  return pt.model().univ_prob_array_base
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                      uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
+              }
           default:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 (uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0) + 2 * (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] + 16 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              if (g_draconian) {
+                  return pt.model().univ_prob_array_draconian
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR],
+                      g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
+                      clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              }else {
+                  return pt.model().univ_prob_array_base
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                      uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] + 16 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+              }
         }
         unsigned char rez[16];
         {
@@ -869,18 +841,7 @@ public:
         
              MD5_Final(rez, &md5);
         }
-        return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE], uprior.priors[UniversalPrior::OFFSET_BIT_INDEX], rez[0]&15);
-    }
-    Sirikata::Array1d<Branch, COEF_BITS>::Slice residual_noise_array_7x7(ProbabilityTablesBase &pt,
-                                                            const unsigned int band,
-                                                                         const CoefficientContext context,
-                                                                         const UniversalPrior&uprior) {
-        if (band == 0) {
-            ANNOTATE_CTX(0, RESDC, 0, num_nonzeros_to_bin(num_nonzeros));
-        } else {
-            ANNOTATE_CTX(band, RES7x7, 0, num_nonzeros_to_bin(num_nonzeros));
-        }
-        return residual_noise_array_shared(pt, band, context, uprior);
+        return pt.model().univ_prob_array_draconian.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE], uprior.priors[UniversalPrior::OFFSET_BIT_INDEX], uprior.priors[UniversalPrior::OFFSET_COLOR], uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], rez[0]&15);
     }
     unsigned int num_nonzeros_to_bin(uint8_t num_nonzeros) {
         return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
@@ -1384,24 +1345,6 @@ public:
                && "Vectorized version must match sequential version");
         return prediction;
     }
-    Sirikata::Array1d<Branch,
-            (1<<RESIDUAL_NOISE_FLOOR)>::Slice
-        residual_thresh_array(ProbabilityTablesBase &pt,
-                              const unsigned int band,
-                              const uint8_t cur_exponent,
-                              const CoefficientContext context,
-                              int min_threshold,
-                              const UniversalPrior&uprior) {
-        uint16_t ctx_abs = abs(context.best_prior);
-        ANNOTATE_CTX(band, THRESH8, 0, ctx_abs >> min_threshold);
-        ANNOTATE_CTX(band, THRESH8, 2, cur_exponent - min_threshold);
-        return pt.model(
-            ).residual_threshold_counts_.at(color_index(),
-                                            std::min(ctx_abs >> min_threshold,
-                                                     (uint16_t)Model::ResidualThresholdCounts::size1 - 1),
-                                            std::min(cur_exponent - min_threshold,
-                                                     Model::ResidualThresholdCounts::size2 - 1));
-    }
     void residual_thresh_array_annot_update(const unsigned int band,
                                             uint16_t cur_serialized_thresh_value) {
         (void)band;
@@ -1413,32 +1356,6 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-    Branch& sign_array_dc(ProbabilityTablesBase &pt,
-                          int avg_delta,
-                          int offset_to_closest_edge,
-                          const UniversalPrior&uprior) {
-        ANNOTATE_CTX(0, SIGNDC, 0, 1);
-        return pt.model().sign_counts_.at(color_index(),
-                                          0,
-                                          offset_to_closest_edge >= 0
-                                          ? offset_to_closest_edge == 0
-                                          ? 3 : 2 : 1);
-    }
-    Branch& sign_array_7x7(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context,
-                           const UniversalPrior&uprior) {
-        ANNOTATE_CTX(band, SIGN7x7, 0, 0);
-        return pt.model().sign_counts_.at(color_index(), 0, 0);
-    }
-    Branch& sign_array_8(ProbabilityTablesBase &pt, uint8_t band, CoefficientContext context,
-                         const UniversalPrior&uprior) {
-
-        int16_t val = context.best_prior;
-        uint8_t ctx0 = context.bsr_best_prior;
-        uint8_t ctx1 = (val == 0 ? 0 : (val > 0 ? 1 : 2));
-        ANNOTATE_CTX(band, SIGN8, 0, ctx0);
-        ANNOTATE_CTX(band, SIGN8, 1, ctx1);
-        return pt.model().sign_counts_.at(color_index(), ctx1, ctx0);
-    }
   
     uint8_t get_noise_threshold(int coord) {
         return ProbabilityTablesBase::min_noise_threshold((int)COLOR, coord);
