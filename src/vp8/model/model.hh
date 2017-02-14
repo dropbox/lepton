@@ -274,7 +274,6 @@ struct Model
                       3,// color
                       256 *32> univ_prob_array;
 
-
   void set_tables_identity() {
       set_branch_array_identity(univ_prob_array);
   }
@@ -652,7 +651,7 @@ public:
         return retval;
     }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
-        bool draconian = false;
+        bool draconian = true;
         ++num_univ_prior_gets;
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
@@ -683,28 +682,64 @@ public:
                   }
                   //uint32_t i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LUMA0] + uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CHROMA] + 2) / 4);
                   uint32_t i2 = uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR];
-                  return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                       uprior.priors[UniversalPrior::OFFSET_COLOR],
-                                                       (i1 + 6 * i2));
+                  if (draconian) {
+                      uint8_t ri2 = lclamp_u<3>(i2);
+                      if (ri2 > 5) {
+                          ri2 = 5;
+                      }
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           (i1 + 6 * ri2));
+
+                  } else {
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           (i1 + 6 * i2));
+                  }
               }
           case UniversalPrior::TYPE_EXP_7x7:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 uprior.priors[UniversalPrior::OFFSET_COLOR],
-                                                 uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              if (draconian) {
+
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           //uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], <-- really want this
+                                                           std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
+              } else {
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              }
           case UniversalPrior::TYPE_EXP_8x1:
           case UniversalPrior::TYPE_EXP_1x8:
-            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                                                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
-                                                 uprior.priors[UniversalPrior::OFFSET_COLOR],
-                                                 uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              if (draconian) {
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           //uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], <-- really want this
+                                                           std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
+              } else {
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              }
           case UniversalPrior::TYPE_SIGN_8x1:
           case UniversalPrior::TYPE_SIGN_1x8:
+              if (draconian) {
+                      return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                           0*uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                           uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                           std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31));
+              } else {
             return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                                                  0*uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                                                  uprior.priors[UniversalPrior::OFFSET_COLOR],
                                                  (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+              }
           case UniversalPrior::TYPE_SIGN_7x7:
             return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                                                  uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
@@ -713,15 +748,31 @@ public:
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:
           case UniversalPrior::TYPE_RES_8x1:
+              if (draconian) {
+            return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                 0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                 uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                 //                                                 uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
+                                                 std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31));
+
+              }else {
             return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                                                  0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                                                  uprior.priors[UniversalPrior::OFFSET_COLOR],
                                                  uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
+              }
           default:
+              if (draconian) {
             return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                                                  uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                                                  uprior.priors[UniversalPrior::OFFSET_COLOR],
-                                                 uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] + 16 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+                                                 clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+              }else {
+                  return pt.model().univ_prob_array.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                                                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                                                       uprior.priors[UniversalPrior::OFFSET_COLOR],
+                                                       uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] + 16 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+              }
         }
         unsigned char rez[16];
         {
