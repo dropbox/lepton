@@ -15,6 +15,10 @@
 #include "../util/block_based_image.hh"
 #include "../util/mm_mullo_epi32.hh"
 #include "../../../dependencies/md5/md5.h"
+#ifndef _WIN32
+#include <unistd.h>
+#include <errno.h>
+#endif
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
 enum TableParams : unsigned int {
@@ -32,6 +36,7 @@ enum TableParams : unsigned int {
 };
 extern bool g_print_priors;
 extern int pcount;
+extern FILE * g_binary_priors;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
 
@@ -63,10 +68,12 @@ struct UniversalPrior {
     TYPE_EXP_8x1,
     TYPE_SIGN_8x1,
     TYPE_RES_8x1,
+    TYPE_THRESH_8x1,
     TYPE_NZ_1x8,
     TYPE_EXP_1x8,
     TYPE_SIGN_1x8,
     TYPE_RES_1x8,
+    TYPE_THRESH_1x8,
     TYPE_EXP_DC,
     TYPE_SIGN_DC,
     TYPE_RES_DC,
@@ -175,10 +182,11 @@ struct UniversalPrior {
     priors[OFFSET_BEST_PRIOR_SCALED] = context.bsr_best_prior;
     priors[OFFSET_NZ_SCALED] = context.num_nonzeros_bin;
   }
-  void set_7x7_nz_bit_id(uint8_t index, uint8_t value_so_far) {
+  void set_7x7_nz_bit_id(uint8_t index, uint16_t value_so_far) {
     priors[OFFSET_VALUE_SO_FAR] =  value_so_far;
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_BIT_TYPE] = TYPE_NZ_7x7;
+    priors[OFFSET_ZZ_INDEX] = 0;
   }
   void set_7x7_exp_id(uint8_t index) {
     priors[OFFSET_BIT_INDEX] = index;
@@ -188,16 +196,17 @@ struct UniversalPrior {
     priors[OFFSET_BIT_INDEX] = 0;
     priors[OFFSET_BIT_TYPE] = TYPE_SIGN_7x7;
   }
-  void set_7x7_residual(uint8_t index, uint8_t value_so_far) {
+  void set_7x7_residual(uint8_t index, int16_t value_so_far) {
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_VALUE_SO_FAR] = value_so_far;
     priors[OFFSET_BIT_TYPE] = TYPE_RES_7x7;
   }
 
-  void set_8x1_nz_bit_id(bool horiz, uint8_t index, uint8_t value_so_far) {
+  void set_8x1_nz_bit_id(bool horiz, uint8_t index, int16_t value_so_far) {
     priors[OFFSET_VALUE_SO_FAR] =  value_so_far;
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_NZ_8x1 : TYPE_NZ_1x8;
+    priors[OFFSET_ZZ_INDEX] = 0;
   }
   void set_8x1_exp_id(bool horiz, uint8_t index) {
     priors[OFFSET_BIT_INDEX] = index;
@@ -207,7 +216,7 @@ struct UniversalPrior {
     priors[OFFSET_BIT_INDEX] = 0;
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_SIGN_8x1 : TYPE_SIGN_1x8;
   }
-  void set_8x1_residual(bool horiz, uint8_t index, uint8_t value_so_far) {
+  void set_8x1_residual(bool horiz, uint8_t index, int16_t value_so_far) {
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_VALUE_SO_FAR] = value_so_far;
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_RES_8x1 : TYPE_RES_1x8;
@@ -221,7 +230,7 @@ struct UniversalPrior {
     priors[OFFSET_BIT_INDEX] = 0;
     priors[OFFSET_BIT_TYPE] = TYPE_SIGN_DC;
   }
-  void set_dc_residual(uint8_t index, uint8_t value_so_far) {
+  void set_dc_residual(uint8_t index, int16_t value_so_far) {
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_VALUE_SO_FAR] = value_so_far;
     priors[OFFSET_BIT_TYPE] = TYPE_RES_DC;
@@ -666,15 +675,7 @@ public:
         if (g_draconian) {
             uint8_t zz = 0;
             if (g_collapse_zigzag == false) {
-                switch(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
-                    case UniversalPrior::TYPE_NZ_8x1:
-                    case UniversalPrior::TYPE_NZ_1x8:
-                    case UniversalPrior::TYPE_NZ_7x7:
-                    break;
-                    default:
-                        zz = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
-                    break;
-                }
+                zz = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
             }
             array_index = &selected_branch - &pt.model().univ_prob_array_draconian
             .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -690,9 +691,10 @@ public:
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       0);
         }
-        if (!g_print_priors) {
+        if (g_print_priors == false && g_binary_priors == NULL) {
             return;
         }
+        always_assert(g_threaded == false && "Do not support printing arrays with multithreading");
         int16_t output[UniversalPrior::PRIOR_SIZE + 4];
         output[0] = bit;
         output[1] = selected_branch.true_count();
@@ -716,11 +718,27 @@ public:
             }
             output[i + 4] = tmp_output;
         }
-        fprintf(stderr, "%d", output[0]);
-        for (size_t i= 1; i < sizeof(output) / sizeof(output[0]); ++i) {
+        if (g_binary_priors) {
+            ssize_t bytes_left = sizeof(output);
+            const char * data = (const char*)output;
+            while(bytes_left) {
+                int written = write(fileno(g_binary_priors), data, bytes_left);
+                if (written > 0) {
+                    bytes_left -= written;
+                    data += written;
+                }
+                if (written < 0 && errno != EINTR) {
+                    always_assert(written >= 0 && "Error writing binary priors");
+                }
+            }
+            fwrite(output, sizeof(output), 1, g_binary_priors);
+        }else {
+            fprintf(stderr, "%d", output[0]);
+            for (size_t i= 1; i < sizeof(output) / sizeof(output[0]); ++i) {
                 fprintf(stderr, ",%d", (int)output[i]);
+            }
+            fprintf(stderr, "\n");
         }
-        fprintf(stderr, "\n");
     }
     template<unsigned int bits> uint8_t to_u(int16_t val) {
         return val&((1<< bits) - 1);
@@ -787,14 +805,14 @@ public:
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
         case UniversalPrior::TYPE_NZ_1x8: {
-             int16_t num_item_left = UniversalPrior::OFFSET_BIT_TYPE==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_NUM_NZ_X_LEFT:UniversalPrior::OFFSET_NUM_NZ_Y_LEFT;
+             int16_t num_item_left = UniversalPrior::OFFSET_BIT_TYPE==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_CUR_NZ_X:UniversalPrior::OFFSET_CUR_NZ_Y;
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       0,
-                      clamp_u<2>(uprior.priors[num_item_left]) + 4 * (clamp_u<3>((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR] + 3) / 7) ^ lclamp_u<3>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])));
+                      clamp_u<3>(uprior.priors[num_item_left]) + 8 * (clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])));
               } else {
                   return pt.model().univ_prob_array_base
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -911,11 +929,28 @@ public:
                       std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31));
 
               }else {
+                  if (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE] != UniversalPrior::TYPE_RES_7x7) {
+                          uint8_t coord = aligned_to_raster.at(uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]);
+                          uint8_t min_threshold = ProbabilityTablesBase::min_noise_threshold(uprior.priors[UniversalPrior::OFFSET_COLOR], coord);
+                          uint16_t abs_val = abs(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]);
+                          uint8_t cur_exponent = uint16bit_length(abs_val);
+                          uint8_t cur_index = uprior.priors[UniversalPrior::OFFSET_BIT_INDEX];
+                          if (cur_index >= min_threshold) {
+                              uint16_t ctx_abs = abs(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR]);
+                              uint16_t magic = std::min(ctx_abs >> min_threshold,
+                                                         (1 << 8) - 1);
+                              return pt.model().univ_prob_array_base
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],//cur_exponent - min_threshold,// we're not using this one--- will make array index harder to pattern match
+                      uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                      magic + std::min((abs_val - (1 << (cur_exponent - 1))) >> min_threshold,31) * 256);
+                          }
+                  }
                   return pt.model().univ_prob_array_base
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                      uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
+                      uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * num_nonzeros_to_bin(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
               }
           default:
               if (g_draconian) {

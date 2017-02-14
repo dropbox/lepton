@@ -11,9 +11,10 @@
 #include <emmintrin.h>
 #include "model.hh"
 int pcount =0;
-bool g_draconian = true;
+bool g_draconian = false;
 bool g_collapse_zigzag = false;
 bool g_print_priors = false;
+FILE * g_binary_priors = NULL;
 std::atomic<uint64_t> num_univ_prior_gets(0);
 std::atomic<uint64_t> num_univ_prior_updates(0);
 UniversalPrior::MeanMinMax UniversalPrior::ranges[UniversalPrior::PRIOR_SIZE];
