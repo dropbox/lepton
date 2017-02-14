@@ -331,43 +331,6 @@ const Model &Model::debug_print(const Model * other,
                                                         Model::PrintabilitySpecification spec)const
 {
 #ifndef _WIN32
-    print_all(this->num_nonzeros_counts_7x7_,
-              other ? &other->num_nonzeros_counts_7x7_ : nullptr,
-              "NONZERO 7x7",
-              {"cmp","nbr","bit","prevbits"}, spec);
-    
-    print_all(this->num_nonzeros_counts_1x8_,
-              other ? &other->num_nonzeros_counts_1x8_ : nullptr,
-              "NONZERO_1x8",
-              {"cmp","eobx","num_nonzeros","bit","prevbits"}, spec);
-    print_all(this->num_nonzeros_counts_8x1_,
-              other ? &other->num_nonzeros_counts_8x1_ : nullptr,
-              "NONZERO_8x1",
-              {"cmp","eobx","num_nonzeros","bit","prevbits"}, spec);
-    print_all(this->exponent_counts_dc_,
-              other ? &other->exponent_counts_dc_ : nullptr,
-              "EXP_DC",
-              {"cmp","num_nonzeros","neigh_exp","bit","prevbits"}, spec);
-    print_all(this->exponent_counts_,
-              other ? &other->exponent_counts_ : nullptr,
-              "EXP7x7",
-              {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"}, spec);
-    print_all(this->exponent_counts_x_,
-              other ? &other->exponent_counts_x_: nullptr,
-              "EXP_8x1",
-              {"cmp","coef","num_nonzeros","neigh_exp","bit","prevbits"}, spec);
-    print_all(this->residual_noise_counts_,
-              other ? &other->residual_noise_counts_: nullptr,
-              "NOISE",
-              {"cmp","coef","num_nonzeros","bit"}, spec);
-    print_all(this->residual_threshold_counts_,
-              other ? &other->residual_threshold_counts_ : nullptr,
-              "THRESH8",
-              {"cmp","max","exp","prevbits"}, spec);
-    print_all(this->sign_counts_,
-              other ? &other->sign_counts_ : nullptr,
-              "SIGN",
-              {"cmp","lakh","exp"}, spec);
 #endif
     return *this;
 }
