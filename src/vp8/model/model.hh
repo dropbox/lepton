@@ -33,6 +33,7 @@ enum TableParams : unsigned int {
 extern int pcount;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
+
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -448,6 +449,8 @@ public:
     };
 };
 extern bool g_draconian;// true if we use a very restricted index space of 32 values
+extern bool g_collapse_zigzag;
+
 #define USE_TEMPLATIZED_COLOR
 #ifdef USE_TEMPLATIZED_COLOR
 #define TEMPLATE_ARG_COLOR0 BlockType::Y
@@ -719,7 +722,7 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
-                          uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
                           std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
               } else {
                       return pt.model().univ_prob_array_base
@@ -735,7 +738,7 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
-                          uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// <-- really want this
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// <-- really want this
                           std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
               } else {
                       return pt.model().univ_prob_array_base
@@ -751,7 +754,7 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
-                          uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// maybe set to 0
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// maybe set to 0
                           std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31));
               } else {
                   return pt.model().univ_prob_array_base
@@ -766,7 +769,7 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
-                          uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
+                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
                           0);
               }else {
                       return pt.model().univ_prob_array_base
@@ -783,7 +786,7 @@ public:
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
-                      uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
+                      g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
                       std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31));
 
               }else {
@@ -799,7 +802,7 @@ public:
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
-                      uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
+                      g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
                       clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
               }else {
                   return pt.model().univ_prob_array_base

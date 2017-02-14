@@ -906,6 +906,9 @@ int initialize_options( int argc, const char*const * argv )
         else if ( strcmp((*argv), "-draconian" ) == 0)  {
             g_draconian = true;
         }
+        else if ( strcmp((*argv), "-collapsezigzag" ) == 0)  {
+            g_collapse_zigzag = true;
+        }
         else if ( strcmp((*argv), "-oldleptonstatespace" ) == 0)  {
             g_draconian = false;
         }
