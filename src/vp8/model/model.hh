@@ -30,6 +30,7 @@ enum TableParams : unsigned int {
     RESIDUAL_NOISE_FLOOR = 7,
     COEF_BITS = MAX_EXPONENT - 1, // the last item of the length is always 1
 };
+extern bool g_print_priors;
 extern int pcount;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
@@ -95,17 +96,79 @@ struct UniversalPrior {
       OFFSET_CUR_NZ_Y,
       OFFSET_NUM_NZ_X_LEFT,
       OFFSET_NUM_NZ_Y_LEFT,
-      OFFSET_CUR_NZ_SCALED,
       OFFSET_NZ_SCALED,
       OFFSET_ZZ_INDEX,
       OFFSET_VALUE_SO_FAR,
       PRIOR_SIZE,
   };
-
+  struct MeanMinMax {
+      int16_t mean;
+      int16_t min;
+      int16_t max;
+      MeanMinMax() {
+          mean = 0;
+          min = -1024;
+          max = 1024;
+      }
+      static MeanMinMax BoolType() {
+          return {0,0,1}; // sort of a lie
+      }
+      static MeanMinMax ZigzagType() {
+          return {32,0,64}; // sort of a lie
+      }
+      static MeanMinMax custom_incl(int16_t mmin, int16_t mmax) {
+          return {(int16_t)((mmin + mmax) / 2), mmin, mmax}; // sort of a lie
+      }
+  private:
+      MeanMinMax(int16_t mmean, int16_t mmin, int16_t mmax) {
+          mean = mmean;
+          min = mmin;
+          max = mmax;
+      }
+  };
   int16_t priors[PRIOR_SIZE];
+  static MeanMinMax ranges[PRIOR_SIZE];
   UniversalPrior() {
+      static_assert(OFFSET_IS_Y_ODD == OFFSET_IS_X_ODD + 1, "just making sure");
+      static_assert(PRIOR_SIZE == 687, "just making sure prior space is 688 inputs");
       memset(priors, 0, sizeof(priors));
+      for (int i = 0; i < 16; ++ i) {
+          ranges[OFFSET_NEIGHBORING_PIXELS + i].mean = 0;
+          ranges[OFFSET_NEIGHBORING_PIXELS + i].min = -128;
+          ranges[OFFSET_NEIGHBORING_PIXELS + i].max = 127;
+      }
+      ranges[OFFSET_IS_X_ODD] = MeanMinMax::BoolType();
+      ranges[OFFSET_IS_Y_ODD] = MeanMinMax::BoolType();
+      ranges[OFFSET_HAS_LEFT] = MeanMinMax::BoolType();
+      ranges[OFFSET_HAS_ABOVE] = MeanMinMax::BoolType();
+      ranges[OFFSET_HAS_ABOVE_RIGHT] = MeanMinMax::BoolType();
+      ranges[OFFSET_BEST_PRIOR_SCALED] = MeanMinMax::custom_incl(0, 10);
+      ranges[OFFSET_BEST_PRIOR2_SCALED] = MeanMinMax::custom_incl(0, 10);
+      ranges[OFFSET_BIT_TYPE] = MeanMinMax::custom_incl(0, NUM_TYPES - 1);
+      ranges[OFFSET_BIT_INDEX] = MeanMinMax::custom_incl(0, 11);
+      ranges[OFFSET_NUM_NZ_X_LEFT] = MeanMinMax::custom_incl(0, 7);
+      ranges[OFFSET_NUM_NZ_Y_LEFT] = MeanMinMax::custom_incl(0, 7);
+      ranges[OFFSET_CUR_NZ_X] = MeanMinMax::custom_incl(0, 7);
+      ranges[OFFSET_CUR_NZ_Y] = MeanMinMax::custom_incl(0, 7);
+      ranges[OFFSET_NZ_SCALED] = MeanMinMax::custom_incl(0, 6);
+      ranges[OFFSET_ZZ_INDEX] = MeanMinMax::ZigzagType();
+      ranges[OFFSET_NUM_NONZEROS_LEFT] = MeanMinMax::ZigzagType();
+      //ranges[OFFSET_VALUE_SO_FAR] = default
+
+
   }
+    int16_t& bit_type();
+    int16_t& bit_index();
+    int16_t& value_so_far();
+    int16_t& zz_index();
+    int16_t& color();
+    int16_t& nz_left();
+    int16_t bit_type() const;
+    int16_t bit_index() const;
+    int16_t value_so_far() const;
+    int16_t zz_index() const;
+    int16_t color() const;
+    int16_t nz_left() const;
   template<class Prior>void update_by_prior(uint8_t aligned_zz, const Prior&context) {
     priors[OFFSET_ZZ_INDEX] = aligned_zz;
     priors[OFFSET_BEST_PRIOR] = context.best_prior;
@@ -211,17 +274,17 @@ struct UniversalPrior {
     const size_t offset = OFFSET_RAW;
     using namespace std;
     if (left_present) {
-        memcpy(&priors[OFFSET_NEIGHBORING_PIXELS],
-               input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7(),
-               sizeof(int16_t) * 8);
+        for (int i = 0; i < 8;++i) {
+            priors[OFFSET_NEIGHBORING_PIXELS + i] = (input.at(0).neighbor_context_left_unchecked().vertical_ptr_except_7()[i] >> 3) - 128; // moved to between -128 and 127
+        }
         priors[OFFSET_NONZERO + LEFT] = input.at(0).nonzeros_left_7x7_unchecked();
         memcpy(&priors[offset + 64 * LEFT], input.at(0).left_unchecked().raw_data(),
                64 * sizeof(int16_t));
     }
     if (above_present) {
-        memcpy(&priors[OFFSET_NEIGHBORING_PIXELS] + 8,
-               input.at(0).neighbor_context_above_unchecked().horizontal_ptr(),
-               sizeof(int16_t) * 8);
+        for (int i = 0; i < 8;++i) {
+            priors[OFFSET_NEIGHBORING_PIXELS + i + 8] = (input.at(0).neighbor_context_above_unchecked().horizontal_ptr()[i] >> 3) - 128; // moved to between -128 and 127
+        }
         priors[OFFSET_NONZERO + ABOVE] = input.at(0).nonzeros_above_7x7_unchecked();
         memcpy(&priors[offset + 64 * ABOVE], input.at(0).above_unchecked().raw_data(),
                64 * sizeof(int16_t));
@@ -599,7 +662,65 @@ public:
     void update_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior,
                                Branch& selected_branch, int bit) {
         ++num_univ_prior_updates;
-
+        uint32_t array_index = 0;
+        if (g_draconian) {
+            uint8_t zz = 0;
+            if (g_collapse_zigzag == false) {
+                switch(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
+                    case UniversalPrior::TYPE_NZ_8x1:
+                    case UniversalPrior::TYPE_NZ_1x8:
+                    case UniversalPrior::TYPE_NZ_7x7:
+                    break;
+                    default:
+                        zz = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
+                    break;
+                }
+            }
+            array_index = &selected_branch - &pt.model().univ_prob_array_draconian
+            .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                uprior.priors[UniversalPrior::OFFSET_COLOR],
+                zz,
+                0);
+            always_assert(array_index < 32 && "Must seek within draconian array");
+        }else {
+            array_index = &selected_branch - &pt.model().univ_prob_array_base
+                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
+                      0);
+        }
+        if (!g_print_priors) {
+            return;
+        }
+        int16_t output[UniversalPrior::PRIOR_SIZE + 4];
+        output[0] = bit;
+        output[1] = selected_branch.true_count();
+        output[2] = selected_branch.false_count();
+        output[3] = array_index;
+        for (size_t i= 0; i < UniversalPrior::PRIOR_SIZE; ++i) {
+            int16_t tmp_output = uprior.priors[i];
+            if (uprior.ranges[i].min == 0 && uprior.ranges[i].max == 1) {
+                if (uprior.priors[i]) {
+                    tmp_output = 1023;
+                } else {
+                    tmp_output = -1024;
+                }
+            } else if (uprior.ranges[i].min != -1024 || uprior.ranges[i].max != 1024) {
+                int16_t del = uprior.priors[i] - uprior.ranges[i].mean;
+                int16_t mul = 2048 / (uprior.ranges[i].max - uprior.ranges[i].min);
+                if (mul > 0) {
+                    del *= mul;
+                }
+                tmp_output = del;
+            }
+            output[i + 4] = tmp_output;
+        }
+        fprintf(stderr, "%d", output[0]);
+        for (size_t i= 1; i < sizeof(output) / sizeof(output[0]); ++i) {
+                fprintf(stderr, ",%d", (int)output[i]);
+        }
+        fprintf(stderr, "\n");
     }
     template<unsigned int bits> uint8_t to_u(int16_t val) {
         return val&((1<< bits) - 1);
@@ -774,7 +895,7 @@ public:
               }else {
                       return pt.model().univ_prob_array_base
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                          0,
+                          uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                           0);
               }
@@ -784,7 +905,7 @@ public:
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                      0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
                       std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31));
@@ -792,7 +913,7 @@ public:
               }else {
                   return pt.model().univ_prob_array_base
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
-                      0 * uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
+                      uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
               }

@@ -75,6 +75,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../io/Seccomp.hh"
 #include <immintrin.h>
 extern bool g_draconian;
+extern bool g_print_priors;
 int g_argc = 0;
 const char** g_argv = NULL;
 #ifndef GIT_REVISION
@@ -905,6 +906,9 @@ int initialize_options( int argc, const char*const * argv )
         }
         else if ( strcmp((*argv), "-draconian" ) == 0)  {
             g_draconian = true;
+        }
+        else if ( strcmp((*argv), "-printpriors" ) == 0)  {
+            g_print_priors = true;
         }
         else if ( strcmp((*argv), "-collapsezigzag" ) == 0)  {
             g_collapse_zigzag = true;

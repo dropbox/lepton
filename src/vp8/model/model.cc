@@ -13,8 +13,47 @@
 int pcount =0;
 bool g_draconian = true;
 bool g_collapse_zigzag = false;
+bool g_print_priors = false;
 std::atomic<uint64_t> num_univ_prior_gets(0);
 std::atomic<uint64_t> num_univ_prior_updates(0);
+UniversalPrior::MeanMinMax UniversalPrior::ranges[UniversalPrior::PRIOR_SIZE];
+int16_t& UniversalPrior::bit_type() {
+      return priors[OFFSET_BIT_TYPE];
+  }
+  int16_t& UniversalPrior::bit_index() {
+      return priors[OFFSET_BIT_INDEX];
+  }
+  int16_t& UniversalPrior::value_so_far() {
+      return priors[OFFSET_VALUE_SO_FAR];
+  }
+  int16_t& UniversalPrior::zz_index() {
+      return priors[OFFSET_ZZ_INDEX];
+  }
+  int16_t& UniversalPrior::color() {
+      return priors[OFFSET_COLOR];
+  }
+  int16_t& UniversalPrior::nz_left() {
+      return priors[OFFSET_NUM_NONZEROS_LEFT];
+  }
+  int16_t UniversalPrior::bit_type() const{
+      return priors[OFFSET_BIT_TYPE];
+  }
+  int16_t UniversalPrior::bit_index() const{
+      return priors[OFFSET_BIT_INDEX];
+  }
+  int16_t UniversalPrior::value_so_far() const{
+      return priors[OFFSET_VALUE_SO_FAR];
+  }
+  int16_t UniversalPrior::zz_index() const{
+      return priors[OFFSET_ZZ_INDEX];
+  }
+  int16_t UniversalPrior::color() const{
+      return priors[OFFSET_COLOR];
+  }
+  int16_t UniversalPrior::nz_left() const{
+      return priors[OFFSET_NUM_NONZEROS_LEFT];
+  }
+
 
 bool all_branches_identity(const Branch * start, const Branch * end) {
     for (const Branch * i = start;i != end; ++i) {
