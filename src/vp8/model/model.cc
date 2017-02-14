@@ -11,6 +11,7 @@
 #include <emmintrin.h>
 #include "model.hh"
 int pcount =0;
+bool g_draconian = true;
 std::atomic<uint64_t> num_univ_prior_gets(0);
 std::atomic<uint64_t> num_univ_prior_updates(0);
 
