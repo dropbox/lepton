@@ -140,6 +140,9 @@ struct UniversalPrior {
   };
   int16_t priors[PRIOR_SIZE];
   static MeanMinMax ranges[PRIOR_SIZE];
+  static Sirikata::Array2d<uint16_t,
+                           64,
+                           OFFSET_RAW + 5 * NUM_PRIOR_VALUES> index_map_from_reduced_prior_to_universal_prior;
   UniversalPrior() {
       static_assert(OFFSET_IS_Y_ODD == OFFSET_IS_X_ODD + 1, "just making sure");
       static_assert(PRIOR_SIZE == 687, "just making sure prior space is 688 inputs");
@@ -336,6 +339,11 @@ struct UniversalPrior {
            64 * sizeof(int16_t));
     priors[OFFSET_NONZERO + CHROMA] = input.at(2).num_nonzeros_here->num_nonzeros();
   }
+    static uint16_t map_from_aligned_zigzag_and_reduced_prior_to_universal_prior_index(
+            uint8_t zz_index,
+            size_t reduced_index) {
+        return index_map_from_reduced_prior_to_universal_prior.at(zz_index, reduced_index);
+    }
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
@@ -729,63 +737,38 @@ public:
         int original_counter = counter;
 	auto gpc = ++global_print_counter;
 	bool first = (gpc == 1);
-	
-        for (size_t i= 0; i < UniversalPrior::PRIOR_SIZE; ++i) {
-            int16_t tmp_output = uprior.priors[i];
+	size_t num_priors_to_print = UniversalPrior::PRIOR_SIZE;
+        if (g_print_reduced_prior) {
+            num_priors_to_print = UniversalPrior::index_map_from_reduced_prior_to_universal_prior.size()[1];
+            always_assert(num_priors_to_print == 0x51);
+        }
+        auto reverse_map_slice = UniversalPrior::index_map_from_reduced_prior_to_universal_prior.at(uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]);
+        for (size_t loop_index = 0; loop_index < num_priors_to_print; ++loop_index) {
+            size_t prior_index = loop_index;
+            if (g_print_reduced_prior) {
+                prior_index = reverse_map_slice[loop_index];
+            }
+            int16_t tmp_output = uprior.priors[prior_index];
 #if DO_INPUT_SCALING
-            if (uprior.ranges[i].min == 0 && uprior.ranges[i].max == 1) {
-                if (uprior.priors[i]) {
+            if (uprior.ranges[prior_index].min == 0 && uprior.ranges[prior_index].max == 1) {
+                if (uprior.priors[prior_index]) {
                     tmp_output = 1023;
                 } else {
                     tmp_output = -1024;
                 }
-            } else if (uprior.ranges[i].min != -1024 || uprior.ranges[i].max != 1024) {
-                int16_t del = uprior.priors[i] - uprior.ranges[i].mean;
-                int16_t mul = 2048 / (uprior.ranges[i].max - uprior.ranges[i].min);
+            } else if (uprior.ranges[prior_index].min != -1024 || uprior.ranges[prior_index].max != 1024) {
+                int16_t del = uprior.priors[prior_index] - uprior.ranges[prior_index].mean;
+                int16_t mul = 2048 / (uprior.ranges[prior_index].max - uprior.ranges[prior_index].min);
                 if (mul > 0) {
                     del *= mul;
                 }
                 tmp_output = del;
             }
 #endif
-            if (g_print_reduced_prior && i >= UniversalPrior::OFFSET_RAW) {
-                break;
-            } else {
-                output[counter] = tmp_output;
-                ++counter;
-            }
+            counter = loop_index + 4;
+            output[counter] = tmp_output;
         }
-        if (g_print_reduced_prior) {
-            for (size_t i = UniversalPrior::OFFSET_RAW; i < UniversalPrior::OFFSET_NEIGHBORING_PIXELS;i += 64) {
-                uint32_t offset = i - UniversalPrior::OFFSET_RAW;
-                uint8_t typ = (offset >> 6);
-                uint8_t zz_index = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
-                output[counter] = uprior.priors[i];
-                int raster = aligned_to_raster.at(zz_index);
-                int above_raster = raster > 8 ? raster - 8 : raster;
-                int below_raster = raster < 64 - 8 ? raster + 8 : raster;
-                int left_raster = (raster & 7) > 0 ? raster - 1 : raster;
-                int right_raster = (raster & 7) < 7 ? raster + 1 : raster;
-                if (typ >= UniversalPrior::LUMA0) {
-                    int x = (raster & 7);
-                    int y = (raster >> 3);
-                    left_raster = (x >> 1) + (y << 3);
-                    above_raster = x + (y << 2);
-                    if (x < 4) {
-                        right_raster = (x << 1) + (y << 3);
-                    }
-                    if (y < 4) {
-                        below_raster = x + (y << 4);
-                    }
-                }
-                output[counter] = uprior.priors[i + uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]];
-                output[counter + 1] = uprior.priors[i + raster_to_aligned.at(left_raster)];
-                output[counter + 2] = uprior.priors[i + raster_to_aligned.at(right_raster)];
-                output[counter + 3] = uprior.priors[i + raster_to_aligned.at(above_raster)];
-                output[counter + 4 ] = uprior.priors[i + raster_to_aligned.at(below_raster)];
-                counter += 5;
-            }
-        }
+        ++counter;
         if (first) {
 	    gpc = ++global_print_counter;
             if (g_binary_priors) {

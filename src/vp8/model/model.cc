@@ -419,3 +419,49 @@ void load_model(Model&model, const char * filename) {
         }
     }
 }
+
+static Sirikata::Array2d<uint16_t,
+                         64,
+                         UniversalPrior::OFFSET_RAW + 5 * UniversalPrior::NUM_PRIOR_VALUES> compute_reverse_prior_mapping() {
+    Sirikata::Array2d<uint16_t,
+                      64,
+                      UniversalPrior::OFFSET_RAW + 5 * UniversalPrior::NUM_PRIOR_VALUES> retval;
+    for (uint8_t zz_index  = 0; zz_index < 64; ++zz_index) {
+        size_t counter = 0;
+        for (size_t i = 0; i < UniversalPrior::OFFSET_RAW; ++i) {
+            always_assert(i == counter);
+            retval.at(zz_index, i) = counter++;
+        }
+        for (size_t i = UniversalPrior::OFFSET_RAW; i < UniversalPrior::OFFSET_NEIGHBORING_PIXELS;i += 64) {
+            uint32_t offset = i - UniversalPrior::OFFSET_RAW;
+            uint8_t typ = (offset >> 6);
+            int raster = aligned_to_raster.at(zz_index);
+            int above_raster = raster > 8 ? raster - 8 : raster;
+            int below_raster = raster < 64 - 8 ? raster + 8 : raster;
+            int left_raster = (raster & 7) > 0 ? raster - 1 : raster;
+            int right_raster = (raster & 7) < 7 ? raster + 1 : raster;
+            if (typ >= UniversalPrior::LUMA0) {
+                int x = (raster & 7);
+                int y = (raster >> 3);
+                left_raster = (x >> 1) + (y << 3);
+                above_raster = x + (y << 2);
+                if (x < 4) {
+                    right_raster = (x << 1) + (y << 3);
+                }
+                if (y < 4) {
+                    below_raster = x + (y << 4);
+                }
+            }
+            retval.at(zz_index, counter) = i + zz_index;
+            retval.at(zz_index, counter + 1) = i + raster_to_aligned.at(left_raster);
+            retval.at(zz_index, counter + 2) = i + raster_to_aligned.at(right_raster);
+            retval.at(zz_index, counter + 3) = i + raster_to_aligned.at(above_raster);
+            retval.at(zz_index, counter + 4) = i + raster_to_aligned.at(below_raster);
+            counter += 5;
+        }
+    }
+    return retval;
+}
+Sirikata::Array2d<uint16_t,
+                  64,
+                  UniversalPrior::OFFSET_RAW + 5 * UniversalPrior::NUM_PRIOR_VALUES> UniversalPrior::index_map_from_reduced_prior_to_universal_prior = compute_reverse_prior_mapping();
