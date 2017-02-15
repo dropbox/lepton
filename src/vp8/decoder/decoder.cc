@@ -290,17 +290,11 @@ void parse_tokens(DecodeChannelContext chan_context,
     { // dc
         uint8_t length;
         bool nonzero = false;
-        uint16_t len_abs_mxm = uint16bit_length(abs(uncertainty));
-        uint16_t len_abs_offset_to_closest_edge
-          = uint16bit_length(abs(uncertainty2));
-
 
         if (!advanced_dc_prediction) {
             ProbabilityTablesBase::CoefficientContext prior;
 
             prior = probability_tables.update_coefficient_context7x7(0, raster_to_aligned.at(0), context.copy(), num_nonzeros_7x7);
-            len_abs_mxm = prior.bsr_best_prior;
-            len_abs_offset_to_closest_edge = prior.num_nonzeros_bin;
             uprior.update_by_prior(AlignedBlock::DC_INDEX, prior);
         } else {
             uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] = uncertainty;

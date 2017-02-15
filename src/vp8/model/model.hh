@@ -22,6 +22,8 @@
 #endif
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
+
+
 enum TableParams : unsigned int {
     MAX_EXPONENT = 11,
     BLOCK_TYPES = 2, // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
@@ -39,6 +41,7 @@ extern bool g_print_priors;
 extern bool g_print_reduced_prior;
 extern int pcount;
 extern FILE * g_binary_priors;
+extern std::atomic<uint64_t> global_print_counter;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
 
@@ -717,12 +720,16 @@ public:
         }
         always_assert(g_threaded == false && "Do not support printing arrays with multithreading");
         int16_t output[UniversalPrior::PRIOR_SIZE + 4] = {0};
+	always_assert(bit == 0 || bit == 1);
         output[0] = bit;
         output[1] = selected_branch.true_count();
         output[2] = selected_branch.false_count();
         output[3] = array_index;
         int counter = 4;
         int original_counter = counter;
+	auto gpc = ++global_print_counter;
+	bool first = (gpc == 1);
+	
         for (size_t i= 0; i < UniversalPrior::PRIOR_SIZE; ++i) {
             int16_t tmp_output = uprior.priors[i];
 #if DO_INPUT_SCALING
@@ -779,9 +786,8 @@ public:
                 counter += 5;
             }
         }
-        static bool first = true;
         if (first) {
-            first = false;
+	    gpc = ++global_print_counter;
             if (g_binary_priors) {
                 int16_t sub_output[UniversalPrior::PRIOR_SIZE + 4];
                 for (int i = 0; i < counter ;++i) {
@@ -801,15 +807,24 @@ public:
                 }
             }
         }
+	always_assert(gpc == 2);
         if (g_binary_priors) {
+	    always_assert(counter == 0x55);
+	    always_assert(counter == 85);
             ssize_t bytes_left = counter * sizeof(output[0]);
             const char * data = (const char*)output;
+	    always_assert(output[0] == 0 || output[0] == 1);
             while(bytes_left) {
                 int written = write(fileno(g_binary_priors), data, bytes_left);
                 if (written > 0) {
                     bytes_left -= written;
                     data += written;
-                }
+                } else {
+		  always_assert(written > 0 && "Error with writout");
+		}
+		always_assert(data[0] == 1 || data[0] == 0);
+		always_assert(data[1] == 0);
+		always_assert(written == 0x55 * 2);
                 if (written < 0 && errno != EINTR) {
                     always_assert(written >= 0 && "Error writing binary priors");
                 }
@@ -821,6 +836,7 @@ public:
             }
             fprintf(stderr, "\n");
         }
+	always_assert(--global_print_counter == 1);
     }
     template<unsigned int bits> uint8_t to_u(int16_t val) {
         return val&((1<< bits) - 1);
@@ -887,7 +903,7 @@ public:
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
         case UniversalPrior::TYPE_NZ_1x8: {
-             int16_t num_item_left = UniversalPrior::OFFSET_BIT_TYPE==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_CUR_NZ_X:UniversalPrior::OFFSET_CUR_NZ_Y;
+             int16_t num_item_left = uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_CUR_NZ_X:UniversalPrior::OFFSET_CUR_NZ_Y;
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],

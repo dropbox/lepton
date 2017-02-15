@@ -11,6 +11,7 @@
 #include <emmintrin.h>
 #include "model.hh"
 int pcount =0;
+std::atomic<uint64_t> global_print_counter(0);
 bool g_draconian = false;
 bool g_collapse_zigzag = false;
 bool g_print_priors = false;
