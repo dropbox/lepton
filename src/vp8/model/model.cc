@@ -16,6 +16,7 @@ bool g_draconian = false;
 bool g_collapse_zigzag = false;
 bool g_print_priors = false;
 bool g_print_reduced_prior = true;
+std::atomic<uint64_t> g_bit_number(0);
 FILE * g_binary_priors = NULL;
 std::atomic<uint64_t> num_univ_prior_gets(0);
 std::atomic<uint64_t> num_univ_prior_updates(0);

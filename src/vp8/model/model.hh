@@ -25,7 +25,14 @@ constexpr bool advanced_dc_prediction = true;
 
 extern bool g_draconian;// true if we use a very restricted index space of 32 values
 extern bool g_collapse_zigzag;
-
+struct ExternalProbEstimate {
+    int32_t vbit_number;
+    int32_t probability_byte;
+    bool operator< (const ExternalProbEstimate&other)const {
+        return vbit_number < other.vbit_number;
+    }
+};
+extern std::vector<ExternalProbEstimate>external_prob_estimate;
 enum TableParams : unsigned int {
     MAX_EXPONENT = 11,
     BLOCK_TYPES = 2, // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
@@ -46,7 +53,7 @@ extern FILE * g_binary_priors;
 extern std::atomic<uint64_t> global_print_counter;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
-
+extern std::atomic<uint64_t> g_bit_number;
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -918,9 +925,23 @@ public:
         MAX_PREDICTOR_RETURN
     };
     PredictorReturn get_adv_prediction(const UniversalPrior&uprior) const {
+        int32_t bit_number = g_bit_number.load();
+        ExternalProbEstimate val = {bit_number, 128};
+        auto where = std::lower_bound(external_prob_estimate.begin(), external_prob_estimate.end(), val);
+        if (where != external_prob_estimate.end()) {
+            if (where->vbit_number == bit_number) {
+               always_assert(!g_threaded && "Do not support external probability arrays in multithread mode");
+               if (where->probability_byte > 192) {
+                    return VERY_ONE;
+                } else if (where->probability_byte < 64) {
+                    return VERY_ZERO;
+                }
+            }
+        }
         return UNCLEAR;
     }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
+        ++g_bit_number;
         ++num_univ_prior_gets;
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
