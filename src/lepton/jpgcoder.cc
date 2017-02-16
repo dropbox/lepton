@@ -86,6 +86,7 @@ const char** g_argv = NULL;
 #endif
 #endif
 bool fast_exit = true;
+std::vector<ExternalProbEstimate>external_prob_estimate;
 #ifdef SKIP_VALIDATION
 bool g_skip_validation = true;
 #else
@@ -115,10 +116,9 @@ bool g_skip_validation = false;
 #define FRD_ERRMSG    "could not read file / file not found: %s"
 #define FWR_ERRMSG    "could not write file / file write-protected: %s"
 size_t local_atoi(const char *data);
+
 namespace TimingHarness {
-
 Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing = {{{{0}}}};
-
 uint64_t get_time_us(bool force) {
 #ifndef _WIN32
     //FIXME
@@ -912,6 +912,18 @@ int initialize_options( int argc, const char*const * argv )
             const char * fn = (*argv) + strlen("-binarypriors=");
             g_binary_priors = fopen(fn, "wb");
             always_assert(g_binary_priors);
+        }
+        else if ( strncmp((*argv), "-inputpriors=", strlen("-inputpriors=") ) == 0)  {
+            const char * fn = (*argv) + strlen("-inputpriors=");
+            FILE * input_priors = fopen(fn, "rb");
+            fseek(input_priors, 0, SEEK_END);
+            uint64_t len = ftell(input_priors);
+            always_assert(len % sizeof(ExternalProbEstimate) == 0);
+            fseek(input_priors, 0, SEEK_SET);
+            external_prob_estimate.resize(len / sizeof(ExternalProbEstimate));
+            fread(&external_prob_estimate[0], len, 1, input_priors);
+            fclose(input_priors);
+            std::sort(external_prob_estimate.begin(), external_prob_estimate.end());
         }
         else if ( strcmp((*argv), "-printpriors" ) == 0)  {
             g_print_priors = true;

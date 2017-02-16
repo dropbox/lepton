@@ -47,6 +47,17 @@ inline SIGN_PREDICTION predict_8x1_sign(float val) {
 
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
+
+extern bool g_draconian;// true if we use a very restricted index space of 32 values
+extern bool g_collapse_zigzag;
+struct ExternalProbEstimate {
+    int32_t vbit_number;
+    int32_t probability_byte;
+    bool operator< (const ExternalProbEstimate&other)const {
+        return vbit_number < other.vbit_number;
+    }
+};
+extern std::vector<ExternalProbEstimate>external_prob_estimate;
 enum TableParams : unsigned int {
     MAX_EXPONENT = 11,
     BLOCK_TYPES = 2, // setting this to 3 gives us ~1% savings.. 2/3 from BLOCK_TYPES=2
@@ -64,9 +75,10 @@ extern bool g_print_priors;
 extern bool g_print_reduced_prior;
 extern int pcount;
 extern FILE * g_binary_priors;
+extern std::atomic<uint64_t> global_print_counter;
 extern std::atomic<uint64_t> num_univ_prior_gets;
 extern std::atomic<uint64_t> num_univ_prior_updates;
-
+extern std::atomic<uint64_t> g_bit_number;
 int get_sum_median_8(int16_t*data16i);
 void set_branch_range_identity(Branch *start, Branch* end);
 struct UniversalPrior {
@@ -163,6 +175,9 @@ struct UniversalPrior {
   };
   int16_t priors[PRIOR_SIZE];
   static MeanMinMax ranges[PRIOR_SIZE];
+  static Sirikata::Array2d<uint16_t,
+                           64,
+                           OFFSET_RAW + 5 * NUM_PRIOR_VALUES> index_map_from_reduced_prior_to_universal_prior;
   UniversalPrior() {
       static_assert(OFFSET_IS_Y_ODD == OFFSET_IS_X_ODD + 1, "just making sure");
       static_assert(PRIOR_SIZE == 688, "just making sure prior space is 688 inputs");
@@ -378,6 +393,12 @@ struct UniversalPrior {
     // TODO: probably could assert ret.second is bounded from above by the # of bins.
     return ret.first;
   }
+
+    static uint16_t map_from_aligned_zigzag_and_reduced_prior_to_universal_prior_index(
+            uint8_t zz_index,
+            size_t reduced_index) {
+        return index_map_from_reduced_prior_to_universal_prior.at(zz_index, reduced_index);
+    }
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
@@ -394,17 +415,42 @@ struct Model
                       UniversalPrior::NUM_TYPES,
                       12,
                       2,// color
-                      256 *32> univ_prob_array_base;
+                      256 *32> *univ_prob_array_base;
 
-    Sirikata::Array5d<Branch,
+    Sirikata::Array6d<Branch,
                       UniversalPrior::NUM_TYPES,
                       12,
                       3,// color
                       64, // zz_index(or 0)
-                      32> univ_prob_array_draconian; //actual value
+                      32,
+                      3> *univ_prob_array_draconian; //actual value
+    char backing_store[sizeof(*univ_prob_array_draconian) > sizeof(*univ_prob_array_base)?
+                       sizeof(*univ_prob_array_draconian) : sizeof(*univ_prob_array_base)];
+  Model() {
+      if (g_draconian) {
+          univ_prob_array_draconian = (Sirikata::Array6d<Branch,
+                      UniversalPrior::NUM_TYPES,
+                      12,
+                      3,// color
+                      64, // zz_index(or 0)
+                      32,
+                                       3>*)&backing_store[0];
+          univ_prob_array_base = NULL;
+      } else {
+          univ_prob_array_base = (Sirikata::Array4d<Branch,
+                      UniversalPrior::NUM_TYPES,
+                      12,
+                      2,// color
+                                  256 *32>*)&backing_store[0];
+          univ_prob_array_draconian = NULL;
+      }
+  }
   void set_tables_identity() {
-      set_branch_array_identity(univ_prob_array_base);
-      set_branch_array_identity(univ_prob_array_draconian);
+      if (g_draconian) {
+          set_branch_array_identity(*univ_prob_array_draconian);
+      } else {
+          set_branch_array_identity(*univ_prob_array_base);
+      }
   }
   typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, NUMERIC_LENGTH_MAX> SignCounts;
   SignCounts sign_counts_;
@@ -412,8 +458,11 @@ struct Model
   template <typename lambda>
   void forall( const lambda & proc )
   {
-      univ_prob_array_base.foreach(proc);
-      univ_prob_array_draconian.foreach(proc);
+      if (!g_draconian) {
+              univ_prob_array_base->foreach(proc);
+      }else {
+          univ_prob_array_draconian->foreach(proc);
+      }
   }
     enum Printability{
         PRINTABLE_INSIGNIFICANT = 1,
@@ -453,7 +502,7 @@ struct Model
     }
   }
 
-  template<typename Array4DType> static void printArraySummary(const Array4DType& array) {
+  template<typename Array4DType> static void printArraySummary(const Array4DType* array) {
     constexpr auto size = Array4DType::size();
     int64_t count = 1;
     for (uint32_t i = 0; i < Array4DType::dimension(); i++) {
@@ -465,7 +514,7 @@ struct Model
     for (uint32_t i = 0; i < size.at(0); i++) {
       printf(" TYPE %s\n", bit_decode_type_to_str(static_cast<UniversalPrior::BitDecodeType>(i)));
       // Iterate through all bins and build a histogram
-      auto* b = array.begin() + i * count; // should be of type Branch
+      auto* b = array->begin() + i * count; // should be of type Branch
       constexpr int HIST_BINS = 10;
       int64_t histogram[HIST_BINS] = {0}; // 50%-100% cut into 10 bins
       for (int64_t c = 0; c < count; c++) {
@@ -625,8 +674,6 @@ public:
         MICROVECTORIZE = ::MICROVECTORIZE
     };
 };
-extern bool g_draconian;// true if we use a very restricted index space of 32 values
-extern bool g_collapse_zigzag;
 
 #define USE_TEMPLATIZED_COLOR
 #ifdef USE_TEMPLATIZED_COLOR
@@ -800,15 +847,17 @@ public:
                 zz = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
             }
             array_index = &selected_branch - &pt.model().univ_prob_array_draconian
-            .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+            ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                 uprior.priors[UniversalPrior::OFFSET_COLOR],
                 zz,
+                0,
                 0);
+            array_index /= MAX_PREDICTOR_RETURN; // ignore the NN component
             always_assert(array_index < 32 && "Must seek within draconian array");
         }else {
             array_index = &selected_branch - &pt.model().univ_prob_array_base
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       0);
@@ -818,71 +867,49 @@ public:
         }
         always_assert(g_threaded == false && "Do not support printing arrays with multithreading");
         int16_t output[UniversalPrior::PRIOR_SIZE + 4] = {0};
+        always_assert(bit == 0 || bit == 1);
         output[0] = bit;
         output[1] = selected_branch.true_count();
         output[2] = selected_branch.false_count();
         output[3] = array_index;
         int counter = 4;
         int original_counter = counter;
-        for (size_t i= 0; i < UniversalPrior::PRIOR_SIZE; ++i) {
-            int16_t tmp_output = uprior.priors[i];
+        auto gpc = ++global_print_counter;
+        bool first = (gpc == 1);
+        size_t num_priors_to_print = UniversalPrior::PRIOR_SIZE;
+        if (g_print_reduced_prior) {
+            num_priors_to_print = UniversalPrior::index_map_from_reduced_prior_to_universal_prior.size()[1];
+            always_assert(num_priors_to_print == 0x51);
+        }
+        auto reverse_map_slice = UniversalPrior::index_map_from_reduced_prior_to_universal_prior.at(uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]);
+        for (size_t loop_index = 0; loop_index < num_priors_to_print; ++loop_index) {
+            size_t prior_index = loop_index;
+            if (g_print_reduced_prior) {
+                prior_index = reverse_map_slice[loop_index];
+            }
+            int16_t tmp_output = uprior.priors[prior_index];
 #if DO_INPUT_SCALING
-            if (uprior.ranges[i].min == 0 && uprior.ranges[i].max == 1) {
-                if (uprior.priors[i]) {
+            if (uprior.ranges[prior_index].min == 0 && uprior.ranges[prior_index].max == 1) {
+                if (uprior.priors[prior_index]) {
                     tmp_output = 1023;
                 } else {
                     tmp_output = -1024;
                 }
-            } else if (uprior.ranges[i].min != -1024 || uprior.ranges[i].max != 1024) {
-                int16_t del = uprior.priors[i] - uprior.ranges[i].mean;
-                int16_t mul = 2048 / (uprior.ranges[i].max - uprior.ranges[i].min);
+            } else if (uprior.ranges[prior_index].min != -1024 || uprior.ranges[prior_index].max != 1024) {
+                int16_t del = uprior.priors[prior_index] - uprior.ranges[prior_index].mean;
+                int16_t mul = 2048 / (uprior.ranges[prior_index].max - uprior.ranges[prior_index].min);
                 if (mul > 0) {
                     del *= mul;
                 }
                 tmp_output = del;
             }
 #endif
-            if (g_print_reduced_prior && i >= UniversalPrior::OFFSET_RAW) {
-                break;
-            } else {
-                output[counter] = tmp_output;
-                ++counter;
-            }
+            counter = loop_index + 4;
+            output[counter] = tmp_output;
         }
-        if (g_print_reduced_prior) {
-            for (size_t i = UniversalPrior::OFFSET_RAW; i < UniversalPrior::OFFSET_NEIGHBORING_PIXELS;i += 64) {
-                uint32_t offset = i - UniversalPrior::OFFSET_RAW;
-                uint8_t typ = (offset >> 6);
-                uint8_t zz_index = uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX];
-                output[counter] = uprior.priors[i];
-                int raster = aligned_to_raster.at(zz_index);
-                int above_raster = raster > 8 ? raster - 8 : raster;
-                int below_raster = raster < 64 - 8 ? raster + 8 : raster;
-                int left_raster = (raster & 7) > 0 ? raster - 1 : raster;
-                int right_raster = (raster & 7) < 7 ? raster + 1 : raster;
-                if (typ >= UniversalPrior::LUMA0) {
-                    int x = (raster & 7);
-                    int y = (raster >> 3);
-                    left_raster = (x >> 1) + (y << 3);
-                    above_raster = x + (y << 2);
-                    if (x < 4) {
-                        right_raster = (x << 1) + (y << 3);
-                    }
-                    if (y < 4) {
-                        below_raster = x + (y << 4);
-                    }
-                }
-                output[counter] = uprior.priors[i + uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]];
-                output[counter + 1] = uprior.priors[i + raster_to_aligned.at(left_raster)];
-                output[counter + 2] = uprior.priors[i + raster_to_aligned.at(right_raster)];
-                output[counter + 3] = uprior.priors[i + raster_to_aligned.at(above_raster)];
-                output[counter + 4 ] = uprior.priors[i + raster_to_aligned.at(below_raster)];
-                counter += 5;
-            }
-        }
-        static bool first = true;
+        ++counter;
         if (first) {
-            first = false;
+            gpc = ++global_print_counter;
             if (g_binary_priors) {
                 int16_t sub_output[UniversalPrior::PRIOR_SIZE + 4];
                 for (int i = 0; i < counter ;++i) {
@@ -902,15 +929,24 @@ public:
                 }
             }
         }
+        always_assert(gpc == 2);
         if (g_binary_priors) {
+            always_assert(counter == 0x55);
+            always_assert(counter == 85);
             ssize_t bytes_left = counter * sizeof(output[0]);
             const char * data = (const char*)output;
+            always_assert(output[0] == 0 || output[0] == 1);
             while(bytes_left) {
                 int written = write(fileno(g_binary_priors), data, bytes_left);
                 if (written > 0) {
                     bytes_left -= written;
                     data += written;
+                } else {
+                  always_assert(written > 0 && "Error with writout");
                 }
+                always_assert(data[0] == 1 || data[0] == 0);
+                always_assert(data[1] == 0);
+                always_assert(written == 0x55 * 2);
                 if (written < 0 && errno != EINTR) {
                     always_assert(written >= 0 && "Error writing binary priors");
                 }
@@ -922,6 +958,7 @@ public:
             }
             fprintf(stderr, "\n");
         }
+        always_assert(--global_print_counter == 1);
     }
     template<unsigned int bits> uint8_t to_u(int16_t val) {
         return val&((1<< bits) - 1);
@@ -983,22 +1020,46 @@ public:
         }
         return retval;
     }
+    enum PredictorReturn {
+        VERY_ZERO,
+        UNCLEAR,
+        VERY_ONE,
+        MAX_PREDICTOR_RETURN
+    };
+    PredictorReturn get_adv_prediction(const UniversalPrior&uprior) const {
+        int32_t bit_number = g_bit_number.load();
+        ExternalProbEstimate val = {bit_number, 128};
+        auto where = std::lower_bound(external_prob_estimate.begin(), external_prob_estimate.end(), val);
+        if (where != external_prob_estimate.end()) {
+            if (where->vbit_number == bit_number) {
+               always_assert(!g_threaded && "Do not support external probability arrays in multithread mode");
+               if (where->probability_byte > 192) {
+                    return VERY_ONE;
+                } else if (where->probability_byte < 64) {
+                    return VERY_ZERO;
+                }
+            }
+        }
+        return UNCLEAR;
+    }
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
+        ++g_bit_number;
         ++num_univ_prior_gets;
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
         case UniversalPrior::TYPE_NZ_1x8: {
-             int16_t num_item_left = UniversalPrior::OFFSET_BIT_TYPE==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_CUR_NZ_X:UniversalPrior::OFFSET_CUR_NZ_Y;
+             int16_t num_item_left = uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_CUR_NZ_X:UniversalPrior::OFFSET_CUR_NZ_Y;
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       0,
-                      clamp_u<3>(uprior.priors[num_item_left]) + 8 * (clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])));
+                      clamp_u<3>(uprior.priors[num_item_left]) + 8 * (clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])),
+                      get_adv_prediction(uprior));
               } else {
                   return pt.model().univ_prob_array_base
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       uprior.priors[num_item_left] + 8 * (
@@ -1023,15 +1084,16 @@ public:
                           ri2 = 5;
                       }
                       return pt.model().univ_prob_array_draconian
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           0,
-                          clamp_u<5>(i1 + 6 * ri2));
+                          clamp_u<5>(i1 + 6 * ri2),
+                          get_adv_prediction(uprior));
 
                   } else {
                       return pt.model().univ_prob_array_base
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                           (i1 + 6 * i2));
@@ -1041,14 +1103,15 @@ public:
               if (g_draconian) {
 
                       return pt.model().univ_prob_array_draconian
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
+                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31),
+                          get_adv_prediction(uprior));
               } else {
                       return pt.model().univ_prob_array_base
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                           uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
@@ -1057,14 +1120,15 @@ public:
           case UniversalPrior::TYPE_EXP_1x8:
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// <-- really want this
-                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31) );
+                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31),
+                          get_adv_prediction(uprior));
               } else {
                       return pt.model().univ_prob_array_base
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                           uprior.compute_index<UniversalPrior::OFFSET_NZ_SCALED,
@@ -1075,14 +1139,15 @@ public:
           case UniversalPrior::TYPE_SIGN_1x8:
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// maybe set to 0
-                          std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31));
+                          std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31),
+                          get_adv_prediction(uprior));
               } else {
                   return pt.model().univ_prob_array_base
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2))
@@ -1092,14 +1157,15 @@ public:
           case UniversalPrior::TYPE_SIGN_7x7:
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                          uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]);
+                           uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION],
+                          get_adv_prediction(uprior));
               }else {
                       return pt.model().univ_prob_array_base
-                      .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                      ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                           uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]);
@@ -1109,11 +1175,12 @@ public:
           case UniversalPrior::TYPE_RES_8x1:
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
-                      std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31));
+                      std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31),
+                      get_adv_prediction(uprior));
 
               }else {
                   if (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE] != UniversalPrior::TYPE_RES_7x7) {
@@ -1127,14 +1194,14 @@ public:
                               uint16_t magic = std::min(ctx_abs >> min_threshold,
                                                          (1 << 8) - 1);
                               return pt.model().univ_prob_array_base
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],//cur_exponent - min_threshold,// we're not using this one--- will make array index harder to pattern match
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       magic + std::min((abs_val - (1 << (cur_exponent - 1))) >> min_threshold,31) * 256);
                           }
                   }
                   return pt.model().univ_prob_array_base
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * num_nonzeros_to_bin(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
@@ -1142,14 +1209,15 @@ public:
           default:
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                      clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+                      clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]),
+                      get_adv_prediction(uprior));
               }else {
                   return pt.model().univ_prob_array_base
-                  .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
+                  ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       uprior.compute_index<UniversalPrior::OFFSET_BEST_PRIOR2_SCALED,
@@ -1178,7 +1246,7 @@ public:
 
              MD5_Final(rez, &md5);
         }
-        return pt.model().univ_prob_array_draconian.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE], uprior.priors[UniversalPrior::OFFSET_BIT_INDEX], uprior.priors[UniversalPrior::OFFSET_COLOR], uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], rez[0]&15);
+        return pt.model().univ_prob_array_draconian->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE], uprior.priors[UniversalPrior::OFFSET_BIT_INDEX], uprior.priors[UniversalPrior::OFFSET_COLOR], uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], rez[0]&15, UNCLEAR);
     }
     unsigned int num_nonzeros_to_bin(uint8_t num_nonzeros) {
         return nonzero_to_bin[NUM_NONZEROS_BINS-1][num_nonzeros];
