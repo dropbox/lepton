@@ -20,6 +20,31 @@
 #include <unistd.h>
 #include <errno.h>
 #endif
+
+#include "classifier_plugin.hh"
+
+enum SIGN_PREDICTION : unsigned int {
+  UNKNOWN = 0,
+  POSITIVE,
+  NEGATIVE,
+  NUM_SIGN_PREDICTION
+};
+
+inline SIGN_PREDICTION predict_7x7_sign(float val) {
+  if (val > 0.01f) {
+    return SIGN_PREDICTION::POSITIVE;
+  } else if (val < -0.01f) {
+    return SIGN_PREDICTION::NEGATIVE;
+  } else {
+    return SIGN_PREDICTION::UNKNOWN;
+  }
+}
+
+inline SIGN_PREDICTION predict_8x1_sign(float val) {
+  return predict_7x7_sign(val);
+}
+
+
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
 enum TableParams : unsigned int {
@@ -102,7 +127,8 @@ struct UniversalPrior {
       OFFSET_NUM_NZ_X_LEFT,
       OFFSET_NUM_NZ_Y_LEFT,
       OFFSET_NZ_SCALED,
-      OFFSET_VALUE_SO_FAR,
+      OFFSET_SIGN_PREDICTION,
+      OFFSET_VALUE_SO_FAR
   };
   enum {
       OFFSET_NONZERO = OFFSET_VALUE_SO_FAR + 1,
@@ -139,7 +165,7 @@ struct UniversalPrior {
   static MeanMinMax ranges[PRIOR_SIZE];
   UniversalPrior() {
       static_assert(OFFSET_IS_Y_ODD == OFFSET_IS_X_ODD + 1, "just making sure");
-      static_assert(PRIOR_SIZE == 687, "just making sure prior space is 688 inputs");
+      static_assert(PRIOR_SIZE == 688, "just making sure prior space is 688 inputs");
       memset(priors, 0, sizeof(priors));
       for (int i = 0; i < 16; ++ i) {
           ranges[OFFSET_NEIGHBORING_PIXELS + i].mean = 0;
@@ -190,12 +216,13 @@ struct UniversalPrior {
     priors[OFFSET_BIT_TYPE] = TYPE_NZ_7x7;
     priors[OFFSET_ZZ_INDEX] = 0;
   }
-  void set_7x7_exp_id(uint8_t index) {
+  void set_7x7_exp_id(uint8_t index, uint8_t expected = 0) {  // is the bit length of the 7x7 AC equal to index?
+    priors[OFFSET_VALUE_SO_FAR] = (index < expected ? 0 : (index == expected ? 1 : 2));
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_BIT_TYPE] = TYPE_EXP_7x7;
   }
-  void set_7x7_sign() {
-    priors[OFFSET_BIT_INDEX] = 0;
+  void set_7x7_sign(SIGN_PREDICTION prediction) {
+    priors[OFFSET_SIGN_PREDICTION] = static_cast<int16_t>(prediction);
     priors[OFFSET_BIT_TYPE] = TYPE_SIGN_7x7;
   }
   void set_7x7_residual(uint8_t index, int16_t value_so_far) {
@@ -214,8 +241,8 @@ struct UniversalPrior {
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_EXP_8x1 : TYPE_EXP_1x8;
   }
-  void set_8x1_sign(bool horiz) {
-    priors[OFFSET_BIT_INDEX] = 0;
+  void set_8x1_sign(bool horiz, SIGN_PREDICTION prediction) {
+    priors[OFFSET_SIGN_PREDICTION] = static_cast<int16_t>(prediction);
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_SIGN_8x1 : TYPE_SIGN_1x8;
   }
   void set_8x1_residual(bool horiz, uint8_t index, int16_t value_so_far) {
@@ -333,6 +360,29 @@ struct UniversalPrior {
            64 * sizeof(int16_t));
     priors[OFFSET_NONZERO + CHROMA] = input.at(2).num_nonzeros_here->num_nonzeros();
   }
+
+  template<BlockType B = BlockType::Y> float predict_at_index(uint16_t* qtable_luma,
+                                                              uint16_t* qtable_chroma,
+                                                              int index) const {
+    uint16_t* qtable = (B == BlockType::Y) ? qtable_luma : qtable_chroma;
+    int16_t input[320+256];
+    for (int i = 0; i < 64; i++) {
+      input[i+0] = priors[OFFSET_RAW + 64 * ABOVE_LEFT + raster_to_aligned.at(i)] * qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      input[i+64] = priors[OFFSET_RAW + 64 * ABOVE + raster_to_aligned.at(i)] * qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      input[i+128] = priors[OFFSET_RAW + 64 * ABOVE_RIGHT + raster_to_aligned.at(i)] * qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      input[i+192] = priors[OFFSET_RAW + 64 * LEFT + raster_to_aligned.at(i)] * qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      input[i+256] = priors[OFFSET_RAW + 64 * CUR + raster_to_aligned.at(i)] * qtable[i];
+    }
+    return tf_unpredict<B>(input, index) / qtable[index]; // gah terrible!
+  }
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
@@ -363,7 +413,7 @@ struct Model
   }
   typedef Sirikata::Array3d<Branch, BLOCK_TYPES, 4, NUMERIC_LENGTH_MAX> SignCounts;
   SignCounts sign_counts_;
-  
+
   template <typename lambda>
   void forall( const lambda & proc )
   {
@@ -441,9 +491,9 @@ protected:
     Model model_;
 
     static WINALIGN16 int32_t icos_idct_edge_8192_dequantized_x_[(int)ColorChannel::NumBlockTypes][64] UNIXALIGN16;
-    
+
     static WINALIGN16 int32_t icos_idct_edge_8192_dequantized_y_[(int)ColorChannel::NumBlockTypes][64] UNIXALIGN16;
-    
+
     static WINALIGN16 int32_t icos_idct_linear_8192_dequantized_[(int)ColorChannel::NumBlockTypes][64] UNIXALIGN16;
 
     static WINALIGN16 uint16_t quantization_table_[(int)ColorChannel::NumBlockTypes][64] UNIXALIGN16;
@@ -950,7 +1000,8 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+                          // XXX: This may be actually OOB
+                          uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
               }
           case UniversalPrior::TYPE_EXP_8x1:
           case UniversalPrior::TYPE_EXP_1x8:
@@ -982,7 +1033,9 @@ public:
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                      (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+                      (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2))
+                      + 3 * uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]
+                      + 15 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
               }
           case UniversalPrior::TYPE_SIGN_7x7:
               if (g_draconian) {
@@ -991,13 +1044,13 @@ public:
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                          0);
+                          uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]);
               }else {
                       return pt.model().univ_prob_array_base
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          0);
+                          uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]);
               }
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:
@@ -1069,7 +1122,7 @@ public:
         /*
         MD5_Update(&md5, &uprior.raw.at(0), sizeof(AlignedBlock) * (UniversalPrior::NUM_PRIOR_VALUES - 2));
         */
-        
+
              MD5_Final(rez, &md5);
         }
         return pt.model().univ_prob_array_draconian.at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE], uprior.priors[UniversalPrior::OFFSET_BIT_INDEX], uprior.priors[UniversalPrior::OFFSET_COLOR], uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], rez[0]&15);
@@ -1165,7 +1218,7 @@ public:
                     return std::max(a,b);
                 }
                 return a + b - c;
-            }else { 
+            }else {
                 return a;
             }
         } else if (above_present) {
@@ -1196,7 +1249,7 @@ public:
         if(all_present || left_present || above_present) {
             if ((VECTORIZE || MICROVECTORIZE)) {
                 if (all_present || above_present) { //above goes first to prime the cache
-		  __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
+                  __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
                                                              .neighbor_context_above_unchecked()
                                                              .horizontal_ptr());
                     __m128i pixels_sans_dc_reg = _mm_loadu_si128((const __m128i*)(const char*)pixels_sans_dc);
@@ -1234,12 +1287,12 @@ public:
                                                                        pixels_sans_dc[17],
                                                                        pixels_sans_dc[9],
                                                                        pixels_sans_dc[1]));
-                    
+
                     __m128i pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
                     __m128i left_dc_estimate = _mm_sub_epi16(_mm_sub_epi16(neighbor_horiz, pixels_delta_div2),
                                                               _mm_add_epi16(pixels_sans_dc_reg,
                                                                             _mm_set1_epi16(1024)));
-                    
+
                     _mm_store_si128((__m128i*)(char*)dc_estimates.begin(), left_dc_estimate);
                 }
             } else {
@@ -1310,7 +1363,7 @@ public:
         if (all_present || (left_present && above_present)) {
             avg_estimated_dc >>= 1;
         }
-        
+
         avg_estimated_dc = (avg_estimated_dc/q[0] + xIDCTSCALE / 2) >> 3;
         int16_t dc_copy[16];
         memcpy(dc_copy, dc_estimates, len_est*sizeof(int16_t));
@@ -1347,7 +1400,7 @@ public:
     }
     int compute_aavrg_dc(ConstBlockContext context) {
         return compute_aavrg(0, raster_to_aligned.at(0), context);
-        
+
         uint32_t total = 0;
         if (all_present || left_present) {
             total += abs(context.left_unchecked().dc());
@@ -1437,7 +1490,7 @@ public:
         //}
     }
 #endif
-    static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i 
+    static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i
 #ifdef _WIN32
         &
 #endif
@@ -1477,7 +1530,7 @@ public:
                                   neighbor.coefficients_raster(band + step * ((i) + 2)), \
                                   neighbor.coefficients_raster(band + step * ((i) + 1)), \
                                   neighbor.coefficients_raster(band + step * (i))))
-    
+
     template<int band>
 #ifndef _WIN32
     __attribute__((always_inline))
@@ -1587,7 +1640,7 @@ public:
         POSITIVE_SIGN=1,
         NEGATIVE_SIGN=2,
     };
-  
+
     uint8_t get_noise_threshold(int coord) {
         return ProbabilityTablesBase::min_noise_threshold((int)COLOR, coord);
     }
@@ -1602,7 +1655,7 @@ public:
     void normalize(ProbabilityTablesBase &pt) {
         normalize_model(pt.model());
     }
-    
+
 };
 
 #endif /* DECODER_HH */

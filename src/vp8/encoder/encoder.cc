@@ -83,6 +83,9 @@ void encode_one_edge(EncodeChannelContext chan_context,
     }
     uprior.set_nonzero_edge(horizontal, num_nonzeros_edge);
     unsigned int coord = delta;
+
+    constexpr bool should_predict = all_neighbors_present; // && color == BlockType::Y;
+
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
 
         ProbabilityTablesBase::CoefficientContext prior;
@@ -124,8 +127,14 @@ void encode_one_edge(EncodeChannelContext chan_context,
         int16_t coef_so_far = 0;
         if (coef) {
             uprior.update_nonzero_edge(horizontal, lane);
-            uint8_t min_threshold = probability_tables.get_noise_threshold(coord);      
-            uprior.set_8x1_sign(horizontal);
+            uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
+
+            float prediction = uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
+                                                              ProbabilityTablesBase::quantization_table(1),
+                                                              (horizontal ? 1 : 8) * (lane + 1));
+            SIGN_PREDICTION sign_prediction = should_predict ? predict_8x1_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
+            uprior.set_8x1_sign(horizontal, sign_prediction);
+
             Branch&ubranch=probability_tables.get_universal_prob(pt, uprior);
             encoder.put(coef >= 0, ubranch,
                         Billing::SIGN_EDGE);
@@ -268,9 +277,13 @@ void serialize_tokens(EncodeChannelContext chan_context,
 #endif
             uprior.update_by_prior(zz + AlignedBlock::AC_7x7_INDEX, prior);
 
+            float prediction = uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
+                                                              ProbabilityTablesBase::quantization_table(1),
+                                                              b_y * 8 + b_x);
             uint8_t length = bit_length(abs_coef);
-            for (unsigned int i = 0;i < MAX_EXPONENT; ++i) {
-                uprior.set_7x7_exp_id(i);
+            uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(prediction))) : 0u;
+            for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {
+                uprior.set_7x7_exp_id(i, predicted_length);
                 bool cur_bit = (length != i);
                 Branch&ubranch=probability_tables.get_universal_prob(pt, uprior);
                 encoder.put(cur_bit, ubranch,
@@ -285,7 +298,9 @@ void serialize_tokens(EncodeChannelContext chan_context,
             }
             if (length != 0) {
                 uprior.update_nonzero(b_x, b_y);
-                uprior.set_7x7_sign();
+                SIGN_PREDICTION sign_prediction = all_neighbors_present ? predict_7x7_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
+                uprior.set_7x7_sign(sign_prediction);
+
                 Branch &ubranch=probability_tables.get_universal_prob(pt, uprior);
                 encoder.put(coef >= 0 ? 1 : 0,
                             ubranch,
@@ -339,7 +354,7 @@ void serialize_tokens(EncodeChannelContext chan_context,
    int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                           false,
                                                                           predicted_val);
-    
+
     if (context.here().dc() != probability_tables.adv_predict_or_unpredict_dc(adv_predicted_dc,
                                                                               true,
                                                                               predicted_val)) {
@@ -360,7 +375,7 @@ void serialize_tokens(EncodeChannelContext chan_context,
 
         if (!advanced_dc_prediction) {
             ProbabilityTablesBase::CoefficientContext prior;
-            
+
             prior = probability_tables.update_coefficient_context7x7(0, raster_to_aligned.at(0), context.copy(), num_nonzeros_7x7);
             len_abs_mxm = prior.bsr_best_prior;
             len_abs_offset_to_closest_edge = prior.num_nonzeros_bin;
@@ -434,7 +449,7 @@ void serialize_tokens(EncodeChannelContext chan_context,
         }
         delta /= 64;
         //fprintf (stderr, "==== %f = %f =?= %d\n", delta, delta * 8, context.here().dc());
-        
+
         int debug_width = LeptonDebug::getDebugWidth((int)color);
         int offset = k_debug_block[(int)color];
         for (int y = 0; y  < 8; ++y) {

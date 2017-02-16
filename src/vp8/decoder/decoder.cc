@@ -64,6 +64,11 @@ void decode_one_edge(DecodeChannelContext chan_context,
     uprior.set_nonzero_edge(horizontal, num_nonzeros_edge);
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
+        const float prediction = all_neighbors_present ?
+          uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
+                                         ProbabilityTablesBase::quantization_table(1),
+                                         (horizontal ? 1 : 8) * (lane + 1)) : 0.f;
+
         ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
         if (ProbabilityTablesBase::MICROVECTORIZE) {
             if (horizontal) {
@@ -76,7 +81,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
                                                                             num_nonzeros_edge);
             }
         } else {
-	    prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
+            prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
         }
         uprior.update_by_prior(aligned_block_offset + (lane << log_edge_step), prior);
         uint8_t length = 0;
@@ -96,7 +101,9 @@ void decode_one_edge(DecodeChannelContext chan_context,
         if (nonzero) {
             uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
-            uprior.set_8x1_sign(horizontal);
+
+            SIGN_PREDICTION sign_prediction = all_neighbors_present ? predict_8x1_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
+            uprior.set_8x1_sign(horizontal, sign_prediction);
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
             bool neg = !decoder.get(ubranch,
                                     Billing::SIGN_EDGE);
@@ -210,6 +217,9 @@ void parse_tokens(DecodeChannelContext chan_context,
         }
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
+        float unprediction = all_neighbors_present ? uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
+                                                                                    ProbabilityTablesBase::quantization_table(1),
+                                                                                    b_y * 8 + b_x) : 0.f;
         dev_assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
             ProbabilityTablesBase::CoefficientContext prior;
@@ -223,7 +233,8 @@ void parse_tokens(DecodeChannelContext chan_context,
             uint8_t length;
             bool nonzero = false;
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                uprior.set_7x7_exp_id(length);
+                uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(unprediction))) : 0u;
+                uprior.set_7x7_exp_id(length, predicted_length);
                 Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
                 bool cur_bit = decoder.get(ubranch,
                                            (Billing)((unsigned int)Billing::BITMAP_7x7 +
@@ -239,7 +250,10 @@ void parse_tokens(DecodeChannelContext chan_context,
             if (nonzero) {
                 uprior.update_nonzero(b_x, b_y);
                 --num_nonzeros_left_7x7;
-                uprior.set_7x7_sign();
+                SIGN_PREDICTION sign_prediction = all_neighbors_present ?
+                  predict_7x7_sign(unprediction) : SIGN_PREDICTION::UNKNOWN;
+                uprior.set_7x7_sign(sign_prediction);
+
                 Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
                 neg = !decoder.get(ubranch,
                                    Billing::SIGN_7x7);

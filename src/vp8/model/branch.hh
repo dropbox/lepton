@@ -92,7 +92,7 @@ public:
 #endif
       dev_assert( prob >= 0 );
       dev_assert( prob <= 255 );
-      
+
       return (Probability)prob;
 
 #ifdef JPEG_ENCODER

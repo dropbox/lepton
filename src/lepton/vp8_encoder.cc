@@ -116,7 +116,7 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         if (offset >= colldata->component_size_in_blocks(middle_model.COLOR)) {
             return;
         }
-        
+
     }
     for ( unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++ ) {
         const auto &state = multi_context.getContext();
@@ -265,7 +265,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                                               image_data,
                                               colldata->get_mcu_count_vertical(),
                                               max_coded_heights);
-        
+
         if (cur_row.min_row_luma_y >= 178) {
             //fprintf(stderr, "XARN: %d %d\n", cur_row.min_row_luma_y, cur_row.component);
         }
@@ -426,7 +426,7 @@ void VP8ComponentEncoder::process_row_range(unsigned int thread_id,
                                        image_data,
                                        colldata->get_mcu_count_vertical(),
                                        max_coded_heights);
-    
+
     if (thread_id == NUM_THREADS - 1 && (test.skip == false || test.done == false)) {
         fprintf(stderr, "Row spec test: cmp %d luma %d item %d skip %d done %d\n",
                 test.component, test.luma_y, test.curr_y, test.skip, test.done);
@@ -476,7 +476,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
                                                       colldata->get_quantization_tables(BlockType::Ck));
     }
 #endif
-    
+
     ResizableByteBuffer stream[MuxReader::MAX_STREAM_ID];
     BoolEncoder bool_encoder[MAX_NUM_THREADS];
     Array1d<std::vector<NeighborSummary>,
@@ -572,7 +572,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
         (void)file_size;
         always_assert(str_out->getsize() == file_size);
     }
-    
+
     if ( model_file_fd >= 0 ) {
         const char * msg = "Writing new compression model...\n";
         while (write(2, msg, strlen(msg)) < 0 && errno == EINTR){}
