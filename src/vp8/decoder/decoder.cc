@@ -162,8 +162,15 @@ void decode_edge(DecodeChannelContext mcontext,
                                                                         pt);
 }
 
-
-
+FILE * make_debug_file(const char *filename, int width, int height) {
+    FILE * fp = NULL;
+    fp = fopen(filename, "wb");
+    fprintf(fp, "P5\n%d %d 255\n", width, height);
+    fflush(fp);
+    return fp;
+}
+FILE * deb_cb;
+FILE * deb_l[4];
 
 
 template<bool all_neighbors_present, BlockType color>
@@ -340,6 +347,20 @@ void parse_tokens(DecodeChannelContext chan_context,
     context.here().dc() = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                          true,
                                                                          predicted_dc);
+    if ((int)color == 1) {
+        if (!deb_cb) {
+            deb_cb = make_debug_file("cb.pgm", 3264/8/2, 2448/8/2);
+            deb_l[0] = make_debug_file("l0.pgm", 3264/8/2, 2448/8/2);
+            deb_l[1] = make_debug_file("l1.pgm", 3264/8/2, 2448/8/2);
+            deb_l[2] = make_debug_file("l2.pgm", 3264/8/2, 2448/8/2);
+            deb_l[3] = make_debug_file("l3.pgm", 3264/8/2, 2448/8/2);
+        }
+        fputc(context.here().dc(),deb_cb);
+        fputc(chan_context.at(1).here().dc(), deb_l[0]);
+        fputc(probability_tables.left_present ? chan_context.at(1).left_unchecked().dc():0, deb_l[1]);
+        fputc(probability_tables.above_present ? chan_context.at(1).above_unchecked().dc():0, deb_l[2]);
+        fputc(probability_tables.above_present &&probability_tables.left_present ? chan_context.at(1).above_left_unchecked().dc():0, deb_l[3]);
+    }
     context.num_nonzeros_here->set_num_nonzeros(num_nonzeros_7x7);
 
     context.num_nonzeros_here->set_horizontal(outp_sans_dc.begin(),

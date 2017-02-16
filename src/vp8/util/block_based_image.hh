@@ -284,7 +284,7 @@ extern uint8_t custom_nop_storage[sizeof(AlignedBlock) * 6 + 31];
 enum {
   // if this is true, then luma is used to seed priors for the color channels instead
   // of vice versa
-  REVERSE_CMP = 0
+  REVERSE_CMP = 1
 };
 enum {
   NUM_PRIORS = 2
