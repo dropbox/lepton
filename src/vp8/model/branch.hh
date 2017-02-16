@@ -12,6 +12,7 @@ class Branch
 {
 private:
   uint8_t counts_[2];
+  uint64_t total;
   Probability probability_;
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
@@ -20,6 +21,7 @@ public:
   void set_identity() {
     counts_[0] = 1;
     counts_[1] = 1;
+    total = 2;
     probability_ = 128;
   }
   bool is_identity() const {
@@ -32,6 +34,7 @@ public:
   }
   uint32_t true_count() const { return counts_[1]; }
   uint32_t false_count() const { return counts_[0]; }
+  uint64_t total_count() const { return total; }
     struct ProbUpdate {
         struct ProbOutcome {
             uint8_t log_prob;
@@ -59,6 +62,7 @@ public:
       unsigned int fcount = counts_[0];
       unsigned int tcount = counts_[1];
       bool overflow = (counts_[obs]++ == 0xff);
+      total += 1;
       if (__builtin_expect(overflow, 0)) { // check less than 512
           bool neverseen = counts_[!obs] == 1;
           if (neverseen) {

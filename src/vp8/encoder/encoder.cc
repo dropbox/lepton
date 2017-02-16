@@ -60,7 +60,6 @@ void encode_one_edge(EncodeChannelContext chan_context,
             + (!!block.coefficients_raster(6*8)) + (!!block.coefficients_raster(7*8));
     }
 
-
     uint8_t aligned_block_offset = raster_to_aligned.at(1);
     unsigned int log_edge_step = log_delta_x_edge;
     uint8_t delta = 1;

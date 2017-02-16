@@ -412,6 +412,62 @@ struct Model
     };
     const Model& debug_print(const Model* other, PrintabilitySpecification spec)const;
 
+
+
+  static const char* bit_decode_type_to_str(UniversalPrior::BitDecodeType t) {
+    switch (t) {
+    case (UniversalPrior::TYPE_NZ_7x7): return "TYPE_NZ_7x7";
+    case (UniversalPrior::TYPE_EXP_7x7): return "TYPE_EXP_7x7";
+    case (UniversalPrior::TYPE_SIGN_7x7): return "TYPE_SIGN_7x7";
+    case (UniversalPrior::TYPE_RES_7x7): return "TYPE_RES_7x7";
+    case (UniversalPrior::TYPE_NZ_8x1): return "TYPE_NZ_8x1";
+    case (UniversalPrior::TYPE_EXP_8x1): return "TYPE_EXP_8x1";
+    case (UniversalPrior::TYPE_SIGN_8x1): return "TYPE_SIGN_8x1";
+    case (UniversalPrior::TYPE_RES_8x1): return "TYPE_RES_8x1";
+    case (UniversalPrior::TYPE_NZ_1x8): return "TYPE_NZ_1x8";
+    case (UniversalPrior::TYPE_EXP_1x8): return "TYPE_EXP_1x8";
+    case (UniversalPrior::TYPE_SIGN_1x8): return "TYPE_SIGN_1x8";
+    case (UniversalPrior::TYPE_RES_1x8): return "TYPE_RES_1x8";
+    case (UniversalPrior::TYPE_EXP_DC): return "TYPE_EXP_DC";
+    case (UniversalPrior::TYPE_SIGN_DC): return "TYPE_SIGN_DC";
+    case (UniversalPrior::TYPE_RES_DC): return "TYPE_RES_DC";
+    case (UniversalPrior::TYPE_THRESH_8x1): return "TYPE_THRESH_8x1";
+    case (UniversalPrior::TYPE_THRESH_1x8): return "TYPE_THRESH_1x8";
+    default: return "UNKNOWN";
+    }
+  }
+
+  template<typename Array4DType> static void printArraySummary(const Array4DType& array) {
+    constexpr auto size = Array4DType::size();
+    int64_t count = 1;
+    for (uint32_t i = 0; i < Array4DType::dimension(); i++) {
+      if (i != 0) printf(" x ");
+            printf("%d", size.at(i));
+            if (i != 0) count *= size.at(i);
+    }
+    printf(" = %lld) =====\n", count);
+    for (uint32_t i = 0; i < size.at(0); i++) {
+      printf(" TYPE %s\n", bit_decode_type_to_str(static_cast<UniversalPrior::BitDecodeType>(i)));
+      // Iterate through all bins and build a histogram
+      auto* b = array.begin() + i * count; // should be of type Branch
+      constexpr int HIST_BINS = 10;
+      int64_t histogram[HIST_BINS] = {0}; // 50%-100% cut into 10 bins
+      for (int64_t c = 0; c < count; c++) {
+        auto prob_shifted = (b[c].prob() > 128u) ? (b[c].prob() - 128u) : (128u - b[c].prob());
+        auto bin = (prob_shifted * HIST_BINS) / 129;
+        histogram[bin] += std::max<int64_t>(b[c].total_count() - 2, 0);
+      }
+      for (int i = 0; i < HIST_BINS; i++) {
+        printf("Bin %2d (%2d-%2d): %lld\n", i,
+               50 + 50 * i / HIST_BINS,
+               50 + 50 * (i + 1) / HIST_BINS,
+               histogram[i]);
+      }
+    }
+  }
+  virtual ~Model() {
+    printArraySummary(univ_prob_array_base);
+  }
 };
 
 enum ContextTypes{
@@ -1634,7 +1690,6 @@ public:
     void normalize(ProbabilityTablesBase &pt) {
         normalize_model(pt.model());
     }
-
 };
 
 template<BlockType B> float UniversalPrior::predict_at_index(int index) const {
