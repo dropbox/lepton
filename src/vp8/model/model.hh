@@ -188,6 +188,7 @@ struct UniversalPrior {
       ranges[OFFSET_NZ_SCALED] = MeanMinMax::custom_incl(0, 6);
       ranges[OFFSET_ZZ_INDEX] = MeanMinMax::ZigzagType();
       ranges[OFFSET_NUM_NONZEROS_LEFT] = MeanMinMax::ZigzagType();
+      ranges[OFFSET_SIGN_PREDICTION] = MeanMinMax::custom_incl(0, NUM_SIGN_PREDICTION-1);
       //ranges[OFFSET_VALUE_SO_FAR] = default
 
 
@@ -362,6 +363,21 @@ struct UniversalPrior {
   }
 
   template<BlockType B = BlockType::Y> float predict_at_index(int index) const;
+
+  std::pair<int64_t, int64_t> _compute_index() const { return {0, 0}; }
+  template<typename Arg0, typename... Args>
+  std::pair<int64_t, int64_t> _compute_index(Arg0&& arg0, Args&&... args) const {
+    auto result = _compute_index(args...);
+    const auto cur_range = (ranges[arg0].max - ranges[arg0].min + 1);
+    // TODO: probably could assert the range.
+    return std::make_pair((priors[arg0] - ranges[arg0].min) + cur_range * result.first,
+                          result.second * cur_range);
+  }
+  template<int... offsets> uint16_t compute_index() const {
+    const auto ret = _compute_index(offsets...);
+    // TODO: probably could assert ret.second is bounded from above by the # of bins.
+    return ret.first;
+  }
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
@@ -1035,7 +1051,6 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          // XXX: This may be actually OOB
                           uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
               }
           case UniversalPrior::TYPE_EXP_8x1:
@@ -1052,7 +1067,9 @@ public:
                       .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]));
+                          uprior.compute_index<UniversalPrior::OFFSET_NZ_SCALED,
+                                               UniversalPrior::OFFSET_ZZ_INDEX,
+                                               UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
               }
           case UniversalPrior::TYPE_SIGN_8x1:
           case UniversalPrior::TYPE_SIGN_1x8:
@@ -1069,8 +1086,8 @@ public:
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2))
-                      + 3 * uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]
-                      + 15 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+                      + 3 * uprior.compute_index<UniversalPrior::OFFSET_SIGN_PREDICTION,
+                                                 UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
               }
           case UniversalPrior::TYPE_SIGN_7x7:
               if (g_draconian) {
@@ -1135,7 +1152,8 @@ public:
                   .at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                      uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED] + 16 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
+                      uprior.compute_index<UniversalPrior::OFFSET_BEST_PRIOR2_SCALED,
+                                           UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
               }
         }
         unsigned char rez[16];
