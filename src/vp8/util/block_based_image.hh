@@ -284,7 +284,7 @@ extern uint8_t custom_nop_storage[sizeof(AlignedBlock) * 6 + 31];
 enum {
   // if this is true, then luma is used to seed priors for the color channels instead
   // of vice versa
-  REVERSE_CMP = 0
+  REVERSE_CMP = 1
 };
 enum {
   NUM_PRIORS = 2
@@ -323,7 +323,7 @@ public:
                   (int)block.recalculate_coded_length(),
                   (int)nz.edge_pixels[0], (int)nz.edge_pixels[1], (int)nz.edge_pixels[8], (int)nz.edge_pixels[9],
                   (int)block.dc(), (int)block.coefficients_raster(1),(int)block.coefficients_raster(8),(int)block.coefficients_raster(9));
-          
+
       }
   }
   template<class ColorChan> MultiChannelBlockContext(
@@ -386,7 +386,7 @@ public:
       if (vratio) {
           voffset -= 1; // one less than the edge of this block
       }
-      uint32_t adjusted_curr_y = (curr_y * vertical_count + voffset)/ orig_vertical_count;
+      uint32_t adjusted_curr_y = (curr_y * vertical_count) / orig_vertical_count + voffset;
       context_.at(out_index)
         = cur->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
                      neighborNonzeros);

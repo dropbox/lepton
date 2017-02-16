@@ -1640,21 +1640,41 @@ public:
 template<BlockType B> float UniversalPrior::predict_at_index(int index) const {
   const uint16_t* qtable = (B == BlockType::Y) ? ProbabilityTablesBase::quantization_table(0) :
     ProbabilityTablesBase::quantization_table(1);
+  const uint16_t* luma_qtable = ProbabilityTablesBase::quantization_table(0);
   int16_t input[320+256];
-  for (int i = 0; i < 64; i++) {
-    input[i+0] = priors[OFFSET_RAW + 64 * ABOVE_LEFT + raster_to_aligned.at(i)] * qtable[i];
+  int16_t* input_ptr = input;
+  constexpr bool use_cross_channel = false;
+  if (B != BlockType::Y && use_cross_channel) {
+    // Ordering of luma blocks is as follows:
+    //  LUMA3 LUMA2
+    //  LUMA1 LUMA0
+    for (int i = 0; i < 64; i++) {
+      *(input_ptr++) = priors[OFFSET_RAW + 64 * LUMA3 + raster_to_aligned.at(i)] * luma_qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      *(input_ptr++) = priors[OFFSET_RAW + 64 * LUMA2 + raster_to_aligned.at(i)] * luma_qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      *(input_ptr++) = priors[OFFSET_RAW + 64 * LUMA1 + raster_to_aligned.at(i)] * luma_qtable[i];
+    }
+    for (int i = 0; i < 64; i++) {
+      *(input_ptr++) = priors[OFFSET_RAW + 64 * LUMA0 + raster_to_aligned.at(i)] * luma_qtable[i];
+    }
   }
   for (int i = 0; i < 64; i++) {
-    input[i+64] = priors[OFFSET_RAW + 64 * ABOVE + raster_to_aligned.at(i)] * qtable[i];
+    *(input_ptr++) = priors[OFFSET_RAW + 64 * ABOVE_LEFT + raster_to_aligned.at(i)] * qtable[i];
   }
   for (int i = 0; i < 64; i++) {
-    input[i+128] = priors[OFFSET_RAW + 64 * ABOVE_RIGHT + raster_to_aligned.at(i)] * qtable[i];
+    *(input_ptr++) = priors[OFFSET_RAW + 64 * ABOVE + raster_to_aligned.at(i)] * qtable[i];
   }
   for (int i = 0; i < 64; i++) {
-    input[i+192] = priors[OFFSET_RAW + 64 * LEFT + raster_to_aligned.at(i)] * qtable[i];
+    *(input_ptr++) = priors[OFFSET_RAW + 64 * ABOVE_RIGHT + raster_to_aligned.at(i)] * qtable[i];
   }
   for (int i = 0; i < 64; i++) {
-    input[i+256] = priors[OFFSET_RAW + 64 * CUR + raster_to_aligned.at(i)] * qtable[i];
+    *(input_ptr++) = priors[OFFSET_RAW + 64 * LEFT + raster_to_aligned.at(i)] * qtable[i];
+  }
+  for (int i = 0; i < 64; i++) {
+    *(input_ptr++) = priors[OFFSET_RAW + 64 * CUR + raster_to_aligned.at(i)] * qtable[i];
   }
   return tf_unpredict<B>(input, index) / qtable[index]; // gah terrible!
 }

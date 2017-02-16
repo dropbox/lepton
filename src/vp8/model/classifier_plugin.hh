@@ -1,4 +1,6 @@
 #include "tf_perceptron_luma.hh"
+//#include "tf_perceptron_long_chroma1.hh"
+//#include "tf_perceptron_long_chroma2.hh"
 #include "tf_perceptron_chroma1.hh"
 #include "tf_perceptron_chroma2.hh"
 
