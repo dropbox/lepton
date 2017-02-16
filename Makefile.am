@@ -82,6 +82,9 @@ lepton_SOURCES = \
    src/vp8/model/JpegArithmeticCoder.cc \
    src/vp8/model/JpegArithmeticCoder.hh \
    src/vp8/model/branch.hh \
+   src/vp8/model/trained.cc \
+   src/vp8/model/nn_framework.cc \
+   src/vp8/model/nn_framework.hh \
    src/vp8/model/model.cc \
    src/vp8/model/model.hh \
    src/vp8/model/numeric.cc \
