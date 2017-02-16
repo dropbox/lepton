@@ -386,7 +386,7 @@ public:
       if (vratio) {
           voffset -= 1; // one less than the edge of this block
       }
-      uint32_t adjusted_curr_y = (curr_y * vertical_count)/original_vertical_count + voffset;
+      uint32_t adjusted_curr_y = (curr_y * vertical_count)/orig_vertical_count + voffset;
       context_.at(out_index)
         = cur->off_y(adjusted_curr_y,// if we need to fallback to zero, we don't want to use the big index
                      neighborNonzeros);
