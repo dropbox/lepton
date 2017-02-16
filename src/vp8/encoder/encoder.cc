@@ -129,9 +129,7 @@ void encode_one_edge(EncodeChannelContext chan_context,
             uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
 
-            float prediction = uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
-                                                              ProbabilityTablesBase::quantization_table(1),
-                                                              (horizontal ? 1 : 8) * (lane + 1));
+            float prediction = uprior.predict_at_index<color>((horizontal ? 1 : 8) * (lane + 1));
             SIGN_PREDICTION sign_prediction = should_predict ? predict_8x1_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
             uprior.set_8x1_sign(horizontal, sign_prediction);
 
@@ -277,9 +275,8 @@ void serialize_tokens(EncodeChannelContext chan_context,
 #endif
             uprior.update_by_prior(zz + AlignedBlock::AC_7x7_INDEX, prior);
 
-            float prediction = uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
-                                                              ProbabilityTablesBase::quantization_table(1),
-                                                              b_y * 8 + b_x);
+            float prediction = uprior.predict_at_index<color>(b_y * 8 + b_x);
+
             uint8_t length = bit_length(abs_coef);
             uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(prediction))) : 0u;
             for (unsigned int i = 0; i < MAX_EXPONENT; ++i) {

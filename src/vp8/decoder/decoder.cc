@@ -65,10 +65,7 @@ void decode_one_edge(DecodeChannelContext chan_context,
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
         const float prediction = all_neighbors_present ?
-          uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
-                                         ProbabilityTablesBase::quantization_table(1),
-                                         (horizontal ? 1 : 8) * (lane + 1)) : 0.f;
-
+          uprior.predict_at_index<color>((horizontal ? 1 : 8) * (lane + 1)) : 0.f;
         ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
         if (ProbabilityTablesBase::MICROVECTORIZE) {
             if (horizontal) {
@@ -217,9 +214,7 @@ void parse_tokens(DecodeChannelContext chan_context,
         }
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
-        float unprediction = all_neighbors_present ? uprior.predict_at_index<color>(ProbabilityTablesBase::quantization_table(0),
-                                                                                    ProbabilityTablesBase::quantization_table(1),
-                                                                                    b_y * 8 + b_x) : 0.f;
+        float unprediction = all_neighbors_present ? uprior.predict_at_index<color>(b_y * 8 + b_x) : 0.f;
         dev_assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
             ProbabilityTablesBase::CoefficientContext prior;

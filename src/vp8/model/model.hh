@@ -361,28 +361,7 @@ struct UniversalPrior {
     priors[OFFSET_NONZERO + CHROMA] = input.at(2).num_nonzeros_here->num_nonzeros();
   }
 
-  template<BlockType B = BlockType::Y> float predict_at_index(uint16_t* qtable_luma,
-                                                              uint16_t* qtable_chroma,
-                                                              int index) const {
-    uint16_t* qtable = (B == BlockType::Y) ? qtable_luma : qtable_chroma;
-    int16_t input[320+256];
-    for (int i = 0; i < 64; i++) {
-      input[i+0] = priors[OFFSET_RAW + 64 * ABOVE_LEFT + raster_to_aligned.at(i)] * qtable[i];
-    }
-    for (int i = 0; i < 64; i++) {
-      input[i+64] = priors[OFFSET_RAW + 64 * ABOVE + raster_to_aligned.at(i)] * qtable[i];
-    }
-    for (int i = 0; i < 64; i++) {
-      input[i+128] = priors[OFFSET_RAW + 64 * ABOVE_RIGHT + raster_to_aligned.at(i)] * qtable[i];
-    }
-    for (int i = 0; i < 64; i++) {
-      input[i+192] = priors[OFFSET_RAW + 64 * LEFT + raster_to_aligned.at(i)] * qtable[i];
-    }
-    for (int i = 0; i < 64; i++) {
-      input[i+256] = priors[OFFSET_RAW + 64 * CUR + raster_to_aligned.at(i)] * qtable[i];
-    }
-    return tf_unpredict<B>(input, index) / qtable[index]; // gah terrible!
-  }
+  template<BlockType B = BlockType::Y> float predict_at_index(int index) const;
 };
 template <class BranchArray> void set_branch_array_identity(BranchArray &branches) {
     auto begin = branches.begin();
@@ -1657,5 +1636,27 @@ public:
     }
 
 };
+
+template<BlockType B> float UniversalPrior::predict_at_index(int index) const {
+  const uint16_t* qtable = (B == BlockType::Y) ? ProbabilityTablesBase::quantization_table(0) :
+    ProbabilityTablesBase::quantization_table(1);
+  int16_t input[320+256];
+  for (int i = 0; i < 64; i++) {
+    input[i+0] = priors[OFFSET_RAW + 64 * ABOVE_LEFT + raster_to_aligned.at(i)] * qtable[i];
+  }
+  for (int i = 0; i < 64; i++) {
+    input[i+64] = priors[OFFSET_RAW + 64 * ABOVE + raster_to_aligned.at(i)] * qtable[i];
+  }
+  for (int i = 0; i < 64; i++) {
+    input[i+128] = priors[OFFSET_RAW + 64 * ABOVE_RIGHT + raster_to_aligned.at(i)] * qtable[i];
+  }
+  for (int i = 0; i < 64; i++) {
+    input[i+192] = priors[OFFSET_RAW + 64 * LEFT + raster_to_aligned.at(i)] * qtable[i];
+  }
+  for (int i = 0; i < 64; i++) {
+    input[i+256] = priors[OFFSET_RAW + 64 * CUR + raster_to_aligned.at(i)] * qtable[i];
+  }
+  return tf_unpredict<B>(input, index) / qtable[index]; // gah terrible!
+}
 
 #endif /* DECODER_HH */
