@@ -184,15 +184,15 @@ struct UniversalPrior {
   };
   int16_t priors[PRIOR_SIZE];
   static MeanMinMax ranges[PRIOR_SIZE];
-  template<int k> Sirikata::Array1d<int16_t, OFFSET_RAW + 5 * NUM_PRIOR_VALUES + 32 - k> to_trained_reduced_prior(int zz, uint32_t draconian_bucket_index) const{
+  template<int k> Sirikata::Array1d<int16_t, OFFSET_RAW + 5 * NUM_PRIOR_VALUES - k> to_trained_reduced_prior(int zz, uint32_t draconian_bucket_index) const{
       const uint32_t reduced_prior_size = OFFSET_RAW + 5 * NUM_PRIOR_VALUES;
-      Sirikata::Array1d<int16_t,reduced_prior_size  + 32 - k> retval;
+      Sirikata::Array1d<int16_t,reduced_prior_size - k> retval;
       retval.memset(0);
       for (int i = k; i < OFFSET_RAW + 5 * NUM_PRIOR_VALUES; ++ i) {
           retval[i - k] = priors[index_map_from_reduced_prior_to_universal_prior.at(zz, i)];
       }
-      retval[reduced_prior_size - k + draconian_bucket_index] = 1;
-      static_assert(retval.size() == 111, "We assume 111 elements have been trained here");
+      //retval[reduced_prior_size - k + draconian_bucket_index] = 1;
+      static_assert(retval.size() == 79, "We assume 79 elements have been trained here");
       return retval;
   }
   static Sirikata::Array2d<uint16_t,
