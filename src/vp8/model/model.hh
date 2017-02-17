@@ -27,10 +27,18 @@ enum SIGN_PREDICTION : unsigned int {
   UNKNOWN = 0,
   POSITIVE,
   NEGATIVE,
+  REALLY_POSITIVE,
+  REALLY_NEGATIVE,
   NUM_SIGN_PREDICTION
 };
 
 inline SIGN_PREDICTION predict_7x7_sign(float val) {
+  //printf("%f\n", val);
+  if (val > 0.2f) {
+    return SIGN_PREDICTION::REALLY_POSITIVE;
+  } else if (val < -0.2f) {
+    return SIGN_PREDICTION::REALLY_NEGATIVE;
+  }
   if (val > 0.01f) {
     return SIGN_PREDICTION::POSITIVE;
   } else if (val < -0.01f) {
@@ -237,8 +245,9 @@ struct UniversalPrior {
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_BIT_TYPE] = TYPE_EXP_7x7;
   }
-  void set_7x7_sign(SIGN_PREDICTION prediction) {
+  void set_7x7_sign(SIGN_PREDICTION prediction, uint8_t length, uint8_t predicted_length) {
     priors[OFFSET_SIGN_PREDICTION] = static_cast<int16_t>(prediction);
+    priors[OFFSET_VALUE_SO_FAR] = (int)length - (int)predicted_length + 12; // XXX not semantically correct
     priors[OFFSET_BIT_TYPE] = TYPE_SIGN_7x7;
   }
   void set_7x7_residual(uint8_t index, int16_t value_so_far) {
@@ -257,8 +266,9 @@ struct UniversalPrior {
     priors[OFFSET_BIT_INDEX] = index;
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_EXP_8x1 : TYPE_EXP_1x8;
   }
-  void set_8x1_sign(bool horiz, SIGN_PREDICTION prediction) {
+  void set_8x1_sign(bool horiz, SIGN_PREDICTION prediction, uint8_t length, uint8_t predicted_length) {
     priors[OFFSET_SIGN_PREDICTION] = static_cast<int16_t>(prediction);
+    priors[OFFSET_VALUE_SO_FAR] = (int)length - (int)predicted_length + 12;
     priors[OFFSET_BIT_TYPE] = horiz ? TYPE_SIGN_8x1 : TYPE_SIGN_1x8;
   }
   void set_8x1_residual(bool horiz, uint8_t index, int16_t value_so_far) {
@@ -1151,8 +1161,9 @@ public:
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2))
-                      + 3 * uprior.compute_index<UniversalPrior::OFFSET_SIGN_PREDICTION,
-                                                 UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
+                       + 3 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR] +
+                       + (3 * 24) * uprior.compute_index<UniversalPrior::OFFSET_SIGN_PREDICTION,
+                       UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
               }
           case UniversalPrior::TYPE_SIGN_7x7:
               if (g_draconian) {
@@ -1168,7 +1179,8 @@ public:
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION]);
+                           uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION] +
+                           NUM_SIGN_PREDICTION * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]); // last value is 144?
               }
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:

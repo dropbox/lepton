@@ -99,8 +99,10 @@ void decode_one_edge(DecodeChannelContext chan_context,
             uprior.update_nonzero_edge(horizontal, lane);
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
 
-            SIGN_PREDICTION sign_prediction = all_neighbors_present ? predict_8x1_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
-            uprior.set_8x1_sign(horizontal, sign_prediction);
+            SIGN_PREDICTION sign_prediction = all_neighbors_present ? predict_8x1_sign(prediction / (1 << length)) : SIGN_PREDICTION::UNKNOWN;
+            uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(prediction))) : length;
+
+            uprior.set_8x1_sign(horizontal, sign_prediction, length, predicted_length);
             Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
             bool neg = !decoder.get(ubranch,
                                     Billing::SIGN_EDGE);
@@ -227,8 +229,8 @@ void parse_tokens(DecodeChannelContext chan_context,
             uprior.update_by_prior(zz + AlignedBlock::AC_7x7_INDEX, prior);
             uint8_t length;
             bool nonzero = false;
+            uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(unprediction))) : 0u;
             for (length = 0; length != MAX_EXPONENT; ++length) {
-                uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(unprediction))) : 0u;
                 uprior.set_7x7_exp_id(length, predicted_length);
                 Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
                 bool cur_bit = decoder.get(ubranch,
@@ -246,8 +248,8 @@ void parse_tokens(DecodeChannelContext chan_context,
                 uprior.update_nonzero(b_x, b_y);
                 --num_nonzeros_left_7x7;
                 SIGN_PREDICTION sign_prediction = all_neighbors_present ?
-                  predict_7x7_sign(unprediction) : SIGN_PREDICTION::UNKNOWN;
-                uprior.set_7x7_sign(sign_prediction);
+                  predict_7x7_sign(unprediction / (1 << length)) : SIGN_PREDICTION::UNKNOWN;
+                uprior.set_7x7_sign(sign_prediction, length, predicted_length);
 
                 Branch & ubranch=probability_tables.get_universal_prob(pt, uprior);
                 neg = !decoder.get(ubranch,

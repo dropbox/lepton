@@ -129,8 +129,10 @@ void encode_one_edge(EncodeChannelContext chan_context,
             uint8_t min_threshold = probability_tables.get_noise_threshold(coord);
 
             float prediction = uprior.predict_at_index<color>((horizontal ? 1 : 8) * (lane + 1));
-            SIGN_PREDICTION sign_prediction = should_predict ? predict_8x1_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
-            uprior.set_8x1_sign(horizontal, sign_prediction);
+            SIGN_PREDICTION sign_prediction = should_predict ? predict_8x1_sign(prediction/ (1 << length)) : SIGN_PREDICTION::UNKNOWN;
+            uint8_t predicted_length = all_neighbors_present ? bit_length(abs(static_cast<int16_t>(prediction))) : length;
+
+            uprior.set_8x1_sign(horizontal, sign_prediction, length, predicted_length);
 
             Branch&ubranch=probability_tables.get_universal_prob(pt, uprior);
             encoder.put(coef >= 0, ubranch,
@@ -294,8 +296,8 @@ void serialize_tokens(EncodeChannelContext chan_context,
             }
             if (length != 0) {
                 uprior.update_nonzero(b_x, b_y);
-                SIGN_PREDICTION sign_prediction = all_neighbors_present ? predict_7x7_sign(prediction) : SIGN_PREDICTION::UNKNOWN;
-                uprior.set_7x7_sign(sign_prediction);
+                SIGN_PREDICTION sign_prediction = all_neighbors_present ? predict_7x7_sign(prediction / (1 << length)) : SIGN_PREDICTION::UNKNOWN;
+                uprior.set_7x7_sign(sign_prediction, length, predicted_length);
 
                 Branch &ubranch=probability_tables.get_universal_prob(pt, uprior);
                 encoder.put(coef >= 0 ? 1 : 0,
