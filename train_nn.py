@@ -88,7 +88,7 @@ parser.add_argument('--branch_index', default=-1, type=int,
                     help="Which of the branches (in sorted order) to execute the model on.")
 parser.add_argument('--rows_to_read', default=400000, type=int,
                     help="How many rows of the input file(s) to read")
-parser.add_argument("--c1_size",default=8,help="Size of the middle layer of the perceptron.")
+parser.add_argument("--c1_size",default=8,type=int, help="Size of the middle layer of the perceptron.")
 parser.add_argument("--num_steps",default=2500, type=int, help="Num steps to train model")
 parser.add_argument("--min_samples",default=5000,type=int,
                     help="Num samples for a bucket considered enough to train")
@@ -125,7 +125,7 @@ def load_file(data_file_name, max_rows=None, shuffle=False):
         f.read(2 * (output_per_row - 1))
         stride_raw = f.read(2)
         stride = read_short(stride_raw)
-        assert stride == 85
+        assert stride == 86
         print 'Found stride %d' % stride
 
         stride_extra = f.read(2 * (stride - output_per_row - 1))
@@ -149,9 +149,6 @@ def load_file(data_file_name, max_rows=None, shuffle=False):
 
         input_vbit_number, input_bitval, lepton_ones, lepton_zeros, bucket_index, input_prior \
             = np.split(raw_data, [1,2,3,4,5], 1)
-        bucket_one_hot = to_one_hot(bucket_index, 32)
-        print bucket_one_hot.shape
-        input_prior = np.concatenate([input_prior, bucket_one_hot],1)
         assert 1 == np.amax(np.amax(input_bitval))
         assert 0 == np.amin(np.amin(input_bitval))
         input_lepton_prob = np.add(lepton_ones, 1).astype('float32') / np.add(lepton_zeros, np.add(lepton_ones, 2)).astype('float32')
@@ -271,6 +268,8 @@ for branch_index in branch_indices:
     oheader.flush()
     if TEST_FILE:
         test_predicted_prob = (tf.matmul(tf.nn.relu(tf.matmul(filtered_test_prior, fc1) + bias1), fc2) + bias2).eval()
+        #for i in range(len(filtered_test_vbit_indices)):
+        #    print [filtered_test_vbit_indices[i], test_predicted_prob[i], filtered_test_prior[i]]
         np.concatenate([filtered_test_vbit_indices, (test_predicted_prob * 255.0).astype('int32')], 1).tofile(ofp)
         ofp.flush()
         test_predicted_prob = np.minimum(np.maximum(test_predicted_prob, min_prob), max_prob)
