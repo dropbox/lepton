@@ -349,6 +349,9 @@ void serialize_tokens(EncodeChannelContext chan_context,
     } else {
         predicted_val = probability_tables.predict_dc_dct(context);
     }
+    if (all_neighbors_present && color == BlockType::Y) {
+      predicted_val = static_cast<int16_t>(uprior.predict_at_index<color>(0));
+    }
    int adv_predicted_dc = probability_tables.adv_predict_or_unpredict_dc(context.here().dc(),
                                                                           false,
                                                                           predicted_val);

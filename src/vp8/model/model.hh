@@ -23,6 +23,7 @@
 #endif
 
 #include "classifier_plugin.hh"
+#include "dc_network.hpp"
 
 enum SIGN_PREDICTION : unsigned int {
   UNKNOWN = 0,
@@ -1879,6 +1880,10 @@ template<BlockType B> float UniversalPrior::predict_at_index(int index) const {
   }
   for (int i = 0; i < 64; i++) {
     *(input_ptr++) = priors[OFFSET_RAW + 64 * CUR + raster_to_aligned.at(i)] * qtable[i];
+  }
+  // Use a custom network for dc component.
+  if (index == 0 && B == BlockType::Y) {
+    return tf_dc_unpredict(input) / qtable[0];
   }
   return tf_unpredict<B>(input, index) / qtable[index]; // gah terrible!
 }

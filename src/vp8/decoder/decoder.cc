@@ -298,6 +298,9 @@ void parse_tokens(DecodeChannelContext chan_context,
     } else {
         predicted_dc = probability_tables.predict_dc_dct(context.copy());
     }
+    if (all_neighbors_present && color == BlockType::Y) {
+      predicted_dc = static_cast<int16_t>(uprior.predict_at_index<color>(0));
+    }
     { // dc
         uint8_t length;
         bool nonzero = false;
