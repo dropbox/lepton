@@ -154,8 +154,8 @@ struct UniversalPrior {
       const uint32_t reduced_prior_size = OFFSET_RAW + 5 * NUM_PRIOR_VALUES;
       Sirikata::Array1d<int16_t,reduced_prior_size  + 32 - k> retval;
       retval.memset(0);
-      for (int i = k; i < OFFSET_RAW + 5 * NUM_PRIOR_VALUES + 32; ++ i) {
-          retval[i - k] = index_map_from_reduced_prior_to_universal_prior.at(zz, k);
+      for (int i = k; i < OFFSET_RAW + 5 * NUM_PRIOR_VALUES; ++ i) {
+          retval[i - k] = priors[index_map_from_reduced_prior_to_universal_prior.at(zz, i)];
       }
       retval[reduced_prior_size - k + draconian_bucket_index] = 1;
       static_assert(retval.size() == 110, "We assume 110 elements have been trained here");
