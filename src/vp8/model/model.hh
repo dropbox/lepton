@@ -23,7 +23,7 @@
 #endif
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
-
+extern bool g_nn_model;
 extern bool g_draconian;// true if we use a very restricted index space of 32 values
 extern bool g_collapse_zigzag;
 struct ExternalProbEstimate {
@@ -938,6 +938,9 @@ public:
     };
     PredictorReturn get_adv_prediction(const UniversalPrior&uprior,
                                        uint32_t draconian_bucket_index) const {
+        if (g_nn_model == false) {
+            return UNCLEAR;
+        }
         int32_t bit_number = g_bit_number.load();
         bool use_hardcoded_trained_model = true;
         if (use_hardcoded_trained_model) {

@@ -10,6 +10,7 @@
 
 #include <emmintrin.h>
 #include "model.hh"
+bool g_nn_model = false;
 int pcount =0;
 std::atomic<uint64_t> global_print_counter(0);
 bool g_draconian = false;
