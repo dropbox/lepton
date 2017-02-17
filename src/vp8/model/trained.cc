@@ -1,4 +1,5 @@
 #include "nn_framework.hh"
+/*
 template<typename T, uint32_t ms> float gen_lepton_prior_0_0_0(const Sirikata::Array1d<T, ms>& vals_in, int index) {
   static_assert(ms >= 110,
      "array must be sized to hold at least 110");
@@ -16078,3 +16079,4 @@ static int assign_gen_lepton_prior_16_0_49() {
   return 0;
 }
 static int initialize_gen_lepton_prior_16_0_49 = assign_gen_lepton_prior_16_0_49();
+*/

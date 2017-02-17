@@ -184,17 +184,15 @@ struct UniversalPrior {
   };
   int16_t priors[PRIOR_SIZE];
   static MeanMinMax ranges[PRIOR_SIZE];
-  template<int k> Sirikata::Array1d<int16_t, OFFSET_RAW + 5 * NUM_PRIOR_VALUES + 32 - k - 1> to_trained_reduced_prior(int zz, uint32_t draconian_bucket_index) const{
-      const uint32_t reduced_prior_size = OFFSET_RAW + 5 * NUM_PRIOR_VALUES - 1;
+  template<int k> Sirikata::Array1d<int16_t, OFFSET_RAW + 5 * NUM_PRIOR_VALUES + 32 - k> to_trained_reduced_prior(int zz, uint32_t draconian_bucket_index) const{
+      const uint32_t reduced_prior_size = OFFSET_RAW + 5 * NUM_PRIOR_VALUES;
       Sirikata::Array1d<int16_t,reduced_prior_size  + 32 - k> retval;
       retval.memset(0);
-      for (int i = k; i < OFFSET_RAW - 1; ++ i) {
-      }
       for (int i = k; i < OFFSET_RAW + 5 * NUM_PRIOR_VALUES; ++ i) {
-          retval[i - k] = priors[index_map_from_reduced_prior_to_universal_prior.at(zz, i - 1)];
+          retval[i - k] = priors[index_map_from_reduced_prior_to_universal_prior.at(zz, i)];
       }
       retval[reduced_prior_size - k + draconian_bucket_index] = 1;
-      static_assert(retval.size() == 110, "We assume 110 elements have been trained here");
+      static_assert(retval.size() == 111, "We assume 111 elements have been trained here");
       return retval;
   }
   static Sirikata::Array2d<uint16_t,
@@ -435,11 +433,12 @@ template <class BranchArray> void set_branch_array_identity(BranchArray &branche
 }
 struct Model
 {
-    Sirikata::Array4d<Branch,
+    Sirikata::Array5d<Branch,
                       UniversalPrior::NUM_TYPES,
                       12,
                       2,// color
-                      256 *32> *univ_prob_array_base;
+                      256 *32,
+                      3> *univ_prob_array_base;
 
     Sirikata::Array6d<Branch,
                       UniversalPrior::NUM_TYPES,
@@ -461,11 +460,11 @@ struct Model
                                        3>*)&backing_store[0];
           univ_prob_array_base = NULL;
       } else {
-          univ_prob_array_base = (Sirikata::Array4d<Branch,
+          univ_prob_array_base = (Sirikata::Array5d<Branch,
                       UniversalPrior::NUM_TYPES,
                       12,
                       2,// color
-                                  256 *32>*)&backing_store[0];
+                                  256 *32,3>*)&backing_store[0];
           univ_prob_array_draconian = NULL;
       }
   }
@@ -875,16 +874,15 @@ public:
                 uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                 uprior.priors[UniversalPrior::OFFSET_COLOR],
                 zz,
-                0,
+                uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION],
                 0);
-            //array_index /= MAX_PREDICTOR_RETURN; // ignore the NN component
             always_assert(array_index < 32 && "Must seek within draconian array");
         }else {
             array_index = &selected_branch - &pt.model().univ_prob_array_base
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                      0);
+                       0,0);
         }
         if (g_print_priors == false && g_binary_priors == NULL) {
             return;
@@ -903,7 +901,7 @@ public:
         size_t num_priors_to_print = UniversalPrior::PRIOR_SIZE;
         if (g_print_reduced_prior) {
             num_priors_to_print = UniversalPrior::index_map_from_reduced_prior_to_universal_prior.size()[1];
-            always_assert(num_priors_to_print == 0x51);
+            always_assert(num_priors_to_print == 0x52);
         }
         auto reverse_map_slice = UniversalPrior::index_map_from_reduced_prior_to_universal_prior.at(uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX]);
         for (size_t loop_index = 0; loop_index < num_priors_to_print; ++loop_index) {
@@ -955,8 +953,8 @@ public:
         }
         always_assert(gpc == 2);
         if (g_binary_priors) {
-            always_assert(counter == 0x55);
-            always_assert(counter == 85);
+            always_assert(counter == 0x56);
+            always_assert(counter == 86);
             ssize_t bytes_left = counter * sizeof(output[0]);
             const char * data = (const char*)output;
             always_assert(output[0] == 0 || output[0] == 1);
@@ -970,7 +968,7 @@ public:
                 }
                 always_assert(data[0] == 1 || data[0] == 0);
                 always_assert(data[1] == 0);
-                always_assert(written == 0x55 * 2);
+                always_assert(written == 0x56 * 2);
                 if (written < 0 && errno != EINTR) {
                     always_assert(written >= 0 && "Error writing binary priors");
                 }
@@ -1111,7 +1109,8 @@ public:
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       uprior.priors[num_item_left] + 8 * (
                           (uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR] + 3) / 7
-                          + 10 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
+                          + 10 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]),
+                          get_adv_prediction(uprior, draconian_bucket_index));
 
               }
         }
@@ -1144,7 +1143,8 @@ public:
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          (i1 + 6 * i2));
+                           (i1 + 6 * i2),
+                           get_adv_prediction(uprior, draconian_bucket_index));
                   }
               }
           case UniversalPrior::TYPE_EXP_7x7:
@@ -1163,7 +1163,8 @@ public:
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                          uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
+                           uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 10 * (uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]),
+                           get_adv_prediction(uprior, draconian_bucket_index));
               }
           case UniversalPrior::TYPE_EXP_8x1:
           case UniversalPrior::TYPE_EXP_1x8:
@@ -1183,7 +1184,8 @@ public:
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                           uprior.compute_index<UniversalPrior::OFFSET_NZ_SCALED,
                                                UniversalPrior::OFFSET_ZZ_INDEX,
-                                               UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
+                           UniversalPrior::OFFSET_BEST_PRIOR_SCALED>(),
+                           get_adv_prediction(uprior, draconian_bucket_index));
               }
           case UniversalPrior::TYPE_SIGN_8x1:
           case UniversalPrior::TYPE_SIGN_1x8:
@@ -1204,25 +1206,27 @@ public:
                       (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2))
                        + 3 * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR] +
                        + (3 * 24) * uprior.compute_index<UniversalPrior::OFFSET_SIGN_PREDICTION,
-                       UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
+                       UniversalPrior::OFFSET_BEST_PRIOR_SCALED>(),
+                       get_adv_prediction(uprior, draconian_bucket_index));
               }
           case UniversalPrior::TYPE_SIGN_7x7:
-              draconian_bucket_index = uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION];
+              draconian_bucket_index = 0;
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
-                           0,
+                           uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION],
                           draconian_bucket_index,
-                          get_adv_prediction(uprior, draconian_bucket_index));
+                           get_adv_prediction(uprior, draconian_bucket_index));
               }else {
                       return pt.model().univ_prob_array_base
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                            uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION] +
-                           NUM_SIGN_PREDICTION * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]); // last value is 144?
+                           NUM_SIGN_PREDICTION * uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR],
+                           get_adv_prediction(uprior, draconian_bucket_index)); // last value is 144?
               }
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:
@@ -1252,14 +1256,16 @@ public:
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],//cur_exponent - min_threshold,// we're not using this one--- will make array index harder to pattern match
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                      magic + std::min((abs_val - (1 << (cur_exponent - 1))) >> min_threshold,31) * 256);
+                       magic + std::min((abs_val - (1 << (cur_exponent - 1))) >> min_threshold,31) * 256,
+                       get_adv_prediction(uprior, draconian_bucket_index));
                           }
                   }
                   return pt.model().univ_prob_array_base
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
-                      uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * num_nonzeros_to_bin(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
+                       uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * num_nonzeros_to_bin(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]),
+                       get_adv_prediction(uprior, draconian_bucket_index));
               }
           default:
               draconian_bucket_index = clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
@@ -1277,7 +1283,8 @@ public:
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR]?1:0,
                       uprior.compute_index<UniversalPrior::OFFSET_BEST_PRIOR2_SCALED,
-                                           UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
+                           UniversalPrior::OFFSET_BEST_PRIOR_SCALED>(),
+                       get_adv_prediction(uprior, draconian_bucket_index));
               }
         }
         unsigned char rez[16];
