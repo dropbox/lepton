@@ -15,6 +15,7 @@
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 #include "../util/mm_mullo_epi32.hh"
+#include "nn_framework.hh"
 #include "../../../dependencies/md5/md5.h"
 #ifndef _WIN32
 #include <unistd.h>
@@ -55,7 +56,7 @@ inline SIGN_PREDICTION predict_8x1_sign(float val) {
 
 class BoolEncoder;
 constexpr bool advanced_dc_prediction = true;
-
+extern bool g_nn_model;
 extern bool g_draconian;// true if we use a very restricted index space of 32 values
 extern bool g_collapse_zigzag;
 struct ExternalProbEstimate {
@@ -183,6 +184,19 @@ struct UniversalPrior {
   };
   int16_t priors[PRIOR_SIZE];
   static MeanMinMax ranges[PRIOR_SIZE];
+  template<int k> Sirikata::Array1d<int16_t, OFFSET_RAW + 5 * NUM_PRIOR_VALUES + 32 - k - 1> to_trained_reduced_prior(int zz, uint32_t draconian_bucket_index) const{
+      const uint32_t reduced_prior_size = OFFSET_RAW + 5 * NUM_PRIOR_VALUES - 1;
+      Sirikata::Array1d<int16_t,reduced_prior_size  + 32 - k> retval;
+      retval.memset(0);
+      for (int i = k; i < OFFSET_RAW - 1; ++ i) {
+      }
+      for (int i = k; i < OFFSET_RAW + 5 * NUM_PRIOR_VALUES; ++ i) {
+          retval[i - k] = priors[index_map_from_reduced_prior_to_universal_prior.at(zz, i - 1)];
+      }
+      retval[reduced_prior_size - k + draconian_bucket_index] = 1;
+      static_assert(retval.size() == 110, "We assume 110 elements have been trained here");
+      return retval;
+  }
   static Sirikata::Array2d<uint16_t,
                            64,
                            OFFSET_RAW + 5 * NUM_PRIOR_VALUES> index_map_from_reduced_prior_to_universal_prior;
@@ -863,7 +877,7 @@ public:
                 zz,
                 0,
                 0);
-            array_index /= MAX_PREDICTOR_RETURN; // ignore the NN component
+            //array_index /= MAX_PREDICTOR_RETURN; // ignore the NN component
             always_assert(array_index < 32 && "Must seek within draconian array");
         }else {
             array_index = &selected_branch - &pt.model().univ_prob_array_base
@@ -1036,8 +1050,27 @@ public:
         VERY_ONE,
         MAX_PREDICTOR_RETURN
     };
-    PredictorReturn get_adv_prediction(const UniversalPrior&uprior) const {
+    PredictorReturn get_adv_prediction(const UniversalPrior&uprior,
+                                       uint32_t draconian_bucket_index) const {
+        if (g_nn_model == false) {
+            return UNCLEAR;
+        }
         int32_t bit_number = g_bit_number.load();
+        bool use_hardcoded_trained_model = true;
+        if (use_hardcoded_trained_model) {
+            auto trained_prior = uprior.to_trained_reduced_prior<3>(uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX], draconian_bucket_index);
+            auto *f = global_gen_lepton_prior.at(uprior.priors[0], uprior.priors[1], uprior.priors[2]);
+            if (f!=NULL) {
+                auto prob = (*f)(trained_prior, 0);
+                if (prob > .75) {
+                    return VERY_ONE;
+                }
+                if (prob < .25) {
+                    return VERY_ZERO;
+                }
+            }
+            return UNCLEAR;
+        }
         ExternalProbEstimate val = {bit_number, 128};
         auto where = std::lower_bound(external_prob_estimate.begin(), external_prob_estimate.end(), val);
         if (where != external_prob_estimate.end()) {
@@ -1055,18 +1088,22 @@ public:
     Branch& get_universal_prob(ProbabilityTablesBase&pt, const UniversalPrior&uprior) {
         ++g_bit_number;
         ++num_univ_prior_gets;
+        uint32_t draconian_bucket_index = 0;
+
         switch (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]) {
           case UniversalPrior::TYPE_NZ_8x1:
         case UniversalPrior::TYPE_NZ_1x8: {
              int16_t num_item_left = uprior.priors[UniversalPrior::OFFSET_BIT_TYPE]==UniversalPrior::TYPE_NZ_8x1?UniversalPrior::OFFSET_CUR_NZ_X:UniversalPrior::OFFSET_CUR_NZ_Y;
+             draconian_bucket_index = clamp_u<3>(uprior.priors[num_item_left])
+                 + 8 * (clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR]));
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       0,
-                      clamp_u<3>(uprior.priors[num_item_left]) + 8 * (clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR])),
-                      get_adv_prediction(uprior));
+                      draconian_bucket_index,
+                       get_adv_prediction(uprior, draconian_bucket_index));
               } else {
                   return pt.model().univ_prob_array_base
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -1088,18 +1125,19 @@ public:
                   }
                   //uint32_t i1 = num_nonzeros_to_bin((uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::LUMA0] + uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CHROMA] + 2) / 4);
                   uint32_t i2 = uprior.priors[UniversalPrior::OFFSET_VALUE_SO_FAR];
-                  if (g_draconian) {
                       uint8_t ri2 = lclamp_u<3>(i2);
-                      if (ri2 >= 5) {
-                          ri2 = 5;
-                      }
+                  if (ri2 >= 5) {
+                      ri2 = 5;
+                  }
+                  draconian_bucket_index = clamp_u<5>(i1 + 6 * ri2);
+                  if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           0,
-                          clamp_u<5>(i1 + 6 * ri2),
-                          get_adv_prediction(uprior));
+                          draconian_bucket_index,
+                           get_adv_prediction(uprior, draconian_bucket_index));
 
                   } else {
                       return pt.model().univ_prob_array_base
@@ -1110,6 +1148,7 @@ public:
                   }
               }
           case UniversalPrior::TYPE_EXP_7x7:
+              draconian_bucket_index = std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31);
               if (g_draconian) {
 
                       return pt.model().univ_prob_array_draconian
@@ -1117,8 +1156,8 @@ public:
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31),
-                          get_adv_prediction(uprior));
+                          draconian_bucket_index,
+                           get_adv_prediction(uprior, draconian_bucket_index));
               } else {
                       return pt.model().univ_prob_array_base
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -1128,14 +1167,15 @@ public:
               }
           case UniversalPrior::TYPE_EXP_8x1:
           case UniversalPrior::TYPE_EXP_1x8:
+              draconian_bucket_index = std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31);
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// <-- really want this
-                          std::min(uprior.priors[UniversalPrior::OFFSET_NZ_SCALED] + 5 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31),
-                          get_adv_prediction(uprior));
+                          draconian_bucket_index,
+                           get_adv_prediction(uprior, draconian_bucket_index));
               } else {
                       return pt.model().univ_prob_array_base
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -1147,14 +1187,15 @@ public:
               }
           case UniversalPrior::TYPE_SIGN_8x1:
           case UniversalPrior::TYPE_SIGN_1x8:
+              draconian_bucket_index = std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31);
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
                           g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],// maybe set to 0
-                          std::min((uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] == 0 ? 0 : (uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR] > 0 ? 1 : 2)) + 3 * uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED], 31),
-                          get_adv_prediction(uprior));
+                          draconian_bucket_index,
+                           get_adv_prediction(uprior, draconian_bucket_index));
               } else {
                   return pt.model().univ_prob_array_base
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -1166,14 +1207,15 @@ public:
                        UniversalPrior::OFFSET_BEST_PRIOR_SCALED>());
               }
           case UniversalPrior::TYPE_SIGN_7x7:
+              draconian_bucket_index = uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION];
               if (g_draconian) {
                       return pt.model().univ_prob_array_draconian
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                           uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                           uprior.priors[UniversalPrior::OFFSET_COLOR],
-                          g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                           uprior.priors[UniversalPrior::OFFSET_SIGN_PREDICTION],
-                          get_adv_prediction(uprior));
+                           0,
+                          draconian_bucket_index,
+                          get_adv_prediction(uprior, draconian_bucket_index));
               }else {
                       return pt.model().univ_prob_array_base
                       ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
@@ -1185,14 +1227,15 @@ public:
           case UniversalPrior::TYPE_RES_7x7:
           case UniversalPrior::TYPE_RES_1x8:
           case UniversalPrior::TYPE_RES_8x1:
+              draconian_bucket_index = std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31);
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],//reall want this
-                      std::min(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR], (int16_t)31),
-                      get_adv_prediction(uprior));
+                      draconian_bucket_index,
+                       get_adv_prediction(uprior, draconian_bucket_index));
 
               }else {
                   if (uprior.priors[UniversalPrior::OFFSET_BIT_TYPE] != UniversalPrior::TYPE_RES_7x7) {
@@ -1219,14 +1262,15 @@ public:
                       uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX] + 64 * num_nonzeros_to_bin(uprior.priors[UniversalPrior::OFFSET_NONZERO + UniversalPrior::CUR]));
               }
           default:
+              draconian_bucket_index = clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]);
               if (g_draconian) {
                   return pt.model().univ_prob_array_draconian
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],
                       uprior.priors[UniversalPrior::OFFSET_BIT_INDEX],
                       uprior.priors[UniversalPrior::OFFSET_COLOR],
                       g_collapse_zigzag? 0 : uprior.priors[UniversalPrior::OFFSET_ZZ_INDEX],
-                      clamp_u<3>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR2_SCALED]) + 8 * clamp_u<2>(uprior.priors[UniversalPrior::OFFSET_BEST_PRIOR_SCALED]),
-                      get_adv_prediction(uprior));
+                      draconian_bucket_index,
+                      get_adv_prediction(uprior, draconian_bucket_index));
               }else {
                   return pt.model().univ_prob_array_base
                   ->at(uprior.priors[UniversalPrior::OFFSET_BIT_TYPE],

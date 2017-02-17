@@ -908,6 +908,9 @@ int initialize_options( int argc, const char*const * argv )
         else if ( strcmp((*argv), "-draconian" ) == 0)  {
             g_draconian = true;
         }
+        else if ( strcmp((*argv), "-nn_model" ) == 0)  {
+            g_nn_model = true;
+        }
         else if ( strncmp((*argv), "-binarypriors=", strlen("-binarypriors=") ) == 0)  {
             const char * fn = (*argv) + strlen("-binarypriors=");
             g_binary_priors = fopen(fn, "wb");
