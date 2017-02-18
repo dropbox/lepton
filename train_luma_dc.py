@@ -89,4 +89,4 @@ def build_and_train(input_data, output_data):
                                                    feed_dict= {input0 : input_data,
                                                                output : output_data})
                     print "Mean training loss %f" % (np.mean(np.square(prediction_error)))
-    return fc0, bias0, fc1, bias1, fc2, bias2, fc3, bias3
+    return fc0, bias0, fc1, bias1, fc2, bias2
