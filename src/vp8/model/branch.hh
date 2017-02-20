@@ -83,15 +83,15 @@ public:
 #endif
   Probability optimize(int sum) const
   {
-    assert(false_count() && true_count());
+    dev_assert(false_count() && true_count());
 #if 0
       const int prob = (false_count() << 8) / sum;
 #else
       const int prob = fast_divide18bit_by_10bit(false_count() << 8,
                                         sum);
 #endif
-      assert( prob >= 0 );
-      assert( prob <= 255 );
+      dev_assert( prob >= 0 );
+      dev_assert( prob <= 255 );
       
       return (Probability)prob;
 

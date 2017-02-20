@@ -66,13 +66,13 @@ int find_aligned_end_64_avx2(const int16_t *block) {
         }
     }
     if (mask == 0xffffffffU) {
-        assert(find_aligned_end_64_scalar(block) == 0);
+        dev_assert(find_aligned_end_64_scalar(block) == 0);
         return 0;
     }
     unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffffffffU);
     int retval = iter + ((bitpos >> 1) - 1) ;
 
-    assert(retval == find_aligned_end_64_scalar(block));
+    dev_assert(retval == find_aligned_end_64_scalar(block));
     return retval;
 }
 #elif !defined(USE_SCALAR)
@@ -91,13 +91,13 @@ int find_aligned_end_64_sse42(const int16_t *block) {
         }
     }
     if (mask == 0xffff) {
-        assert(find_aligned_end_64_scalar(block) == 0);
+        dev_assert(find_aligned_end_64_scalar(block) == 0);
         return 0;
     }
     unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffff);
     int retval = iter + ((bitpos >> 1) - 1) ;
 
-    assert(retval == find_aligned_end_64_scalar(block));
+    dev_assert(retval == find_aligned_end_64_scalar(block));
     return retval;
 }
 #endif
@@ -123,7 +123,7 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     __m128i res = _mm_cmpeq_epi8(buf, ff);
     uint32_t movmask = _mm_movemask_epi8(res);
     bool retval = movmask != 0x0;
-    assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
+    dev_assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
     return retval;
 #endif
 }
@@ -595,9 +595,9 @@ void recode_physical_thread(BoundedWriter *stream_out,
             memcpy(tmp.last_dc.begin(), th.last_dc.begin(), sizeof(th.last_dc));
             th = tmp; // copy the dynamic data in
         } else {
-            assert(memcmp(thread_handoffs[logical_thread_id].last_dc.begin(), th.last_dc.begin(), sizeof(th.last_dc)) == 0);
-            assert(th.overhang_byte == thread_handoffs[logical_thread_id].overhang_byte);
-            assert(th.num_overhang_bits == thread_handoffs[logical_thread_id].num_overhang_bits);
+            dev_assert(memcmp(thread_handoffs[logical_thread_id].last_dc.begin(), th.last_dc.begin(), sizeof(th.last_dc)) == 0);
+            dev_assert(th.overhang_byte == thread_handoffs[logical_thread_id].overhang_byte);
+            dev_assert(th.num_overhang_bits == thread_handoffs[logical_thread_id].num_overhang_bits);
             th = thread_handoffs[logical_thread_id];
             // in the v1 encoding, the first thread's output is unbounded in size but
             // following threads are bound to their segment_size.

@@ -59,11 +59,11 @@ public:
             std::swap(mAlloc, other.mAlloc);
         }
         uint8_t& operator[](const size_t offset) {
-            assert(offset <mSize);
+            dev_assert(offset <mSize);
             return mBegin[offset];
         }
         uint8_t operator[](const size_t offset) const{
-            assert(offset <mSize);
+            dev_assert(offset <mSize);
             return mBegin[offset];
         }
         uint8_t *data() {
@@ -85,7 +85,7 @@ public:
             return mAlloc;
         }
         void set_allocator(const JpegAllocator<uint8_t> &new_alloc) {
-            assert(mReserved == 0);
+            dev_assert(mReserved == 0);
             mAlloc = new_alloc;
         }
         size_t how_much_reserved() const {
@@ -115,7 +115,7 @@ public:
                 }
                 mBegin = new_begin;
             }
-            assert(mSize <= mReserved);
+            dev_assert(mSize <= mReserved);
             mSize = new_size;
         }
         ~ResizableByteBuffer() {
@@ -131,7 +131,7 @@ private:
         while (len != 0) {
             std::pair<uint32, JpegError> ret = r->Read(buffer, len);
             if (ret.first == 0) {
-                assert(ret.second != JpegError::nil() && "Read of 0 bytes == error");
+                dev_assert(ret.second != JpegError::nil() && "Read of 0 bytes == error");
                 return ret.second; // must have error
             }
             buffer += ret.first;
@@ -147,7 +147,7 @@ private:
             return err;
         }
         uint8_t stream_id = 0xf & header[0];
-        assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
+        dev_assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
         if (stream_id >= MAX_STREAM_ID) {
             return JpegError::errMissingFF00();
         }
@@ -221,7 +221,7 @@ private:
         if (eof) {
             return JpegError::errEOF();
         }
-        assert(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
+        dev_assert(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
         mOffset[desired_stream_id] = 0;
         ResizableByteBuffer incomingBuffer(mBuffer[desired_stream_id].get_allocator());
         incomingBuffer.swap(mBuffer[desired_stream_id]);
@@ -234,7 +234,7 @@ private:
         return JpegError::nil();
     }
     std::pair<uint32, JpegError> Read(uint8_t stream_id, uint8*data, unsigned int size) {
-        assert(stream_id < MAX_STREAM_ID && "Invalid stream Id; must be less than 16");
+        dev_assert(stream_id < MAX_STREAM_ID && "Invalid stream Id; must be less than 16");
         std::pair<uint32, JpegError> retval(0, JpegError::nil());
         bool bytes_available = mOffset[stream_id] != mBuffer[stream_id].size();
         if (bytes_available || (retval.second = fillBufferUntil(stream_id)) == JpegError::nil()) {
@@ -289,11 +289,11 @@ public:
         if (toBeFlushed ==0) {
             return JpegError::nil();
         }
-        assert(toBeFlushed + mOffset[stream_id] == mBuffer[stream_id].size());
+        dev_assert(toBeFlushed + mOffset[stream_id] == mBuffer[stream_id].size());
         std::pair<uint32_t, JpegError> retval(0, JpegError::nil());
         do{
             uint32_t offset = mOffset[stream_id];
-            assert(offset >= MIN_OFFSET);
+            dev_assert(offset >= MIN_OFFSET);
             uint32_t toWrite = std::min(toBeFlushed, (uint32_t)65536U);
             mBuffer[stream_id][offset - MIN_OFFSET] = stream_id;
             mBuffer[stream_id][offset - MIN_OFFSET + 1] = ((toWrite - 1) & 0xff);
@@ -301,7 +301,7 @@ public:
             mOverhead += 3;
             retval = mWriter->Write(&mBuffer[stream_id][offset - MIN_OFFSET],
                                    toWrite + MIN_OFFSET);
-            assert((retval.first == toWrite + MIN_OFFSET || retval.second != JpegError::nil())
+            dev_assert((retval.first == toWrite + MIN_OFFSET || retval.second != JpegError::nil())
                    && "Writers must write full");
             if (retval.second == JpegError::nil()) {
                 mTotalWritten += toWrite;
@@ -322,7 +322,7 @@ public:
         uint8_t code = stream_id;
         uint32_t len = 0;
         if (toBeFlushed < 4096) {
-            assert(false && "We shouldn't reach this");
+            dev_assert(false && "We shouldn't reach this");
             return flushFull(stream_id, toBeFlushed);
         }
         
@@ -349,7 +349,7 @@ public:
         for (uint32_t toWrite = 0; toWrite + len <= toBeFlushed; toWrite += len) {
             uint32_t offset = mOffset[stream_id];
             if (offset == mBuffer[stream_id].size()) continue;
-            assert(offset >= MIN_OFFSET);
+            dev_assert(offset >= MIN_OFFSET);
             mBuffer[stream_id][offset - 1] = code;
             mOverhead += 1;
             retval = mWriter->Write(&mBuffer[stream_id][offset - 1],
@@ -392,7 +392,7 @@ public:
                 if (isUrgent) {
                     // we need to flush what we have
                     retval = flushFull(i, toBeFlushed);
-                    assert(mTotalWritten == mLowWaterMark[i]);
+                    dev_assert(mTotalWritten == mLowWaterMark[i]);
                 }
             } else {
                 if (isUrgent && toBeFlushed < 16384) {
@@ -426,7 +426,7 @@ public:
     void Close() {
         for (uint8_t i = 0; i < MAX_STREAM_ID; ++i) {
             if(mOffset[i] != mBuffer[i].size()) {
-                assert(mBuffer[i].size() - mOffset[i] < 65536);
+                dev_assert(mBuffer[i].size() - mOffset[i] < 65536);
                 flushFull(i, mBuffer[i].size() - mOffset[i]);
             }
         }

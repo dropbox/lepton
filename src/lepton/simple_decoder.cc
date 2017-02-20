@@ -86,7 +86,7 @@ CodingReturnValue SimpleComponentDecoder::decode_chunk(UncompressedComponents* c
         
         return CODING_PARTIAL;
     }
-    assert(false && "UNREACHABLE");
+    dev_assert(false && "UNREACHABLE");
     return CODING_PARTIAL;
 }
 SimpleComponentDecoder::~SimpleComponentDecoder() {

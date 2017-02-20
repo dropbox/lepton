@@ -441,7 +441,7 @@ ibytestream::ibytestream(Sirikata::DecoderReader *p, unsigned int byte_offset,
 }
 
 unsigned int ibytestream::read(unsigned char*output, unsigned int size) {
-    assert(size);
+    dev_assert(size);
     if (size == 1) {
         return read_byte(output) ? 1 : 0;
     }

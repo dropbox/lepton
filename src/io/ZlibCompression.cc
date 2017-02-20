@@ -53,7 +53,7 @@ std::vector<uint8_t,
     strm.next_in = (Bytef*)buffer;
     int ret = deflateInit(&strm, 9);
     if (ret != Z_OK) {
-        assert(false && "LZMA Incorrectly installed");
+        always_assert(false && "LZMA Incorrectly installed");
         exit(1); // lzma not installed properly
     }
     strm.avail_in = size;
@@ -143,10 +143,10 @@ ZlibDecoderDecompressionReader::ZlibDecoderDecompressionReader(DecoderReader *r,
     if (ret != Z_OK) {
         switch(ret) {
           case Z_MEM_ERROR:
-            assert(ret == Z_OK && "the stream decoder had insufficient memory");
+            always_assert(ret == Z_OK && "the stream decoder had insufficient memory");
             break;
           default:
-            assert(ret == Z_OK && "the stream decoder was not initialized properly");
+            always_assert(ret == Z_OK && "the stream decoder was not initialized properly");
         }
     }
 }
@@ -187,10 +187,10 @@ std::pair<uint32, JpegError> ZlibDecoderDecompressionReader::Read(uint8*data,
                 return std::pair<uint32, JpegError>(size - mStream.avail_out,
                                                     MakeJpegError("Corrupt xz file"));
               case Z_MEM_ERROR:
-                assert(false && "Memory allocation failed");
+                always_assert(false && "Memory allocation failed");
                 break;
               default:
-                assert(false && "Unknown LZMA error code");
+                always_assert(false && "Unknown LZMA error code");
             }
         }
     }
@@ -225,19 +225,19 @@ ZlibDecoderCompressionWriter::ZlibDecoderCompressionWriter(DecoderWriter *w,
     if (ret != Z_OK) {
         switch(ret) {
           case Z_MEM_ERROR:
-            assert(ret == Z_OK && "the stream decoder had insufficient memory");
+            always_assert(ret == Z_OK && "the stream decoder had insufficient memory");
             break;
           case Z_STREAM_ERROR:
-            assert(ret == Z_OK && "Specified integrity check but not supported");
+            always_assert(ret == Z_OK && "Specified integrity check but not supported");
           default:
-            assert(ret == Z_OK && "the stream decoder was not initialized properly");
+            always_assert(ret == Z_OK && "the stream decoder was not initialized properly");
         }
     }
 }
 
 
 void ZlibDecoderCompressionWriter::Close(){
-    assert(!mClosed);
+    always_assert(!mClosed);
     mClosed = true;
     while(true) {
         int ret = deflate(&mStream, Z_FINISH);
@@ -288,7 +288,7 @@ ZlibDecoderCompressionWriter::~ZlibDecoderCompressionWriter() {
     if (!mClosed) {
         Close();
     }
-    assert(mClosed);
+    always_assert(mClosed);
 }
 
 

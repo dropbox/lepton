@@ -61,6 +61,11 @@ void custom_exit(ExitCode exit_code);
 #else
 void custom_exit(ExitCode::ExitCode_ exit_code);
 #endif
+#ifdef DEV_ASSERT
+#define dev_assert(EXPR) always_assert_outer((EXPR), #EXPR, __FILE__, __LINE__)
+#else
+#define dev_assert(EXPR)
+#endif
 #define always_assert(EXPR) always_assert_outer((EXPR), #EXPR, __FILE__, __LINE__)
 void custom_terminate_this_thread(uint8_t exit_code);
 typedef void atexit_type(void*, uint64_t);

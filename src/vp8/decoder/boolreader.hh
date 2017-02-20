@@ -183,7 +183,7 @@ __attribute__((always_inline))
 #endif
 inline uint8_t count_leading_zeros_uint8(uint8_t v) {
     return vpx_norm[v];
-    assert(v);
+    dev_assert(v);
     return __builtin_clz((uint32_t)v) - 24; // slower
     uint8_t r = 0; // result of log2(v) will go here
     if (v & 0xf0) {

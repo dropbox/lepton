@@ -113,7 +113,7 @@ struct arithmetic_code {
       }
       if (range < min_range) {
         if (range == 0) {
-            assert(false && "Encoder error: emitted a zero-probability symbol.");
+            dev_assert(false && "Encoder error: emitted a zero-probability symbol.");
             abort();
         }
         size_t emitted_before = get_bytes_emitted();
@@ -157,13 +157,13 @@ struct arithmetic_code {
         }
         low -= fixed_one;
       }
-      assert(low < fixed_one);
+      dev_assert(low < fixed_one);
 
       // Compare the minimum and maximum possible values of the top digit.
       // If different, defer emitting the digit until we're sure we won't have to carry.
       Digit digit = Digit(low / most_significant_digit);
       if (digit != Digit((low + range - 1) / most_significant_digit)) {
-        assert(range < most_significant_digit);
+        dev_assert(range < most_significant_digit);
         overflow.push_back(digit);
       } else {
         for (CompressedDigit overflow_digit : overflow) {
@@ -226,7 +226,7 @@ struct arithmetic_code {
       while (range < initial_range) {
         renormalize_and_consume_digit();
       }
-      assert(range == initial_range);  // Should be true if we set digit_alignment correctly.
+      dev_assert(range == initial_range);  // Should be true if we set digit_alignment correctly.
     }
 
     int get(std::function<FixedPoint(FixedPoint)> probability_of_1) {
@@ -257,7 +257,7 @@ struct arithmetic_code {
         "expected digit_base > digit_alignment");
 
     void renormalize_and_consume_digit() {
-      assert(low < fixed_one/digit_base);
+      dev_assert(low < fixed_one/digit_base);
 
       CompressedDigit digit = consume_digit();
       low = low * digit_base + digit;

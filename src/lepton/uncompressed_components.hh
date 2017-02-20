@@ -142,7 +142,7 @@ public:
             const char * errmsg = "We only support 3 color channels or fewer\n";
             int err = write(2, errmsg, strlen(errmsg));
             (void)err;
-            assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
+            dev_assert(cmpc <= (int)ColorChannel::NumBlockTypes && "We only support 3 color channels or less");
             custom_exit(ExitCode::UNSUPPORTED_4_COLORS);
         }
         cmpc_ = cmpc;
@@ -181,7 +181,7 @@ public:
         while (bit >= (bit_progress_ += 0)) {
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
-                assert(false && "Incorrectly coded item");
+                dev_assert(false && "Incorrectly coded item");
                 custom_exit(ExitCode::CODING_ERROR);
             }
             //fprintf(stderr, "Waiting for bit %d > %d\n", bit, bit_progress_ += 0);
@@ -191,7 +191,7 @@ public:
         while (bpos >= (coefficient_position_progress_ += 0)) {
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
-                assert(false && "Incorrectly coded item");
+                dev_assert(false && "Incorrectly coded item");
                 custom_exit(ExitCode::CODING_ERROR);
             }
             //fprintf(stderr, "Waiting for coefficient_position %d > %d\n", bpos, coefficient_position_progress_ += 0);
@@ -202,7 +202,7 @@ public:
         while (dpos >= (header_[cmp].dpos_block_progress_ += 0)) {
             CodingReturnValue retval = do_more_work();
             if (retval == CODING_ERROR) {
-                assert(false && "Incorrectly coded item");
+                dev_assert(false && "Incorrectly coded item");
                 custom_exit(ExitCode::CODING_ERROR);
             }
         }

@@ -368,7 +368,7 @@ public:
                                        int aavrg,
                                        const ConstBlockContext block, uint8_t num_nonzeros_left) {
         ProbabilityTablesBase::CoefficientContext retval;
-        assert(aavrg == compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz, block));
+        dev_assert(aavrg == compute_aavrg(aligned_to_raster.at(aligned_zz), aligned_zz, block));
         //This was to make sure the code was right compute_aavrg_vec(aligned_zz, block);
         retval.best_prior = aavrg;
         retval.num_nonzeros_bin = num_nonzeros_to_bin(num_nonzeros_left);
@@ -475,7 +475,7 @@ public:
     Sirikata::Array1d<Branch, MAX_EXPONENT>::Slice exponent_array_x(ProbabilityTablesBase &pt, int band, int zig15, CoefficientContext context) {
         ANNOTATE_CTX(band, EXP8, 0, context.bsr_best_prior);
         ANNOTATE_CTX(band, EXP8, 1, context.num_nonzeros);
-        assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
+        dev_assert((band & 7)== 0 ? ((band >>3) + 7) : band - 1 == zig15);
         return pt.model().exponent_counts_x_.at(color_index(),
                                              context.num_nonzeros_bin,
                                              zig15,
@@ -891,7 +891,7 @@ public:
         __m128i aboveleft = _mm_abs_epi16(_mm_load_si128((const __m128i*)(const char*)&context.above_left_unchecked().coef.at(aligned_zz)));
         total = _mm_add_epi16(total, _mm_mullo_epi16(aboveleft, _mm_set1_epi16(6)));
         __m128i retval = _mm_srli_epi16(total, log_weight);
-        assert(aavrg_vec_matches(retval, aligned_zz, context));
+        dev_assert(aavrg_vec_matches(retval, aligned_zz, context));
         return retval;
         //if (block.context().above_right.initialized()) {
         //total += abs(block.context().above_right.get()->coefficients().at(0));
@@ -980,7 +980,7 @@ public:
         __m128i coeffs_x_high;
         __m128i coeffs_a_low;
         __m128i coeffs_a_high;
-        assert(band/8 == 0 && "this function only works for the top edge");
+        dev_assert(band/8 == 0 && "this function only works for the top edge");
         const auto &neighbor = context.above_unchecked();
         ITER(coeffs_x_low, coeffs_a_low, 0, 8);
         ITER(coeffs_x_high, coeffs_a_high, 4, 8);
@@ -988,7 +988,7 @@ public:
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
     }
     int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band) {
-        assert((band & 7) == 0 && "Must be used for veritcal");
+        dev_assert((band & 7) == 0 && "Must be used for veritcal");
         if (all_present == false && !left_present) {
             return 0;
         }
@@ -1011,7 +1011,7 @@ public:
         const int32_t *coef_idct = nullptr;
         if ((band & 7) && (all_present || above_present)) {
             // y == 0: we're the x
-            assert(band/8 == 0); //this function only works for the edge
+            dev_assert(band/8 == 0); //this function only works for the edge
             const auto &above = context.above_unchecked();
             for (int i = 0; i < 8; ++i) {
                 uint8_t cur_coef = band + i * 8;
@@ -1039,7 +1039,7 @@ public:
         prediction /= coef_idct[0];
 #if _DEBUG
         // In DEBUG mode verify that the scalar compute_lak matches the vectorized ones
-        assert(((band & 7) ? compute_lak_horizontal(context,band): compute_lak_vertical(context,band)) == prediction
+        dev_assert(((band & 7) ? compute_lak_horizontal(context,band): compute_lak_vertical(context,band)) == prediction
                && "Vectorized version must match sequential version");
 #endif
         return prediction;

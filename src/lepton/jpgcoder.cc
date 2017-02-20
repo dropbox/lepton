@@ -559,7 +559,7 @@ void timing_operation_first_byte( char operation ) {
     if (g_use_seccomp) {
         return;
     }
-    assert(current_operation == operation);
+    dev_assert(current_operation == operation);
 #ifdef _WIN32
     if (current_operation_first_byte == 0) {
         current_operation_first_byte = clock();
@@ -582,7 +582,7 @@ void timing_operation_complete( char operation ) {
     if (g_use_seccomp) {
         return;
     }
-    assert(current_operation == operation);
+    dev_assert(current_operation == operation);
 #ifdef _WIN32
     current_operation_end = clock();
     if (timing_log) {
@@ -1588,7 +1588,7 @@ void process_file(IOUtil::FileReader* reader,
         bound.it_interval.tv_usec = 0;
         int ret = setitimer(ITIMER_REAL, &bound, NULL);
 
-        assert(ret == 0 && "Timer must be able to be set");
+        dev_assert(ret == 0 && "Timer must be able to be set");
         if (ret != 0) {
             exit((int)ExitCode::OS_ERROR);
         }
@@ -1987,7 +1987,7 @@ bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
     }
     reader->mark_some_bytes_already_read((uint32_t)fileid.size());
     if (is_socket) {
-        assert(fd_in == fd_out);
+        dev_assert(fd_in == fd_out);
     }
     IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out, is_socket);
     ujg_base_in = reader;
@@ -2054,7 +2054,7 @@ bool is_needed_for_second_block(const std::vector<unsigned char>&segment) {
         return true;
       case 0xD8:
       case 0xD9:
-        assert(false && "This should be filtered out by the previous loop");
+        dev_assert(false && "This should be filtered out by the previous loop");
         return true;
       default:
         return false;
@@ -2270,7 +2270,7 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     __m128i res = _mm_cmpeq_epi8(buf, ff);
     uint32_t movmask = _mm_movemask_epi8(res);
     bool retval = movmask != 0x0;
-    assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
+    dev_assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
     return retval;
 #endif
 }
@@ -3452,7 +3452,7 @@ bool recode_jpeg( void )
                     rstp.at(rstc++) = huffw->getpos() - 1;
             }
             huffw->flush_no_pad();
-            assert(huffw->no_remainder() && "this should have been padded");
+            dev_assert(huffw->no_remainder() && "this should have been padded");
             if (huffw->no_remainder()) {
                 merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
             }
@@ -5069,7 +5069,7 @@ int encode_eobrun( abitwriter* huffw, huffCodes* actbl, unsigned int* eobrun )
             (*eobrun) -= actbl->max_eobrun;
         }
         s = uint16bit_length((*eobrun));
-        assert(s && "actbl->max_eobrun needs to be > 0");
+        dev_assert(s && "actbl->max_eobrun needs to be > 0");
         if (s) s--;
         n = E_ENVLI( s, (*eobrun) );
         hc = ( s << 4 );

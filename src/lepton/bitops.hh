@@ -120,7 +120,7 @@ public:
 
         int nbits2 = nbits;
         unsigned int val2 = val;
-        assert(nbits <= 64);
+        dev_assert(nbits <= 64);
         if ( __builtin_expect(cbyte2 > ( dsize - 16 ), false) ) {
             if (bound_reached()) {
                 return;
@@ -192,7 +192,7 @@ public:
         return cbyte2 >= size_bound;
     }
     uint8_t get_overhang_byte() const {
-        assert(cbit2 > 56);
+        dev_assert(cbit2 > 56);
         uint64_t retval = buf;
         retval >>= 56;
         return (uint8_t) retval;
@@ -210,7 +210,7 @@ public:
         cbit2 = 64 - num_bits;
     }
     void reset() {
-        assert(no_remainder());
+        dev_assert(no_remainder());
         reset_crystallized_bytes();
     }
     void reset_crystallized_bytes() {
@@ -497,7 +497,7 @@ public:
     }
     unsigned int write_byte(uint8_t byte) {
         ++num_bytes_attempted_to_write;
-        assert(buffer_position < buffer_size && "Full buffer wasn't flushed");
+        dev_assert(buffer_position < buffer_size && "Full buffer wasn't flushed");
         buffer[buffer_position++] = byte;
         if (__builtin_expect(buffer_position == buffer_size, 0)) {
             buffer_position = 0;

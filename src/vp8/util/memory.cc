@@ -67,7 +67,7 @@ void* custom_malloc (size_t size) {
     void *ptr;
     int retval = posix_memalign(&ptr, 32, size);
     if (!g_use_seccomp) {
-        assert(retval == 0 && "posix_memalign returned non-zero");
+        dev_assert(retval == 0 && "posix_memalign returned non-zero");
     }
     if (retval != 0) {
         custom_exit(ExitCode::MALLOCED_NULL);
@@ -78,7 +78,7 @@ void* custom_malloc (size_t size) {
     void * retval = Sirikata::memmgr_alloc(size);
     if (retval == 0) {// did malloc succeed?
         if (!g_use_seccomp) {
-            assert(false && "Out of memory error");
+            dev_assert(false && "Out of memory error");
         }
         custom_exit(ExitCode::OOM); // ran out of memory
     }
@@ -102,7 +102,7 @@ void* custom_realloc (void * old, size_t size) {
     void * retval = Sirikata::MemMgrAllocatorRealloc(old, size, &actual_size, true, NULL);
     if (retval == 0) {// did malloc succeed?
         if (!g_use_seccomp) {
-            assert(false && "Out of memory error");
+            dev_assert(false && "Out of memory error");
         }
         custom_exit(ExitCode::OOM); // ran out of memory
     }
@@ -150,7 +150,7 @@ void * custom_calloc(size_t size) {
     void * retval = Sirikata::memmgr_alloc(size); // guaranteed to return 0'd memory
     if (retval == 0) {// did malloc succeed?
         if (!g_use_seccomp) {
-            assert(false && "Out of memory error");
+            dev_assert(false && "Out of memory error");
         }
         custom_exit(ExitCode::OOM); // ran out of memory
     }
@@ -169,7 +169,7 @@ void* operator new (size_t size) throw(std::bad_alloc){
  void* ptr = custom_malloc(size); 
  if (ptr == 0) {// did malloc succeed?
      if (!g_use_seccomp) {
-         assert(false && "Out of memory error");
+         dev_assert(false && "Out of memory error");
      }
      custom_exit(ExitCode::OOM); // ran out of memory
  }
@@ -180,7 +180,7 @@ void* operator new[] (size_t size) throw(std::bad_alloc){
  void* ptr = custom_malloc(size); 
  if (ptr == 0) {// did malloc succeed?
      if (!g_use_seccomp) {
-         assert(false && "Out of memory error");
+         dev_assert(false && "Out of memory error");
      }
      custom_exit(ExitCode::OOM); // ran out of memory
  }
@@ -198,7 +198,7 @@ THREAD_LOCAL_STORAGE void (*atexit_f)(void*, uint64_t) = nullptr;
 THREAD_LOCAL_STORAGE void *atexit_arg0 = nullptr;
 THREAD_LOCAL_STORAGE uint64_t atexit_arg1 = 0;
 void custom_atexit(void (*atexit)(void*, uint64_t) , void *arg0, uint64_t arg1) {
-    assert(!atexit_f);
+    dev_assert(!atexit_f);
     atexit_f = atexit;
     atexit_arg0 = arg0;
     atexit_arg1 = arg1;
@@ -212,7 +212,7 @@ void close_thread_handle() {
     }
 }
 void set_close_thread_handle(int handle) {
-    assert(l_emergency_close_signal == -1);
+    dev_assert(l_emergency_close_signal == -1);
     l_emergency_close_signal = handle;
 }
 void reset_close_thread_handle() {

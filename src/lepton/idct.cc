@@ -595,7 +595,7 @@ idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], boo
                 nevermore = true;
                 idct_sse(block, q, test_case.begin(), ignore_dc);
                 idct_avx(block, q, test_case.begin(), ignore_dc);
-                assert(false);
+                dev_assert(false);
             }
         }
 #endif

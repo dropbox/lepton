@@ -8,7 +8,7 @@
 // for std::min
 #include <algorithm>
 #include <assert.h>
-
+#include "../util/memory.hh"
 #ifndef USE_SCALAR
 #include <immintrin.h>
 #include <tmmintrin.h>
@@ -87,7 +87,7 @@ inline uint8_t uint16log2(uint16_t v) {
     return 31 - __builtin_clz((uint32_t)v);
 }
 inline uint8_t nonzero_bit_length(uint16_t v) {
-    assert(v);
+    dev_assert(v);
     return 32 - __builtin_clz((uint32_t)v);
 }
 inline uint8_t uint16bit_length(uint16_t v) {

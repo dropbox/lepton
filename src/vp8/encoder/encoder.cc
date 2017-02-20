@@ -232,7 +232,7 @@ void serialize_tokens(ConstBlockContext context,
 #endif
 #endif
         }
-        assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
+        dev_assert(b_x > 0 && b_y > 0 && "this does the DC and the lower 7x7 AC");
         {
             // this should work in all cases but doesn't utilize that the zz is related
             int16_t coef;
@@ -274,8 +274,8 @@ void serialize_tokens(ConstBlockContext context,
             }
             if (length > 1){
                 auto res_prob = probability_tables.residual_noise_array_7x7(pt, coord, prior);
-                assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
-                assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
+                dev_assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
+                dev_assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
 
                 for (int i = length - 2; i >= 0; --i) {
                     encoder.put((abs_coef & (1 << i)), res_prob.at(i), Billing::RES_7x7);
@@ -355,8 +355,8 @@ void serialize_tokens(ConstBlockContext context,
             auto res_prob = probability_tables.residual_array_dc(pt,
                                                                  len_abs_mxm,
                                                                  len_abs_offset_to_closest_edge);
-            assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
-            assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
+            dev_assert((abs_coef & ( 1 << (length - 1))) && "Biggest bit must be set");
+            dev_assert((abs_coef & ( 1 << (length)))==0 && "Beyond Biggest bit must be zero");
             for (int i = length - 2; i >= 0; --i) {
                 encoder.put((abs_coef & (1 << i)), res_prob.at(i), Billing::RES_DC);
             }

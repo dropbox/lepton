@@ -158,7 +158,7 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
 #endif
         }
     } else if (block_width > 1) {
-        assert(curr_y); // just a sanity check that the zeroth row took the first branch
+        dev_assert(curr_y); // just a sanity check that the zeroth row took the first branch
         switch((BlockType)component) {
           case BlockType::Y:
             decode_row(std::get<(int)BlockType::Y>(midleft),
@@ -200,8 +200,8 @@ void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory
 #endif
         }
     } else {
-        assert(curr_y); // just a sanity check that the zeroth row took the first branch
-        assert(block_width == 1);
+        dev_assert(curr_y); // just a sanity check that the zeroth row took the first branch
+        dev_assert(block_width == 1);
         switch((BlockType)component) {
           case BlockType::Y:
             decode_row(std::get<(int)BlockType::Y>(width_one),
@@ -258,7 +258,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int threa
         = colldata->get_max_coded_heights();
     /* deserialize each block in planar order */
 
-    assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
+    dev_assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];
     while(true) {

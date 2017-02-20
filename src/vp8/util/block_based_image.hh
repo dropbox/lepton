@@ -210,7 +210,7 @@ public:
 #else
             offset = offset % (width_ << 1);
 #endif
-            assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
+            dev_assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
         } else if (offset >= nblocks_) {
             custom_exit(ExitCode::OOM);
         }
@@ -223,7 +223,7 @@ public:
 #else
             offset = offset % (width_ << 1);
 #endif
-            assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
+            dev_assert(offset <= nblocks_ && "we mod offset by width_: it is < nblocks_");
         } else if (__builtin_expect(offset >= nblocks_, 0)) {
             custom_exit(ExitCode::OOM);
         }

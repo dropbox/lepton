@@ -117,7 +117,7 @@ public:
                 place_within_scan -= component_multiple[i];
             }
             if (i == 0) {
-                assert(false);
+                dev_assert(false);
                 retval.skip = true;
                 retval.done = true;
                 break;

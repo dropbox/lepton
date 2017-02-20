@@ -40,7 +40,7 @@ Zlib0Writer::Zlib0Writer(DecoderWriter * stream, int level){
     mWritten = 0;
     mClosed = false;
     mAdler32 = adler32(0, NULL, 0);
-    assert(level == 0 && "Only support stored/raw/literal zlib");
+    always_assert(level == 0 && "Only support stored/raw/literal zlib");
     mFileSize = 0;
 }
 

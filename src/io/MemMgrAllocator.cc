@@ -108,9 +108,8 @@ MemMgrState& get_local_memmgr(){
     if (!id) {
         memmgr_thread_id_plus_one = id = ++memmgr_allocated_threads;
         if (id > (int)memmgr_num_memmgrs) {
-            assert(false && "Too many threads have requested access to memory-managers:"
+            always_assert(false && "Too many threads have requested access to memory-managers:"
                    "init with higher thread count");
-            custom_exit(ExitCode::ASSERTION_FAILURE);
         }
     }
     return memmgrs[id - 1];
@@ -377,7 +376,7 @@ void* memmgr_alloc(size_t nuint8_ts)
 
             memmgr.freep = prevp;
             if (blessed_zero == p) {
-                assert(is_zero(p + 1, nuint8_ts) && "The item returned from the new pool must be zero");
+                dev_assert(is_zero(p + 1, nuint8_ts) && "The item returned from the new pool must be zero");
                 return p + 1;
             } else {
 #ifndef _WIN32
@@ -483,7 +482,7 @@ void MemMgrAllocatorFree (void *opaque, void *ptr) {
     memmgr_free(ptr);
 }
 void * MemMgrAllocatorInit(size_t prealloc_size, size_t worker_size, size_t num_workers, unsigned char alignment, bool needs_huge_pages) {
-    assert(alignment <= sizeof(mem_header_union::Align));
+    dev_assert(alignment <= sizeof(mem_header_union::Align));
     memmgr_init(prealloc_size, worker_size, num_workers, 256, needs_huge_pages);
     return memmgr_alloc(1);
 }

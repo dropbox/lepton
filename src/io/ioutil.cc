@@ -205,7 +205,7 @@ void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context,
         }
         else if (del > 0) {
             if (end_byte != 0 && *input_size + del > end_byte && end_byte > *input_size) {
-                assert(false && "UNREACHABLE"); // we limit by max_to_read
+                always_assert(false && "UNREACHABLE"); // we limit by max_to_read
                 del = end_byte - *input_size;
             }
             if (*input_size + del > start_byte) {

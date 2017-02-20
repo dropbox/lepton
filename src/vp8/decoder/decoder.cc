@@ -199,7 +199,7 @@ void parse_tokens(BlockContext context,
         }
         unsigned int b_x = (coord & 7);
         unsigned int b_y = (coord >> 3);
-        assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
+        dev_assert((coord & 7) > 0 && (coord >> 3) > 0 && "this does the DC and the lower 7x7 AC");
         {
             ProbabilityTablesBase::CoefficientContext prior;
 

@@ -45,7 +45,7 @@ CodingReturnValue SimpleComponentEncoder::encode_chunk(const UncompressedCompone
         cur_read_batch[cmp] += cur_write_size;
         return CODING_PARTIAL;
     }
-    assert(false && "UNREACHABLE");
+    always_assert(false && "UNREACHABLE");
     return CODING_PARTIAL;
 }
 

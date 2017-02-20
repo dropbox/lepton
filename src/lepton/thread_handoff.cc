@@ -28,7 +28,7 @@ std::vector<ThreadHandoff> ThreadHandoff::deserialize(const unsigned char *data,
                 th.last_dc[i] = dc;
             }
         }
-        assert(BYTES_PER_HANDOFF == biggest_value + 1);
+        dev_assert(BYTES_PER_HANDOFF == biggest_value + 1);
         retval.push_back(th);
         data += BYTES_PER_HANDOFF;
     }
