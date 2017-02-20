@@ -4,9 +4,9 @@ includes = -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util 
 
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
 
-AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(PICKY_CXXFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
+AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(PICKY_CXXFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
 
-AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS)
+AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS)
 
 noinst_LIBRARIES = liblocalzlib.a liblocalmd5.a libtestdriver.a
 

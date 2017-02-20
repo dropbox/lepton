@@ -71,6 +71,14 @@ AC_ARG_ENABLE([best-ratio-slow-decompression],
   [THREAD_FLAGS=""])
 AC_SUBST([THREAD_FLAGS])
 
+# Make single thread the default
+AC_ARG_ENABLE([billing],
+  [AS_HELP_STRING([--enable-billing],
+    [Print out a bill receipt @<:@no@:>@])],
+  [BILLING_FLAGS="-DENABLE_BILLING "],
+  [BILLING_FLAGS=""])
+AC_SUBST([BILLING_FLAGS])
+
 CODEC_FLAGS=""
 # Disable advanced features
 AC_ARG_ENABLE([advanced-jpeg-features],

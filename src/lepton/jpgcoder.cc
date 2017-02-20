@@ -5119,7 +5119,7 @@ int next_huffcode( abitreader *huffw, huffTree *ctree, Billing min_bill, Billing
 
 
     while ( node < 256 ) {
-#ifndef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
         write_bit_bill(min_bill, false, 1);
         if (min_bill != max_bill) {
             min_bill = (Billing)((int)min_bill + 1);
