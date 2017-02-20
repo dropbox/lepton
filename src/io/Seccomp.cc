@@ -72,6 +72,15 @@ bool installStrictSyscallFilter(bool verbose) {
 #ifdef __NR_sigreturn
         ALLOW_SYSCALL(sigreturn),
 #endif
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+        ALLOW_SYSCALL(madvise),
+        ALLOW_SYSCALL(mmap),
+        ALLOW_SYSCALL(brk),
+        ALLOW_SYSCALL(munmap),
+        ALLOW_SYSCALL(mprotect),
+        ALLOW_SYSCALL(mremap),
+        ALLOW_SYSCALL(futex),
+#endif
         ALLOW_SYSCALL(exit),
         ALLOW_SYSCALL(read),
         ALLOW_SYSCALL(write),
@@ -80,10 +89,18 @@ bool installStrictSyscallFilter(bool verbose) {
     struct sock_fprog prog;
     prog.len = (unsigned short)(sizeof(filter)/sizeof(filter[0]));
     prog.filter = filter;
-    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)) {
+    if (
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+        true
+#else
+        prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)
+#endif
+        ) {
+#ifndef USE_STANDARD_MEMORY_ALLOCATORS
         if (verbose) {
             perror("prctl(SECCOMP)");
         }
+#endif
         if (errno == EINVAL && verbose) {
             fprintf(stderr, "SECCOMP_MODE_STRICT is not available.\n%s",
                 "Trying to set a filter to emulate strict mode\n");

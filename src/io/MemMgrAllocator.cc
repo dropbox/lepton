@@ -117,6 +117,9 @@ MemMgrState& get_local_memmgr(){
 }
 /// caution: need to call this once per thread
 void memmgr_destroy() {
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+    return;
+#endif
     memmgr_thread_id_plus_one = 0; // only clears this thread
     if (memmgrs) {
 #if defined(USE_MMAP) && defined(__linux) // only linux guarantees all zeros
@@ -151,6 +154,9 @@ void setup_memmgr(MemMgrState& memmgr, uint8_t *data, size_t size) {
 }
 void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, size_t num_workers, size_t x_min_pool_alloc_quantas, bool needs_huge_pages)
 {
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+    return;
+#endif
 #ifdef __APPLE__
     // in apple, the thread_local storage winds up different when destroying the thread
     num_workers *= 2;
@@ -217,7 +223,10 @@ size_t memmgr_size_left() {
 size_t memmgr_total_size_ever_allocated() {
   return bytes_ever_allocated.load();
 }
-
+void memmgr_tally_external_bytes(ptrdiff_t bytes) {
+    bytes_ever_allocated += bytes;
+    bytes_currently_used += bytes;
+}
 void memmgr_print_stats()
 {
     MemMgrState& memmgr = get_local_memmgr();

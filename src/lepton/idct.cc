@@ -189,8 +189,7 @@ epi32l_to_epi16(__m128i lowvec) {
     }while(0)
 
 
-static void
-idct_sse(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+void idct_sse(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
     
     char vintermed_storage[64 * sizeof(int32_t) + 16];
     // align intermediate storage to 16 bytes

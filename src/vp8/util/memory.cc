@@ -58,6 +58,7 @@ void always_assert_exit(bool value, const char * expr, const char * file, int li
 }
 void* custom_malloc (size_t size) {
 #ifdef USE_STANDARD_MEMORY_ALLOCATORS
+    Sirikata::memmgr_tally_external_bytes(size);
 #if defined(_WIN32)
     return _aligned_malloc(size, 32);
 #elif defined(EMSCRIPTEN)

@@ -54,6 +54,15 @@ AC_ARG_ENABLE([system-dependencies],
 AC_SUBST([SYSTEM_DEPENDENCIES_LDFLAGS])
 AC_SUBST([SYSTEM_DEPENDENCIES_CFLAGS])
 
+
+AC_ARG_ENABLE([custom-allocator],
+  [AS_HELP_STRING([--enable-custom-allocator]
+    [Use custom allocators instead of the standard ones @<:@no@:>@])],
+  [MEMORY_MANAGEMENT_CFLAGS=""],
+  [MEMORY_MANAGEMENT_CFLAGS="-DUSE_STANDARD_MEMORY_ALLOCATORS"])
+AC_SUBST([MEMORY_MANAGEMENT_CFLAGS])
+
+
 # Make single thread the default
 AC_ARG_ENABLE([best-ratio-slow-decompression],
   [AS_HELP_STRING([--enable-best-ratio-slow-decompression],
@@ -70,6 +79,7 @@ AC_ARG_ENABLE([advanced-jpeg-features],
 AS_IF([test "x$enable_advanced_jpeg_features" != "xno"], [
   CODEC_FLAGS="-DDEFAULT_ALLOW_PROGRESSIVE -DHIGH_MEMORY"])
 AC_SUBST([CODEC_FLAGS])
+
 
 
 

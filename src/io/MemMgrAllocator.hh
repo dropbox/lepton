@@ -63,7 +63,7 @@ SIRIKATA_FUNCTION_EXPORT void memmgr_print_stats();
 SIRIKATA_FUNCTION_EXPORT size_t memmgr_size_allocated();
 SIRIKATA_FUNCTION_EXPORT size_t memmgr_total_size_ever_allocated();
 SIRIKATA_FUNCTION_EXPORT size_t memmgr_size_left();
-
+SIRIKATA_FUNCTION_EXPORT void memmgr_tally_external_bytes(ptrdiff_t bytes);
 }
 namespace Sirikata {
 SIRIKATA_FUNCTION_EXPORT void *MemMgrAllocatorMalloc(void *opaque, size_t nmemb, size_t size);

@@ -7,4 +7,4 @@ compiler:
 os:
 - linux
 - osx
-script: sh autogen.sh && ./configure && make -j4 && make check && make clean && ./configure --disable-advanced-jpeg-features && make -j4 && make check && make clean && CXXFLAGS="-O2 -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS" ./configure && make -j4 && make check && make clean && ./configure --disable-vectorization && make -j4 && make check
+script: sh autogen.sh && ./configure --enable-custom-allocator && make -j4 && make check && make clean && ./configure --disable-advanced-jpeg-features --enable-custom-allocator  && make -j4 && make check && make clean && CXXFLAGS="-O2 -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS" ./configure && make -j4 && make check && make clean && ./configure --disable-vectorization --enable-custom-allocator  && make -j4 && make check

@@ -1843,7 +1843,6 @@ void process_file(IOUtil::FileReader* reader,
     } else {
         custom_exit(ExitCode::SUCCESS);
     }
-    // reset buffers
     reset_buffers();
 }
 
@@ -3894,7 +3893,7 @@ bool read_ujpg( void )
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
         JpegAllocator<uint8_t> no_free_allocator;
-#if !defined(_WIN32) && !defined(EMSCRIPTEN)
+#if !defined(USE_STANDARD_MEMORY_ALLOCATORS) && !defined(_WIN32) && !defined(EMSCRIPTEN)
         no_free_allocator.setup_memory_subsystem(32 * 1024 * 1024,
                                                  16,
                                                  &mem_init_nop,
