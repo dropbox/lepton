@@ -8,9 +8,12 @@
 // for std::min
 #include <algorithm>
 #include <assert.h>
+
+#ifndef USE_SCALAR
 #include <immintrin.h>
 #include <tmmintrin.h>
 #include "../util/mm_mullo_epi32.hh"
+#endif
 
 #ifdef _WIN32
 #include <intrin.h>
@@ -289,6 +292,7 @@ template <uint16_t denom> constexpr uint32_t templ_divide16bit(uint32_t num) {
     >> DivisorAndLog2Table[denom].len;
 }
 
+#ifndef USE_SCALAR
 template <uint16_t denom> __m128i divide16bit_vec_signed(__m128i num) {
     static_assert(denom < 1024, "Only works for denominators < 1024");
     __m128i m = _mm_set1_epi32(DivisorAndLog2Table[denom].divisor);
@@ -307,7 +311,7 @@ template <uint16_t denom> __m128i divide16bit_vec(__m128i num) {
     __m128i t_plus_shr = _mm_add_epi32(t, _mm_srli_epi32(n_minus_t, 1));
     return _mm_srli_epi32(t_plus_shr, DivisorAndLog2Table[denom].len);
 }
-
+#endif
 
 inline uint32_t slow_divide18bit_by_10bit(uint32_t num, uint16_t denom) {
 #if 0

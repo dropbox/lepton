@@ -63,6 +63,7 @@ void decode_one_edge(BlockContext mcontext,
     unsigned int coord = delta;
     for (int lane = 0; lane < 7 && num_nonzeros_edge; ++lane, coord += delta, ++zig15offset) {
         ProbabilityTablesBase::CoefficientContext prior = {0, 0, 0};
+#ifndef USE_SCALAR
         if (ProbabilityTablesBase::MICROVECTORIZE) {
             if (horizontal) {
                 prior = probability_tables.update_coefficient_context8_horiz(coord,
@@ -76,6 +77,9 @@ void decode_one_edge(BlockContext mcontext,
         } else {
             prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
         }
+#else
+        prior = probability_tables.update_coefficient_context8(coord, context, num_nonzeros_edge);
+#endif
         auto exp_array = probability_tables.exponent_array_x(pt,
                                                              coord,
                                                              zig15offset,
@@ -185,8 +189,12 @@ void parse_tokens(BlockContext context,
     for (unsigned int zz = 0; zz < 49 && num_nonzeros_left_7x7; ++zz) {
         unsigned int coord = unzigzag49[zz];
         if ((zz & 7) == 0) {
-#ifdef OPTIMIZED_7x7
+#if defined(OPTIMIZED_7x7)// && !defined(USE_SCALAR)
+#if !defined(USE_SCALAR)
             probability_tables.compute_aavrg_vec(zz, context.copy(), avg.begin());
+#else
+            *((int16_t *)avg.begin()) = probability_tables.compute_aavrg(coord, zz, context.copy());
+#endif
 #endif
         }
         unsigned int b_x = (coord & 7);
@@ -195,7 +203,7 @@ void parse_tokens(BlockContext context,
         {
             ProbabilityTablesBase::CoefficientContext prior;
 
-#ifdef OPTIMIZED_7x7
+#if defined(OPTIMIZED_7x7) && !defined(USE_SCALAR)
             prior = probability_tables.update_coefficient_context7x7_precomp(zz, avg[zz & 7], context.copy(), num_nonzeros_left_7x7);
 #else
             prior = probability_tables.update_coefficient_context7x7(coord, zz, context.copy(), num_nonzeros_left_7x7);
@@ -230,7 +238,7 @@ void parse_tokens(BlockContext context,
                     coef = -coef;
                 }
             }
-#ifdef OPTIMIZED_7x7
+#if defined(OPTIMIZED_7x7)// && !defined(USE_SCALAR)
             context.here().coef.at(zz + AlignedBlock::AC_7x7_INDEX) = coef;
 #else
             // this should work in all cases but doesn't utilize that the zz is related

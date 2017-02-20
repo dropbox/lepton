@@ -54,7 +54,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/syscall.h>
 
 #endif
+
+#ifndef USE_SCALAR
 #include <emmintrin.h>
+#include <immintrin.h>
+#endif
+
 #include "jpgcoder.hh"
 #include "recoder.hh"
 #include "bitops.hh"
@@ -73,7 +78,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
 #include "../io/Seccomp.hh"
-#include <immintrin.h>
+
+
+#ifdef EMSCRIPTEN
+#include <emscripten.h>
+#endif
+
+
 int g_argc = 0;
 const char** g_argv = NULL;
 #ifndef GIT_REVISION
@@ -678,6 +689,110 @@ void compute_thread_mem(const char * arg,
     main-function
     ----------------------------------------------- */
 
+const char *fake_argv[] =  {
+    "lepton-scalar",
+    "-skipverify",
+    "-singlethread",
+    "-",
+};
+
+const int fake_argc = sizeof(fake_argv) / sizeof(char *);
+
+#ifdef EMSCRIPTEN
+int EMSCRIPTEN_KEEPALIVE main(void) {
+    const int argc = fake_argc;
+    const char **argv = fake_argv;
+    g_argc = argc;
+    g_argv = argv;
+    TimingHarness::timing[0][TimingHarness::TS_MAIN]
+        = TimingHarness::get_time_us(true);
+    size_t thread_mem_limit = 128 * 1024 * 1024;
+    size_t mem_limit = 1280 * 1024 * 1024 - thread_mem_limit * (MAX_NUM_THREADS - 1);
+    bool needs_huge_pages = false;
+    for (int i = 1; i < argc; ++i) {
+        bool avx2upgrade = false;
+        compute_thread_mem(argv[i],
+                           &mem_limit,
+                           &thread_mem_limit,
+                           &needs_huge_pages,
+                           &avx2upgrade);
+    }
+
+    // the system needs 33 megs of ram ontop of the uncompressed image buffer.
+    // This adds a few extra megs just to keep things real
+    UncompressedComponents::max_number_of_blocks = ( mem_limit / 4 ) * 3;
+    if (mem_limit > 48 * 1024 * 1024) {
+        UncompressedComponents::max_number_of_blocks = mem_limit - 36 * 1024 * 1024;
+    }
+    UncompressedComponents::max_number_of_blocks /= (sizeof(uint16_t) * 64);
+    int n_threads = MAX_NUM_THREADS - 1;
+    clock_t begin = 0, end = 1;
+
+    int error_cnt = 0;
+    int warn_cnt  = 0;
+
+    int acc_jpgsize = 0;
+    int acc_ujgsize = 0;
+
+    int speed, bpms;
+    float cr;
+
+    errorlevel.store(0);
+
+    // read options from command line
+    int max_file_size = initialize_options( argc, argv );
+    if (action != forkserve && action != socketserve) {
+        // write program info to screen
+        fprintf( msgout,  "%s v%i.0-%s\n",
+                 appname, ujgversion, GIT_REVISION );
+    }
+    // check if user input is wrong, show help screen if it is
+    if ((file_cnt == 0 && action != forkserve && action != socketserve)
+        || ((!developer) && ((action != comp && action != forkserve && action != socketserve)))) {
+        show_help();
+        return -1;
+    }
+
+
+    // (re)set program has to be done first
+    reset_buffers();
+
+    // process file(s) - this is the main function routine
+    begin = clock();
+    if (file_cnt > 2) {
+        show_help();
+        custom_exit(ExitCode::FILE_NOT_FOUND);
+    }
+    process_file(nullptr, nullptr, max_file_size, g_force_zlib0_out);
+    if (errorlevel.load() >= err_tresh) error_cnt++;
+    if (errorlevel.load() == 1 ) warn_cnt++;
+    if ( errorlevel.load() < err_tresh ) {
+        acc_jpgsize += jpgfilesize;
+        acc_ujgsize += ujgfilesize;
+    }
+    if (!g_use_seccomp) {
+        end = clock();
+    }
+    if (action != socketserve && action != forkserve) {
+        // show statistics
+        fprintf(msgout,  "\n\n-> %i file(s) processed, %i error(s), %i warning(s)\n",
+                file_cnt, error_cnt, warn_cnt);
+    }
+    if ( ( file_cnt > error_cnt ) && ( verbosity > 0 ) )
+    if ( action == comp ) {
+        speed = (int) ( (double) (( end - begin ) * 1000) / CLOCKS_PER_SEC );
+        bpms  = ( speed > 0 ) ? ( acc_jpgsize / speed ) : acc_jpgsize;
+        cr    = ( acc_jpgsize > 0 ) ? ( 100.0 * acc_ujgsize / acc_jpgsize ) : 0;
+
+        fprintf( msgout,  " --------------------------------- \n" );
+        fprintf( msgout,  " time taken        : %8i msec\n", speed );
+        fprintf( msgout,  " avrg. byte per ms : %8i byte\n", bpms );
+        fprintf( msgout,  " avrg. comp. ratio : %8.2f %%\n", cr );
+        fprintf( msgout,  " --------------------------------- \n" );
+    }
+    return error_cnt == 0 ? 0 : 1;
+}
+#else
 int main( int argc, char** argv )
 {
     g_argc = argc;
@@ -743,7 +858,7 @@ int main( int argc, char** argv )
 #ifndef __linux
     n_threads += 4;
 #endif
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(EMSCRIPTEN)
     Sirikata::memmgr_init(mem_limit,
                           thread_mem_limit,
                           n_threads,
@@ -832,7 +947,7 @@ int main( int argc, char** argv )
 
     return error_cnt == 0 ? 0 : 1;
 }
-
+#endif
 
 /* ----------------------- Begin of main interface functions -------------------------- */
 
@@ -1228,10 +1343,12 @@ int open_fdin(const char *ifilename,
     if (reader != NULL) {
         *is_socket = reader->is_socket();
         fdin = reader->get_fd();
-    } else if (strcmp(ifilename, "-") == 0) {
+    }
+    else if (strcmp(ifilename, "-") == 0) {
         fdin = 0;
         *is_socket = false;
-    } else {
+    }
+    else {
         *is_socket = false;
          do {
             fdin = open(ifilename, O_RDONLY
@@ -1257,6 +1374,7 @@ int open_fdin(const char *ifilename,
         } while (data_read == -1 && errno == EINTR);
     }
     if (data_read < 0) {
+        perror("read");
         const char * fail = "Failed to read 2 byte header\n";
         while(write(2, fail, strlen(fail)) == -1 && errno == EINTR) {}        
     }
@@ -2143,8 +2261,11 @@ enum MergeJpegStreamingStatus{
     STREAMING_NEED_DATA = 2,
     STREAMING_DISABLED = 3
 };
+
 bool aligned_memchr16ff(const unsigned char *local_huff_data) {
-#if 1
+#if USE_SCALAR
+    return memchr(local_huff_data, 0xff, 16) != NULL;
+#else
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
     __m128i ff = _mm_set1_epi8(-1);
     __m128i res = _mm_cmpeq_epi8(buf, ff);
@@ -2153,8 +2274,8 @@ bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
     return retval;
 #endif
-    return memchr(local_huff_data, 0xff, 16) != NULL;
 }
+
 unsigned char hex_to_nibble(char val) {
     if (val >= 'A' && val <= 'F') {
         return val - 'A' + 10;
@@ -3773,7 +3894,7 @@ bool read_ujpg( void )
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
         JpegAllocator<uint8_t> no_free_allocator;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(EMSCRIPTEN)
         no_free_allocator.setup_memory_subsystem(32 * 1024 * 1024,
                                                  16,
                                                  &mem_init_nop,

@@ -52,29 +52,9 @@ int find_aligned_end_64_scalar(const int16_t *block) {
     }
     return end;
 }
-int find_aligned_end_64_sse41(const int16_t *block) {
-    unsigned int mask = 0;
-    int iter;
-    for (iter = 56; iter >= 0; iter -=8) {
-        __m128i row = _mm_load_si128((__m128i*)(block + iter));
-        __m128i row_cmp = _mm_cmpeq_epi16(row, _mm_setzero_si128());
-        mask = _mm_movemask_epi8(row_cmp);
-        if (mask != 0xffff) {
-            break;
-        }
-    }
-    if (mask == 0xffff) {
-        assert(find_aligned_end_64_scalar(block) == 0);
-        return 0;
-    }
-    unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffff);
-    int retval = iter + ((bitpos >> 1) - 1) ;
 
-    assert(retval == find_aligned_end_64_scalar(block));
-    return retval;
-}
-#ifdef __AVX2__
-int find_aligned_end_64(const int16_t *block) {
+#if defined(__AVX2__) && !defined(USE_SCALAR)
+int find_aligned_end_64_avx2(const int16_t *block) {
     uint32_t mask = 0;
     int iter;
     for (iter = 48; iter >= 0; iter -=16) {
@@ -95,14 +75,49 @@ int find_aligned_end_64(const int16_t *block) {
     assert(retval == find_aligned_end_64_scalar(block));
     return retval;
 }
-#else
-int find_aligned_end_64(const int16_t *block) {
-    return find_aligned_end_64_sse41(block);
+#elif !defined(USE_SCALAR)
+/**
+ * SSE4.2 Based implementation for machines that don't support AVX2
+ */
+int find_aligned_end_64_sse42(const int16_t *block) {
+    unsigned int mask = 0;
+    int iter;
+    for (iter = 56; iter >= 0; iter -=8) {
+        __m128i row = _mm_load_si128((__m128i*)(block + iter));
+        __m128i row_cmp = _mm_cmpeq_epi16(row, _mm_setzero_si128());
+        mask = _mm_movemask_epi8(row_cmp);
+        if (mask != 0xffff) {
+            break;
+        }
+    }
+    if (mask == 0xffff) {
+        assert(find_aligned_end_64_scalar(block) == 0);
+        return 0;
+    }
+    unsigned int bitpos = 32 - __builtin_clz((~mask) & 0xffff);
+    int retval = iter + ((bitpos >> 1) - 1) ;
+
+    assert(retval == find_aligned_end_64_scalar(block));
+    return retval;
 }
 #endif
 
+int find_aligned_end_64(const int16_t *block) {
+#if defined(USE_SCALAR)
+    return find_aligned_end_64_scalar(block);
+#elif defined(__AVX2__)
+    return find_aligned_end_64_avx2(block);
+#elif defined(__SSE_4_2)
+    return find_aligned_end_64_sse42(block);
+#else
+    return find_aligned_end_64_scalar(block);
+#endif
+}
+
 static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
-#if !defined(__i386__)
+#ifdef USE_SCALAR
+    return memchr(local_huff_data, 0xff, 16) != NULL;
+#else
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
     __m128i ff = _mm_set1_epi8(-1);
     __m128i res = _mm_cmpeq_epi8(buf, ff);
@@ -111,7 +126,6 @@ static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
     assert (retval == (memchr(local_huff_data, 0xff, 16) != NULL));
     return retval;
 #endif
-    return memchr(local_huff_data, 0xff, 16) != NULL;
 }
 
 

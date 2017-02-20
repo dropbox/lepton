@@ -149,8 +149,17 @@ void VP8ComponentEncoder::process_row(ProbabilityTablesBase &pt,
         context.at((int)middle_model.COLOR) = state;
     }
 }
+
+uint32_t aligned_block_cost_scalar(const AlignedBlock &block) {
+    uint32_t scost = 0;
+    for (int i = 0; i < 64; ++i) {
+        scost += 1 + 2 * uint16bit_length(abs(block.raw_data()[i]));
+    }
+    return scost;
+}
+
 uint32_t aligned_block_cost(const AlignedBlock &block) {
-#ifdef __SSE2__ /* SSE2 or higher instruction set available { */
+#if defined(__SSE2__) && !defined(USE_SCALAR) /* SSE2 or higher instruction set available { */
     const __m128i zero = _mm_setzero_si128();
      __m128i v_cost;
     for (int i = 0; i < 64; i+= 8) {
@@ -172,11 +181,7 @@ uint32_t aligned_block_cost(const AlignedBlock &block) {
     }
     return 16 + _mm_extract_epi16(v_cost, 0);
 #else /* } No SSE2 instructions { */
-    uint32_t scost = 0;
-    for (int i = 0; i < 64; ++i) {
-        scost += 1 + 2 * uint16bit_length(abs(block.raw_data()[i]));
-    }
-    return scost;
+    return aligned_block_cost_scalar(block);
 #endif /* } */
 }
 

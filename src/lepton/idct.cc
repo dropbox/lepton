@@ -1,8 +1,11 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+#ifndef USE_SCALAR
 #include <immintrin.h>
 #include <tmmintrin.h>
-#include "../vp8/util/aligned_block.hh"
 #include "../vp8/util/mm_mullo_epi32.hh"
+#endif
+
+#include "../vp8/util/aligned_block.hh"
 
 namespace idct_local{
 enum {
@@ -24,7 +27,7 @@ enum {
 };
 }
 
-#if (!defined(__SSE2__)) && !(_M_IX86_FP >= 1)
+#if ((!defined(__SSE2__)) && !(_M_IX86_FP >= 1)) || defined(USE_SCALAR)
 static void
 idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], bool ignore_dc) {
     int32_t intermed[64];
@@ -604,6 +607,9 @@ idct_avx(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], boo
 
 void
 idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+#ifdef USE_SCALAR
+    idct_scalar(block, q, voutp, ignore_dc);
+#else
 #ifdef __AVX2__
     idct_avx(block, q, voutp, ignore_dc);
 #else
@@ -611,6 +617,7 @@ idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ig
     idct_sse(block, q, voutp, ignore_dc);
 #else
     idct_scalar(block, q, voutp, ignore_dc);
+#endif
 #endif
 #endif
 }

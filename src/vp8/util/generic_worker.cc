@@ -1,5 +1,9 @@
 #include "memory.hh"
+
+#ifndef USE_SCALAR
 #include <emmintrin.h>
+#endif
+
 #include <assert.h>
 #ifdef _WIN32
 #include <io.h>
@@ -19,14 +23,34 @@
 #include "generic_worker.hh"
 #include "../../io/Seccomp.hh"
 
+/**
+ * A Crossplatform-ish pause function.
+ * Since we can't rely on the _mm_pause instrinsic being available
+ * all the time we define a pause function that uses it if available and
+ * falls back to platform specific sleep(0) otherwise
+ */
+void _cross_platform_pause() {
+#if !defined(USE_SCALAR) && defined(__i386__)
+        _mm_pause();
+#else
+#ifdef _WIN32 
+        Sleep(0);
+#else
+        usleep(0);
+#endif
+#endif
+}
+
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
     work_done_++;
     if (use_pipes) {
         while (write(work_done_pipe[1], &arg, 1) < 0 && errno == EINTR) {
+            _cross_platform_pause();
         }
     }
 }
+
 
 void GenericWorker::wait_for_work() {
     bool sandbox_at_desired_level = true;
@@ -47,7 +71,7 @@ void GenericWorker::wait_for_work() {
     }
     set_close_thread_handle(work_done_pipe[1]);
     while(!new_work_exists_.load(std::memory_order_relaxed)) {
-        _mm_pause();
+
     }
     if (new_work_exists_.load()) { // enforce memory ordering
         if (sandbox_at_desired_level) {
@@ -118,7 +142,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
     }
     
     while(!is_done()) {
-        _mm_pause();
+        _cross_platform_pause();
     }
     work_done_.load();  // enforce memory ordering
 }
