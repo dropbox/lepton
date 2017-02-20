@@ -29,7 +29,12 @@ AC_ARG_ENABLE([debug],
 AC_SUBST(NODEBUG_CXXFLAGS)
 
 # Add optimizer flags
-ARCH_FLAGS="-mssse3"
+ARCH_FLAGS="-march=native"
+AC_ARG_ENABLE([vectorization],
+  [AS_HELP_STRING([--disable-vectorization])])
+
+AS_IF([test "x$enable_vectorization" = "xno"], [
+  ARCH_FLAGS="$ARCH_FLAGS -DUSE_SCALAR"])
 AC_SUBST([ARCH_FLAGS])
 
 # Allow sanitizing
@@ -65,6 +70,7 @@ AC_ARG_ENABLE([advanced-jpeg-features],
 AS_IF([test "x$enable_advanced_jpeg_features" != "xno"], [
   CODEC_FLAGS="-DDEFAULT_ALLOW_PROGRESSIVE -DHIGH_MEMORY"])
 AC_SUBST([CODEC_FLAGS])
+
 
 
 # Checks for programs.
