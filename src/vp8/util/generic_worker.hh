@@ -29,6 +29,8 @@ struct GenericWorker {
         return new_work_exists_.load() != 0;
     }
     void join_via_syscall();
+    int send_more_data(const void *data_ptr);
+    std::pair<const void*, int> recv_data();
 private:
     std::thread child_; // this must come after other members, so items are initialized first
     void _wait_for_child_to_begin();

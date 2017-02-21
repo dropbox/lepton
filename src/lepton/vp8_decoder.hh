@@ -1,5 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #include <array>
+#include <queue>
 #include "base_coders.hh"
 #include "lepton_codec.hh"
 #include "../../io/MuxReader.hh"
@@ -7,10 +8,28 @@
 #include "bool_decoder.hh"
 #include "vp8_encoder.hh"
 
+
+
+
 class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
+public:
+    class SendToVirtualThread {
+        std::queue<Sirikata::MuxReader::ResizableByteBuffer*> vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
+        uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
+        bool eof;
+        bool first;
+        void set_eof();
+    public:
+        SendToVirtualThread();
+        void send(uint8_t stream_id, Sirikata::MuxReader::ResizableByteBuffer *data);
+        Sirikata::MuxReader::ResizableByteBuffer* read(Sirikata::MuxReader&reader, uint8_t stream_id);
+        void read_all(Sirikata::MuxReader&reader);
+    };
+private:
     Sirikata::DecoderReader *str_in {};
     //const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     Sirikata::MuxReader mux_reader_;
+    SendToVirtualThread mux_splicer;
     std::vector<ThreadHandoff> thread_handoff_;
     Sirikata::Array1d<std::pair <Sirikata::MuxReader::ResizableByteBuffer::const_iterator,
                                  Sirikata::MuxReader::ResizableByteBuffer::const_iterator>,

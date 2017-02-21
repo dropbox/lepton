@@ -99,6 +99,48 @@ void GenericWorker::activate_work() {
         
     }
 }
+int GenericWorker::send_more_data(const void *data_ptr) {
+    ++new_work_exists_;
+    const uint8_t *ptr = (const uint8_t*)&data_ptr;
+    size_t size = sizeof(data_ptr);
+    do {
+        ssize_t ret = write(new_work_pipe[1], &ptr, size);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }else {
+                return ret;
+            }
+        }
+        size -= ret;
+        ptr += ret;
+    }while(size > 0);
+    return 0;
+}
+
+std::pair<const void*, int> GenericWorker::recv_data() {
+    std::pair<const void*, int> retval = {NULL, -1};
+    uint8_t *ptr = (uint8_t*)&retval.first;
+    size_t size = sizeof(retval.first);
+    do {
+        ssize_t ret = read(new_work_pipe[0], &ptr, size);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }else {
+                retval.second = ret;
+                return retval;
+            }
+        }
+        size -= ret;
+        ptr += ret;
+    }while(size > 0);
+    auto val = new_work_exists_.load(); // lets allow our thread to see what retval.first points to
+    always_assert(val != 0);
+    retval.second = 0;
+    return retval;
+}
+
 #ifdef _WIN32
 int make_pipe(int pipes[2]) {
     HANDLE read_pipe, write_pipe;

@@ -9,10 +9,9 @@ private:
     bool any_read;
 #endif
 public:
-    void init (const uint8_t *buffer, size_t size) {
+    void init (PacketReader *pr) {
         vpx_reader_init(&bit_reader,
-                        new TestPacketReader(buffer,
-                                             buffer + size));
+                        pr);
     }
     VPXBoolReader() {
 #ifdef DEBUG_ARICODER
@@ -24,7 +23,14 @@ public:
 #ifdef DEBUG_ARICODER
         any_read = false;
 #endif
-        init(buffer, size);
+        init(new TestPacketReader(buffer,
+                                             buffer + size));
+    }
+    VPXBoolReader(PacketReader *pr) {
+#ifdef DEBUG_ARICODER
+        any_read = false;
+#endif
+        init(pr);
     }
 #ifndef _WIN32
     __attribute__((always_inline))

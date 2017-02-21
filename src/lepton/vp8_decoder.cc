@@ -81,6 +81,40 @@ void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, Uncompre
     }
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
 }
+class VirtualThreadPacketReader : public PacketReader{
+    VP8ComponentDecoder::SendToVirtualThread*base;
+    uint8_t stream_id;
+    Sirikata::MuxReader*mux_reader_;
+    Sirikata::MuxReader::ResizableByteBuffer * last;
+public:
+    VirtualThreadPacketReader(uint8_t stream_id, Sirikata::MuxReader * mr, VP8ComponentDecoder::SendToVirtualThread*base) {
+        this->base = base;
+        this->stream_id = stream_id;
+        this->mux_reader_ = mr;
+        last = NULL;
+    }
+    // returns a buffer with at least sizeof(BD_VALUE) before it
+    virtual ROBuffer getNext() {
+        auto retval = base->read(*mux_reader_, stream_id);
+        if (!retval) {
+            isEof = true;
+            return {NULL, NULL};
+        }
+        always_assert(!retval->empty()); // we check this earlier
+        return {retval->data(), retval->data() + retval->size()};
+    }
+    bool eof()const {
+        return isEof;
+    }
+    virtual void setFree(ROBuffer buffer) {// don't even bother
+        if (last && last->data() == buffer.first) {
+            delete last; // hax
+            last = NULL;
+        }
+    }
+    virtual ~VirtualThreadPacketReader(){}
+};
+
 template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
@@ -100,10 +134,8 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     /* initialize the bool decoder */
     int index = thread_id;
     always_assert((size_t)index < streams_.size());
-    thread_state_[target_thread_state]->bool_decoder_.init(streams_[index].first != streams_
-[index].second
-                                                 ? &*streams_[index].first : nullptr,
-                                                 streams_[index].second - streams_[index].first );
+    always_assert(target_thread_state == 0); // don't support multithread yet
+    thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(target_thread_state, &mux_reader_, &mux_splicer));
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     if ((size_t)index < thread_handoff_.size()) {
@@ -123,6 +155,86 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
                       MAX_NUM_THREADS>& framebuffer) {
     return initialize_decoder_state(colldata, framebuffer);
 }
+
+void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
+    using namespace Sirikata;
+    if (!eof) {
+        for (int i = 0; i < MuxReader::MAX_STREAM_ID; ++i) {
+            send(i, NULL); // sends an EOF flag
+        }
+    }
+    eof = true;
+}
+VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
+    eof = false;
+    first = true;
+    memset(thread_target, 0, sizeof(thread_target));
+}
+void VP8ComponentDecoder::SendToVirtualThread::send(uint8_t stream_id, Sirikata::MuxReader::ResizableByteBuffer *data) {
+    if (data && data->empty()) {
+        delete data;
+        return;
+    }
+    always_assert(stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
+                  "INVALID SEND STREAM ID");
+    if (thread_target[stream_id] == 0) {
+        vbuffers[stream_id].push(data);
+    }else {
+            always_assert(false);// don't support this yet
+    }
+}
+Sirikata::MuxReader::ResizableByteBuffer* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
+    using namespace Sirikata;
+    always_assert(stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
+                  "INVALID READ STREAM ID");
+    if (!vbuffers[stream_id].empty()) {
+        auto retval = vbuffers[stream_id].front();
+        vbuffers[stream_id].pop();
+        return retval;
+    }
+    if (eof) {
+        return NULL;
+    }
+    while (!eof) {
+        MuxReader::ResizableByteBuffer *data = new MuxReader::ResizableByteBuffer;
+        auto ret = reader.nextDataPacket(*data);
+        bool buffer_it = ret.first != stream_id || first;
+        if (buffer_it) {
+            send(ret.first, data);
+            if (ret.second != JpegError::nil()) {
+                set_eof();
+            }
+            if (first && vbuffers[stream_id].size() > 1) {
+                first = false;
+                break;
+            }
+        }else {
+            if (ret.second != JpegError::nil()) {
+                set_eof();
+            }
+            return data;
+        }
+    }
+    if (!vbuffers[stream_id].empty()) {
+        auto retval = vbuffers[stream_id].front();
+        vbuffers[stream_id].pop();
+        return retval;
+    }
+    return NULL;
+}
+void VP8ComponentDecoder::SendToVirtualThread::read_all(Sirikata::MuxReader&reader) {
+    using namespace Sirikata;
+    first = false;
+    while (!eof) {
+        MuxReader::ResizableByteBuffer *data = new MuxReader::ResizableByteBuffer;
+        auto ret = reader.nextDataPacket(*data);
+        send(ret.first, data);
+        if (ret.second != JpegError::nil()) {
+            set_eof();
+        }
+    }
+}
+
 template <bool force_memory_optimized>
 std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
@@ -174,14 +286,7 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
         }
     }
     /* read entire chunk into memory */
-    mux_reader_.fillBufferEntirely(streams_.begin());
-    write_byte_bill(Billing::DELIMITERS, true, mux_reader_.getOverhead());
     //initialize_thread_id(0, 0, framebuffer[0]);
-    if (do_threading_) {
-        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            //initialize_thread_id(thread_id, thread_id, framebuffer[thread_id]);
-        }
-    }
     if (thread_handoff_.size()) {
         thread_handoff_.back().luma_y_end = colldata->block_height(0);
     }
@@ -223,7 +328,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
                                 thread_state_[thread_id],
                                 thread_id,
                                 colldata);
-                                spin_workers_[thread_id - 1].activate_work();
+                spin_workers_[thread_id - 1].activate_work();
             }
         }
     }
@@ -264,5 +369,6 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     }
     colldata->worker_update_coefficient_position_progress( 64 );
     colldata->worker_update_bit_progress( 16 );
+    write_byte_bill(Billing::DELIMITERS, true, mux_reader_.getOverhead());
     return CODING_DONE;
 }
