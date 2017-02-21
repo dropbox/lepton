@@ -37,10 +37,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” 
 //#include "vpx_dsp/prob.h"
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef size_t BD_VALUE;
 
 #define BD_VALUE_SIZE ((int)sizeof(BD_VALUE) * CHAR_BIT)
@@ -49,38 +45,174 @@ typedef size_t BD_VALUE;
 // loaded as an immediate (on platforms like ARM, for example).
 // Even relatively modest values like 100 would work fine.
 #define LOTS_OF_BITS 0x40000000
-
+typedef std::pair<const uint8_t*, const uint8_t*> ROBuffer;
+class PacketReader{
+protected:
+    bool isEof;
+public:
+    // returns a buffer with at least sizeof(BD_VALUE) before it
+    virtual ROBuffer getNext() = 0;
+    bool eof()const {
+        return isEof;
+    }
+    virtual void setFree(ROBuffer buffer) = 0;
+    virtual ~PacketReader(){}
+};
+class TestPacketReader :public PacketReader{
+    const uint8_t*cur;
+    const uint8_t*end;
+public:
+    TestPacketReader(const uint8_t *start, const uint8_t *ed) {
+        isEof = false;
+        cur = start;
+        end = ed;
+    }
+    ROBuffer getNext(){
+        if (cur == end) {
+            isEof = true;
+            return {NULL, NULL};
+        }
+        if (end - cur > 16) {
+            size_t val = rand()%16 + 1;
+            cur += val;
+            return {cur - val, cur};
+        }
+        const uint8_t *ret = cur;
+        cur = end;
+        return {ret, end};
+    }
+    bool eof()const {
+        return isEof;
+    }
+    void setFree(ROBuffer buffer){}
+};
+class BiRope {
+public:
+    ROBuffer rope[2];
+    // if we want partial data from a previous valuex
+    uint8_t backing[sizeof(BD_VALUE)];
+    BiRope() {
+        for (size_t i= 0; i < sizeof(rope)/sizeof(rope[0]); ++i) {
+            rope[i] = {NULL, NULL};
+        }
+    }
+    void push(ROBuffer data) {
+        if(rope[0].first == NULL) {
+            rope[0] = data;
+        }else {
+            always_assert(rope[1].first == NULL);
+            rope[1] = data;
+        }
+    }
+    size_t size() const {
+        return (rope[0].second-rope[0].first) +
+            (rope[1].second - rope[1].first);
+    }
+    void memcpy_ro(uint8_t *dest, size_t size) const {
+        if ((ptrdiff_t)size < rope[0].second-rope[0].first) {
+            memcpy(dest, rope[0].first, size);
+            return;
+        }
+        size_t del = rope[0].second-rope[0].first;
+        memcpy(dest, rope[0].first, del);
+        dest += del;
+        size -=del;
+        if (size) {
+            always_assert(rope[1].second - rope[1].first >= (ptrdiff_t)size);
+            memcpy(dest, rope[1].first, size);
+        }
+    }
+    void operator += (size_t del) {
+        if ((ptrdiff_t)del < rope[0].second - rope[0].first) {
+            rope[0].first += del;
+            return;
+        }
+        del -= rope[0].second - rope[0].first;
+        rope[0] = rope[1];
+        rope[1] = {NULL, NULL};
+        always_assert((ptrdiff_t)del <= rope[0].second - rope[0].first);
+        rope[0].first += del;
+        if (rope[0].first == rope[0].second) {
+            rope[0] = {NULL, NULL};
+        }
+    }
+    /*
+    void memcpy_pop(uint8_t *dest, size_t size) {
+        if (size < rope[0].second-rope[0].first) {
+            memcpy(dest, rope[0].first, size);
+            rope[0].first += size;
+            return;
+        } else {
+            size_t del = rope[0].second-rope[0].first;
+            memcpy(dest, rope[0].first, del);
+            dest += del;
+            size -= del;
+            rope[0] = rope[1];
+            rope[1] = {NULL, NULL};
+        }
+        if (size) {
+            always_assert(rope[0].second - rope[0].first < size);
+            memcpy(dest, rope[0].first, size);
+            rope[0].first += size;
+            if (rope[0].first == rope[0].second) {
+                rope[0] = {NULL, NULL};
+            }
+        }
+        }*/
+};
 typedef struct {
   // Be careful when reordering this struct, it may impact the cache negatively.
   BD_VALUE value;
   unsigned int range;
   int count;
-  const uint8_t *buffer_end;
-  const uint8_t *buffer;
+  BiRope buffer;
+  PacketReader *reader;
 //  vpx_decrypt_cb decrypt_cb;
 //  void *decrypt_state;
-  uint8_t clear_buffer[sizeof(BD_VALUE) + 1];
 } vpx_reader;
 
 int vpx_reader_init(vpx_reader *r,
-                    const uint8_t *buffer,
-                    size_t size);
+                    PacketReader *reader);
 
 static INLINE void vpx_reader_fill(vpx_reader *r) {
-    const uint8_t *const buffer_end = r->buffer_end;
-    const uint8_t *buffer = r->buffer;
-    const uint8_t *buffer_start = buffer;
     BD_VALUE value = r->value;
     int count = r->count;
-    const size_t bytes_left = buffer_end - buffer;
-    const size_t bits_left = bytes_left * CHAR_BIT;
+    size_t bytes_left = r->buffer.size();
+    size_t bits_left = bytes_left * CHAR_BIT;
     int shift = BD_VALUE_SIZE - CHAR_BIT - (count + CHAR_BIT);
-    
+    if (bits_left <= BD_VALUE_SIZE && !r->reader->eof()) {
+        // pull some from reader
+        uint8_t local_buffer[sizeof(BD_VALUE)] = {0};
+        r->buffer.memcpy_ro(local_buffer, bytes_left);
+        r->buffer += bytes_left; // clear it out
+        while(true) {
+            auto next = r->reader->getNext();
+            if (next.second - next.first + bytes_left <= sizeof(BD_VALUE)) {
+                memcpy(local_buffer + bytes_left, next.first, next.second - next.first);
+                bytes_left += next.second - next.first;
+            } else {
+                if (bytes_left) {
+                    memcpy(r->buffer.backing, local_buffer, bytes_left);
+                    r->buffer.push({r->buffer.backing, r->buffer.backing + bytes_left});
+                }
+                r->buffer.push(next);
+                break;
+            }
+            if (r->reader->eof()) {
+                always_assert(bytes_left <= sizeof(BD_VALUE)); // otherwise we'd have break'd
+                memcpy(r->buffer.backing, local_buffer, bytes_left);
+                r->buffer.push({r->buffer.backing, r->buffer.backing + bytes_left});
+                break; // setup a simplistic rope that just points to the backing store
+            }
+        }
+        bytes_left = r->buffer.size();
+        bits_left = bytes_left * CHAR_BIT;
+    }
     if (bits_left > BD_VALUE_SIZE) {
         const int bits = (shift & 0xfffffff8) + CHAR_BIT;
         BD_VALUE nv;
         BD_VALUE big_endian_values;
-        memcpy(&big_endian_values, buffer, sizeof(BD_VALUE));
+        r->buffer.memcpy_ro((uint8_t*)&big_endian_values, sizeof(BD_VALUE));
         if (sizeof(BD_VALUE) == 8) {
             big_endian_values = htobe64(big_endian_values);
         } else {
@@ -88,7 +220,7 @@ static INLINE void vpx_reader_fill(vpx_reader *r) {
         }
         nv = big_endian_values >> (BD_VALUE_SIZE - bits);
         count += bits;
-        buffer += (bits >> 3);
+        r->buffer += (bits >> 3);
         value = r->value | (nv << (shift & 0x7));
     } else {
         const int bits_over = (int)(shift + CHAR_BIT - bits_left);
@@ -101,7 +233,10 @@ static INLINE void vpx_reader_fill(vpx_reader *r) {
         if (bits_over < 0 || bits_left) {
             while (shift >= loop_end) {
                 count += CHAR_BIT;
-                value |= (BD_VALUE)*buffer++ << shift;
+                uint8_t cur_val = 0;
+                r->buffer.memcpy_ro(&cur_val, 1);
+                r->buffer += 1;
+                value |= ((BD_VALUE)cur_val) << shift;
                 shift -= CHAR_BIT;
             }
         }
@@ -109,12 +244,10 @@ static INLINE void vpx_reader_fill(vpx_reader *r) {
     // NOTE: Variable 'buffer' may not relate to 'r->buffer' after decryption,
     // so we increase 'r->buffer' by the amount that 'buffer' moved, rather than
     // assign 'buffer' to 'r->buffer'.
-    r->buffer += buffer - buffer_start;
     r->value = value;
     r->count = count;
 }
 
-const uint8_t *vpx_reader_find_end(vpx_reader *r);
 
   // Check if we have reached the end of the buffer.
   //
@@ -267,9 +400,5 @@ inline bool vpx_read(vpx_reader *r, int prob, Billing bill) {
 
   return bit;
 }
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
 
 #endif  // VPX_DSP_BITREADER_H_

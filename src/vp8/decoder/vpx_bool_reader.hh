@@ -11,8 +11,8 @@ private:
 public:
     void init (const uint8_t *buffer, size_t size) {
         vpx_reader_init(&bit_reader,
-                        buffer,
-                        size);
+                        new TestPacketReader(buffer,
+                                             buffer + size));
     }
     VPXBoolReader() {
 #ifdef DEBUG_ARICODER
