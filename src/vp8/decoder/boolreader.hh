@@ -45,6 +45,7 @@ typedef size_t BD_VALUE;
 // loaded as an immediate (on platforms like ARM, for example).
 // Even relatively modest values like 100 would work fine.
 #define LOTS_OF_BITS 0x40000000
+static std::atomic<uint32_t> test_packet_reader_atomic_test;
 typedef std::pair<const uint8_t*, const uint8_t*> ROBuffer;
 class PacketReader{
 protected:
@@ -73,7 +74,7 @@ public:
             return {NULL, NULL};
         }
         if (end - cur > 16) {
-            size_t val = rand()%16 + 1;
+            size_t val = (test_packet_reader_atomic_test += 7)%16 + 1;
             cur += val;
             return {cur - val, cur};
         }
