@@ -96,7 +96,7 @@ public:
     // returns a buffer with at least sizeof(BD_VALUE) before it
     virtual ROBuffer getNext() {
         auto retval = base->read(*mux_reader_, stream_id);
-        if (!retval) {
+        if (retval->size() == 0) {
             isEof = true;
             return {NULL, NULL};
         }
@@ -160,7 +160,9 @@ void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
     using namespace Sirikata;
     if (!eof) {
         for (int i = 0; i < MuxReader::MAX_STREAM_ID; ++i) {
-            send(i, NULL); // sends an EOF flag
+            auto eof = new ResizableByteBufferListNode;
+            eof->stream_id = i;
+            send(eof); // sends an EOF flag (empty buffer)
         }
     }
     eof = true;
@@ -170,41 +172,45 @@ VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
     first = true;
     memset(thread_target, 0, sizeof(thread_target));
 }
-void VP8ComponentDecoder::SendToVirtualThread::send(uint8_t stream_id, Sirikata::MuxReader::ResizableByteBuffer *data) {
-    if (data && data->empty()) {
-        delete data;
-        return;
-    }
-    always_assert(stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
+void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode *data) {
+    always_assert(data);
+    always_assert(data->stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
                   "INVALID SEND STREAM ID");
-    if (thread_target[stream_id] == 0) {
-        vbuffers[stream_id].push(data);
+    if (thread_target[data->stream_id] == 0) {
+        vbuffers[data->stream_id].push(data);
     }else {
             always_assert(false);// don't support this yet
     }
 }
-Sirikata::MuxReader::ResizableByteBuffer* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
+ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
     using namespace Sirikata;
     always_assert(stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
                   "INVALID READ STREAM ID");
     if (!vbuffers[stream_id].empty()) {
         auto retval = vbuffers[stream_id].front();
-        vbuffers[stream_id].pop();
+        if (retval->size() == 0) {
+            always_assert(eof);
+        } else { // keep this placeholder there
+            vbuffers[stream_id].pop();
+        }
         return retval;
     }
     if (eof) {
+        always_assert(false);
         return NULL;
     }
     while (!eof) {
-        MuxReader::ResizableByteBuffer *data = new MuxReader::ResizableByteBuffer;
+        ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
+        data->stream_id = ret.first;
         bool buffer_it = ret.first != stream_id || first;
         if (buffer_it) {
-            send(ret.first, data);
+            always_assert(data->size()); // the protocol can't store empty runs
+            send(data);
             if (ret.second != JpegError::nil()) {
                 set_eof();
             }
-            if (first && vbuffers[stream_id].size() > 1) {
+            if (first && vbuffers[stream_id].size_gt_1()) {
                 first = false;
                 break;
             }
@@ -217,7 +223,11 @@ Sirikata::MuxReader::ResizableByteBuffer* VP8ComponentDecoder::SendToVirtualThre
     }
     if (!vbuffers[stream_id].empty()) {
         auto retval = vbuffers[stream_id].front();
-        vbuffers[stream_id].pop();
+        if (retval->size() == 0) {
+            always_assert(eof);
+        } else { // keep this placeholder there
+            vbuffers[stream_id].pop();
+        }
         return retval;
     }
     return NULL;
@@ -226,9 +236,11 @@ void VP8ComponentDecoder::SendToVirtualThread::read_all(Sirikata::MuxReader&read
     using namespace Sirikata;
     first = false;
     while (!eof) {
-        MuxReader::ResizableByteBuffer *data = new MuxReader::ResizableByteBuffer;
+        ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
-        send(ret.first, data);
+        data->stream_id = ret.first;
+        always_assert(data->size());
+        send(data);
         if (ret.second != JpegError::nil()) {
             set_eof();
         }

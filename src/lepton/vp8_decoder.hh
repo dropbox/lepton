@@ -9,20 +9,70 @@
 #include "vp8_encoder.hh"
 
 
-
+struct ResizableByteBufferListNode : public Sirikata::MuxReader::ResizableByteBuffer {
+    uint8_t stream_id;
+    ResizableByteBufferListNode *next;
+    ResizableByteBufferListNode(){
+        stream_id = 0;
+        next = NULL;
+    }
+};
+struct ResizableByteBufferList {
+    ResizableByteBufferListNode * head;
+    ResizableByteBufferListNode * tail;
+    ResizableByteBufferList() {
+        head = NULL;
+        tail = NULL;
+    }
+    void push(ResizableByteBufferListNode * item) {
+        always_assert(item);
+        if (!tail) {
+            always_assert(!head);
+            head = tail = item;
+        } else {
+            always_assert(!tail->next);
+            tail->next = item;
+            tail = item;
+        }
+    }
+    bool empty()const {
+        return head == NULL && tail == NULL;
+    }
+    bool size_gt_1()const {
+        return head != tail;
+    }
+    ResizableByteBufferListNode * front() {
+        return head;
+    }
+    const ResizableByteBufferListNode * front() const{
+        return head;
+    }
+    ResizableByteBufferListNode * pop() {
+        always_assert(!empty());
+        auto retval = head;
+        if (tail == head) {
+            always_assert(tail->next == NULL);
+            head = NULL;
+            tail = NULL;
+            return retval;
+        }
+        head = head->next;
+        return retval;
+    }
+};
 
 class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
 public:
     class SendToVirtualThread {
-        std::queue<Sirikata::MuxReader::ResizableByteBuffer*> vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
+        ResizableByteBufferList vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
         uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
         bool eof;
         bool first;
         void set_eof();
     public:
         SendToVirtualThread();
-        void send(uint8_t stream_id, Sirikata::MuxReader::ResizableByteBuffer *data);
-        Sirikata::MuxReader::ResizableByteBuffer* read(Sirikata::MuxReader&reader, uint8_t stream_id);
+        void send(ResizableByteBufferListNode *data);
+        ResizableByteBufferListNode* read(Sirikata::MuxReader&reader, uint8_t stream_id);
         void read_all(Sirikata::MuxReader&reader);
     };
 private:
