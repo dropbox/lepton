@@ -66,16 +66,24 @@ public:
     class SendToVirtualThread {
         ResizableByteBufferList vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
         uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
+        GenericWorker *all_workers;
         bool eof;
         bool first;
         void set_eof();
     public:
         SendToVirtualThread();
+        void init(GenericWorker *generic_workers);
         void send(ResizableByteBufferListNode *data);
         ResizableByteBufferListNode* read(Sirikata::MuxReader&reader, uint8_t stream_id);
         void read_all(Sirikata::MuxReader&reader);
     };
+    class SendToActualThread {
+    public:
+        ResizableByteBufferList vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
+    };
+    
 private:
+    SendToActualThread send_to_actual_thread_state;
     Sirikata::DecoderReader *str_in {};
     //const std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > *file_;
     Sirikata::MuxReader mux_reader_;

@@ -81,6 +81,64 @@ void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, Uncompre
     }
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
 }
+class ActualThreadPacketReader : public PacketReader{
+    GenericWorker *worker;
+    VP8ComponentDecoder::SendToActualThread *base;
+    uint8_t stream_id;
+    ResizableByteBufferListNode* last;
+public:
+    ActualThreadPacketReader(uint8_t stream_id, GenericWorker*worker, VP8ComponentDecoder::SendToActualThread*base) {
+        this->worker = worker;
+        this->stream_id = stream_id;
+        this->base = base;
+    }
+    // returns a buffer with at least sizeof(BD_VALUE) before it
+    virtual ROBuffer getNext() {
+        if (!base->vbuffers[stream_id].empty()) {
+            auto retval = base->vbuffers[stream_id].front();
+            if (!retval->empty()) {
+                base->vbuffers[stream_id].pop();
+            }
+            if (retval->empty()) {
+                isEof = true;
+                return {NULL, NULL};
+            }
+            return {retval->data(), retval->data() + retval->size()};
+        }
+        while(!isEof) {
+            auto dat = worker->recv_data();
+            if (dat.first) {
+                ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.first;
+                if (lnode->empty() || stream_id != lnode->stream_id) {
+                    base->vbuffers[stream_id].push(lnode);
+                    if (stream_id == lnode->stream_id) {
+                        isEof = true;
+                        return {lnode->data(), lnode->data() + lnode->size()};
+                    }
+                } else {
+                    assert(stream_id == lnode->stream_id);
+                    last = lnode;
+                    return {lnode->data(), lnode->data() + lnode->size()};
+                }
+            }
+            if (dat.second < 0) {
+                isEof = true; // hmm... should we bail here?
+                always_assert(false);
+            }
+        }
+        return {NULL, NULL};
+    }
+    bool eof()const {
+        return isEof;
+    }
+    virtual void setFree(ROBuffer buffer) {// don't even bother
+        if (last && last->data() == buffer.first) {
+            delete last; // hax
+            last = NULL;
+        }
+    }
+    virtual ~ActualThreadPacketReader(){}
+};
 class VirtualThreadPacketReader : public PacketReader{
     VP8ComponentDecoder::SendToVirtualThread*base;
     uint8_t stream_id;
@@ -118,6 +176,8 @@ public:
 template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
+    always_assert(spin_workers_);
+    mux_splicer.init(spin_workers_);
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     //if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
@@ -134,8 +194,15 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     /* initialize the bool decoder */
     int index = thread_id;
     always_assert((size_t)index < streams_.size());
-    always_assert(target_thread_state == 0); // don't support multithread yet
-    thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+    
+    if (target_thread_state == 0) {
+        thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+    }else {
+        always_assert(target_thread_state == 0); // don't support multithread yet
+        thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
+                                                                                            getWorker(target_thread_state),
+                                                                                            &send_to_actual_thread_state));
+    }
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     if ((size_t)index < thread_handoff_.size()) {
@@ -171,6 +238,11 @@ VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
     eof = false;
     first = true;
     memset(thread_target, 0, sizeof(thread_target));
+    this->all_workers = NULL;
+}
+
+void VP8ComponentDecoder::SendToVirtualThread::init(GenericWorker * all_workers) {
+    this->all_workers = all_workers;
 }
 void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode *data) {
     always_assert(data);
@@ -179,6 +251,8 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
     if (thread_target[data->stream_id] == 0) {
         vbuffers[data->stream_id].push(data);
     }else {
+        int retval = all_workers[thread_target[data->stream_id]].send_more_data(data);
+        always_assert(retval == 0 && "Communication with thread lost");
             always_assert(false);// don't support this yet
     }
 }
