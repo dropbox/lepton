@@ -135,7 +135,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     int index = thread_id;
     always_assert((size_t)index < streams_.size());
     always_assert(target_thread_state == 0); // don't support multithread yet
-    thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(target_thread_state, &mux_reader_, &mux_splicer));
+    thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     if ((size_t)index < thread_handoff_.size()) {
