@@ -65,15 +65,22 @@ class VP8ComponentDecoder : public BaseDecoder, public VP8ComponentEncoder {
 public:
     class SendToVirtualThread {
         ResizableByteBufferList vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
-        uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
+        
         GenericWorker *all_workers;
         bool eof;
         bool first;
         void set_eof();
     public:
+        uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
         SendToVirtualThread();
         void init(GenericWorker *generic_workers);
+        
+        void bind_thread(uint8_t virtual_thread_id, uint8_t physical_thread_id) {
+            thread_target[virtual_thread_id] = physical_thread_id;
+        }
         void send(ResizableByteBufferListNode *data);
+        void drain(Sirikata::MuxReader&reader, uint8_t stream_id);
+
         ResizableByteBufferListNode* read(Sirikata::MuxReader&reader, uint8_t stream_id);
         void read_all(Sirikata::MuxReader&reader);
     };
@@ -95,10 +102,15 @@ private:
 
     VP8ComponentDecoder(const VP8ComponentDecoder&) = delete;
     VP8ComponentDecoder& operator=(const VP8ComponentDecoder&) = delete;
-    static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata);
+    static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata,
+                              uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
+                              GenericWorker*worker,
+                              SendToActualThread*data_receiver);
     template <bool force_memory_optimized>
     void initialize_thread_id(int thread_id, int target_thread_state,
                               BlockBasedImagePerChannel<force_memory_optimized>& framebuffer);
+    // initialize_thread_id must be called for all threads first
+    void initialize_bool_decoder(int thread_id, int target_thread_state);
 
     int virtual_thread_id_;
 public:

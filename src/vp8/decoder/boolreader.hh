@@ -51,6 +51,9 @@ class PacketReader{
 protected:
     bool isEof;
 public:
+    PacketReader() {
+        isEof = false;
+    }
     // returns a buffer with at least sizeof(BD_VALUE) before it
     virtual ROBuffer getNext() = 0;
     bool eof()const {

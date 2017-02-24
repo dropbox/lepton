@@ -75,12 +75,6 @@ VP8ComponentDecoder::~VP8ComponentDecoder() {
 void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
     initialize_thread_id(thread_id, target_thread_state, framebuffer);
 }
-void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata) {
-    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
-    while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
-    }
-    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
-}
 class ActualThreadPacketReader : public PacketReader{
     GenericWorker *worker;
     VP8ComponentDecoder::SendToActualThread *base;
@@ -139,6 +133,20 @@ public:
     }
     virtual ~ActualThreadPacketReader(){}
 };
+void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata,
+                                        uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
+                                        GenericWorker *worker,
+                                        SendToActualThread *send_to_actual_thread_state) {
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
+    for (uint8_t i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
+        if (thread_target[i] == thread_id) {
+            ts->bool_decoder_.init(new ActualThreadPacketReader(i, worker, send_to_actual_thread_state));
+        }
+    }
+    while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
+    }
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+}
 class VirtualThreadPacketReader : public PacketReader{
     VP8ComponentDecoder::SendToVirtualThread*base;
     uint8_t stream_id;
@@ -173,7 +181,19 @@ public:
     virtual ~VirtualThreadPacketReader(){}
 };
 
-template <bool force_memory_optimized>
+void VP8ComponentDecoder::initialize_bool_decoder(int thread_id, int target_thread_state) {
+    // must be called after initialize_thread_id
+    if (target_thread_state == 0) {
+        thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+    }else {
+        thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
+                                                                                            getWorker(target_thread_state - 1),
+                                                                                            &send_to_actual_thread_state));
+    }
+
+}
+
+    template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
     always_assert(spin_workers_);
@@ -194,15 +214,10 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     /* initialize the bool decoder */
     int index = thread_id;
     always_assert((size_t)index < streams_.size());
-    
-    if (target_thread_state == 0) {
-        thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
-    }else {
-        always_assert(target_thread_state == 0); // don't support multithread yet
-        thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
-                                                                                            getWorker(target_thread_state),
-                                                                                            &send_to_actual_thread_state));
+    if (target_thread_state != 0) {
+        mux_splicer.bind_thread(thread_id, target_thread_state);
     }
+    
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
     if ((size_t)index < thread_handoff_.size()) {
@@ -251,9 +266,24 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
     if (thread_target[data->stream_id] == 0) {
         vbuffers[data->stream_id].push(data);
     }else {
-        int retval = all_workers[thread_target[data->stream_id]].send_more_data(data);
+        int retval = all_workers[thread_target[data->stream_id] - 1].send_more_data(data);
         always_assert(retval == 0 && "Communication with thread lost");
-            always_assert(false);// don't support this yet
+    }
+}
+void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader, uint8_t stream_id) {
+    while (!reader.eof) {
+        ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
+        auto ret = reader.nextDataPacket(*data);
+        if (ret.second != Sirikata::JpegError::nil()) {
+            set_eof();
+            break;
+        }
+        if (ret.first != stream_id) {
+            always_assert(data->size()); // the protocol can't store empty runs
+            send(data);
+        }else {
+            delete data;
+        }
     }
 }
 ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
@@ -273,18 +303,22 @@ ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Siri
         always_assert(false);
         return NULL;
     }
+    bool found_other = false;
     while (!eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
         data->stream_id = ret.first;
         bool buffer_it = ret.first != stream_id || first;
         if (buffer_it) {
+            if (ret.first != stream_id) {
+                found_other = true;
+            }
             always_assert(data->size()); // the protocol can't store empty runs
             send(data);
             if (ret.second != JpegError::nil()) {
                 set_eof();
             }
-            if (first && vbuffers[stream_id].size_gt_1()) {
+            if (first && vbuffers[stream_id].size_gt_1() && found_other) {
                 first = false;
                 break;
             }
@@ -404,6 +438,14 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
                 break;
             }
         }
+        /*
+        for (size_t i = 0;i < num_threads_needed; ++i) {
+            initialize_bool_decoder(i, i);
+            if (!do_threading_) {
+                break;
+            }
+        }
+        */
         if (num_threads_needed > NUM_THREADS || num_threads_needed == 0) {
             return CODING_ERROR;
         }
@@ -413,10 +455,14 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
                     = std::bind(worker_thread,
                                 thread_state_[thread_id],
                                 thread_id,
-                                colldata);
+                                colldata,
+                                mux_splicer.thread_target,
+                                getWorker(thread_id - 1),
+                                &send_to_actual_thread_state);
                 spin_workers_[thread_id - 1].activate_work();
             }
         }
+        thread_state_[0]->bool_decoder_.init(new VirtualThreadPacketReader(0, &mux_reader_, &mux_splicer));
     }
     TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
@@ -425,6 +471,8 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     }
     TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
     if (do_threading_) {
+        
+        mux_splicer.drain(mux_reader_, 0);
         for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
             spin_workers_[thread_id - 1].main_wait_for_done();
@@ -442,6 +490,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             }
 
             initialize_thread_id(thread_id, 0, framebuffer);
+            thread_state_[0]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
             TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
             if ((ret = thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
                 return ret;
