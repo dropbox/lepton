@@ -102,9 +102,11 @@ void GenericWorker::activate_work() {
 int GenericWorker::send_more_data(const void *data_ptr) {
     ++new_work_exists_;
     const uint8_t *ptr = (const uint8_t*)&data_ptr;
-    size_t size = sizeof(data_ptr);
+    size_t size = sizeof(void*);
     do {
-        ssize_t ret = write(new_work_pipe[1], &ptr, size);
+      fprintf(stderr, "Writing %02x%02x%02x%02x%02x%02x%02x%02x\n",
+	      ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5],ptr[6],ptr[7]);
+        ssize_t ret = write(new_work_pipe[1], ptr, size);
         if (ret < 0) {
             if (errno == EINTR) {
                 continue;
@@ -123,7 +125,7 @@ std::pair<const void*, int> GenericWorker::recv_data() {
     uint8_t *ptr = (uint8_t*)&retval.first;
     size_t size = sizeof(retval.first);
     do {
-        ssize_t ret = read(new_work_pipe[0], &ptr, size);
+        ssize_t ret = read(new_work_pipe[0], ptr, size);
         if (ret < 0) {
             if (errno == EINTR) {
                 continue;

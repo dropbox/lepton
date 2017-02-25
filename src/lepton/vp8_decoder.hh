@@ -88,7 +88,11 @@ public:
     public:
         ResizableByteBufferList vbuffers[Sirikata::MuxReader::MAX_STREAM_ID];
     };
-    
+    void map_logical_thread_to_physical_thread(uint8_t logical_thread_id,
+                                               uint8_t physical_thread_id) {
+        mux_splicer.init(spin_workers_);
+        mux_splicer.bind_thread(logical_thread_id, physical_thread_id);
+    }
 private:
     SendToActualThread send_to_actual_thread_state;
     Sirikata::DecoderReader *str_in {};

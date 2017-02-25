@@ -7,6 +7,7 @@
 #include "recoder.hh"
 #include "bitops.hh"
 #include "lepton_codec.hh"
+#include "vp8_decoder.hh"
 #include "../io/BoundedMemWriter.hh"
 #include "../vp8/util/memory.hh"
 #define ENVLI(s,v)        ( ( v > 0 ) ? v : ( v - 1 ) + ( 1 << s ) )
@@ -671,7 +672,6 @@ void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,
 bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
 {    
-
     unsigned int local_bound = max_file_size - grbs;
     str_out->set_bound(local_bound);
 
@@ -706,6 +706,15 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
     if (luma_bounds.size() && luma_bounds[0].is_legacy_mode()) {
         g_threaded = false;
+    }
+    for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        int work_size = 0;
+        int logical_thread_start, logical_thread_end;
+        std::tie(logical_thread_start, logical_thread_end)
+            = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
+        for (int log_thread = logical_thread_start; log_thread < logical_thread_end; ++log_thread) {
+            static_cast<VP8ComponentDecoder*>(g_decoder)->map_logical_thread_to_physical_thread(log_thread, physical_thread_id);
+        }
     }
     /* step 3: decode the scan, row by row */
     std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> > overhang_byte_and_bit_count;

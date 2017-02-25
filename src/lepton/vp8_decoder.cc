@@ -74,6 +74,14 @@ VP8ComponentDecoder::~VP8ComponentDecoder() {
 
 void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
     initialize_thread_id(thread_id, target_thread_state, framebuffer);
+    initialize_bool_decoder(thread_id, target_thread_state);
+    /*redundant
+    if (thread_target_state) {
+        thread_state_[thread_id]->bool_decoder_.init(new ActualThreadPacketReader(thread_id, getWorker[target_thread_state - 1], &send_to_actual_thread_state));
+    } else {
+        thread_state_[thread_id]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+    }
+    */
 }
 class ActualThreadPacketReader : public PacketReader{
     GenericWorker *worker;
@@ -100,9 +108,15 @@ public:
             return {retval->data(), retval->data() + retval->size()};
         }
         while(!isEof) {
+            fprintf(stderr, "%d scheduling receiving data\n", stream_id);
             auto dat = worker->recv_data();
+            fprintf(stderr, "(%d) Got data %p, %x\n", stream_id, dat.first, dat.second);
             if (dat.first) {
                 ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.first;
+                fprintf(stderr, "(%d) Got packet intended for (%d) of %d bytes\n",
+                        (int)stream_id,
+                        (int)lnode->stream_id,
+                        (int)lnode->size());
                 if (lnode->empty() || stream_id != lnode->stream_id) {
                     base->vbuffers[stream_id].push(lnode);
                     if (stream_id == lnode->stream_id) {
@@ -199,7 +213,6 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     if (target_thread_state) {
         always_assert(spin_workers_);
     }
-    mux_splicer.init(spin_workers_);
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     //if (thread_id != target_thread_state) {
         reset_thread_model_state(target_thread_state);
@@ -216,9 +229,6 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
     /* initialize the bool decoder */
     int index = thread_id;
     always_assert((size_t)index < streams_.size());
-    if (target_thread_state != 0) {
-        mux_splicer.bind_thread(thread_id, target_thread_state);
-    }
     
     thread_state_[target_thread_state]->is_valid_range_ = false;
     thread_state_[target_thread_state]->luma_splits_.resize(2);
@@ -268,6 +278,9 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
     if (thread_target[data->stream_id] == 0) {
         vbuffers[data->stream_id].push(data);
     }else {
+        fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p\n",
+                (int)data->stream_id, (int)data->size(),
+                (void*)data);
         int retval = all_workers[thread_target[data->stream_id] - 1].send_more_data(data);
         always_assert(retval == 0 && "Communication with thread lost");
     }
@@ -434,7 +447,13 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         size_t num_threads_needed = initialize_decoder_state(colldata,
                                                              all_framebuffers).size();
+
+
         for (size_t i = 0;i < num_threads_needed; ++i) {
+            if (i != 0) { //FIXME: this is not thread safe
+                // do it at init time
+                map_logical_thread_to_physical_thread(i, i);
+            }
             initialize_thread_id(i, i, framebuffer);
             if (!do_threading_) {
                 break;
