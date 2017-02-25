@@ -196,7 +196,9 @@ void VP8ComponentDecoder::initialize_bool_decoder(int thread_id, int target_thre
     template <bool force_memory_optimized>
 void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
-    always_assert(spin_workers_);
+    if (target_thread_state) {
+        always_assert(spin_workers_);
+    }
     mux_splicer.init(spin_workers_);
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     //if (thread_id != target_thread_state) {
