@@ -104,8 +104,6 @@ int GenericWorker::send_more_data(const void *data_ptr) {
     const uint8_t *ptr = (const uint8_t*)&data_ptr;
     size_t size = sizeof(void*);
     do {
-      fprintf(stderr, "Writing %02x%02x%02x%02x%02x%02x%02x%02x\n",
-	      ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5],ptr[6],ptr[7]);
         ssize_t ret = write(new_work_pipe[1], ptr, size);
         if (ret < 0) {
             if (errno == EINTR) {

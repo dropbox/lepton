@@ -108,15 +108,15 @@ public:
             return {retval->data(), retval->data() + retval->size()};
         }
         while(!isEof) {
-            fprintf(stderr, "%d scheduling receiving data\n", stream_id);
+            //x/fprintf(stderr, "%d scheduling receiving data\n", stream_id);
             auto dat = worker->recv_data();
-            fprintf(stderr, "(%d) Got data %p, %x\n", stream_id, dat.first, dat.second);
+            //x/fprintf(stderr, "(%d) Got data %p, %x\n", stream_id, dat.first, dat.second);
             if (dat.first) {
                 ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.first;
-                fprintf(stderr, "(%d) Got packet intended for (%d) of %d bytes\n",
-                        (int)stream_id,
-                        (int)lnode->stream_id,
-                        (int)lnode->size());
+                //x/fprintf(stderr, "(%d) Got packet intended for (%d) of %d bytes\n",
+                //x/    (int)stream_id,
+                //x/        (int)lnode->stream_id,
+                //x/        (int)lnode->size());
                 if (lnode->empty() || stream_id != lnode->stream_id) {
                     base->vbuffers[stream_id].push(lnode);
                     if (stream_id == lnode->stream_id) {
@@ -278,9 +278,9 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
     if (thread_target[data->stream_id] == 0) {
         vbuffers[data->stream_id].push(data);
     }else {
-        fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p\n",
-                (int)data->stream_id, (int)data->size(),
-                (void*)data);
+        //x/fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p\n",
+        //x/        (int)data->stream_id, (int)data->size(),
+        //x/        (void*)data);
         int retval = all_workers[thread_target[data->stream_id] - 1].send_more_data(data);
         always_assert(retval == 0 && "Communication with thread lost");
     }
