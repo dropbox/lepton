@@ -40,7 +40,7 @@ VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
     : VP8ComponentEncoder(do_threading),
       mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                   8,
-                  4096 * 1024 / MAX_NUM_THREADS + 131072) {
+                  0) {
     if (do_threading) {
         virtual_thread_id_ = -1; // only using real threads here
     } else {
