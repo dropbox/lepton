@@ -708,7 +708,6 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         g_threaded = false;
     }
     for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
-        int work_size = 0;
         int logical_thread_start, logical_thread_end;
         std::tie(logical_thread_start, logical_thread_end)
             = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());

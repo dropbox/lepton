@@ -31,6 +31,14 @@ struct GenericWorker {
     void join_via_syscall();
     int send_more_data(const void *data_ptr);
     std::pair<const void*, int> recv_data();
+    struct DataBatch {
+        typedef Sirikata::Array1d<void *, 15> DataType;
+        DataType data;
+        int32_t return_code;
+        uint8_t count;
+    };
+    DataBatch batch_recv_data();
+
 private:
     std::thread child_; // this must come after other members, so items are initialized first
     void _wait_for_child_to_begin();

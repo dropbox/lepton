@@ -108,28 +108,23 @@ public:
             return {retval->data(), retval->data() + retval->size()};
         }
         while(!isEof) {
-            //x/fprintf(stderr, "%d scheduling receiving data\n", stream_id);
-            auto dat = worker->recv_data();
-            //x/fprintf(stderr, "(%d) Got data %p, %x\n", stream_id, dat.first, dat.second);
-            if (dat.first) {
-                ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.first;
-                //x/fprintf(stderr, "(%d) Got packet intended for (%d) of %d bytes\n",
-                //x/    (int)stream_id,
-                //x/        (int)lnode->stream_id,
-                //x/        (int)lnode->size());
-                if (lnode->empty() || stream_id != lnode->stream_id) {
-                    base->vbuffers[stream_id].push(lnode);
-                    if (stream_id == lnode->stream_id) {
-                        isEof = true;
-                        return {lnode->data(), lnode->data() + lnode->size()};
-                    }
-                } else {
+            //x/ fprintf(stderr, "%d scheduling receiving data\n", stream_id);
+            auto dat = worker->batch_recv_data();
+            //x/ fprintf(stderr, "(%d) Got data %d, %x\n", stream_id, dat.count, dat.return_code);
+            for (unsigned int i = 0; i < dat.count; ++i) {
+                ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.data[i];
+                if (dat.count == 1 && lnode->stream_id == stream_id && lnode && lnode->size()) {
                     assert(stream_id == lnode->stream_id);
                     last = lnode;
                     return {lnode->data(), lnode->data() + lnode->size()};
+                } else {
+                    base->vbuffers[stream_id].push(lnode);
                 }
             }
-            if (dat.second < 0) {
+            if (!base->vbuffers[stream_id].empty()) {
+                return getNext(); // recursive call, 1 deep
+            }
+            if (dat.return_code < 0) {
                 isEof = true; // hmm... should we bail here?
                 always_assert(false);
             }
