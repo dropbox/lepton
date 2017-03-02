@@ -408,10 +408,17 @@ int cs_sal       =   0  ; // successive approximation bit pos low
 void kill_workers(void * workers, uint64_t num_workers);
 
 GenericWorker * get_worker_threads(unsigned int num_workers) {
+#ifdef UNIFIED_THREAD_MODEL
+    always_assert(num_workers == NUM_THREADS);
+    if (NUM_THREADS < 2) {
+        return NULL;
+    }
+#else
     always_assert(num_workers + 1 == NUM_THREADS);
     if (NUM_THREADS < 2) {
         return NULL;
     }
+#endif
     GenericWorker *retval = new GenericWorker[num_workers];
     TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
     custom_atexit(&kill_workers, retval, num_workers);
@@ -422,7 +429,19 @@ VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
     VP8ComponentDecoder *retval = new VP8ComponentDecoder(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
-        retval->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
+        retval->registerWorkers(get_worker_threads(
+#ifdef UNIFIED_THREAD_MODEL
+                                    NUM_THREADS
+#else
+                                    NUM_THREADS - 1
+#endif
+                                    ),
+#ifdef UNIFIED_THREAD_MODEL
+                                NUM_THREADS
+#else
+                                NUM_THREADS - 1
+#endif
+            );
     }
     return retval;
 }
@@ -1466,7 +1485,9 @@ void process_file(IOUtil::FileReader* reader,
 
 
     if (g_inject_syscall_test == 2) {
-        unsigned int num_workers = std::max(NUM_THREADS - 1, 1U);
+        unsigned int num_workers = std::max(
+            NUM_THREADS - 1,
+            1U);
         GenericWorker* generic_workers = get_worker_threads(num_workers);
         if (g_inject_syscall_test == 2) {
             for (size_t i = 0; i < num_workers; ++i) {
@@ -1571,7 +1592,19 @@ void process_file(IOUtil::FileReader* reader,
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (NUM_THREADS > 1 && g_threaded && (action == socketserve || action == forkserve)) {
-            g_decoder->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
+            g_decoder->registerWorkers(get_worker_threads(
+#ifdef UNIFIED_THREAD_MODEL
+                                           NUM_THREADS
+#else
+                                           NUM_THREADS - 1
+#endif
+                                           ),
+#ifdef UNIFIED_THREAD_MODEL
+                                       NUM_THREADS
+#else
+                                       NUM_THREADS - 1
+#endif
+                );
         }
     }else if (filetype == UJG) {
         (void)read_fixed_ujpg_header();

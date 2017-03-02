@@ -108,9 +108,9 @@ public:
             return {retval->data(), retval->data() + retval->size()};
         }
         while(!isEof) {
-            //x/ fprintf(stderr, "%d scheduling receiving data\n", stream_id);
+            fprintf(stderr, "%d scheduling receiving data\n", stream_id);
             auto dat = worker->batch_recv_data();
-            //x/ fprintf(stderr, "(%d) Got data %d, %x\n", stream_id, dat.count, dat.return_code);
+            fprintf(stderr, "(%d) Got data %d, %x\n", stream_id, dat.count, dat.return_code);
             for (unsigned int i = 0; i < dat.count; ++i) {
                 ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.data[i];
                 if (dat.count == 1 && lnode->stream_id == stream_id && lnode && lnode->size()) {
@@ -191,6 +191,11 @@ public:
 };
 
 void VP8ComponentDecoder::initialize_bool_decoder(int thread_id, int target_thread_state) {
+#ifdef UNIFIED_THREAD_MODEL
+    thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
+                                                                                        getWorker(target_thread_state),
+                                                                                        &send_to_actual_thread_state));
+#else    
     // must be called after initialize_thread_id
     if (target_thread_state == 0) {
         thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
@@ -199,7 +204,7 @@ void VP8ComponentDecoder::initialize_bool_decoder(int thread_id, int target_thre
                                                                                             getWorker(target_thread_state - 1),
                                                                                             &send_to_actual_thread_state));
     }
-
+#endif
 }
 
     template <bool force_memory_optimized>
@@ -270,15 +275,24 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
     always_assert(data);
     always_assert(data->stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
                   "INVALID SEND STREAM ID");
+#ifdef UNIFIED_THREAD_MODEL
+    if (!g_threaded || NUM_THREADS == 1) {
+        vbuffers[data->stream_id].push(data);
+        return;
+    }
+    int retval = all_workers[thread_target[data->stream_id]].send_more_data(data);
+    always_assert(retval == 0 && "Communication with thread lost");
+#else
     if (thread_target[data->stream_id] == 0) {
         vbuffers[data->stream_id].push(data);
     }else {
-        //x/fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p\n",
-        //x/        (int)data->stream_id, (int)data->size(),
-        //x/        (void*)data);
+        fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p\n",
+                (int)data->stream_id, (int)data->size(),
+                (void*)data);
         int retval = all_workers[thread_target[data->stream_id] - 1].send_more_data(data);
         always_assert(retval == 0 && "Communication with thread lost");
     }
+#endif
 }
 void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader, uint8_t stream_id) {
     while (!reader.eof) {
@@ -445,10 +459,10 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
 
 
         for (size_t i = 0;i < num_threads_needed; ++i) {
-            if (i != 0) { //FIXME: this is not thread safe
+            //if (i != 0) { //FIXME: this is not thread safe
                 // do it at init time
                 map_logical_thread_to_physical_thread(i, i);
-            }
+                //}
             initialize_thread_id(i, i, framebuffer);
             if (!do_threading_) {
                 break;
@@ -466,38 +480,65 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             return CODING_ERROR;
         }
         if (do_threading_) {
-            for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-                spin_workers_[thread_id - 1].work
+            for (unsigned int thread_id =
+#ifdef UNIFIED_THREAD_MODEL
+                     0
+#else
+                     1
+#endif
+                     ; thread_id < NUM_THREADS; ++thread_id) {
+                unsigned int cur_spin_worker = thread_id;
+#ifndef UNIFIED_THREAD_MODEL
+                cur_spin_worker = thread_id - 1;
+#endif
+                spin_workers_[cur_spin_worker].work
                     = std::bind(worker_thread,
                                 thread_state_[thread_id],
                                 thread_id,
                                 colldata,
                                 mux_splicer.thread_target,
-                                getWorker(thread_id - 1),
+                                getWorker(cur_spin_worker),
                                 &send_to_actual_thread_state);
-                spin_workers_[thread_id - 1].activate_work();
+                spin_workers_[cur_spin_worker].activate_work();
             }
         }
+#ifndef UNIFIED_THREAD_MODEL
         thread_state_[0]->bool_decoder_.init(new VirtualThreadPacketReader(0, &mux_reader_, &mux_splicer));
+#endif
+                                                                                                             
     }
+#ifndef UNIFIED_THREAD_MODEL
     TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
     if (ret == CODING_PARTIAL) {
         return ret;
     }
     TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+#endif
     if (do_threading_) {
         
-        mux_splicer.drain(mux_reader_, 0);
-        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+        mux_splicer.drain(mux_reader_);
+        for (unsigned int thread_id =
+#ifdef UNIFIED_THREAD_MODEL
+                 0
+#else
+                 1
+#endif
+                 ; thread_id < NUM_THREADS; ++thread_id) {
+            unsigned int cur_spin_worker = thread_id;
+#ifndef UNIFIED_THREAD_MODEL
+            cur_spin_worker = thread_id - 1;
+#endif
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
-            spin_workers_[thread_id - 1].main_wait_for_done();
+            spin_workers_[cur_spin_worker].main_wait_for_done();
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
         }
         // join on all threads
     } else {
         // wait for "threads"
+#ifndef UNIFIED_THREAD_MODEL
         virtual_thread_id_ += 1;
+#endif
         for (unsigned int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
             BlockBasedImagePerChannel<false> framebuffer;
             framebuffer.memset(0);
@@ -508,6 +549,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             initialize_thread_id(thread_id, 0, framebuffer);
             thread_state_[0]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
             TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
+            CodingReturnValue ret;
             if ((ret = thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
                 return ret;
             }

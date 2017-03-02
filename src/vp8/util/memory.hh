@@ -40,6 +40,8 @@ extern bool g_use_seccomp;
 #define MAKE_EXIT_CODE_ENUM(ITEM, VALUE) ITEM=VALUE,
 #define GENERATE_EXIT_CODE_RETURN(ITEM, VALUE) {if ((ec) == ExitCode::ITEM) { return #ITEM;}}
 
+#define UNIFIED_THREAD_MODEL
+
 #if __cplusplus <= 199711L && !defined(_WIN32)
 namespace ExitCode { enum ExitCode_ {
 #else

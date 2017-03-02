@@ -141,8 +141,8 @@ protected:
         TimingHarness::timing[thread_id][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     }
     void registerWorkers(GenericWorker* workers, unsigned int num_workers) {
-        always_assert(num_workers < MAX_NUM_THREADS);
-        always_assert(num_workers  + 1 == NUM_THREADS);
+        //always_assert(num_workers < MAX_NUM_THREADS);
+        //always_assert(num_workers  + 1 == NUM_THREADS);
         num_registered_workers_ = num_workers;
         spin_workers_ = workers;
         for (unsigned int i = 0; i < num_workers + 1 ; ++i) {

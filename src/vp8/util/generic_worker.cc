@@ -149,7 +149,7 @@ GenericWorker::DataBatch GenericWorker::batch_recv_data() {
     uint8_t *ptr = (uint8_t*)&retval.data[0];
     size_t size = sizeof(retval.data[0]) * retval.data.size();
     size_t amt_read = 0;
-    //x/fprintf(stderr, "Start read %ld\n", size);
+    fprintf(stderr, "Start read %ld\n", size);
     do {
         ssize_t ret = read(new_work_pipe[0], ptr, size);
         if (ret < 0) {
@@ -165,7 +165,7 @@ GenericWorker::DataBatch GenericWorker::batch_recv_data() {
         amt_read += ret;
         retval.count = amt_read / sizeof(retval.data[0]);
     }while(amt_read % sizeof(retval.data[0]));
-    //x/fprintf(stderr, "End read %ld : %d\n", amt_read, retval.count);
+    fprintf(stderr, "End read %ld : %d\n", amt_read, retval.count);
     auto val = new_work_exists_.load(); // lets allow our thread to see what retval.first points to
     always_assert(val != 0);
     return retval;
