@@ -41,11 +41,7 @@ VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
       mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                   8,
                   0) {
-    if (do_threading) {
-        virtual_thread_id_ = -1; // only using real threads here
-    } else {
-        virtual_thread_id_ = 0;
-    }
+    virtual_thread_id_ = -1;
 }
 
 VP8ComponentDecoder::~VP8ComponentDecoder() {
@@ -507,14 +503,17 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
 #endif
                                                                                                              
     }
-#ifndef UNIFIED_THREAD_MODEL
-    TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
-    CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
-    if (ret == CODING_PARTIAL) {
-        return ret;
-    }
-    TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+#ifdef UNIFIED_THREAD_MODEL
+    if (virtual_thread_id_ != -1 && !do_threading_)
 #endif
+    {
+        TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
+        CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
+        if (ret == CODING_PARTIAL) {
+            return ret;
+        }
+        TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+    }
     if (do_threading_) {
         
         mux_splicer.drain(mux_reader_);
@@ -536,9 +535,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         // join on all threads
     } else {
         // wait for "threads"
-#ifndef UNIFIED_THREAD_MODEL
-        virtual_thread_id_ += 1;
-#endif
+        virtual_thread_id_ += 1; // first time's a charm
         for (unsigned int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
             BlockBasedImagePerChannel<false> framebuffer;
             framebuffer.memset(0);

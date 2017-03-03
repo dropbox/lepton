@@ -406,10 +406,10 @@ int cs_to        =   0  ; // end - band of current scan ( inclusive )
 int cs_sah       =   0  ; // successive approximation bit pos high
 int cs_sal       =   0  ; // successive approximation bit pos low
 void kill_workers(void * workers, uint64_t num_workers);
-
+BaseDecoder* g_decoder = NULL;
 GenericWorker * get_worker_threads(unsigned int num_workers) {
 #ifdef UNIFIED_THREAD_MODEL
-    always_assert(num_workers == NUM_THREADS);
+    // in this case decoding is asymmetric to encoding, just forget the assert
     if (NUM_THREADS < 2) {
         return NULL;
     }
@@ -468,7 +468,7 @@ F_TYPE filetype;            // type of current file
 F_TYPE ofiletype = LEPTON;            // desired type of output file
 bool g_do_preload = false;
 std::unique_ptr<BaseEncoder> g_encoder;
-BaseDecoder* g_decoder = NULL;
+
 std::unique_ptr<BaseDecoder> g_reference_to_free;
 ServiceInfo g_socketserve_info;
 bool g_threaded = true;
