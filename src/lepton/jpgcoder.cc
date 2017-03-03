@@ -873,7 +873,10 @@ int main( int argc, char** argv )
         UncompressedComponents::max_number_of_blocks = mem_limit - 36 * 1024 * 1024;
     }
     UncompressedComponents::max_number_of_blocks /= (sizeof(uint16_t) * 64);
-    int n_threads = MAX_NUM_THREADS - 1;
+    int n_threads = MAX_NUM_THREADS;
+#ifndef UNIFIED_THREAD_MODEL
+    n_threads -=1;
+#endif
 #ifndef __linux
     n_threads += 4;
 #endif
