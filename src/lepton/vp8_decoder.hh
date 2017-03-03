@@ -68,7 +68,6 @@ public:
         
         GenericWorker *all_workers;
         bool eof;
-        bool first;
         void set_eof();
     public:
         int8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread

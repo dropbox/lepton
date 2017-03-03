@@ -270,7 +270,6 @@ void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
 }
 VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
     eof = false;
-    first = true;
     for (int i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
         thread_target[i] = -1;
     }
@@ -359,7 +358,6 @@ ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Siri
         always_assert(false);
         return NULL;
     }
-    bool found_other = false;
     while (!eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
@@ -368,16 +366,9 @@ ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Siri
             break;
         }
         data->stream_id = ret.first;
-        bool buffer_it = ret.first != stream_id || first;
+        bool buffer_it = ret.first != stream_id;
         if (buffer_it) {
             send(data);
-            if (ret.first != stream_id) {
-                found_other = true;
-            }
-            if (first && vbuffers[stream_id].size_gt_1() && found_other) {
-                first = false;
-                break;
-            }
         } else {
             return data;
         }
@@ -395,7 +386,6 @@ ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Siri
 }
 void VP8ComponentDecoder::SendToVirtualThread::read_all(Sirikata::MuxReader&reader) {
     using namespace Sirikata;
-    first = false;
     while (!eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);

@@ -585,9 +585,6 @@ void recode_physical_thread(BoundedWriter *stream_out,
     size_t original_bound = stream_out->get_bound();
     bool changed_bounds = false;
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
-            g_decoder->map_logical_thread_to_physical_thread(logical_thread_id, physical_thread_id);
-    }
-    for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
         TimingHarness::timing[logical_thread_id % MAX_NUM_THREADS][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
         if (thread_handoffs[logical_thread_id].is_legacy_mode()) {
             if (logical_thread_id == logical_thread_start) {
@@ -751,6 +748,14 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         huffws[i] = new abitwriter(65536, max_file_size);
     }
 
+    for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        int logical_thread_start, logical_thread_end;
+        std::tie(logical_thread_start, logical_thread_end)
+            = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
+        for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
+            g_decoder->map_logical_thread_to_physical_thread(logical_thread_id, physical_thread_id);
+        }
+    }
     unsigned int start_tid = 0;
 #ifdef UNIFIED_THREAD_MODEL
     if (NUM_THREADS == 1 || !g_threaded) {
