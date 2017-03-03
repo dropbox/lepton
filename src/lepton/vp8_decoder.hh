@@ -78,7 +78,7 @@ public:
             thread_target[virtual_thread_id] = physical_thread_id;
         }
         void send(ResizableByteBufferListNode *data);
-        void drain(Sirikata::MuxReader&reader, uint8_t stream_id=MAX_NUM_THREADS);
+        void drain(Sirikata::MuxReader&reader);
 
         ResizableByteBufferListNode* read(Sirikata::MuxReader&reader, uint8_t stream_id);
         void read_all(Sirikata::MuxReader&reader);

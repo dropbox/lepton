@@ -116,7 +116,7 @@ public:
                     last = lnode;
                     return {lnode->data(), lnode->data() + lnode->size()};
                 } else {
-                    base->vbuffers[stream_id].push(lnode);
+                    base->vbuffers[lnode->stream_id].push(lnode);
                 }
             }
             if (!base->vbuffers[stream_id].empty()) {
@@ -324,7 +324,7 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
     }
 #endif
 }
-void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader, uint8_t stream_id) {
+void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader) {
     while (!reader.eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
@@ -333,12 +333,8 @@ void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader,
             break;
         }
         data->stream_id = ret.first;
-        if (data->stream_id != stream_id) {
-            always_assert(data->size()); // the protocol can't store empty runs
-            send(data);
-        }else {
-            delete data;
-        }
+        always_assert(data->size()); // the protocol can't store empty runs
+        send(data);
     }
 }
 ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
