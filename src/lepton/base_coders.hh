@@ -43,6 +43,8 @@ class BaseDecoder {
                             int curr_y) = 0;
     virtual size_t get_model_memory_usage() const = 0;
     virtual size_t get_model_worker_memory_usage() const = 0;
+    virtual void flush() = 0;
+    virtual void map_logical_thread_to_physical_thread(int thread_id, int target_thread_state) = 0;
     virtual void clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) = 0;
 };
 

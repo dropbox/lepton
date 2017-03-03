@@ -145,6 +145,7 @@ protected:
         //always_assert(num_workers  + 1 == NUM_THREADS);
         num_registered_workers_ = num_workers;
         spin_workers_ = workers;
+#ifndef UNIFIED_THREAD_MODEL
         for (unsigned int i = 0; i < num_workers + 1 ; ++i) {
             if (!thread_state_[i]) {
                 //thread_state_[i] = new ThreadState;
@@ -152,6 +153,7 @@ protected:
                 //thread_state_[i]->model_.load_probability_tables();
             }
         }
+#endif
     }
     size_t model_worker_memory_used() const {
         size_t retval = 0;

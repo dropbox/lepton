@@ -69,6 +69,8 @@ VP8ComponentDecoder::~VP8ComponentDecoder() {
 #endif
 
 void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
+    map_logical_thread_to_physical_thread(thread_id, target_thread_state);
+
     initialize_thread_id(thread_id, target_thread_state, framebuffer);
     initialize_bool_decoder(thread_id, target_thread_state);
     /*redundant
@@ -188,9 +190,13 @@ public:
 
 void VP8ComponentDecoder::initialize_bool_decoder(int thread_id, int target_thread_state) {
 #ifdef UNIFIED_THREAD_MODEL
-    thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
-                                                                                        getWorker(target_thread_state),
-                                                                                        &send_to_actual_thread_state));
+    if (NUM_THREADS > 1 && g_threaded) {
+        thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
+                                                                                            getWorker(target_thread_state),
+                                                                                            &send_to_actual_thread_state));
+    } else {
+        thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+    }
 #else    
     // must be called after initialize_thread_id
     if (target_thread_state == 0) {
@@ -462,7 +468,9 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
     }
     return thread_handoff_;
 }
-
+void VP8ComponentDecoder::flush() {
+        mux_splicer.drain(mux_reader_);
+}
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     /* cmpc is a global variable with the component count */
@@ -544,8 +552,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
     }
     if (do_threading_) {
-        
-        mux_splicer.drain(mux_reader_);
+        flush();
         for (unsigned int thread_id =
 #ifdef UNIFIED_THREAD_MODEL
                  0

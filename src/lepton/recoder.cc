@@ -585,6 +585,9 @@ void recode_physical_thread(BoundedWriter *stream_out,
     size_t original_bound = stream_out->get_bound();
     bool changed_bounds = false;
     for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
+            g_decoder->map_logical_thread_to_physical_thread(logical_thread_id, physical_thread_id);
+    }
+    for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
         TimingHarness::timing[logical_thread_id % MAX_NUM_THREADS][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
         if (thread_handoffs[logical_thread_id].is_legacy_mode()) {
             if (logical_thread_id == logical_thread_start) {
@@ -619,6 +622,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
             }
         }
         //if (logical_thread_id != physical_thread_id) {
+
         g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
         //}
         ThreadHandoff outth = recode_row_range(stream_out,
@@ -648,6 +652,25 @@ void recode_physical_thread(BoundedWriter *stream_out,
     }
 }
 void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,
+                            BlockBasedImagePerChannel<true> &framebuffer,
+                            int mcuv,
+                            const std::vector<ThreadHandoff> &thread_handoffs,
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
+                            int physical_thread_id,
+                            abitwriter * huffw) {
+    recode_physical_thread(stream_out,
+                           framebuffer,
+                           mcuv,
+                           thread_handoffs,
+                           max_coded_heights,
+                           component_size_in_blocks,
+                           physical_thread_id,
+                           huffw);
+}
+void recode_physical_first_thread_wrapper(bounded_iostream*stream_out,
                             BlockBasedImagePerChannel<true> &framebuffer,
                             int mcuv,
                             const std::vector<ThreadHandoff> &thread_handoffs,
@@ -728,9 +751,20 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         huffws[i] = new abitwriter(65536, max_file_size);
     }
 
+    unsigned int start_tid = 0;
+#ifdef UNIFIED_THREAD_MODEL
+    if (NUM_THREADS == 1 || !g_threaded) {
+        start_tid = 1;
+    }
+#endif
     if (g_threaded) {
-        for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        for (unsigned int physical_thread_id = start_tid; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
             int work_size = 0;
+            unsigned int physical_thread_offset = physical_thread_id;
+#ifndef UNIFIED_THREAD_MODEL
+            always_assert(physical_thread_offset > 0 && "Old way: offset thread id by 1");
+            physical_thread_offset -= 1;
+#endif
             int logical_thread_start, logical_thread_end;
             std::tie(logical_thread_start, logical_thread_end)
                 = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
@@ -741,22 +775,41 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if (!work_size) {
                 work_size = max_file_size;
             }
-            local_buffers[physical_thread_id - 1].set_bound(work_size);
-            auto work_fn = std::bind(&recode_physical_thread_wrapper,
-                                  &local_buffers[physical_thread_id - 1],
-                                  framebuffer[physical_thread_id],
-                                  mcu_count_vertical,
-                                  luma_bounds,
-                                  max_coded_heights,
-                                  component_size_in_blocks,
-                                  physical_thread_id,
-                                  huffws[physical_thread_id]);
-            g_decoder->getWorker(physical_thread_id - 1)->work
-                = work_fn;
-            g_decoder->getWorker(physical_thread_id - 1)->activate_work();
+            if (physical_thread_id != 0) {
+                local_buffers[physical_thread_offset - 1].set_bound(work_size);
+                auto work_fn = std::bind(&recode_physical_thread_wrapper,
+                                         &local_buffers[physical_thread_id - 1],
+                                         framebuffer[physical_thread_id],
+                                         mcu_count_vertical,
+                                         luma_bounds,
+                                         max_coded_heights,
+                                         component_size_in_blocks,
+                                         physical_thread_id,
+                                         huffws[physical_thread_id]);
+                g_decoder->getWorker(physical_thread_offset)->work = work_fn;
+            } else {
+#ifndef UNIFIED_THREAD_MODEL
+                always_assert(false && "FIRST THREAD STARTED DIFFERENTLY");
+#endif
+                auto work_fn = std::bind(&recode_physical_first_thread_wrapper,
+                                         str_out,
+                                         framebuffer[physical_thread_id],
+                                         mcu_count_vertical,
+                                         luma_bounds,
+                                         max_coded_heights,
+                                         component_size_in_blocks,
+                                         physical_thread_id,
+                                         huffws[physical_thread_id]);
+                g_decoder->getWorker(physical_thread_offset)->work = work_fn;
+            }
+            g_decoder->getWorker(physical_thread_offset)->activate_work();
                     
         }
     }
+#ifdef UNIFIED_THREAD_MODEL
+    if (NUM_THREADS == 1 || !g_threaded)
+#endif
+    {
     recode_physical_thread(str_out,
                            framebuffer[0],
                            mcu_count_vertical,
@@ -765,18 +818,31 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                            component_size_in_blocks,
                            0,
                            huffws[0]);
+#ifdef UNIFIED_THREAD_MODEL
+        assert(start_tid == 1);
+    } else {
+        g_decoder->flush();
+#endif
+    }
     TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-    for (unsigned int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+    for (unsigned int physical_thread_id = start_tid;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+            unsigned int physical_thread_offset = physical_thread_id;
+#ifndef UNIFIED_THREAD_MODEL
+            always_assert(physical_thread_offset > 0 && "Old way: offset thread id by 1");
+            physical_thread_offset -= 1;
+#endif
         TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
 
-        g_decoder->getWorker(physical_thread_id - 1)->main_wait_for_done();
+        g_decoder->getWorker(physical_thread_offset)->main_wait_for_done();
         TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] =
             TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-        size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
-        if (bytes_to_copy) {
-            local_bound -= bytes_to_copy;
-            str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
-                           bytes_to_copy);
+        if (physical_thread_id > 0) { // the first guy goes right to stdout
+            size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
+            if (bytes_to_copy) {
+                local_bound -= bytes_to_copy;
+                str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
+                               bytes_to_copy);
+            }
         }
         TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
 
