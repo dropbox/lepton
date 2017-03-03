@@ -1587,6 +1587,9 @@ void process_file(IOUtil::FileReader* reader,
         }
     } else if (filetype == LEPTON) {
         NUM_THREADS = read_fixed_ujpg_header();
+        if (NUM_THREADS == 1) {
+            g_threaded = false; // with singlethreaded, doesn't make sense to split out reader/writer
+        }
         if (!g_decoder) {
             g_decoder = makeDecoder(g_threaded, g_threaded);
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();

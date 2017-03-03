@@ -104,9 +104,9 @@ public:
             return {retval->data(), retval->data() + retval->size()};
         }
         while(!isEof) {
-            fprintf(stderr, "%d scheduling receiving data\n", stream_id);
+            //fprintf(stderr, "%d scheduling receiving data\n", stream_id);
             auto dat = worker->batch_recv_data();
-            fprintf(stderr, "(%d) Got data %d, %x\n", stream_id, dat.count, dat.return_code);
+            //fprintf(stderr, "(%d) Got data %d, %x\n", stream_id, dat.count, dat.return_code);
             for (unsigned int i = 0; i < dat.count; ++i) {
                 ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.data[i];
                 if (dat.count == 1 && lnode->stream_id == stream_id && lnode && lnode->size()) {
@@ -139,13 +139,13 @@ public:
     virtual ~ActualThreadPacketReader(){}
 };
 void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata,
-                                        uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
+                                        int8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
                                         GenericWorker *worker,
                                         SendToActualThread *send_to_actual_thread_state) {
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
     for (uint8_t i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
-        if (thread_target[i] == thread_id) {
-            ts->bool_decoder_.init(new ActualThreadPacketReader(i, worker, send_to_actual_thread_state));
+        if (thread_target[i] == int8_t(thread_id)) {
+            ts->bool_decoder_.init(new ActualThreadPacketReader(i,worker, send_to_actual_thread_state));
         }
     }
     while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
@@ -249,10 +249,15 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
 void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
     using namespace Sirikata;
     if (!eof) {
-        for (int i = 0; i < MuxReader::MAX_STREAM_ID; ++i) {
-            auto eof = new ResizableByteBufferListNode;
-            eof->stream_id = i;
-            send(eof); // sends an EOF flag (empty buffer)
+        for (unsigned int thread_id = 0; thread_id < Sirikata::MuxReader::MAX_STREAM_ID; ++thread_id) {
+            for (int i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
+                if (thread_target[i] == int8_t(thread_id)) {
+                    
+                    auto eof = new ResizableByteBufferListNode;
+                    eof->stream_id = i;
+                    send(eof); // sends an EOF flag (empty buffer)
+                }
+            }
         }
     }
     eof = true;
@@ -260,7 +265,9 @@ void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
 VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
     eof = false;
     first = true;
-    memset(thread_target, 0, sizeof(thread_target));
+    for (int i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
+        thread_target[i] = -1;
+    }
     this->all_workers = NULL;
 }
 
@@ -273,20 +280,42 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
                   "INVALID SEND STREAM ID");
 #ifdef UNIFIED_THREAD_MODEL
     if (!g_threaded || NUM_THREADS == 1) {
+        /*
+    fprintf(stderr, "VSending (%d) %d bytes of data : ptr %p\n",
+            (int)data->stream_id, (int)data->size(),
+            (void*)data);*/
         vbuffers[data->stream_id].push(data);
         return;
     }
-    int retval = all_workers[thread_target[data->stream_id]].send_more_data(data);
-    always_assert(retval == 0 && "Communication with thread lost");
+    auto thread_target_id = thread_target[data->stream_id];
+    /*
+    fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p to %d\n",
+            (int)data->stream_id, (int)data->size(),
+            (void*)data, thread_target_id);
+    */
+    if (thread_target_id >= 0) {
+        int retval = all_workers[thread_target_id].send_more_data(data);
+        always_assert(retval == 0 && "Communication with thread lost");
+    }else {
+        always_assert(false && "Cannot send to thread that wasn't bound");
+    }
+
 #else
     if (thread_target[data->stream_id] == 0) {
         vbuffers[data->stream_id].push(data);
     }else {
+        /*
         fprintf(stderr, "Sending (%d) %d bytes of data : ptr %p\n",
                 (int)data->stream_id, (int)data->size(),
                 (void*)data);
-        int retval = all_workers[thread_target[data->stream_id] - 1].send_more_data(data);
-        always_assert(retval == 0 && "Communication with thread lost");
+        */
+        auto thread_target_id = thread_target[data->stream_id] - 1;
+        if (thread_target_id >= 0) {
+            int retval = all_workers[thread_target_id].send_more_data(data);
+            always_assert(retval == 0 && "Communication with thread lost");
+        }else {
+            always_assert(false && "Cannot send to thread that wasn't bound");
+        }
     }
 #endif
 }
@@ -298,7 +327,8 @@ void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader,
             set_eof();
             break;
         }
-        if (ret.first != stream_id) {
+        data->stream_id = ret.first;
+        if (data->stream_id != stream_id) {
             always_assert(data->size()); // the protocol can't store empty runs
             send(data);
         }else {
@@ -327,25 +357,22 @@ ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Siri
     while (!eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
+        if (ret.second != JpegError::nil()) {
+            set_eof();
+            break;
+        }
         data->stream_id = ret.first;
         bool buffer_it = ret.first != stream_id || first;
         if (buffer_it) {
+            send(data);
             if (ret.first != stream_id) {
                 found_other = true;
-            }
-            always_assert(data->size()); // the protocol can't store empty runs
-            send(data);
-            if (ret.second != JpegError::nil()) {
-                set_eof();
             }
             if (first && vbuffers[stream_id].size_gt_1() && found_other) {
                 first = false;
                 break;
             }
-        }else {
-            if (ret.second != JpegError::nil()) {
-                set_eof();
-            }
+        } else {
             return data;
         }
     }
@@ -366,12 +393,13 @@ void VP8ComponentDecoder::SendToVirtualThread::read_all(Sirikata::MuxReader&read
     while (!eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
+        if (ret.second != JpegError::nil()) {
+            set_eof();
+            break;
+        }
         data->stream_id = ret.first;
         always_assert(data->size());
         send(data);
-        if (ret.second != JpegError::nil()) {
-            set_eof();
-        }
     }
 }
 
@@ -416,8 +444,10 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
         for (int i = 0; i + 1 < mark; ++i) {
             thread_handoff_[i].luma_y_end = htole16(luma_splits_tmp[i]);
             if (thread_handoff_[i].luma_y_end % sfv_lcm) {
+                /*
                 fprintf(stderr, "File Split %d = %d (remainder %d)\n",
                         i, thread_handoff_[i].luma_y_end, sfv_lcm);
+                */
                 custom_exit(ExitCode::THREADING_PARTIAL_MCU);
             }
         }
@@ -455,10 +485,9 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
 
 
         for (size_t i = 0;i < num_threads_needed; ++i) {
-            //if (i != 0) { //FIXME: this is not thread safe
-                // do it at init time
-                map_logical_thread_to_physical_thread(i, i);
-                //}
+            map_logical_thread_to_physical_thread(i, i);
+        }
+        for (size_t i = 0;i < num_threads_needed; ++i) {
             initialize_thread_id(i, i, framebuffer);
             if (!do_threading_) {
                 break;

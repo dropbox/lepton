@@ -71,11 +71,11 @@ public:
         bool first;
         void set_eof();
     public:
-        uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
+        int8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID]; // 0 is the current thread
         SendToVirtualThread();
         void init(GenericWorker *generic_workers);
         
-        void bind_thread(uint8_t virtual_thread_id, uint8_t physical_thread_id) {
+        void bind_thread(uint8_t virtual_thread_id, int8_t physical_thread_id) {
             thread_target[virtual_thread_id] = physical_thread_id;
         }
         void send(ResizableByteBufferListNode *data);
@@ -107,7 +107,7 @@ private:
     VP8ComponentDecoder(const VP8ComponentDecoder&) = delete;
     VP8ComponentDecoder& operator=(const VP8ComponentDecoder&) = delete;
     static void worker_thread(ThreadState *, int thread_id, UncompressedComponents * const colldata,
-                              uint8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
+                              int8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
                               GenericWorker*worker,
                               SendToActualThread*data_receiver);
     template <bool force_memory_optimized>
