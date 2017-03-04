@@ -572,11 +572,7 @@ void timing_operation_first_byte( char operation ) {
     if (current_operation_first_byte.tv_sec == 0 &&
         current_operation_first_byte.tv_usec == 0) {
         gettimeofday(&current_operation_first_byte, NULL);
-        fprintf(stderr,"FIRST BYTE ACHIEVED %ld %ld\n",
-                (long)current_operation_first_byte.tv_sec,
-                (long)current_operation_first_byte.tv_usec );
     }
-
 #endif
 #endif
 }
@@ -3865,7 +3861,6 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
 /* -----------------------------------------------
     read uncompressed JPEG file
     ----------------------------------------------- */
-namespace {
 void mem_nop (void *opaque, void *ptr){
 
 }
@@ -3874,7 +3869,6 @@ void * mem_init_nop(size_t prealloc_size, uint8_t align){
 }
 void* mem_realloc_nop(void * ptr, size_t size, size_t *actualSize, unsigned int movable, void *opaque){
     return NULL;
-}
 }
 bool read_ujpg( void )
 {

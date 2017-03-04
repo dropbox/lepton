@@ -106,9 +106,7 @@ public:
             return {retval->data(), retval->data() + retval->size()};
         }
         while(!isEof) {
-            //fprintf(stderr, "%d scheduling receiving data\n", stream_id);
             auto dat = worker->batch_recv_data();
-            //fprintf(stderr, "(%d) Got data %d, %x\n", stream_id, dat.count, dat.return_code);
             for (unsigned int i = 0; i < dat.count; ++i) {
                 ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.data[i];
                 if (dat.count == 1 && lnode->stream_id == stream_id && lnode && lnode->size()) {
@@ -405,10 +403,6 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
         for (int i = 0; i + 1 < mark; ++i) {
             thread_handoff_[i].luma_y_end = htole16(luma_splits_tmp[i]);
             if (thread_handoff_[i].luma_y_end % sfv_lcm) {
-                /*
-                fprintf(stderr, "File Split %d = %d (remainder %d)\n",
-                        i, thread_handoff_[i].luma_y_end, sfv_lcm);
-                */
                 custom_exit(ExitCode::THREADING_PARTIAL_MCU);
             }
         }
@@ -456,42 +450,23 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
                 break;
             }
         }
-        /*
-        for (size_t i = 0;i < num_threads_needed; ++i) {
-            initialize_bool_decoder(i, i);
-            if (!do_threading_) {
-                break;
-            }
-        }
-        */
         if (num_threads_needed > NUM_THREADS || num_threads_needed == 0) {
             return CODING_ERROR;
         }
-        if (do_threading_) {
-            for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-                unsigned int cur_spin_worker = thread_id;
-                spin_workers_[cur_spin_worker].work
-                    = std::bind(worker_thread,
-                                thread_state_[thread_id],
-                                thread_id,
-                                colldata,
-                                mux_splicer.thread_target,
-                                getWorker(cur_spin_worker),
-                                &send_to_actual_thread_state);
-                spin_workers_[cur_spin_worker].activate_work();
-            }
-        }
-                                                                                                             
-    }
-    if (virtual_thread_id_ != -1 && !do_threading_) {
-        TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
-        CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
-        if (ret == CODING_PARTIAL) {
-            return ret;
-        }
-        TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
     }
     if (do_threading_) {
+        for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+            unsigned int cur_spin_worker = thread_id;
+            spin_workers_[cur_spin_worker].work
+                = std::bind(worker_thread,
+                            thread_state_[thread_id],
+                            thread_id,
+                            colldata,
+                            mux_splicer.thread_target,
+                            getWorker(cur_spin_worker),
+                            &send_to_actual_thread_state);
+            spin_workers_[cur_spin_worker].activate_work();
+        }
         flush();
         for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             unsigned int cur_spin_worker = thread_id;
@@ -501,6 +476,14 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         // join on all threads
     } else {
+        if (virtual_thread_id_ != -1) {
+            TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
+            CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
+            if (ret == CODING_PARTIAL) {
+                return ret;
+            }
+            TimingHarness::timing[0][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+        }
         // wait for "threads"
         virtual_thread_id_ += 1; // first time's a charm
         for (unsigned int thread_id = virtual_thread_id_; thread_id < NUM_THREADS; ++thread_id, ++virtual_thread_id_) {
