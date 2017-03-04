@@ -835,12 +835,12 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
         }
     }
-
+    always_assert_flush();
     /* step 3: blit any trailing data */
     if (!str_out->has_reached_bound() ) {
         str_out->write( hdrdata + byte_position, hdrs - byte_position );
     }
-
+    always_assert_flush();
     check_decompression_memory_bound_ok();
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)
@@ -853,7 +853,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if ( grbs > 0 )
         str_out->write( grbgdata, grbs );
     check_decompression_memory_bound_ok();
+    always_assert_flush();
     str_out->flush();
+    always_assert_flush();
     TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
 
     // errormessage if write error

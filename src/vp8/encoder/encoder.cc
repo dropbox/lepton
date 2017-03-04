@@ -399,6 +399,7 @@ void serialize_tokens(ConstBlockContext context,
             k_debug_block[(int)color] += debug_width * 7;
         }
     }
+    always_assert_flush();
 }
 #ifdef ALLOW_FOUR_COLORS
 template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);

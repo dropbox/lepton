@@ -21,6 +21,7 @@
 #else
 #define THREAD_LOCAL_STORAGE thread_local
 #endif
+std::atomic<AssertExceptionType> something_bad_happened(AssertExceptionType::NOTHING);
 unsigned int NUM_THREADS = MAX_NUM_THREADS;
 const char *ExitString(ExitCode ec) {
   FOREACH_EXIT_CODE(GENERATE_EXIT_CODE_RETURN)

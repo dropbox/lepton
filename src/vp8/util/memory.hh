@@ -86,7 +86,6 @@ inline void always_assert_outer(bool value, const char * expr, const char * file
         always_assert_exit(value, expr, file, line);
     }
 }
-
 void* custom_malloc (size_t size);
 void* custom_realloc (void * old, size_t size);
 void custom_free(void* ptr);
@@ -96,6 +95,25 @@ void set_close_thread_handle(int handle);
 void reset_close_thread_handle();
 #if defined(__cplusplus) || defined(c_plusplus)
 }
-
+#ifndef AVOID_ARRAY_BOUNDS_CHECKS
+#include <atomic>
+#define always_assert_consequence(value, quick_fix, exception_type) if (__builtin_expect(!(value), 0)) {quick_fix;something_bad_happened.store(exception_type, std::memory_order_relaxed);}
+enum class AssertExceptionType {
+    NOTHING,
+    ARRAY_BOUNDS = 1,
+};
+extern std::atomic<AssertExceptionType> something_bad_happened;
+inline void always_assert_flush() {
+    AssertExceptionType ex = something_bad_happened.load();
+    switch(ex){
+      case AssertExceptionType::NOTHING:
+        return;
+      case AssertExceptionType::ARRAY_BOUNDS:
+        always_assert(false && "Array out of bound access (deferred)");
+      default:
+        always_assert(false && "Unknown (deferred) assertion");
+    }
+}
+#endif
 #endif
 #endif

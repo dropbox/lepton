@@ -3461,7 +3461,9 @@ bool recode_jpeg( void )
     huffdata = huffw->getptr();
     hufs = huffw->getpos();
     always_assert(huffw->no_remainder() && "this should have been padded");
+    always_assert_flush();
     merge_jpeg_streaming(&streaming_progress, huffdata, hufs, true);
+    always_assert_flush();
     if (!fast_exit) {
         delete huffw;
 
@@ -3824,8 +3826,9 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     write_byte_bill(Billing::HEADER, true, 3);
     while (g_encoder->encode_chunk(&colldata, ujg_out,
                                    &selected_splits[0], selected_splits.size()) == CODING_PARTIAL) {
+        always_assert_flush();
     }
-    
+    always_assert_flush();
     // errormessage if write error
     if ( err != Sirikata::JpegError::nil() ) {
         fprintf( stderr, "write error, possibly drive is full" );

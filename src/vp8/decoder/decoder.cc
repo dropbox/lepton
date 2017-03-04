@@ -315,6 +315,7 @@ void parse_tokens(BlockContext context,
     context.num_nonzeros_here->set_vertical(outp_sans_dc.begin(),
                                             ProbabilityTablesBase::quantization_table((int)color),
                                             context.here().dc());
+    always_assert_flush();
 }
 #ifdef ALLOW_FOUR_COLORS
 template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
