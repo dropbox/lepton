@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <fcntl.h>
 #else
+#include <pthread.h>
 #include <unistd.h>
 #endif
 #include <errno.h>
@@ -22,7 +23,9 @@
 #include <signal.h>
 #include "generic_worker.hh"
 #include "../../io/Seccomp.hh"
-
+#ifdef _WIN32
+#define USE_STDCPP_THREADS
+#endif
 /**
  * A Crossplatform-ish pause function.
  * Since we can't rely on the _mm_pause instrinsic being available
@@ -40,7 +43,50 @@ void _cross_platform_pause() {
 #endif
 #endif
 }
+static void gen_nop(){}
+void kill_workers(void * workers, uint64_t num_workers) {
+    GenericWorker * generic_workers = (GenericWorker*)workers;
+    if (generic_workers) {
+        for (uint64_t i = 0; i < num_workers; ++i){
+            if (!generic_workers[i].has_ever_queued_work()){
+                generic_workers[i].work = &gen_nop;
+                generic_workers[i].activate_work();
+                generic_workers[i].main_wait_for_done();
+            }
+        }
+    }
+}
 
+GenericWorker * GenericWorker::get_n_worker_threads(unsigned int num_workers) {
+    GenericWorker *retval = new GenericWorker[num_workers];
+    for (unsigned int i = 0;i < num_workers; ++i) {
+        retval[i].wait_for_child_to_begin(); // setup security
+    }
+    custom_atexit(&kill_workers, retval, num_workers);
+    return retval;
+}
+namespace {
+void* sta_wait_for_work(void * gw) {
+    GenericWorker * thus = (GenericWorker*)gw;
+    thus->wait_for_work();
+    return NULL;
+}
+}
+GenericWorker::GenericWorker() : child_begun(false),
+                                new_work_exists_(0),
+                                work_done_(0),
+                                new_work_pipe(initiate_pipe()),
+                                work_done_pipe(initiate_pipe()) {
+#ifdef USE_STDCPP_THREADS
+    thread_impl.child_ = new std::thread(std::bind(&GenericWorker::wait_for_work,
+                                       this));
+#else
+    pthread_create(&thread_impl.pthread_child_,
+                   NULL,
+                   &sta_wait_for_work,
+                   this);
+#endif
+}
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
     work_done_++;
@@ -218,7 +264,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
     }
     work_done_.load();  // enforce memory ordering
 }
-void GenericWorker::_wait_for_child_to_begin() {
+void GenericWorker::wait_for_child_to_begin() {
     always_assert(!child_begun); // make sure this has work to do
     _generic_wait(0);
     --work_done_;
@@ -230,9 +276,15 @@ void GenericWorker::join_via_syscall() {
 #endif
     while (close(work_done_pipe.at(0)) && errno == EINTR) {
     }
-    child_.join();
+#ifdef USE_STDCPP_THREADS
+    thread_impl.child_->join();
+#else
+    void * retval = NULL;
+    pthread_join(thread_impl.pthread_child_, &retval);
+#endif
 }
 void GenericWorker::main_wait_for_done() {
+    always_assert(child_begun);
     always_assert(new_work_exists_.load()); // make sure this has work to do
     _generic_wait(1);
 }

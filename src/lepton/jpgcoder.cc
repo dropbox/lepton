@@ -412,9 +412,9 @@ GenericWorker * get_worker_threads(unsigned int num_workers) {
     if (NUM_THREADS < 2) {
         return NULL;
     }
-    GenericWorker *retval = new GenericWorker[num_workers];
+    GenericWorker* retval = GenericWorker::get_n_worker_threads(num_workers);
     TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
-    custom_atexit(&kill_workers, retval, num_workers);
+
     return retval;
 }
 
@@ -510,7 +510,7 @@ FILE*  msgout   = stderr;    // stream for output of messages
 bool   pipe_on  = false;    // use stdin/stdout instead of filelist
 
 
-void gen_nop(){}
+
 void sig_nop(int){}
 /* -----------------------------------------------
     global variables: info about program
@@ -1261,21 +1261,6 @@ void check_decompression_memory_bound_ok() {
     if (g_decompression_memory_bound) {
         if (decompression_memory_bound() > g_decompression_memory_bound) {
             custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
-        }
-    }
-}
-/* -----------------------------------------------
-    processes one file
-    ----------------------------------------------- */
-void kill_workers(void * workers, uint64_t num_workers) {
-    GenericWorker * generic_workers = (GenericWorker*)workers;
-    if (generic_workers) {
-        for (uint64_t i = 0; i < num_workers; ++i){
-            if (!generic_workers[i].has_ever_queued_work()){
-                generic_workers[i].work = &gen_nop;
-                generic_workers[i].activate_work();
-                generic_workers[i].main_wait_for_done();
-            }
         }
     }
 }
