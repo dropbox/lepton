@@ -408,17 +408,10 @@ int cs_sal       =   0  ; // successive approximation bit pos low
 void kill_workers(void * workers, uint64_t num_workers);
 BaseDecoder* g_decoder = NULL;
 GenericWorker * get_worker_threads(unsigned int num_workers) {
-#ifdef UNIFIED_THREAD_MODEL
     // in this case decoding is asymmetric to encoding, just forget the assert
     if (NUM_THREADS < 2) {
         return NULL;
     }
-#else
-    always_assert(num_workers + 1 == NUM_THREADS);
-    if (NUM_THREADS < 2) {
-        return NULL;
-    }
-#endif
     GenericWorker *retval = new GenericWorker[num_workers];
     TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
     custom_atexit(&kill_workers, retval, num_workers);
@@ -430,17 +423,9 @@ VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
         retval->registerWorkers(get_worker_threads(
-#ifdef UNIFIED_THREAD_MODEL
                                     NUM_THREADS
-#else
-                                    NUM_THREADS - 1
-#endif
                                     ),
-#ifdef UNIFIED_THREAD_MODEL
                                 NUM_THREADS
-#else
-                                NUM_THREADS - 1
-#endif
             );
     }
     return retval;
@@ -874,9 +859,6 @@ int main( int argc, char** argv )
     }
     UncompressedComponents::max_number_of_blocks /= (sizeof(uint16_t) * 64);
     int n_threads = MAX_NUM_THREADS;
-#ifndef UNIFIED_THREAD_MODEL
-    n_threads -=1;
-#endif
 #ifndef __linux
     n_threads += 4;
 #endif
@@ -1598,19 +1580,7 @@ void process_file(IOUtil::FileReader* reader,
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (NUM_THREADS > 1 && g_threaded && (action == socketserve || action == forkserve)) {
-            g_decoder->registerWorkers(get_worker_threads(
-#ifdef UNIFIED_THREAD_MODEL
-                                           NUM_THREADS
-#else
-                                           NUM_THREADS - 1
-#endif
-                                           ),
-#ifdef UNIFIED_THREAD_MODEL
-                                       NUM_THREADS
-#else
-                                       NUM_THREADS - 1
-#endif
-                );
+            g_decoder->registerWorkers(get_worker_threads(NUM_THREADS), NUM_THREADS);
         }
     }else if (filetype == UJG) {
         (void)read_fixed_ujpg_header();
