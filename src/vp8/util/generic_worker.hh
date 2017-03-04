@@ -32,12 +32,7 @@ struct GenericWorker {
     static GenericWorker *get_n_worker_threads(unsigned int num_workers);
 private:
     GenericWorker(); // not safe since it doesn't wait for seccomp, use public constructor
-    union {
-        std::thread * child_; // this must come after other members, so items are initialized first
-#ifndef _WIN32
-        pthread_t pthread_child_;
-#endif
-    } thread_impl;
+    std::thread child_; // this must come after other members, so items are initialized first
     void _generic_wait(uint8_t expected_response);
     void _generic_respond_to_main(uint8_t arg);
 };

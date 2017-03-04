@@ -23,9 +23,6 @@
 #include <signal.h>
 #include "generic_worker.hh"
 #include "../../io/Seccomp.hh"
-#ifdef _WIN32
-#define USE_STDCPP_THREADS
-#endif
 /**
  * A Crossplatform-ish pause function.
  * Since we can't rely on the _mm_pause instrinsic being available
@@ -66,26 +63,19 @@ GenericWorker * GenericWorker::get_n_worker_threads(unsigned int num_workers) {
     return retval;
 }
 namespace {
-void* sta_wait_for_work(void * gw) {
+void sta_wait_for_work(void * gw) {
     GenericWorker * thus = (GenericWorker*)gw;
     thus->wait_for_work();
-    return NULL;
 }
 }
+static std::atomic<uint32_t> worker_count(0);
 GenericWorker::GenericWorker() : child_begun(false),
                                 new_work_exists_(0),
                                 work_done_(0),
                                 new_work_pipe(initiate_pipe()),
-                                work_done_pipe(initiate_pipe()) {
-#ifdef USE_STDCPP_THREADS
-    thread_impl.child_ = new std::thread(std::bind(&GenericWorker::wait_for_work,
-                                       this));
-#else
-    pthread_create(&thread_impl.pthread_child_,
-                   NULL,
-                   &sta_wait_for_work,
-                   this);
-#endif
+                                work_done_pipe(initiate_pipe()),
+                                child_(std::bind(&sta_wait_for_work,
+                                                 this)) {
 }
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
@@ -276,12 +266,7 @@ void GenericWorker::join_via_syscall() {
 #endif
     while (close(work_done_pipe.at(0)) && errno == EINTR) {
     }
-#ifdef USE_STDCPP_THREADS
-    thread_impl.child_->join();
-#else
-    void * retval = NULL;
-    pthread_join(thread_impl.pthread_child_, &retval);
-#endif
+    child_.join();
 }
 void GenericWorker::main_wait_for_done() {
     always_assert(child_begun);
