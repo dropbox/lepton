@@ -18,6 +18,7 @@
 #else
 #include "../../dependencies/md5/md5.h"
 #endif
+#include <mutex>
 
 extern int app_main(int argc, char ** argv);
 static const char cb64[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -158,6 +159,9 @@ Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_
     wtp.join();
    return md5;
 }
+IOUtil::SubprocessConnection safe_start_subprocess(int argc, const char **argv, bool pipe_stderr) {
+    return IOUtil::start_subprocess(argc, argv, pipe_stderr);
+}
 void do_code(const unsigned char * file, size_t file_size, char ** options, Sirikata::Array1d<uint8_t, 16> md5, int reps) {
     for (int rep = 0; rep < reps; ++rep) {
         auto decode_pipes = IOUtil::start_subprocess(args_size(options), (const char**)&options[0], false);
@@ -245,7 +249,7 @@ double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * 
 }
 
 int run_benchmark(char * argv0, unsigned char *file, size_t file_size) {
-    char* options[] = {argv0, (char*)"-", NULL};
+    char* options[] = {argv0, (char*)"-", NULL};//"-skipverify", NULL};
     do_benchmark(1,1,file, file_size, options, 10);
     return 0;
 }

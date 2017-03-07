@@ -652,10 +652,10 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
     int stdin_pipes[2] = { -1, -1 };
     int stdout_pipes[2] = { -1, -1 };
     int stderr_pipes[2] = { -1, -1 };
-    while (pipe(stdin_pipes) < 0 && errno == EINTR) {}
-    while (pipe(stdout_pipes) < 0 && errno == EINTR) {}
+    while (pipe2(stdin_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+    while (pipe2(stdout_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
     if (pipe_stderr) {
-        while (pipe(stderr_pipes) < 0 && errno == EINTR) {}
+        while (pipe2(stderr_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
     }
     if ((retval.sub_pid = fork()) == 0) {
         while (close(stdin_pipes[1]) == -1 && errno == EINTR) {}
@@ -664,6 +664,7 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
             while (close(stderr_pipes[0]) == -1 && errno == EINTR) {}
         }
         while (close(0) == -1 && errno == EINTR) {}
+
         while (dup2(stdin_pipes[0], 0) == -1 && errno == EINTR) {}
 
         while (close(1) == -1 && errno == EINTR) {}
