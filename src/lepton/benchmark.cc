@@ -81,7 +81,12 @@ int benchmark(int argc, char ** argv) {
         return run_benchmark(argv[0], benchmark_file, file_size);
     }
 #endif
-    return run_benchmark(argv[0], abstractJpeg, sizeof(abstractJpeg));
+    std::vector<unsigned char> data(bigger_hdr_len + bigger_rep_len * bigger_num_reps);
+    memcpy(&data[0], bigger_hdr, bigger_hdr_len);
+    for (int i = 0; i < bigger_num_reps; ++i) {
+        memcpy(&data[bigger_hdr_len + i * bigger_rep_len], bigger_rep, bigger_rep_len);
+    }
+    return run_benchmark(argv[0], &data[0], data.size());
 }
 size_t args_size(char **args) {
     size_t retval = 0;
@@ -217,7 +222,7 @@ double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * 
     if (dec_options == NULL) {
         dec_options = enc_options;
     }
-    double start = TimingHarness::get_time_us();
+    double start = TimingHarness::get_time_us(true);
     for (int rep = 0; rep < barrier_reps; ++rep) {
         if (parallel_encodes) {
             for (int i = 0;i < (parallel_decodes ==0 ? parallel_encodes - 1 : parallel_encodes); ++i) {
@@ -238,17 +243,18 @@ double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * 
             delete th;
         }
     }
-    double end = TimingHarness::get_time_us();
+    double end = TimingHarness::get_time_us(true);
     workers.resize(parallel_decodes ? parallel_decodes - 1 : 0);
     for (auto th : workers) {
         th->join();
         delete th;
     }
-    return (end - start) / 1000000.;
+    return (end - start) / 1000000. / barrier_reps / reps;
 }
 
 int run_benchmark(char * argv0, unsigned char *file, size_t file_size) {
     char* options[] = {argv0, (char*)"-", NULL};//"-skipverify", NULL};
-    do_benchmark(1,1,file, file_size, options, 10);
+    double total_time = do_benchmark(1,1,file, file_size, options, 10);
+    fprintf(stderr, "TOTAL TIME: %.2fms\n", total_time * 1000);
     return 0;
 }
