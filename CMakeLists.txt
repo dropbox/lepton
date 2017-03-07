@@ -16,6 +16,7 @@ if(ENABLE_BILLING)
 set(BILLING_FLAGS "-DENABLE_BILLING")
 endif()
 
+option(BENCHMARK "Include a test file for benchmarking lepton" OFF)
 set(flags_configs "")
 if("${CMAKE_CONFIGURATION_TYPES}" STREQUAL "")
     if("${CMAKE_BUILD_TYPE}" STREQUAL "")
@@ -109,6 +110,9 @@ set(LEPTON_SOURCES
    src/lepton/socket_serve.cc
    src/lepton/socket_serve.hh
    src/lepton/jpgcoder.cc
+   src/lepton/smalljpg.hh
+   src/lepton/benchmark.cc
+   src/lepton/main.cc
    src/lepton/validation.cc
    src/lepton/validation.hh
    src/lepton/recoder.cc
@@ -186,15 +190,15 @@ if(NOT APPLE)
 if(NOT WIN32)
 if(EMSCRIPTEN)
     if(USE_SYSTEM_DEPENDENCIES)
-        set(ADDITIONAL_FLAGS -static-libstdc++ pthread -Wl,--no-export-dynamic -O2)
+        set(ADDITIONAL_FLAGS -static-libstdc++ pthread -Wl,--no-whole-archive -Wl,--no-export-dynamic -O2)
     else()
         set(ADDITIONAL_FLAGS -lstdc++ -static-libstdc++ pthread -Wl,--no-export-dynamic -O2)
     endif()
 else()
     if(USE_SYSTEM_DEPENDENCIES)
-        set(ADDITIONAL_FLAGS -static-libstdc++ pthread -Wl,--no-export-dynamic)
+        set(ADDITIONAL_FLAGS -static-libstdc++  -Wl,--whole-archive -lpthread  -Wl,--no-whole-archive -Wl,--no-export-dynamic)
     else()
-        set(ADDITIONAL_FLAGS -lstdc++ -static-libstdc++ pthread -Wl,--no-export-dynamic)
+        set(ADDITIONAL_FLAGS -lstdc++ -static-libstdc++  -Wl,--whole-archive -lpthread  -Wl,--no-whole-archive -Wl,--no-export-dynamic)
     endif()
 endif()
 endif()
@@ -202,7 +206,9 @@ endif()
 
 set(ADDITIONAL_COMPILE_FLAGS)
 set(ADDITIONAL_DEFINES)
-
+if(BENCHMARK)
+  set(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DREALISTIC_BENCHMARK")
+endif()
 if(USE_SYSTEM_DEPENDENCIES)
     set(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DUSE_SYSTEM_LIBRARIES -DUSE_SYSTEM_MD5_DEPENDENCY")
 endif()
