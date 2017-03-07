@@ -18,7 +18,6 @@
 #else
 #include "../../dependencies/md5/md5.h"
 #endif
-#include <mutex>
 
 extern int app_main(int argc, char ** argv);
 static const char cb64[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
