@@ -180,10 +180,6 @@ set(LEPTON_SOURCES
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
    )
-if(BENCHMARK)
-  SET(LEPTON_SOURCES ${LEPTON_SOURCES} src/lepton/benchmark_file.cc)
-  
-endif()
 add_executable(lepton ${LEPTON_SOURCES})
 add_executable(lepton-slow-best-ratio ${LEPTON_SOURCES})
 add_executable(lepton-avx ${LEPTON_SOURCES})

@@ -62,29 +62,36 @@ int run_benchmark(char * argv0, unsigned char *file, size_t file_size);
 extern unsigned char benchmark_file[3560812];
 #endif
 int benchmark(int argc, char ** argv) {
-    bool lite = false;
+    const char * filename = NULL;
     for (int i = 1; i < argc; ++i){
-        if (strstr(argv[i], "-smallbenchmark") != 0) {
-            lite = true;
-            for (int j = i; j + 1 < argc; ++j) {
-                argv[j] = argv[j + 1];
-            }
-            --argc;
+        if (argv[i][0] != '-') {
+            filename = argv[i];
+            break;
         }
     }
 
-    size_t file_size = 0;
-#ifdef REALISTIC_BENCHMARK
-    if (!lite) {
-        decode_in_place(benchmark_file, sizeof(benchmark_file));
-        file_size = 2670607;
-        return run_benchmark(argv[0], benchmark_file, file_size);
-    }
-#endif
-    std::vector<unsigned char> data(bigger_hdr_len + bigger_rep_len * bigger_num_reps);
-    memcpy(&data[0], bigger_hdr, bigger_hdr_len);
-    for (int i = 0; i < bigger_num_reps; ++i) {
-        memcpy(&data[bigger_hdr_len + i * bigger_rep_len], bigger_rep, bigger_rep_len);
+    std::vector<unsigned char> data;
+    if (filename != NULL) {
+        FILE * fp = fopen(filename, "rb");
+        if (!fp) {
+            fprintf(stderr, "%s not found...\n", filename);
+            custom_exit(ExitCode::FILE_NOT_FOUND);
+        }
+        fseek(fp, 0, SEEK_END);
+        size_t file_size = (size_t)ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        data.resize(file_size);
+        if (file_size) {
+            auto ret = fread(&data[0], file_size, 1, fp);
+            always_assert(ret);
+        }
+        fclose(fp);
+    } else {
+        data.resize(bigger_hdr_len + bigger_rep_len * bigger_num_reps);
+        memcpy(&data[0], bigger_hdr, bigger_hdr_len);
+        for (int i = 0; i < bigger_num_reps; ++i) {
+            memcpy(&data[bigger_hdr_len + i * bigger_rep_len], bigger_rep, bigger_rep_len);
+        }
     }
     return run_benchmark(argv[0], &data[0], data.size());
 }

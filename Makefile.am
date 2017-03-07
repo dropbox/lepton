@@ -22,7 +22,6 @@ lepton_SOURCES = \
    src/lepton/smalljpg.hh \
    src/lepton/bitops.hh \
    src/lepton/benchmark.cc \
-   src/lepton/benchmark_file.cc \
    src/lepton/idct.cc \
    src/lepton/idct.hh \
    src/lepton/component_info.hh \
