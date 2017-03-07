@@ -14,7 +14,7 @@
 #include <sys/select.h>
 #include <sys/signal.h>
 #include <sys/time.h>
-#include "smalljpg.hh"
+#include "../src/lepton/smalljpg.hh"
 
 #define always_assert(val) do { if (!(val)) {fprintf(stderr, "%s:%d: %s", __FILE__, __LINE__, #val); abort();} } while(false)
 
