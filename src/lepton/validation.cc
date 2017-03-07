@@ -26,7 +26,7 @@ ValidationContinuation validateAndCompress(int *reader,
     args.push_back("-skiproundtrip");
     for (int i = 1; i < argc; ++i) {
         if (argv[i][0] == '-'
-            && strcmp("argv[i]", "-")
+            && strcmp(argv[i], "-")
             && strstr(argv[i], "-validat") != argv[i]
             && strstr(argv[i], "-verif") != argv[i]
             && strstr(argv[i], "-socket") != argv[i]
@@ -37,8 +37,6 @@ ValidationContinuation validateAndCompress(int *reader,
         }
     }
     args.push_back("-"); // read from stdin, write to stdout
-    //args.push_back("/Users/daniel/Source/Repos/lepton/images/iphone.jpg");
-    //args.push_back("/Users/daniel/Source/Repos/lepton/test.lep");
     auto encode_pipes = IOUtil::start_subprocess(args.size(), &args[0], false);
     lepton_data->reserve(4096 * 1024);
     size_t size = 0;

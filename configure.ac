@@ -63,6 +63,14 @@ AC_ARG_ENABLE([custom-allocator],
 AC_SUBST([MEMORY_MANAGEMENT_CFLAGS])
 
 
+AC_ARG_ENABLE([benchmark],
+  [AS_HELP_STRING([--enable-benchmark]
+    [Use custom allocators instead of the standard ones @<:@no@:>@])],
+  [BENCHMARK_CFLAGS="-DREALISTIC_BENCHMARK"],
+  [BENCHMARK_CFLAGS=""])
+AC_SUBST([BENCHMARK_CFLAGS])
+
+
 # Make single thread the default
 AC_ARG_ENABLE([best-ratio-slow-decompression],
   [AS_HELP_STRING([--enable-best-ratio-slow-decompression],

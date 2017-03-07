@@ -793,7 +793,7 @@ int EMSCRIPTEN_KEEPALIVE main(void) {
     return error_cnt == 0 ? 0 : 1;
 }
 #else
-int main( int argc, char** argv )
+int app_main( int argc, char** argv )
 {
     g_argc = argc;
     g_argv = (const char **)argv;

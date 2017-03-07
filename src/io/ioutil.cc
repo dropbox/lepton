@@ -20,6 +20,10 @@
 #include <Windows.h>
 #include <tchar.h>
 #endif
+#define __APPLE__
+#ifdef __APPLE__
+#include <mutex>
+#endif
 namespace IOUtil {
 /*
 FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_size) {
@@ -551,7 +555,15 @@ void discard_stderr(int fd) {
         fprintf(stderr, "%s", buffer);
     }
 }
+
+#ifdef __APPLE__
+std::mutex subprocess_lock;
+#endif
+
 SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr) {
+#ifdef __APPLE__
+    std::lock_guard<std::mutex> lok(subprocess_lock);
+#endif
     SubprocessConnection retval;
     memset(&retval, 0, sizeof(retval));
 #ifdef _WIN32
@@ -652,10 +664,26 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
     int stdin_pipes[2] = { -1, -1 };
     int stdout_pipes[2] = { -1, -1 };
     int stderr_pipes[2] = { -1, -1 };
-    while (pipe(stdin_pipes) < 0 && errno == EINTR) {}
-    while (pipe(stdout_pipes) < 0 && errno == EINTR) {}
-    if (pipe_stderr) {
-        while (pipe(stderr_pipes) < 0 && errno == EINTR) {}
+    {
+#ifdef __APPLE__
+        while (pipe(stdin_pipes) < 0 && errno == EINTR) {}
+        while (fcntl(stdin_pipes[0], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        while (fcntl(stdin_pipes[1], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        while (pipe(stdout_pipes) < 0 && errno == EINTR) {}
+        while (fcntl(stdout_pipes[0], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        while (fcntl(stdout_pipes[1], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        if (pipe_stderr) {
+            while (pipe(stderr_pipes) < 0 && errno == EINTR) {}
+            while (fcntl(stderr_pipes[0], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+            while (fcntl(stderr_pipes[1], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        }
+#else
+        while (pipe2(stdin_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+        while (pipe2(stdout_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+        if (pipe_stderr) {
+            while (pipe2(stderr_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+        }
+#endif
     }
     if ((retval.sub_pid = fork()) == 0) {
         while (close(stdin_pipes[1]) == -1 && errno == EINTR) {}
@@ -664,6 +692,7 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
             while (close(stderr_pipes[0]) == -1 && errno == EINTR) {}
         }
         while (close(0) == -1 && errno == EINTR) {}
+
         while (dup2(stdin_pipes[0], 0) == -1 && errno == EINTR) {}
 
         while (close(1) == -1 && errno == EINTR) {}
