@@ -49,6 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     #include <io.h>
 #endif
 #ifdef __linux
+#include <sys/sysinfo.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
@@ -83,7 +84,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
 #endif
-
 
 int g_argc = 0;
 const char** g_argv = NULL;

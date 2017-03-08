@@ -1,5 +1,6 @@
 #include <stdio.h>
 #ifdef __linux
+#include <sys/sysinfo.h>
 #include <sys/wait.h>
 #include <linux/seccomp.h>
 
@@ -62,6 +63,8 @@
 namespace Sirikata {
 bool installStrictSyscallFilter(bool verbose) {
 #ifdef __linux
+    get_nprocs();
+    get_nprocs_conf();
     struct sock_filter filter[] = {
         /* Validate architecture. */
         VALIDATE_ARCHITECTURE,

@@ -78,4 +78,7 @@ struct seccomp_data {
 #define KILL_PROCESS \
     BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_KILL)
 
+#define TRACE_PROCESS \
+    BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_TRAP)
+
 #endif /* _SECCOMP_BPF_H_ */
