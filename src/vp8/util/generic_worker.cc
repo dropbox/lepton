@@ -56,9 +56,9 @@ void kill_workers(void * workers, uint64_t num_workers) {
 
 GenericWorker * GenericWorker::get_n_worker_threads(unsigned int num_workers) {
     GenericWorker *retval = new GenericWorker[num_workers];
-    for (unsigned int i = 0;i < num_workers; ++i) {
-        retval[i].wait_for_child_to_begin(); // setup security
-    }
+    //for (unsigned int i = 0;i < num_workers; ++i) {
+    //    retval[i].wait_for_child_to_begin(); // setup security
+    //}
     custom_atexit(&kill_workers, retval, num_workers);
     return retval;
 }
@@ -76,6 +76,7 @@ GenericWorker::GenericWorker() : child_begun(false),
                                 work_done_pipe(initiate_pipe()),
                                 child_(std::bind(&sta_wait_for_work,
                                                  this)) {
+  wait_for_child_to_begin(); // setup security
 }
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
