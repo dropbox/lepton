@@ -199,8 +199,24 @@ void do_code(const unsigned char * file, size_t file_size, const char ** options
         }
     }
 }
-double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * file, size_t file_size, const char ** enc_options, int reps = 1, int barrier_reps = 1, const char ** dec_options = NULL) {
-    std::vector<std::thread *>workers;
+struct TestOptions {
+    int parallel_encodes;
+    int parallel_decodes;
+    int reps;
+    int barrier_reps;
+    bool flush_workers;
+    TestOptions(){
+        parallel_encodes = 1;
+        parallel_decodes = 1;
+        reps = 1;
+        barrier_reps = 1;
+        flush_workers = true;
+    }
+};
+double do_benchmark(TestOptions test,
+                    unsigned char * file,
+                    size_t file_size,
+                    const char ** enc_options, const char ** dec_options = NULL) {
     Sirikata::MuxReader::ResizableByteBuffer encoded_file;
     auto file_md5 = do_first_encode(file, file_size, enc_options, &encoded_file);
     
@@ -229,34 +245,45 @@ double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * 
     if (dec_options == NULL) {
         dec_options = enc_options;
     }
+    std::vector<std::thread *>workers;
     double start = TimingHarness::get_time_us(true);
-    for (int rep = 0; rep < barrier_reps; ++rep) {
-        if (parallel_encodes) {
-            for (int i = 0;i < (parallel_decodes ==0 ? parallel_encodes - 1 : parallel_encodes); ++i) {
-                workers.push_back(new std::thread(std::bind(&do_code, file, file_size, enc_options, encoded_md5, reps)));
+    for (int b_rep = 0; b_rep < test.barrier_reps; ++b_rep) {
+        if (test.parallel_encodes) {
+            for (int i = 0;i < (test.parallel_decodes ==0 ? test.parallel_encodes - 1 : test.parallel_encodes); ++i) {
+                workers.push_back(new std::thread(std::bind(&do_code, file, file_size, enc_options, encoded_md5, test.reps)));
             }
-            if (parallel_decodes == 0) {
-                do_code(file, file_size, enc_options, encoded_md5, reps);
+            if (test.parallel_decodes == 0) {
+                do_code(file, file_size, enc_options, encoded_md5, test.reps);
             }
         }
-        if (parallel_decodes) {
-            for (int i = 0;i < parallel_decodes - 1; ++i) {
-                workers.push_back(new std::thread(std::bind(&do_code, &encoded_file[0], encoded_file.size(), dec_options, file_md5, reps)));
+        if (test.parallel_decodes) {
+            for (int i = 0;i < test.parallel_decodes - 1; ++i) {
+                workers.push_back(new std::thread(std::bind(&do_code, &encoded_file[0], encoded_file.size(), dec_options, file_md5, test.reps)));
             }
-            do_code(&encoded_file[0], encoded_file.size(), dec_options, file_md5, reps);
+            do_code(&encoded_file[0], encoded_file.size(), dec_options, file_md5, test.reps);
         }
+        if (test.flush_workers)  {
+            for (auto th : workers) {
+                th->join();
+                delete th;
+            }
+            workers.resize(0);
+        }
+    }
+    double end = TimingHarness::get_time_us(true);
+    if (!test.flush_workers)  {
         for (auto th : workers) {
             th->join();
             delete th;
         }
+        workers.resize(0);
     }
-    double end = TimingHarness::get_time_us(true);
-    workers.resize(parallel_decodes ? parallel_decodes - 1 : 0);
-    for (auto th : workers) {
-        th->join();
-        delete th;
-    }
-    return (end - start) / 1000000. / barrier_reps / reps;
+    return (end - start) / 1000000. / test.barrier_reps / test.reps;
+}
+std::string itoas(int number) {
+    char data[128] = {0};
+    sprintf(data, "%d", number);
+    return data;
 }
 void print_results(int num_ops, const std::string &name, size_t file_size, double total_time) {
     fprintf(stdout, "%s: %.2fms (%.2fMbit/s)\n",
@@ -268,21 +295,52 @@ int run_benchmark(char * argv0, unsigned char *file, size_t file_size) {
     const char* options[] = {argv0, "-", NULL};
     const char* options_1way[] = {argv0, "-", "-singlethread", NULL};
     const char* skip_verify[] = {argv0, "-", "-skipverify", NULL};
+    const int parallel_latency_tests[] = {2, 4, 6, 8, 12, 16};
     double total_time = 0;
-    total_time = do_benchmark(1,1,file, file_size, options, 10);
+    TestOptions test;
+    test.reps = 8;
+    total_time = do_benchmark(test ,file, file_size, options);
     print_results(2, "Verified encode followed by decode", file_size, total_time);
-    total_time = do_benchmark(1,0,file, file_size, options, 10);
+    test.parallel_encodes = 1;
+    test.parallel_decodes = 0;
+    total_time = do_benchmark(test, file, file_size, options);
     print_results(1, "Verified encode", file_size, total_time);
-    total_time = do_benchmark(1,0,file, file_size, skip_verify, 10);
+    total_time = do_benchmark(test, file, file_size, skip_verify);
     print_results(1, "Unverified encode", file_size, total_time);
-    total_time = do_benchmark(0,1,file, file_size, options, 10);
+    test.parallel_encodes = 0;
+    test.parallel_decodes = 1;
+    total_time = do_benchmark(test ,file, file_size, options);
     print_results(1, "decode", file_size, total_time);
-
-    total_time = do_benchmark(1,1,file, file_size, options_1way, 10);
+    test.flush_workers = false;
+    test.reps /= 2;
+    for (size_t i = 0; i < sizeof(parallel_latency_tests)/sizeof(parallel_latency_tests[0]); ++i) {
+        int p = parallel_latency_tests[i];
+        test.parallel_encodes = p;
+        test.parallel_decodes = 0;
+    
+        total_time = do_benchmark(test,file, file_size, options);
+        print_results(1, "Loaded " + itoas(p) +" Verified encode", file_size, total_time);
+    
+        total_time = do_benchmark(test, file, file_size, skip_verify);
+        print_results(1, "Loaded "  + itoas(p) + " Unverified encode", file_size, total_time);
+        test.parallel_encodes = 0;
+        test.parallel_decodes = p;
+        total_time = do_benchmark(test,file, file_size, options);
+        print_results(1, "Loaded " + itoas(p) + " decode", file_size, total_time);
+    }
+    test.flush_workers = true;
+    test.parallel_encodes = 1;
+    test.parallel_decodes = 1;
+    total_time = do_benchmark(test,file, file_size, options_1way);
     print_results(2, "1-way encode followed by decode", file_size, total_time);
-    total_time = do_benchmark(1,0,file, file_size, options_1way, 10);
+    test.parallel_encodes = 1;
+    test.parallel_decodes = 0;
+    total_time = do_benchmark(test,file, file_size, options_1way);
     print_results(1, "1-way encode", file_size, total_time);
-    total_time = do_benchmark(0,1,file, file_size, options_1way, 10);
+    test.parallel_encodes = 0;
+    test.parallel_decodes = 1;
+    total_time = do_benchmark(test,file, file_size, options_1way);
     print_results(1, "1-way decode", file_size, total_time);
+
     return 0;
 }
