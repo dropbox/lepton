@@ -95,7 +95,7 @@ int benchmark(int argc, char ** argv) {
     }
     return run_benchmark(argv[0], &data[0], data.size());
 }
-size_t args_size(char **args) {
+size_t args_size(const char **args) {
     size_t retval = 0;
     while(args[retval]) {
         ++retval;
@@ -142,9 +142,9 @@ void blind_write_to_pipe(int pipe, const unsigned char * file, size_t file_size)
         file += ret;
     }
 }
-Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_t file_size, char ** options,
+Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_t file_size, const char ** options,
                      Sirikata::MuxReader::ResizableByteBuffer*out) {
-    auto encode_pipes = IOUtil::start_subprocess(args_size(options), (const char**)&options[0], false);
+    auto encode_pipes = IOUtil::start_subprocess(args_size(options), &options[0], false);
     bool is_socket = false;
     if (out) {
         out->reserve(file_size);
@@ -173,7 +173,7 @@ Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_
 IOUtil::SubprocessConnection safe_start_subprocess(int argc, const char **argv, bool pipe_stderr) {
     return IOUtil::start_subprocess(argc, argv, pipe_stderr);
 }
-void do_code(const unsigned char * file, size_t file_size, char ** options, Sirikata::Array1d<uint8_t, 16> md5, int reps) {
+void do_code(const unsigned char * file, size_t file_size, const char ** options, Sirikata::Array1d<uint8_t, 16> md5, int reps) {
     for (int rep = 0; rep < reps; ++rep) {
         auto decode_pipes = IOUtil::start_subprocess(args_size(options), (const char**)&options[0], false);
         size_t roundtrip_size = 0;
@@ -199,7 +199,7 @@ void do_code(const unsigned char * file, size_t file_size, char ** options, Siri
         }
     }
 }
-double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * file, size_t file_size, char ** enc_options, int reps = 1, int barrier_reps = 1, char ** dec_options = NULL) {
+double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * file, size_t file_size, const char ** enc_options, int reps = 1, int barrier_reps = 1, const char ** dec_options = NULL) {
     std::vector<std::thread *>workers;
     Sirikata::MuxReader::ResizableByteBuffer encoded_file;
     auto file_md5 = do_first_encode(file, file_size, enc_options, &encoded_file);
@@ -258,10 +258,31 @@ double do_benchmark(int parallel_encodes, int parallel_decodes, unsigned char * 
     }
     return (end - start) / 1000000. / barrier_reps / reps;
 }
-
+void print_results(int num_ops, const std::string &name, size_t file_size, double total_time) {
+    fprintf(stdout, "%s: %.2fms (%.2fMbit/s)\n",
+            name.c_str(),
+            total_time * 1000,
+            file_size * 8 * double(num_ops) / total_time / 1024 / 1024);
+}
 int run_benchmark(char * argv0, unsigned char *file, size_t file_size) {
-    char* options[] = {argv0, (char*)"-", NULL};//"-skipverify", NULL};
-    double total_time = do_benchmark(1,1,file, file_size, options, 10);
-    fprintf(stderr, "TOTAL TIME: %.2fms\n", total_time * 1000);
+    const char* options[] = {argv0, "-", NULL};
+    const char* options_1way[] = {argv0, "-", "-singlethread", NULL};
+    const char* skip_verify[] = {argv0, "-", "-skipverify", NULL};
+    double total_time = 0;
+    total_time = do_benchmark(1,1,file, file_size, options, 10);
+    print_results(2, "Verified encode followed by decode", file_size, total_time);
+    total_time = do_benchmark(1,0,file, file_size, options, 10);
+    print_results(1, "Verified encode", file_size, total_time);
+    total_time = do_benchmark(1,0,file, file_size, skip_verify, 10);
+    print_results(1, "Unverified encode", file_size, total_time);
+    total_time = do_benchmark(0,1,file, file_size, options, 10);
+    print_results(1, "decode", file_size, total_time);
+
+    total_time = do_benchmark(1,1,file, file_size, options_1way, 10);
+    print_results(2, "1-way encode followed by decode", file_size, total_time);
+    total_time = do_benchmark(1,0,file, file_size, options_1way, 10);
+    print_results(1, "1-way encode", file_size, total_time);
+    total_time = do_benchmark(0,1,file, file_size, options_1way, 10);
+    print_results(1, "1-way decode", file_size, total_time);
     return 0;
 }
