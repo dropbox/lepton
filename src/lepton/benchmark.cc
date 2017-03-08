@@ -63,13 +63,27 @@ extern unsigned char benchmark_file[3560812];
 #endif
 int benchmark(int argc, char ** argv) {
     const char * filename = NULL;
+    bool verbose = false;
     for (int i = 1; i < argc; ++i){
+        if (strstr(argv[i], "-v")) {
+            verbose = true;
+            continue;
+        }
         if (argv[i][0] != '-') {
             filename = argv[i];
             break;
         }
     }
-
+    if (!verbose) {
+        while (close(2) < 0 && errno == EINTR) {
+        }
+        int fd;
+        while ((fd = open("/dev/null", O_RDWR)) < 0 && errno == EINTR) {
+        }
+        dup2(fd, 2);
+        while (close(fd) < 0 && errno == EINTR) {
+        }
+    }
     std::vector<unsigned char> data;
     if (filename != NULL) {
         FILE * fp = fopen(filename, "rb");
@@ -173,6 +187,22 @@ Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_
 IOUtil::SubprocessConnection safe_start_subprocess(int argc, const char **argv, bool pipe_stderr) {
     return IOUtil::start_subprocess(argc, argv, pipe_stderr);
 }
+namespace {
+std::atomic<uint64_t> g_start_time;
+std::atomic<uint64_t> g_benchmark_bytes_processed;
+std::atomic<uint64_t> g_benchmark_throughput_bytes_per_second;
+}
+void update_atomic_throughput() {
+    double cur_time = TimingHarness::get_time_us(true);
+    double start_time = (double)g_start_time.load();
+    double delta = cur_time - start_time;
+    double throughput = (g_benchmark_bytes_processed.load() / delta) * 1000 * 1000;
+    uint64_t throughput_bytes_per_second = (uint64_t)throughput;
+    if (throughput_bytes_per_second > g_benchmark_throughput_bytes_per_second) {
+        // race condition, i know, but this is a temporal measurement anyhow: we're always racing
+        g_benchmark_throughput_bytes_per_second.store(throughput_bytes_per_second);
+    }
+}
 void do_code(const unsigned char * file, size_t file_size, const char ** options, Sirikata::Array1d<uint8_t, 16> md5, int reps) {
     for (int rep = 0; rep < reps; ++rep) {
         auto decode_pipes = IOUtil::start_subprocess(args_size(options), (const char**)&options[0], false);
@@ -197,6 +227,8 @@ void do_code(const unsigned char * file, size_t file_size, const char ** options
             fflush(stderr);
             abort();
         }
+        g_benchmark_bytes_processed += std::max(roundtrip_size, file_size);
+        update_atomic_throughput();
     }
 }
 struct TestOptions {
@@ -219,7 +251,9 @@ double do_benchmark(TestOptions test,
                     const char ** enc_options, const char ** dec_options = NULL) {
     Sirikata::MuxReader::ResizableByteBuffer encoded_file;
     auto file_md5 = do_first_encode(file, file_size, enc_options, &encoded_file);
-    
+    g_start_time.store(TimingHarness::get_time_us(true));
+    g_benchmark_bytes_processed.store(0);
+    g_benchmark_throughput_bytes_per_second.store(0);
     Sirikata::Array1d<uint8_t, 16> encoded_md5;
     {
         MD5_CTX context;
@@ -286,23 +320,27 @@ std::string itoas(int number) {
     return data;
 }
 void print_results(int num_ops, const std::string &name, size_t file_size, double total_time) {
-    fprintf(stdout, "%s: %.2fms (%.2fMbit/s)\n",
-            name.c_str(),
+    fprintf(stdout, "%7.2fms (%6.2fMbit/s) : %s\n",
             total_time * 1000,
-            file_size * 8 * double(num_ops) / total_time / 1024 / 1024);
+            file_size * 8 * double(num_ops) / total_time / 1024 / 1024,
+            name.c_str());
 }
 int run_benchmark(char * argv0, unsigned char *file, size_t file_size) {
     const char* options[] = {argv0, "-", NULL};
     const char* options_1way[] = {argv0, "-", "-singlethread", NULL};
+    const char* options_1way_skipverify[] = {argv0, "-", "-skipverify", "-singlethread", NULL};
     const char* skip_verify[] = {argv0, "-", "-skipverify", NULL};
     const int parallel_latency_tests[] = {2, 4, 6, 8, 12, 16};
     double total_time = 0;
     TestOptions test;
     test.reps = 8;
+/*
     total_time = do_benchmark(test ,file, file_size, options);
     print_results(2, "Verified encode followed by decode", file_size, total_time);
+*/
     test.parallel_encodes = 1;
     test.parallel_decodes = 0;
+
     total_time = do_benchmark(test, file, file_size, options);
     print_results(1, "Verified encode", file_size, total_time);
     total_time = do_benchmark(test, file, file_size, skip_verify);
@@ -313,34 +351,58 @@ int run_benchmark(char * argv0, unsigned char *file, size_t file_size) {
     print_results(1, "decode", file_size, total_time);
     test.flush_workers = false;
     test.reps /= 2;
+
+    test.parallel_encodes = 1;
+    test.parallel_decodes = 0;
+    total_time = do_benchmark(test,file, file_size, options_1way);
+    print_results(1, "Single threaded Verified encode", file_size, total_time);
+    total_time = do_benchmark(test,file, file_size, options_1way_skipverify);
+    print_results(1, "Single threaded Unverified encode", file_size, total_time);
+    test.parallel_encodes = 0;
+    test.parallel_decodes = 1;
+    total_time = do_benchmark(test,file, file_size, options_1way);
+    print_results(1, "Single threaded decode", file_size, total_time);
+
+    uint64_t best_verified_encode_backfill = 0;
+    int best_verified_encode_num_threads = 0;
+    uint64_t best_unverified_encode_backfill = 0;
+    int best_unverified_encode_num_threads = 0;
+    uint64_t best_decode_backfill = 0;
+    int best_decode_num_threads = 0;
     for (size_t i = 0; i < sizeof(parallel_latency_tests)/sizeof(parallel_latency_tests[0]); ++i) {
         int p = parallel_latency_tests[i];
         test.parallel_encodes = p;
         test.parallel_decodes = 0;
     
         total_time = do_benchmark(test,file, file_size, options);
+        if (best_verified_encode_backfill < g_benchmark_throughput_bytes_per_second.load()) {
+            best_verified_encode_backfill = g_benchmark_throughput_bytes_per_second.load();
+            best_verified_encode_num_threads = p;
+        }
         print_results(1, "Loaded " + itoas(p) +" Verified encode", file_size, total_time);
     
         total_time = do_benchmark(test, file, file_size, skip_verify);
+        if (best_unverified_encode_backfill < g_benchmark_throughput_bytes_per_second.load()) {
+            best_unverified_encode_backfill = g_benchmark_throughput_bytes_per_second.load();
+            best_unverified_encode_num_threads = p;
+        }
         print_results(1, "Loaded "  + itoas(p) + " Unverified encode", file_size, total_time);
         test.parallel_encodes = 0;
         test.parallel_decodes = p;
         total_time = do_benchmark(test,file, file_size, options);
+        if (best_decode_backfill < g_benchmark_throughput_bytes_per_second.load()) {
+            best_decode_backfill = g_benchmark_throughput_bytes_per_second.load();
+            best_decode_num_threads = p;
+        }
         print_results(1, "Loaded " + itoas(p) + " decode", file_size, total_time);
     }
+    printf("Backfill verified encode bandwidth %.2f Mbit/s [%d threads]\n", best_verified_encode_backfill * 8 / 1024. / 1024,
+        best_verified_encode_num_threads);
+    printf("Backfill unverified encode bandwidth %.2f Mbit/s [%d threads]\n", best_unverified_encode_backfill * 8 / 1024. / 1024,
+        best_unverified_encode_num_threads);
+    printf("Backfill decode bandwidth %.2f Mbit/s [%d threads]\n", best_decode_backfill * 8 / 1024. / 1024,
+        best_decode_num_threads);
     test.flush_workers = true;
-    test.parallel_encodes = 1;
-    test.parallel_decodes = 1;
-    total_time = do_benchmark(test,file, file_size, options_1way);
-    print_results(2, "1-way encode followed by decode", file_size, total_time);
-    test.parallel_encodes = 1;
-    test.parallel_decodes = 0;
-    total_time = do_benchmark(test,file, file_size, options_1way);
-    print_results(1, "1-way encode", file_size, total_time);
-    test.parallel_encodes = 0;
-    test.parallel_decodes = 1;
-    total_time = do_benchmark(test,file, file_size, options_1way);
-    print_results(1, "1-way decode", file_size, total_time);
 
     return 0;
 }
