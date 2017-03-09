@@ -20,8 +20,7 @@
 #include <Windows.h>
 #include <tchar.h>
 #endif
-#define __APPLE__
-#ifdef __APPLE__
+#if 1//def __APPLE__
 #include <mutex>
 #endif
 namespace IOUtil {
@@ -556,12 +555,12 @@ void discard_stderr(int fd) {
     }
 }
 
-#ifdef __APPLE__
+#if 1//def __APPLE__
 std::mutex subprocess_lock;
 #endif
 
 SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr) {
-#ifdef __APPLE__
+#if 1//def __APPLE__
     std::lock_guard<std::mutex> lok(subprocess_lock);
 #endif
     SubprocessConnection retval;
