@@ -107,7 +107,7 @@ void GenericWorker::wait_for_work() {
         }
     }
     set_close_thread_handle(work_done_pipe[1]);
-    while(!new_work_exists_.load(std::memory_order_relaxed)) {
+    while(!new_work_exists_.load()) {
 
     }
     if (new_work_exists_.load()) { // enforce memory ordering
@@ -115,7 +115,7 @@ void GenericWorker::wait_for_work() {
             work();
         }
     }else {
-        always_assert(false);// invariant violated
+        always_assert(false && "variable never decrements");
     }
     _generic_respond_to_main(sandbox_at_desired_level ? 1 : 2);
     reset_close_thread_handle();
@@ -123,10 +123,7 @@ void GenericWorker::wait_for_work() {
 }
 
 bool GenericWorker::is_done() {
-        if (work_done_.load(std::memory_order_relaxed) > 0) {
-            return work_done_.load() != 0; // enforce memory ordering
-        }
-        return false;
+        return work_done_.load() != 0; // enforce memory ordering
     }
 
 void GenericWorker::activate_work() {

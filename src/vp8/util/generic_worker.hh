@@ -3,10 +3,75 @@
 #include <thread>
 #include "nd_array.hh"
 #include "options.hh"
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+#include <mutex>
+class xatomic {
+  int data;
+  mutable std::mutex mut;
+public:
+  xatomic() {
+    std::lock_guard<std::mutex> lok(mut);
+    data = 0;
+  }
+  xatomic(int i) {
+    std::lock_guard<std::mutex> lok(mut);
+    data = i;
+  }
+  int load()const {
+    std::lock_guard<std::mutex> lok(mut);
+    return data;
+  }
+  template<class Sub> int load(Sub s)const {
+    std::lock_guard<std::mutex> lok(mut);
+    return data;
+  }
+  template<class Sub>void store(int dat, Sub s){
+    std::lock_guard<std::mutex> lok(mut);
+    data = dat;
+  }
+  void store(int dat){
+    std::lock_guard<std::mutex> lok(mut);
+    data = dat;
+  }
+  int operator +=(int i) {
+    std::lock_guard<std::mutex> lok(mut);
+    data += i;
+    return data;
+  }
+  int operator ++() {
+    std::lock_guard<std::mutex> lok(mut);
+    data += 1;
+    return data;
+  }
+  int operator ++(int ignored) {
+    std::lock_guard<std::mutex> lok(mut);
+    data += 1;
+    return data - 1;
+  }
+  int operator -=(int i) {
+    std::lock_guard<std::mutex> lok(mut);
+    data -= i;
+    return data;
+  }
+  int operator --() {
+    std::lock_guard<std::mutex> lok(mut);
+    data -= 1;
+    return data;
+  }
+  int operator --(int ignored) {
+    std::lock_guard<std::mutex> lok(mut);
+    data -= 1;
+    return data + 1;
+  }
+};
+
+#else
+typedef std::atomic<int> xatomic;
+#endif
 struct GenericWorker {
     bool child_begun;
-    std::atomic<int> new_work_exists_;
-    std::atomic<int> work_done_;
+    xatomic new_work_exists_;
+    xatomic work_done_;
     std::function<void()> work;
     Sirikata::Array1d<int, 2> new_work_pipe;
     Sirikata::Array1d<int, 2> work_done_pipe;

@@ -90,7 +90,6 @@ public:
     void flush();
     void map_logical_thread_to_physical_thread(int logical_thread_id,
                                                int physical_thread_id) {
-        mux_splicer.init(spin_workers_);
         mux_splicer.bind_thread(logical_thread_id, physical_thread_id);
     }
 private:

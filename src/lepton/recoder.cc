@@ -619,8 +619,8 @@ void recode_physical_thread(BoundedWriter *stream_out,
             }
         }
         //if (logical_thread_id != physical_thread_id) {
-
         g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
+
         //}
         ThreadHandoff outth = recode_row_range(stream_out,
                                                framebuffer,
@@ -755,6 +755,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
             g_decoder->map_logical_thread_to_physical_thread(logical_thread_id, physical_thread_id);
         }
+
     }
     if (NUM_THREADS != 1 && g_threaded) {
         for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {

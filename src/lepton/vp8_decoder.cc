@@ -69,17 +69,10 @@ VP8ComponentDecoder::~VP8ComponentDecoder() {
 #endif
 
 void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
-    map_logical_thread_to_physical_thread(thread_id, target_thread_state);
+
 
     initialize_thread_id(thread_id, target_thread_state, framebuffer);
     initialize_bool_decoder(thread_id, target_thread_state);
-    /*redundant
-    if (thread_target_state) {
-        thread_state_[thread_id]->bool_decoder_.init(new ActualThreadPacketReader(thread_id, getWorker[target_thread_state - 1], &send_to_actual_thread_state));
-    } else {
-        thread_state_[thread_id]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
-    }
-    */
 }
 class ActualThreadPacketReader : public PacketReader{
     GenericWorker *worker;
@@ -236,6 +229,7 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
     const UncompressedComponents * const colldata,
     Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                       MAX_NUM_THREADS>& framebuffer) {
+    mux_splicer.init(spin_workers_);
     return initialize_decoder_state(colldata, framebuffer);
 }
 
@@ -422,6 +416,7 @@ void VP8ComponentDecoder::flush() {
 }
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
+    mux_splicer.init(spin_workers_);
     /* cmpc is a global variable with the component count */
 
 

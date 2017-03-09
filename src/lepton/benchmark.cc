@@ -334,8 +334,8 @@ void print_results(int num_ops, const std::string &name, size_t file_size, doubl
             name.c_str());
 }
 int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int default_reps) {
-    const char* options[] = {argv0, "-", NULL};
-    const char* options_1way[] = {argv0, "-", "-singlethread", NULL};
+    const char* options[] = {argv0, "-", "-verify", NULL};
+    const char* options_1way[] = {argv0, "-", "-verify", "-singlethread", NULL};
     const char* options_1way_skipverify[] = {argv0, "-", "-skipverify", "-singlethread", NULL};
     const char* skip_verify[] = {argv0, "-", "-skipverify", NULL};
     const int parallel_latency_tests[] = {2, 4, 6, 8, 12, 16};
