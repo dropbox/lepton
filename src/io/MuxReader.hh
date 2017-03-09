@@ -421,7 +421,6 @@ public:
         return retval.second;
     }
     JpegError flush(uint8_t stream_id) {
-        JpegError retval = JpegError::nil();
         for (uint8_t i= 0; i < MAX_STREAM_ID; ++i) {
             uint32_t toBeFlushed = mBuffer[i].size() - mOffset[i];
             if (i == stream_id || !toBeFlushed) {
@@ -431,20 +430,19 @@ public:
             if (toBeFlushed < 4096) {
                 if (isUrgent) {
                     // we need to flush what we have
-                    retval = flushFull(i, toBeFlushed);
+                    flushFull(i, toBeFlushed);
                     dev_assert(mTotalWritten == mLowWaterMark[i]);
                 }
             } else {
                 if (isUrgent && toBeFlushed < 16384) {
-                    retval = flushFull(i, toBeFlushed);
+                    flushFull(i, toBeFlushed);
                 } else {
-                    retval = flushPartial(i, toBeFlushed);
+                    flushPartial(i, toBeFlushed);
                 }
             }
         }
         uint32_t toBeFlushed = mBuffer[stream_id].size() - mOffset[stream_id];
-        retval = flushPartial(stream_id, toBeFlushed);
-        return retval;
+        return flushPartial(stream_id, toBeFlushed);
     }
     std::pair<uint32, JpegError> Write(uint8_t stream_id, const uint8*data, unsigned int size) {
         std::pair<uint32, JpegError> retval(size, JpegError::nil());

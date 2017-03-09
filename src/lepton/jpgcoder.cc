@@ -2983,8 +2983,6 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                                     errorlevel.store(1);
                                 }
 
-                                // store eobrun
-                                peobrun = eobrun;
                             }
                             else {
                                 if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
@@ -2996,7 +2994,8 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                                     errorlevel.store(1);
                                 }
                             }
-
+                            // store eobrun
+                            peobrun = eobrun;
                             // copy back to colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
                                 uint16_t block_bpos = block[ bpos ];

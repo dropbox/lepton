@@ -90,7 +90,6 @@ void GenericWorker::_generic_respond_to_main(uint8_t arg) {
 
 
 void GenericWorker::wait_for_work() {
-    bool sandbox_at_desired_level = true;
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
@@ -111,13 +110,11 @@ void GenericWorker::wait_for_work() {
 
     }
     if (new_work_exists_.load()) { // enforce memory ordering
-        if (sandbox_at_desired_level) {
-            work();
-        }
+        work();
     }else {
         always_assert(false && "variable never decrements");
     }
-    _generic_respond_to_main(sandbox_at_desired_level ? 1 : 2);
+    _generic_respond_to_main(1);
     reset_close_thread_handle();
     custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }

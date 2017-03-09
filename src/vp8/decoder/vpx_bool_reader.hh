@@ -17,7 +17,10 @@ public:
 #ifdef DEBUG_ARICODER
         any_read = false;
 #endif
-
+        bit_reader.value = 0;
+        bit_reader.range = 0;
+        bit_reader.count = 0;
+        bit_reader.reader = NULL;
     }
     VPXBoolReader(const uint8_t *buffer, size_t size) {
 #ifdef DEBUG_ARICODER

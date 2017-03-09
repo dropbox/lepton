@@ -143,19 +143,6 @@ void escape_0xff_huffman_and_write(OutputWriter* str_out,
     {
         // write & expand huffman coded image data
         const unsigned char stv = 0x00; // 0xFF stuff value
-        for ( ; progress_ipos & 0xf; progress_ipos++ ) {
-            if (__builtin_expect(!(progress_ipos < max_byte_coded), 0)) {
-                break;
-            }
-            uint8_t byte_to_write = local_huff_data[progress_ipos];
-            str_out->write_byte(byte_to_write);
-            // check current byte, stuff if needed
-            if (__builtin_expect(byte_to_write == 0xFF, 0)) {
-                str_out->write_byte(stv);
-                write_byte_bill(Billing::DELIMITERS, false, 1);
-            }
-        }
-
         while(true) {
             if (__builtin_expect(!(progress_ipos + 15 < max_byte_coded), 0)) {
                 break;

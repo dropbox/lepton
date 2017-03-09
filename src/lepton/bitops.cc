@@ -51,6 +51,7 @@ abitreader::abitreader( unsigned char* array, int size )
     data2 = array;
 	eof = false;
 	lbyte = size;
+    buf = 0;
 }
 
 /* -----------------------------------------------

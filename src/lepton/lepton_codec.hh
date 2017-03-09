@@ -164,6 +164,7 @@ protected:
         return retval;
     }
     LeptonCodec(bool do_threading) {
+        spin_workers_ = NULL;
         num_registered_workers_ = 0; // need to wait
         do_threading_ = do_threading;
         unsigned int num_threads = 1;

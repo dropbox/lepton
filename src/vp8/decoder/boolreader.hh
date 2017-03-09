@@ -96,6 +96,7 @@ public:
     // if we want partial data from a previous valuex
     uint8_t backing[sizeof(BD_VALUE)];
     BiRope() {
+        memset(&backing[0], 0, sizeof(BD_VALUE));
         for (size_t i= 0; i < sizeof(rope)/sizeof(rope[0]); ++i) {
             rope[i] = {NULL, NULL};
         }
