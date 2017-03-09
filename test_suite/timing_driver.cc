@@ -44,10 +44,10 @@ ssize_t write_until(int fd, const void *buf, size_t size) {
     size_t progress = 0;
     while (progress < size) {
         ssize_t status = write(fd, (char*)buf + progress, size - progress);
+        if (status == 0) { // EOF
+            return progress;
+        }
         if (status == -1) {
-            if (status == 0) { // EOF
-                return progress;
-            }
             if (errno != EINTR) {
                 return -1;
             }

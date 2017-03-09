@@ -110,10 +110,15 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
     FD_ZERO(&errorfds);
 #endif
 
-    int flags = fcntl(send_to_subprocess, F_GETFL, 0);
-    fcntl(send_to_subprocess, F_SETFL, flags | O_NONBLOCK);
-    flags = fcntl(recv_from_subprocess, F_GETFL, 0);
-    fcntl(recv_from_subprocess, F_SETFL, flags | O_NONBLOCK);
+    int flags;
+    while ((flags= fcntl(send_to_subprocess, F_GETFL, 0)) == -1
+           && errno == EINTR){}
+    while(fcntl(send_to_subprocess, F_SETFL, flags | O_NONBLOCK) == -1
+          && errno == EINTR){}
+    while ((flags = fcntl(recv_from_subprocess, F_GETFL, 0)) == -1
+           && errno == EINTR){}
+    while (fcntl(recv_from_subprocess, F_SETFL, flags | O_NONBLOCK) == -1
+           && errno == EINTR){}
     size_t send_cursor = 0;
     bool finished = false;
     while(!finished) {
@@ -344,12 +349,18 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     int copy_to_input_tee_flags = 0;
     int input_tee_flags = 0;
     int copy_to_storage_flags = 0;
-    input_tee_flags = fcntl(input_tee, F_GETFL, 0);
-    fcntl(input_tee, F_SETFL, input_tee_flags | O_NONBLOCK);
-    copy_to_input_tee_flags = fcntl(copy_to_input_tee, F_GETFL, 0);
-    fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags | O_NONBLOCK);
-    copy_to_storage_flags = fcntl(copy_to_storage, F_GETFL, 0);
-    fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags | O_NONBLOCK);
+    while((input_tee_flags = fcntl(input_tee, F_GETFL, 0)) == -1
+          && errno == EINTR){}
+    while (fcntl(input_tee, F_SETFL, input_tee_flags | O_NONBLOCK) == -1
+           && errno == EINTR){}
+    while((copy_to_input_tee_flags = fcntl(copy_to_input_tee, F_GETFL, 0)) == -1
+          && errno == EINTR){}
+    while(fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags | O_NONBLOCK) == -1
+          && errno == EINTR) {}
+    while ((copy_to_storage_flags = fcntl(copy_to_storage, F_GETFL, 0)) == -1
+           && errno == EINTR){}
+    while (fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags | O_NONBLOCK) == -1
+           && errno == EINTR) {}
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;
     bool finished = false;
@@ -420,7 +431,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
             ssize_t del = read(copy_to_input_tee, &buffer[cursor], max_to_read);
             if (del == 0) {
-                fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags);
+              while (fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags) == -1
+                     && errno == EINTR){}
                 if (close_input) {
                     //fprintf(stderr, "CLosing %d\n", copy_to_input_tee);
                     while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -439,7 +451,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 *input_size += del;
                 cursor += del;
                 if (end_byte != 0 && *input_size == end_byte) {
-                    fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags);
+                  while (fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags) == -1
+                         && errno == EINTR){}
                     if (close_input) {
                         //fprintf(stderr, "CLosing %d\n", copy_to_input_tee);
                         while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -527,10 +540,12 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     }
     // reset the nonblocking nature of the fd
     if (input_tee != -1) {
-        fcntl(input_tee, F_SETFL, input_tee_flags);
+      while (fcntl(input_tee, F_SETFL, input_tee_flags) == -1 &&
+             errno == EINTR){}
     }
     if (copy_to_storage != -1) {
-        fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags);
+      while (fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags) == -1 &&
+             errno == EINTR){}
     }
 #endif
 

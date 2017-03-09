@@ -3342,9 +3342,6 @@ bool recode_jpeg( void )
                             if ( sta != -1 )
                                 sta = next_mcuposn( &cmp, &dpos, &rstw );
                         }
-                        if (sta == 0 && huffw->no_remainder()) {
-                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
-                        }
                         if (str_out->has_exceeded_bound()) {
                             sta = 2;
                         }
@@ -4722,7 +4719,7 @@ int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block, unsigne
 
     // check eobrun
     if ( (*eobrun) > 0 ) {
-        for ( bpos = from; bpos <= to; )
+        for ( bpos = from; bpos <= to; ++bpos)
             block[ bpos ] = 0;
         (*eobrun)--;
         return from;

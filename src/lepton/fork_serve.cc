@@ -52,15 +52,18 @@ static void name_cur_pipes(FILE * dev_random) {
 
 static void exit_on_stdin(pid_t child) {
     if (!child) {
-        fclose(stdin);
+        int ret = fclose(stdin);
+        always_assert(ret == 0);
         return;
     }
-    fclose(stdout);
-    getc(stdin);
-    kill(child, SIGQUIT);
+    int ret = fclose(stdout);
+    always_assert(ret == 0);
+    (void)getc(stdin);
+    (void)kill(child, SIGQUIT);
     sleep(1); // 1 second to clean up its temp pipes
-    kill(child, SIGKILL);
-    fclose(stderr);
+    (void)kill(child, SIGKILL);
+    ret = fclose(stderr);
+    always_assert(ret == 0);
     custom_exit(ExitCode::SUCCESS);
 }
 
@@ -74,9 +77,9 @@ static void cleanup_pipes(int) {
 }
 void fork_serve() {
     exit_on_stdin(fork());
-    signal(SIGINT, &cleanup_pipes);
-    signal(SIGQUIT, &cleanup_pipes);
-    signal(SIGTERM, &cleanup_pipes);
+    (void)signal(SIGINT, &cleanup_pipes);
+    (void)signal(SIGQUIT, &cleanup_pipes);
+    (void)signal(SIGTERM, &cleanup_pipes);
     FILE* dev_random = fopen("/dev/urandom", "rb");
     while (true) {
         name_cur_pipes(dev_random);
@@ -100,8 +103,8 @@ void fork_serve() {
         do {
             writer_pipe = open(cur_pipes[1], O_WRONLY);
         } while(writer_pipe < 0 && errno == EINTR);
-        unlink(cur_pipes[0]);
-        unlink(cur_pipes[1]);
+        (void)unlink(cur_pipes[0]);
+        (void)unlink(cur_pipes[1]);
         pid_t serve_file = fork();
         if (serve_file == 0) {
             while (close(1) < 0 && errno == EINTR){ // close stdout
