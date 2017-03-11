@@ -68,6 +68,7 @@ public:
 #else
 typedef std::atomic<int> xatomic;
 #endif
+int make_pipe(int pipes[2]);
 struct GenericWorker {
     bool child_begun;
     xatomic new_work_exists_;

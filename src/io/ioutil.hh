@@ -163,6 +163,6 @@ struct SubprocessConnection {
     HANDLE_or_fd pipe_stderr;
     int sub_pid;
 };
-SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stder);
+SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stder, bool stderr_to_nul=false);
 }
 #endif

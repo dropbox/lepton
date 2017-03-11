@@ -574,7 +574,7 @@ void discard_stderr(int fd) {
 std::mutex subprocess_lock;
 #endif
 
-SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr) {
+SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr, bool stderr_to_nul) {
 #if 1//def __APPLE__
     std::lock_guard<std::mutex> lok(subprocess_lock);
 #endif
@@ -623,18 +623,25 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
     if (pipe_stderr || !simpler) {
         siStartInfo.hStdError = hChildStd_ERR_Wr;
     } else {
-        siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        if (!stderr_to_nul) {
+            siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        }
     }
     siStartInfo.hStdOutput = hChildStd_OUT_Wr;
     siStartInfo.hStdInput = hChildStd_IN_Rd;
     siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
     std::vector<char> command_line;
-    const char * exe_shorthand = "lepton.exe";
-    command_line.insert(command_line.end(),
-                        exe_shorthand, exe_shorthand + strlen(exe_shorthand));
-    for (int i = 1; i < argc; ++i) {
-        command_line.push_back(' ');
+    for (int i = 0; i < argc; ++i) {
+        if (i == 0) {
+            command_line.push_back('\"');
+        }
+        else {
+            command_line.push_back(' ');
+        }
         command_line.insert(command_line.end(), argv[i], argv[i] + strlen(argv[i]));
+        if (i == 0) {
+            command_line.push_back('\"');
+        }
     }
     command_line.push_back('\0');
     if (!CreateProcess(argv[0],
@@ -714,6 +721,15 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
         if (pipe_stderr) {
             while (close(2) == -1 && errno == EINTR) {}
             while (dup2(stderr_pipes[1], 2) == -1 && errno == EINTR) {}
+        }
+        if (stderr_to_nul) {
+            while (close(2) == -1 && errno == EINTR) {}
+            int devnull;
+            while ((devnull = open("/dev/null", O_RDWR, S_IWUSR | S_IRUSR)) == -1 && errno == EINTR) {
+            }
+            if (devnull != -1) {
+                while (dup2(devnull, 2) == -1 && errno == EINTR) {}
+            }
         }
         std::vector<char*> args(argc + 1);
         for (int i = 0; i < argc; ++i) {

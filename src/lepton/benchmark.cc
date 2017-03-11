@@ -18,10 +18,12 @@
 #else
 #include "../../dependencies/md5/md5.h"
 #endif
-
+#include "../../vp8/util/generic_worker.hh"
 extern int app_main(int argc, char ** argv);
 static const char cb64[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
+namespace {
+    bool g_verbose = false;
+}
 struct B64lut {
     unsigned char lut[256];
     B64lut() {
@@ -69,6 +71,7 @@ int benchmark(int argc, char ** argv) {
     for (int i = 1; i < argc; ++i){
         if (strstr(argv[i], "-v")) {
             verbose = true;
+            g_verbose = true;
             continue;
         }
         char * where = NULL;
@@ -85,16 +88,6 @@ int benchmark(int argc, char ** argv) {
         if (argv[i][0] != '-') {
             filename = argv[i];
             break;
-        }
-    }
-    if (!verbose) {
-        while (close(2) < 0 && errno == EINTR) {
-        }
-        int fd;
-        while ((fd = open("/dev/null", O_RDWR)) < 0 && errno == EINTR) {
-        }
-        dup2(fd, 2);
-        while (close(fd) < 0 && errno == EINTR) {
         }
     }
     std::vector<unsigned char> data;
@@ -170,9 +163,10 @@ void blind_write_to_pipe(int pipe, const unsigned char * file, size_t file_size)
         file += ret;
     }
 }
+
 Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_t file_size, const char ** options,
                      Sirikata::MuxReader::ResizableByteBuffer*out) {
-    auto encode_pipes = IOUtil::start_subprocess(args_size(options), &options[0], false);
+    auto encode_pipes = IOUtil::start_subprocess(args_size(options), &options[0], false, !g_verbose);
     bool is_socket = false;
     if (out) {
         out->reserve(file_size);
@@ -181,7 +175,7 @@ Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_
     size_t start_byte = 0;
     size_t end_byte = file_size;
     int reader[2];
-    while (pipe(reader) < 0) {
+    while (::make_pipe(reader) < 0) {
         always_assert(errno == EINTR);
     }
     std::thread wtp(std::bind(&blind_write_to_pipe, reader[1], file + 2, file_size - 2));
@@ -199,7 +193,7 @@ Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_
    return md5;
 }
 IOUtil::SubprocessConnection safe_start_subprocess(int argc, const char **argv, bool pipe_stderr) {
-    return IOUtil::start_subprocess(argc, argv, pipe_stderr);
+    return IOUtil::start_subprocess(argc, argv, pipe_stderr, !g_verbose);
 }
 namespace {
 std::atomic<uint64_t> g_start_time;
@@ -219,7 +213,7 @@ void update_atomic_throughput() {
 }
 void do_code(const unsigned char * file, size_t file_size, const char ** options, Sirikata::Array1d<uint8_t, 16> md5, int reps) {
     for (int rep = 0; rep < reps; ++rep) {
-        auto decode_pipes = IOUtil::start_subprocess(args_size(options), (const char**)&options[0], false);
+        auto decode_pipes = IOUtil::start_subprocess(args_size(options), (const char**)&options[0], false, !g_verbose);
         size_t roundtrip_size = 0;
         Sirikata::Array1d<uint8_t, 16> rtmd5;
         rtmd5 = IOUtil::send_and_md5_result(
@@ -338,6 +332,7 @@ void print_results(int num_ops, const std::string &name, size_t file_size, doubl
             total_time * 1000,
             file_size * 8 * double(num_ops) / total_time / 1024 / 1024,
             name.c_str());
+    fflush(stdout);
 }
 int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int default_reps, int max_concurrency=16) {
     const char* options[] = {argv0, "-", "-verify", NULL};

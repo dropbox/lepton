@@ -29,7 +29,7 @@
 	SUCH DAMAGE.
 */
 
-#if defined(__SSE2__) && !defined(__SSE4_1__) && !defined(MM_MULLO_EPI32_H)
+#if !defined(_WIN32) && defined(__SSE2__) && !defined(__SSE4_1__) && !defined(MM_MULLO_EPI32_H)
 #define MM_MULLO_EPI32_H
 
 #include <immintrin.h>

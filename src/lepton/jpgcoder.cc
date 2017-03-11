@@ -47,6 +47,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     #include <unistd.h>
 #else
     #include <io.h>
+#include <chrono>
+#include <ctime>
 #endif
 #ifdef __linux
 #include <sys/sysinfo.h>
@@ -128,8 +130,10 @@ namespace TimingHarness {
 Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing = {{{{0}}}};
 
 uint64_t get_time_us(bool force) {
-#ifndef _WIN32
-    //FIXME
+#ifdef _WIN32
+    return std::chrono::duration_cast<std::chrono::microseconds>
+        (std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+#else
     if (force || !g_use_seccomp) {
         struct timeval val = {0,0};
         gettimeofday(&val,NULL);
