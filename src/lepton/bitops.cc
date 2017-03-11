@@ -367,6 +367,9 @@ bool bounded_iostream::chkerr() {
 
 void bounded_iostream::set_bound(size_t bound) {
     flush();
+    if (num_bytes_attempted_to_write > byte_bound) {
+        num_bytes_attempted_to_write = byte_bound;
+    }
     byte_bound = bound;
 }
 void bounded_iostream::flush() {
