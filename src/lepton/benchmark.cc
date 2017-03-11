@@ -57,7 +57,7 @@ void decode_in_place(unsigned char *data, size_t size) {
                       i + 3 < size ? data[i + 3] : '=');
     }
 }
-int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int reps);
+int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int reps, int max_concurrency);
 #ifdef REALISTIC_BENCHMARK
 extern unsigned char benchmark_file[3560812];
 #endif
@@ -65,6 +65,7 @@ int benchmark(int argc, char ** argv) {
     const char * filename = NULL;
     bool verbose = false;
     int default_reps = 16;
+    int max_concurrency = 16;
     for (int i = 1; i < argc; ++i){
         if (strstr(argv[i], "-v")) {
             verbose = true;
@@ -74,6 +75,11 @@ int benchmark(int argc, char ** argv) {
         if ((where =strstr(argv[i], "-reps=")) != NULL) {
             where += strlen("-reps=");
             default_reps = atoi(where);
+            continue;
+        }
+        if ((where =strstr(argv[i], "-concurrency=")) != NULL) {
+            where += strlen("-concurrency=");
+            max_concurrency = atoi(where);
             continue;
         }
         if (argv[i][0] != '-') {
@@ -115,7 +121,7 @@ int benchmark(int argc, char ** argv) {
         }
     }
     fprintf(stdout, "BENCHMARK: %d trials\n", default_reps);
-    return run_benchmark(argv[0], &data[0], data.size(), default_reps);
+    return run_benchmark(argv[0], &data[0], data.size(), default_reps, max_concurrency);
 }
 size_t args_size(const char **args) {
     size_t retval = 0;
@@ -333,12 +339,12 @@ void print_results(int num_ops, const std::string &name, size_t file_size, doubl
             file_size * 8 * double(num_ops) / total_time / 1024 / 1024,
             name.c_str());
 }
-int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int default_reps) {
+int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int default_reps, int max_concurrency=16) {
     const char* options[] = {argv0, "-", "-verify", NULL};
     const char* options_1way[] = {argv0, "-", "-verify", "-singlethread", NULL};
     const char* options_1way_skipverify[] = {argv0, "-", "-skipverify", "-singlethread", NULL};
     const char* skip_verify[] = {argv0, "-", "-skipverify", NULL};
-    const int parallel_latency_tests[] = {2, 4, 6, 8, 12, 16};
+    const int parallel_latency_tests[] = {2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 72, 96, 128};
     double total_time = 0;
     TestOptions test;
     test.reps = default_reps;
@@ -379,6 +385,9 @@ int run_benchmark(char * argv0, unsigned char *file, size_t file_size, int defau
     int best_decode_num_threads = 0;
     for (size_t i = 0; i < sizeof(parallel_latency_tests)/sizeof(parallel_latency_tests[0]); ++i) {
         int p = parallel_latency_tests[i];
+        if (p > max_concurrency) {
+            continue;
+        }
         test.parallel_encodes = p;
         test.parallel_decodes = 0;
     
