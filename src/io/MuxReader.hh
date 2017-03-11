@@ -124,6 +124,7 @@ public:
         ~ResizableByteBuffer() {
             if (mBegin) {
                 mAlloc.destroy(mBegin);
+                mAlloc.deallocate(mBegin, mReserved);
             }
         }
     };
