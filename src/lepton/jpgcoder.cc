@@ -693,6 +693,7 @@ void compute_thread_mem(const char * arg,
     main-function
     ----------------------------------------------- */
 
+#ifdef EMSCRIPTEN
 const char *fake_argv[] =  {
     "lepton-scalar",
     "-skipverify",
@@ -702,7 +703,6 @@ const char *fake_argv[] =  {
 
 const int fake_argc = sizeof(fake_argv) / sizeof(char *);
 
-#ifdef EMSCRIPTEN
 int EMSCRIPTEN_KEEPALIVE main(void) {
     const int argc = fake_argc;
     const char **argv = fake_argv;
@@ -3854,6 +3854,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
 /* -----------------------------------------------
     read uncompressed JPEG file
     ----------------------------------------------- */
+#if !defined(USE_STANDARD_MEMORY_ALLOCATORS) && !defined(_WIN32) && !defined(EMSCRIPTEN)
 void mem_nop (void *opaque, void *ptr){
 
 }
@@ -3863,6 +3864,7 @@ void * mem_init_nop(size_t prealloc_size, uint8_t align){
 void* mem_realloc_nop(void * ptr, size_t size, size_t *actualSize, unsigned int movable, void *opaque){
     return NULL;
 }
+#endif
 bool read_ujpg( void )
 {
     using namespace IOUtil;

@@ -68,7 +68,7 @@ void sta_wait_for_work(void * gw) {
     thus->wait_for_work();
 }
 }
-static std::atomic<uint32_t> worker_count(0);
+
 GenericWorker::GenericWorker() : child_begun(false),
                                 new_work_exists_(0),
                                 work_done_(0),
