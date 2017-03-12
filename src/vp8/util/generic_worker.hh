@@ -3,24 +3,80 @@
 #include <thread>
 #include "nd_array.hh"
 #include "options.hh"
+#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+#include <mutex>
+class xatomic {
+  int data;
+  mutable std::mutex mut;
+public:
+  xatomic() {
+    std::lock_guard<std::mutex> lok(mut);
+    data = 0;
+  }
+  xatomic(int i) {
+    std::lock_guard<std::mutex> lok(mut);
+    data = i;
+  }
+  int load()const {
+    std::lock_guard<std::mutex> lok(mut);
+    return data;
+  }
+  template<class Sub> int load(Sub s)const {
+    std::lock_guard<std::mutex> lok(mut);
+    return data;
+  }
+  template<class Sub>void store(int dat, Sub s){
+    std::lock_guard<std::mutex> lok(mut);
+    data = dat;
+  }
+  void store(int dat){
+    std::lock_guard<std::mutex> lok(mut);
+    data = dat;
+  }
+  int operator +=(int i) {
+    std::lock_guard<std::mutex> lok(mut);
+    data += i;
+    return data;
+  }
+  int operator ++() {
+    std::lock_guard<std::mutex> lok(mut);
+    data += 1;
+    return data;
+  }
+  int operator ++(int ignored) {
+    std::lock_guard<std::mutex> lok(mut);
+    data += 1;
+    return data - 1;
+  }
+  int operator -=(int i) {
+    std::lock_guard<std::mutex> lok(mut);
+    data -= i;
+    return data;
+  }
+  int operator --() {
+    std::lock_guard<std::mutex> lok(mut);
+    data -= 1;
+    return data;
+  }
+  int operator --(int ignored) {
+    std::lock_guard<std::mutex> lok(mut);
+    data -= 1;
+    return data + 1;
+  }
+};
+
+#else
+typedef std::atomic<int> xatomic;
+#endif
+int make_pipe(int pipes[2]);
 struct GenericWorker {
     bool child_begun;
-    std::atomic<int> new_work_exists_;
-    std::atomic<int> work_done_;
+    xatomic new_work_exists_;
+    xatomic work_done_;
     std::function<void()> work;
     Sirikata::Array1d<int, 2> new_work_pipe;
     Sirikata::Array1d<int, 2> work_done_pipe;
     static Sirikata::Array1d<int, 2> initiate_pipe();
-    GenericWorker() : child_begun(false),
-                      new_work_exists_(0),
-                      work_done_(0),
-                      new_work_pipe(initiate_pipe()),
-                      work_done_pipe(initiate_pipe()),
-                      child_(std::bind(&GenericWorker::wait_for_work,
-                                           this)) {
-        // need to make sure child sets up seccomp properly before proceeding
-        _wait_for_child_to_begin();
-    }
     void activate_work();
     bool is_done();
     void main_wait_for_done();
@@ -29,9 +85,20 @@ struct GenericWorker {
         return new_work_exists_.load() != 0;
     }
     void join_via_syscall();
+    int send_more_data(const void *data_ptr);
+    std::pair<const void*, int> recv_data();
+    struct DataBatch {
+        typedef Sirikata::Array1d<void *, 15> DataType;
+        DataType data;
+        int32_t return_code;
+        uint8_t count;
+    };
+    DataBatch batch_recv_data();
+    void wait_for_child_to_begin();
+    static GenericWorker *get_n_worker_threads(unsigned int num_workers);
 private:
+    GenericWorker(); // not safe since it doesn't wait for seccomp, use public constructor
     std::thread child_; // this must come after other members, so items are initialized first
-    void _wait_for_child_to_begin();
     void _generic_wait(uint8_t expected_response);
     void _generic_respond_to_main(uint8_t arg);
 };

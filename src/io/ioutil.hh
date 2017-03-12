@@ -103,20 +103,21 @@ public:
     }
     void Close() {
         if (close_stream) {
-            close(fp); // not always useful (eg during SECCOMP)
+          while (close(fp) == -1 && errno == EINTR){}
+          // not always useful (eg during SECCOMP)
         }
         fp = -1;
     }
     std::pair<Sirikata::uint32, Sirikata::JpegError> Write(const Sirikata::uint8*data, unsigned int size) {
         using namespace Sirikata;
-		size_t data_written = 0;
+                size_t data_written = 0;
         while (data_written < size) {
             signed long nwritten = write(fp, data + data_written, size - data_written);
             if (nwritten <= 0) {
                 if (errno == EINTR) {
                     continue;
                 }
-				//	The size_t -> Sirikata::uint32 cast is safe because sizeof(size) is <= sizeof(Sirikata::uint32)
+                //        The size_t -> Sirikata::uint32 cast is safe because sizeof(size) is <= sizeof(Sirikata::uint32)
                 return std::pair<Sirikata::uint32, JpegError>(static_cast<Sirikata::uint32>(data_written), JpegError::errShortHuffmanData());
             }
             data_written += nwritten;
@@ -162,6 +163,6 @@ struct SubprocessConnection {
     HANDLE_or_fd pipe_stderr;
     int sub_pid;
 };
-SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stder);
+SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stder, bool stderr_to_nul=false);
 }
 #endif

@@ -16,6 +16,9 @@ struct componentInfo {
 	int nc;  // block count (all) (non interleaved)
 	int sid; // statistical identity
 	int jid; // jpeg internal id
+    componentInfo() {
+        memset(this, 0, sizeof(*this));
+    }
 };
 
 #endif

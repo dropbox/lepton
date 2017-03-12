@@ -14,7 +14,7 @@
 #include <sys/select.h>
 #include <sys/signal.h>
 #include <sys/time.h>
-#include "smalljpg.hh"
+#include "../src/lepton/smalljpg.hh"
 
 #define always_assert(val) do { if (!(val)) {fprintf(stderr, "%s:%d: %s", __FILE__, __LINE__, #val); abort();} } while(false)
 
@@ -44,10 +44,10 @@ ssize_t write_until(int fd, const void *buf, size_t size) {
     size_t progress = 0;
     while (progress < size) {
         ssize_t status = write(fd, (char*)buf + progress, size - progress);
+        if (status == 0) { // EOF
+            return progress;
+        }
         if (status == -1) {
-            if (status == 0) { // EOF
-                return progress;
-            }
             if (errno != EINTR) {
                 return -1;
             }

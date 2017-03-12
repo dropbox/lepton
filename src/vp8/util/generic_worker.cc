@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <fcntl.h>
 #else
+#include <pthread.h>
 #include <unistd.h>
 #endif
 #include <errno.h>
@@ -22,7 +23,6 @@
 #include <signal.h>
 #include "generic_worker.hh"
 #include "../../io/Seccomp.hh"
-
 /**
  * A Crossplatform-ish pause function.
  * Since we can't rely on the _mm_pause instrinsic being available
@@ -40,7 +40,44 @@ void _cross_platform_pause() {
 #endif
 #endif
 }
+static void gen_nop(){}
+void kill_workers(void * workers, uint64_t num_workers) {
+    GenericWorker * generic_workers = (GenericWorker*)workers;
+    if (generic_workers) {
+        for (uint64_t i = 0; i < num_workers; ++i){
+            if (!generic_workers[i].has_ever_queued_work()){
+                generic_workers[i].work = &gen_nop;
+                generic_workers[i].activate_work();
+                generic_workers[i].main_wait_for_done();
+            }
+        }
+    }
+}
 
+GenericWorker * GenericWorker::get_n_worker_threads(unsigned int num_workers) {
+    GenericWorker *retval = new GenericWorker[num_workers];
+    //for (unsigned int i = 0;i < num_workers; ++i) {
+    //    retval[i].wait_for_child_to_begin(); // setup security
+    //}
+    custom_atexit(&kill_workers, retval, num_workers);
+    return retval;
+}
+namespace {
+void sta_wait_for_work(void * gw) {
+    GenericWorker * thus = (GenericWorker*)gw;
+    thus->wait_for_work();
+}
+}
+
+GenericWorker::GenericWorker() : child_begun(false),
+                                new_work_exists_(0),
+                                work_done_(0),
+                                new_work_pipe(initiate_pipe()),
+                                work_done_pipe(initiate_pipe()),
+                                child_(std::bind(&sta_wait_for_work,
+                                                 this)) {
+  wait_for_child_to_begin(); // setup security
+}
 const bool use_pipes = true;
 void GenericWorker::_generic_respond_to_main(uint8_t arg) {
     work_done_++;
@@ -53,7 +90,6 @@ void GenericWorker::_generic_respond_to_main(uint8_t arg) {
 
 
 void GenericWorker::wait_for_work() {
-    bool sandbox_at_desired_level = true;
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
@@ -70,26 +106,21 @@ void GenericWorker::wait_for_work() {
         }
     }
     set_close_thread_handle(work_done_pipe[1]);
-    while(!new_work_exists_.load(std::memory_order_relaxed)) {
+    while(!new_work_exists_.load()) {
 
     }
     if (new_work_exists_.load()) { // enforce memory ordering
-        if (sandbox_at_desired_level) {
-            work();
-        }
+        work();
     }else {
-        always_assert(false);// invariant violated
+        always_assert(false && "variable never decrements");
     }
-    _generic_respond_to_main(sandbox_at_desired_level ? 1 : 2);
+    _generic_respond_to_main(1);
     reset_close_thread_handle();
     custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }
 
 bool GenericWorker::is_done() {
-        if (work_done_.load(std::memory_order_relaxed) > 0) {
-            return work_done_.load() != 0; // enforce memory ordering
-        }
-        return false;
+        return work_done_.load() != 0; // enforce memory ordering
     }
 
 void GenericWorker::activate_work() {
@@ -99,6 +130,78 @@ void GenericWorker::activate_work() {
         
     }
 }
+int GenericWorker::send_more_data(const void *data_ptr) {
+    ++new_work_exists_;
+    const uint8_t *ptr = (const uint8_t*)&data_ptr;
+    size_t size = sizeof(void*);
+    do {
+        ssize_t ret = write(new_work_pipe[1], ptr, size);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }else {
+                return ret;
+            }
+        }
+        size -= ret;
+        ptr += ret;
+    }while(size > 0);
+    return 0;
+}
+
+std::pair<const void*, int> GenericWorker::recv_data() {
+    std::pair<const void*, int> retval = {NULL, -1};
+    uint8_t *ptr = (uint8_t*)&retval.first;
+    size_t size = sizeof(retval.first);
+    do {
+        ssize_t ret = read(new_work_pipe[0], ptr, size);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }else {
+                retval.second = ret;
+                return retval;
+            }
+        }
+        size -= ret;
+        ptr += ret;
+    }while(size > 0);
+    auto val = new_work_exists_.load(); // lets allow our thread to see what retval.first points to
+    always_assert(val != 0);
+    retval.second = 0;
+    return retval;
+}
+
+
+GenericWorker::DataBatch GenericWorker::batch_recv_data() {
+    DataBatch retval;
+    retval.count = 0;
+    retval.return_code = 0;
+    uint8_t *ptr = (uint8_t*)&retval.data[0];
+    size_t size = sizeof(retval.data[0]) * retval.data.size();
+    size_t amt_read = 0;
+    //fprintf(stderr, "Start read %ld\n", size);
+    do {
+        ssize_t ret = read(new_work_pipe[0], ptr, size);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }else {
+                retval.return_code = ret;
+                return retval;
+            }
+        }
+        size -= ret;
+        ptr += ret;
+        amt_read += ret;
+        retval.count = amt_read / sizeof(retval.data[0]);
+    }while(amt_read % sizeof(retval.data[0]));
+    //fprintf(stderr, "End read %ld : %d\n", amt_read, retval.count);
+    auto val = new_work_exists_.load(); // lets allow our thread to see what retval.first points to
+    always_assert(val != 0);
+    return retval;
+}
+
 #ifdef _WIN32
 int make_pipe(int pipes[2]) {
     HANDLE read_pipe, write_pipe;
@@ -146,7 +249,7 @@ void GenericWorker::_generic_wait(uint8_t expected_arg) {
     }
     work_done_.load();  // enforce memory ordering
 }
-void GenericWorker::_wait_for_child_to_begin() {
+void GenericWorker::wait_for_child_to_begin() {
     always_assert(!child_begun); // make sure this has work to do
     _generic_wait(0);
     --work_done_;
@@ -161,6 +264,7 @@ void GenericWorker::join_via_syscall() {
     child_.join();
 }
 void GenericWorker::main_wait_for_done() {
+    always_assert(child_begun);
     always_assert(new_work_exists_.load()); // make sure this has work to do
     _generic_wait(1);
 }

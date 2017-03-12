@@ -59,7 +59,7 @@ extern Sirikata::Array1d<typename Sirikata::Array1d<std::atomic<uint32_t>,
                                                     (uint32_t)Billing::NUM_BILLING_ELEMENTS>, 2> billing_map;
 
 inline void write_bit_bill(Billing bt, bool is_compressed, uint32_t num_bits) {
-#ifndef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
     dev_assert((uint32_t)bt < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
     if (is_compressed && bt == Billing::HEADER) {
         //fprintf(stderr, "Header; %f bytes\n", num_bits / 8.0);
@@ -73,7 +73,7 @@ inline void write_bit_bill(Billing bt, bool is_compressed, uint32_t num_bits) {
 
 
 inline void write_multi_bit_bill(uint32_t num_bits, bool is_compressed, Billing start_range, Billing end_range) {
-#ifndef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
     dev_assert((uint32_t)start_range < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
     dev_assert((uint32_t)end_range < (uint32_t)Billing::NUM_BILLING_ELEMENTS);
     for (uint32_t i = 0;i < num_bits; ++i) {
@@ -83,7 +83,7 @@ inline void write_multi_bit_bill(uint32_t num_bits, bool is_compressed, Billing 
 #endif
 }
 inline void write_byte_bill(Billing bt, bool is_compressed, uint32_t num_bytes) {
-#ifndef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
     if (num_bytes) {
         write_bit_bill(bt, is_compressed, num_bytes << 3);
     }
@@ -91,7 +91,7 @@ inline void write_byte_bill(Billing bt, bool is_compressed, uint32_t num_bytes) 
 }
 #undef BILLING_STRING_CB
 inline void write_eob_bill(int coefficient, bool encode, uint32_t num_bits) {
-#ifndef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
     uint32_t num_edge_bits = 1;
     uint32_t num_7x7_bits = 1;
     if (coefficient > 46) {
@@ -137,7 +137,7 @@ inline void write_eob_bill(int coefficient, bool encode, uint32_t num_bits) {
 void print_bill(int fd);
 
 inline bool is_edge(int bpos) {
-#ifdef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
     (void)bpos;
     return false;
 #else

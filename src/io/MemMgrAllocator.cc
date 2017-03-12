@@ -230,10 +230,11 @@ void memmgr_print_stats()
 {
     MemMgrState& memmgr = get_local_memmgr();
     (void)memmgr;
-    #ifdef DEBUG_MEMMGR_SUPPORT_STATS
+#ifdef DEBUG_MEMMGR_SUPPORT_STATS
     mem_header_t* p;
 
     printf("------ Memory manager stats ------\n\n");
+    printf("Workers consumed: %d\n", memmgr_allocated_threads.load());
     printf(    "Memmgr.Pool: free_pos = %lu (%lu uint8_ts left)\n\n",
             memmgr.pool_free_pos, memmgr.pool_size - memmgr.pool_free_pos);
 

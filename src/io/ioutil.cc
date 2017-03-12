@@ -20,6 +20,9 @@
 #include <Windows.h>
 #include <tchar.h>
 #endif
+#if 1//def __APPLE__
+#include <mutex>
+#endif
 namespace IOUtil {
 /*
 FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_size) {
@@ -107,10 +110,15 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
     FD_ZERO(&errorfds);
 #endif
 
-    int flags = fcntl(send_to_subprocess, F_GETFL, 0);
-    fcntl(send_to_subprocess, F_SETFL, flags | O_NONBLOCK);
-    flags = fcntl(recv_from_subprocess, F_GETFL, 0);
-    fcntl(recv_from_subprocess, F_SETFL, flags | O_NONBLOCK);
+    int flags;
+    while ((flags= fcntl(send_to_subprocess, F_GETFL, 0)) == -1
+           && errno == EINTR){}
+    while(fcntl(send_to_subprocess, F_SETFL, flags | O_NONBLOCK) == -1
+          && errno == EINTR){}
+    while ((flags = fcntl(recv_from_subprocess, F_GETFL, 0)) == -1
+           && errno == EINTR){}
+    while (fcntl(recv_from_subprocess, F_SETFL, flags | O_NONBLOCK) == -1
+           && errno == EINTR){}
     size_t send_cursor = 0;
     bool finished = false;
     while(!finished) {
@@ -341,12 +349,18 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     int copy_to_input_tee_flags = 0;
     int input_tee_flags = 0;
     int copy_to_storage_flags = 0;
-    input_tee_flags = fcntl(input_tee, F_GETFL, 0);
-    fcntl(input_tee, F_SETFL, input_tee_flags | O_NONBLOCK);
-    copy_to_input_tee_flags = fcntl(copy_to_input_tee, F_GETFL, 0);
-    fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags | O_NONBLOCK);
-    copy_to_storage_flags = fcntl(copy_to_storage, F_GETFL, 0);
-    fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags | O_NONBLOCK);
+    while((input_tee_flags = fcntl(input_tee, F_GETFL, 0)) == -1
+          && errno == EINTR){}
+    while (fcntl(input_tee, F_SETFL, input_tee_flags | O_NONBLOCK) == -1
+           && errno == EINTR){}
+    while((copy_to_input_tee_flags = fcntl(copy_to_input_tee, F_GETFL, 0)) == -1
+          && errno == EINTR){}
+    while(fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags | O_NONBLOCK) == -1
+          && errno == EINTR) {}
+    while ((copy_to_storage_flags = fcntl(copy_to_storage, F_GETFL, 0)) == -1
+           && errno == EINTR){}
+    while (fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags | O_NONBLOCK) == -1
+           && errno == EINTR) {}
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;
     bool finished = false;
@@ -417,7 +431,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
             ssize_t del = read(copy_to_input_tee, &buffer[cursor], max_to_read);
             if (del == 0) {
-                fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags);
+              while (fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags) == -1
+                     && errno == EINTR){}
                 if (close_input) {
                     //fprintf(stderr, "CLosing %d\n", copy_to_input_tee);
                     while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -436,7 +451,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 *input_size += del;
                 cursor += del;
                 if (end_byte != 0 && *input_size == end_byte) {
-                    fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags);
+                  while (fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags) == -1
+                         && errno == EINTR){}
                     if (close_input) {
                         //fprintf(stderr, "CLosing %d\n", copy_to_input_tee);
                         while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
@@ -524,10 +540,12 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     }
     // reset the nonblocking nature of the fd
     if (input_tee != -1) {
-        fcntl(input_tee, F_SETFL, input_tee_flags);
+      while (fcntl(input_tee, F_SETFL, input_tee_flags) == -1 &&
+             errno == EINTR){}
     }
     if (copy_to_storage != -1) {
-        fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags);
+      while (fcntl(copy_to_storage, F_SETFL, copy_to_storage_flags) == -1 &&
+             errno == EINTR){}
     }
 #endif
 
@@ -551,7 +569,15 @@ void discard_stderr(int fd) {
         fprintf(stderr, "%s", buffer);
     }
 }
-SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr) {
+
+#if 1//def __APPLE__
+std::mutex subprocess_lock;
+#endif
+
+SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_stderr, bool stderr_to_nul) {
+#if 1//def __APPLE__
+    std::lock_guard<std::mutex> lok(subprocess_lock);
+#endif
     SubprocessConnection retval;
     memset(&retval, 0, sizeof(retval));
 #ifdef _WIN32
@@ -597,18 +623,25 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
     if (pipe_stderr || !simpler) {
         siStartInfo.hStdError = hChildStd_ERR_Wr;
     } else {
-        siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        if (!stderr_to_nul) {
+            siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        }
     }
     siStartInfo.hStdOutput = hChildStd_OUT_Wr;
     siStartInfo.hStdInput = hChildStd_IN_Rd;
     siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
     std::vector<char> command_line;
-    const char * exe_shorthand = "lepton.exe";
-    command_line.insert(command_line.end(),
-                        exe_shorthand, exe_shorthand + strlen(exe_shorthand));
-    for (int i = 1; i < argc; ++i) {
-        command_line.push_back(' ');
+    for (int i = 0; i < argc; ++i) {
+        if (i == 0) {
+            command_line.push_back('\"');
+        }
+        else {
+            command_line.push_back(' ');
+        }
         command_line.insert(command_line.end(), argv[i], argv[i] + strlen(argv[i]));
+        if (i == 0) {
+            command_line.push_back('\"');
+        }
     }
     command_line.push_back('\0');
     if (!CreateProcess(argv[0],
@@ -652,10 +685,26 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
     int stdin_pipes[2] = { -1, -1 };
     int stdout_pipes[2] = { -1, -1 };
     int stderr_pipes[2] = { -1, -1 };
-    while (pipe(stdin_pipes) < 0 && errno == EINTR) {}
-    while (pipe(stdout_pipes) < 0 && errno == EINTR) {}
-    if (pipe_stderr) {
-        while (pipe(stderr_pipes) < 0 && errno == EINTR) {}
+    {
+#ifdef __APPLE__
+        while (pipe(stdin_pipes) < 0 && errno == EINTR) {}
+        while (fcntl(stdin_pipes[0], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        while (fcntl(stdin_pipes[1], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        while (pipe(stdout_pipes) < 0 && errno == EINTR) {}
+        while (fcntl(stdout_pipes[0], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        while (fcntl(stdout_pipes[1], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        if (pipe_stderr) {
+            while (pipe(stderr_pipes) < 0 && errno == EINTR) {}
+            while (fcntl(stderr_pipes[0], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+            while (fcntl(stderr_pipes[1], F_SETFD, FD_CLOEXEC) < 0 && errno == EINTR) {}
+        }
+#else
+        while (pipe2(stdin_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+        while (pipe2(stdout_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+        if (pipe_stderr) {
+            while (pipe2(stderr_pipes, O_CLOEXEC) < 0 && errno == EINTR) {}
+        }
+#endif
     }
     if ((retval.sub_pid = fork()) == 0) {
         while (close(stdin_pipes[1]) == -1 && errno == EINTR) {}
@@ -664,6 +713,7 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
             while (close(stderr_pipes[0]) == -1 && errno == EINTR) {}
         }
         while (close(0) == -1 && errno == EINTR) {}
+
         while (dup2(stdin_pipes[0], 0) == -1 && errno == EINTR) {}
 
         while (close(1) == -1 && errno == EINTR) {}
@@ -671,6 +721,15 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
         if (pipe_stderr) {
             while (close(2) == -1 && errno == EINTR) {}
             while (dup2(stderr_pipes[1], 2) == -1 && errno == EINTR) {}
+        }
+        if (stderr_to_nul) {
+            while (close(2) == -1 && errno == EINTR) {}
+            int devnull;
+            while ((devnull = open("/dev/null", O_RDWR, S_IWUSR | S_IRUSR)) == -1 && errno == EINTR) {
+            }
+            if (devnull != -1) {
+                while (dup2(devnull, 2) == -1 && errno == EINTR) {}
+            }
         }
         std::vector<char*> args(argc + 1);
         for (int i = 0; i < argc; ++i) {

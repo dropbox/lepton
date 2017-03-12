@@ -272,14 +272,12 @@ template <class T,
     }
     T& at(uint32_t i0,
                    uint32_t i1) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1);
         return IsReference::dereference(data)[i0][i1];
     }
     const T& at(uint32_t i0,
                          uint32_t i1) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1);
         return IsReference::dereference(data)[i0][i1];
     }
     typename Array1d<T, s1,ShouldRoundPow2>::Slice at(uint32_t i0) {
@@ -355,30 +353,24 @@ template <class T,
     T& at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2);
         return IsReference::dereference(data)[i0][i1][i2];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
                          uint32_t i2) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2);
         return IsReference::dereference(data)[i0][i1][i2];
     }
     typename Array1d<T, s2,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1);
         typename Array1d<T, s2,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1]};
         return retval;
     }
     const typename Array1d<T, s2,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1);
         const typename Array1d<T, s2,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1]};
         return retval;
     }
@@ -466,51 +458,39 @@ template <class T,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3);
         return IsReference::dereference(data)[i0][i1][i2][i3];
     }
     const T& at(uint32_t i0,
                          uint32_t i1,
                          uint32_t i2,
                          uint32_t i3) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3);
         return IsReference::dereference(data)[i0][i1][i2][i3];
     }
     typename Array1d<T, s3,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2);
         typename Array1d<T, s3,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2]};
         return retval;
     }
     const typename Array1d<T, s3,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2);
         const typename Array1d<T, s3,ShouldRoundPow2>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2]};
         return retval;
     }
     typename Array2d<T, s2, s3,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1);
         typename Array2d<T, s2, s3,ShouldRoundPow2>::Slice retval ={&IsReference::dereference(data)[i0][i1]};
         return retval;
     }
     const typename Array2d<T, s2, s3,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1);
         const typename Array2d<T, s2, s3,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1]};
         return retval;
     }
@@ -608,11 +588,7 @@ template <class T,
                    uint32_t i2,
                    uint32_t i3,
                    uint32_t i4) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4];
     }
     const T& at(uint32_t i0,
@@ -620,21 +596,14 @@ template <class T,
                          uint32_t i2,
                          uint32_t i3,
                          uint32_t i4) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4];
     }
     typename Array1d<T, s4,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3);
         typename Array1d<T, s4,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2][i3]};
         return retval;
     }
@@ -642,28 +611,21 @@ template <class T,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3);
         const typename Array1d<T, s4,ShouldRoundPow2>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2][i3]};
         return retval;
     }
     typename Array2d<T, s3, s4,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2);
         typename Array2d<T, s3, s4,ShouldRoundPow2>::Slice retval ={&IsReference::dereference(data)[i0][i1][i2]};
         return retval;
     }
     const typename Array2d<T, s3, s4,ShouldRoundPow2>::Slice at(uint32_t i0,
                    uint32_t i1,
                    uint32_t i2) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2);
         const typename Array2d<T, s3, s4,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2]};
         return retval;
     }
@@ -765,12 +727,7 @@ template <class T,
                    uint32_t i3,
                    uint32_t i4,
                    uint32_t i5) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
-        ARRAY_BOUNDS_ASSERT(i5 < s5);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4 && i5 < s5);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5];
     }
     const T& at(uint32_t i0,
@@ -779,12 +736,7 @@ template <class T,
                          uint32_t i3,
                          uint32_t i4,
                          uint32_t i5) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
-        ARRAY_BOUNDS_ASSERT(i5 < s5);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4 && i5 < s5);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5];
     }
     typename Array1d<T, s5,ShouldRoundPow2>::Slice at(uint32_t i0,
@@ -792,11 +744,7 @@ template <class T,
                    uint32_t i2,
                    uint32_t i3,
                    uint32_t i4) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4);
         typename Array1d<T, s5,ShouldRoundPow2>::Slice retval = {
             &IsReference::dereference(data)[i0][i1][i2][i3][i4]};
         return retval;
@@ -806,11 +754,7 @@ template <class T,
                    uint32_t i2,
                    uint32_t i3,
                    uint32_t i4) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4);
         const typename Array1d<T, s5,ShouldRoundPow2>::Slice retval = {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
         return retval;
     }
@@ -818,10 +762,7 @@ template <class T,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3);
         typename Array2d<T, s4, s5,ShouldRoundPow2>::Slice retval ={
             &IsReference::dereference(data)[i0][i1][i2][i3]};
         return retval;
@@ -830,10 +771,7 @@ template <class T,
                    uint32_t i1,
                    uint32_t i2,
                    uint32_t i3) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3);
         const typename Array2d<T, s4, s5,ShouldRoundPow2>::Slice retval ={
             &IsReference::dereference(data)[i0][i1][i2][i3]};
         return retval;
@@ -949,13 +887,7 @@ template <class T,
                    uint32_t i4,
                    uint32_t i5,
                    uint32_t i6) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
-        ARRAY_BOUNDS_ASSERT(i5 < s5);
-        ARRAY_BOUNDS_ASSERT(i6 < s6);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4 && i5 < s5 && i6 < s6);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6];
     }
     const T& at(uint32_t i0,
@@ -965,13 +897,7 @@ template <class T,
                          uint32_t i4,
                          uint32_t i5,
                          uint32_t i6) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
-        ARRAY_BOUNDS_ASSERT(i5 < s5);
-        ARRAY_BOUNDS_ASSERT(i6 < s6);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4 && i5 < s5 && i6 < s6);
         return IsReference::dereference(data)[i0][i1][i2][i3][i4][i5][i6];
     }
     typename Array1d<T, s6,ShouldRoundPow2>::Slice at(uint32_t i0,
@@ -980,12 +906,7 @@ template <class T,
                    uint32_t i3,
                    uint32_t i4,
                    uint32_t i5) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
-        ARRAY_BOUNDS_ASSERT(i5 < s5);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4 && i5 < s5);
         typename Array1d<T, s6,ShouldRoundPow2>::Slice retval =
             {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
         return retval;
@@ -996,12 +917,7 @@ template <class T,
                    uint32_t i3,
                    uint32_t i4,
                    uint32_t i5) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
-        ARRAY_BOUNDS_ASSERT(i5 < s5);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4 && i5 < s5);
         const typename Array1d<T, s6,ShouldRoundPow2>::Slice retval =
             {&IsReference::dereference(data)[i0][i1][i2][i3][i4][i5]};
         return retval;
@@ -1011,11 +927,7 @@ template <class T,
                    uint32_t i2,
                    uint32_t i3,
                    uint32_t i4) {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4);
         typename Array2d<T, s5, s6,ShouldRoundPow2>::Slice retval =
             {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
         return retval;
@@ -1025,11 +937,7 @@ template <class T,
                    uint32_t i2,
                    uint32_t i3,
                    uint32_t i4) const {
-        ARRAY_BOUNDS_ASSERT(i0 < s0);
-        ARRAY_BOUNDS_ASSERT(i1 < s1);
-        ARRAY_BOUNDS_ASSERT(i2 < s2);
-        ARRAY_BOUNDS_ASSERT(i3 < s3);
-        ARRAY_BOUNDS_ASSERT(i4 < s4);
+        ARRAY_BOUNDS_ASSERT(i0 < s0 && i1 < s1 && i2 < s2 && i3 < s3 && i4 < s4);
         const typename Array2d<T, s5, s6,ShouldRoundPow2>::Slice retval =
             {&IsReference::dereference(data)[i0][i1][i2][i3][i4]};
         return retval;

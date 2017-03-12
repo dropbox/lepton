@@ -192,9 +192,11 @@ void serving_loop(int unix_domain_socket_server,
         ++num_fds;
     }
     for (int i = 0; i < num_fds; ++i) {
-        int err = fcntl(fds[i].fd, F_SETFL, O_NONBLOCK);
-        always_assert(err == 0);
-        fds[i].events = POLLIN;
+      int err;
+      while ((err = fcntl(fds[i].fd, F_SETFL, O_NONBLOCK)) == -1
+             && errno == EINTR) {}
+      always_assert(err == 0);
+      fds[i].events = POLLIN;
     }
     std::set<pid_t> children;
     int status;
@@ -245,11 +247,15 @@ void serving_loop(int unix_domain_socket_server,
                 int active_connection = accept(fds[i].fd,
                                                (sockaddr*)&client, &len);
                 if (active_connection >= 0) {
-                    unsigned int flags = fcntl(active_connection, F_GETFL, 0);
-                    if (flags & O_NONBLOCK) {
+                      int flags;
+                    while ((flags = fcntl(active_connection, F_GETFL, 0)) == -1
+                           && errno == EINTR){}
+                    always_assert(flags != -1);
+                      if (flags & O_NONBLOCK) {
                         flags &= ~O_NONBLOCK;
                         // inheritance of nonblocking flag not specified across systems
-                        fcntl(active_connection, F_SETFL, flags);
+                        while (fcntl(active_connection, F_SETFL, flags) == -1
+                               && errno == EINTR){}
                     }
                     children.insert(accept_new_connection(active_connection,
                                                           work,
@@ -350,7 +356,8 @@ void socket_serve(const SocketServeWorkFunction &work_fn,
     } else {
         FILE* dev_random = fopen("/dev/urandom", "rb");
         name_socket(dev_random);
-        fclose(dev_random);
+        int fret = fclose(dev_random);
+        always_assert(fret == 0);
         do {
             lock_file = open(socket_lock,
                              O_RDWR|O_CREAT|O_TRUNC,

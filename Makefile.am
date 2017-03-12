@@ -4,9 +4,9 @@ includes = -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util 
 
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
 
-AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(PICKY_CXXFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
+AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(PICKY_CXXFLAGS) $(BENCHMARK_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
 
-AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS)
+AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(BENCHMARK_CFLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS)
 
 noinst_LIBRARIES = liblocalzlib.a liblocalmd5.a libtestdriver.a
 
@@ -19,8 +19,9 @@ lepton_SOURCES = \
    src/lepton/base_coders.hh \
    src/lepton/simple_encoder.hh \
    src/lepton/bitops.cc \
-   src/lepton/smalljpeg.hh \
+   src/lepton/smalljpg.hh \
    src/lepton/bitops.hh \
+   src/lepton/benchmark.cc \
    src/lepton/idct.cc \
    src/lepton/idct.hh \
    src/lepton/component_info.hh \
@@ -32,6 +33,7 @@ lepton_SOURCES = \
    src/lepton/socket_serve.cc \
    src/lepton/socket_serve.hh \
    src/lepton/jpgcoder.cc \
+   src/lepton/main.cc \
    src/lepton/validation.hh \
    src/lepton/validation.cc \
    src/lepton/recoder.cc \
@@ -265,9 +267,9 @@ test_suite_test_trailing_rst_SOURCES = test_suite/test_harness.cc
 test_suite_test_trailing_rst_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=trailingrst -DTEST_FILE0=trailingrst2
 test_suite_test_trailing_rst_LDADD = libtestdriver.a -lpthread
 
-TESTS = test_suite/test_recode_memory_bound test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_phone_outdoor test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem test_suite/test_nofsync test_suite/test_colorswap test_suite/test_odd_rst test_suite/test_trailing_header test_suite/test_trailing_rst test_suite/test_legacy.sh test_suite/test_gray2sf test_suite/test_2nd_block.sh test_suite/test_3rd_block.sh test_suite/test_last_block.sh test_suite/test_truncated_zero_run test_suite/test_bad_zero_run
+TESTS = test_suite/test_recode_memory_bound test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_phone_outdoor test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/forktester.py test_suite/sockettester.py src/lepton/test_custom_table.sh test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem test_suite/test_nofsync test_suite/test_colorswap test_suite/test_odd_rst test_suite/test_trailing_header test_suite/test_trailing_rst test_suite/test_legacy.sh test_suite/test_roundtrip.sh test_suite/test_16threads.sh test_suite/test_gray2sf test_suite/test_2nd_block.sh test_suite/test_3rd_block.sh test_suite/test_last_block.sh test_suite/test_truncated_zero_run test_suite/test_bad_zero_run
 
-dist_check_SCRIPTS = test_suite/test_recode_memory_bound test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_phone_outdoor test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem test_suite/test_nofsync test_suite/test_colorswap test_suite/test_odd_rst test_suite/test_trailing_header test_suite/test_trailing_rst test_suite/test_legacy.sh test_suite/test_gray2sf test_suite/test_2nd_block.sh test_suite/test_3rd_block.sh test_suite/test_last_block.sh test_suite/test_truncated_zero_run test_suite/test_bad_zero_run
+dist_check_SCRIPTS = test_suite/test_recode_memory_bound test_suite/test_invariants test_suite/test_baseline_ujg test_suite/test_baseline test_suite/test_misc test_suite/test_iphone test_suite/test_phone_outdoor test_suite/test_truncate test_suite/test_android_lowmem test_suite/test_SLR test_suite/test_progressive_ujg test_suite/test_progressive_disallowed test_suite/test_progressive test_suite/test_arithmetic_failfast test_suite/test_hq test_suite/test_baseline_unjailed test_suite/test_baseline_unjailed_thread test_suite/test_baseline_unjailed_decode test_suite/test_baseline_unjailed_decode_thread test_suite/test_seccomp_encode_main test_suite/test_seccomp_encode_thread  test_suite/test_seccomp_decode_main test_suite/test_seccomp_decode_thread test_suite/test_truncate_lowmem test_suite/test_nofsync test_suite/test_colorswap test_suite/test_odd_rst test_suite/test_trailing_header test_suite/test_trailing_rst test_suite/test_legacy.sh test_suite/test_roundtrip.sh test_suite/test_16threads.sh test_suite/test_gray2sf test_suite/test_2nd_block.sh test_suite/test_3rd_block.sh test_suite/test_last_block.sh test_suite/test_truncated_zero_run test_suite/test_bad_zero_run
 
 test:
 	$(MAKE) check

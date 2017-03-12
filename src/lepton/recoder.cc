@@ -7,6 +7,7 @@
 #include "recoder.hh"
 #include "bitops.hh"
 #include "lepton_codec.hh"
+#include "vp8_decoder.hh"
 #include "../io/BoundedMemWriter.hh"
 #include "../vp8/util/memory.hh"
 #define ENVLI(s,v)        ( ( v > 0 ) ? v : ( v - 1 ) + ( 1 << s ) )
@@ -142,19 +143,6 @@ void escape_0xff_huffman_and_write(OutputWriter* str_out,
     {
         // write & expand huffman coded image data
         const unsigned char stv = 0x00; // 0xFF stuff value
-        for ( ; progress_ipos & 0xf; progress_ipos++ ) {
-            if (__builtin_expect(!(progress_ipos < max_byte_coded), 0)) {
-                break;
-            }
-            uint8_t byte_to_write = local_huff_data[progress_ipos];
-            str_out->write_byte(byte_to_write);
-            // check current byte, stuff if needed
-            if (__builtin_expect(byte_to_write == 0xFF, 0)) {
-                str_out->write_byte(stv);
-                write_byte_bill(Billing::DELIMITERS, false, 1);
-            }
-        }
-
         while(true) {
             if (__builtin_expect(!(progress_ipos + 15 < max_byte_coded), 0)) {
                 break;
@@ -619,6 +607,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
         }
         //if (logical_thread_id != physical_thread_id) {
         g_decoder->clear_thread_state(logical_thread_id, physical_thread_id, framebuffer);
+
         //}
         ThreadHandoff outth = recode_row_range(stream_out,
                                                framebuffer,
@@ -665,13 +654,31 @@ void recode_physical_thread_wrapper(Sirikata::BoundedMemWriter *stream_out,
                            physical_thread_id,
                            huffw);
 }
+void recode_physical_first_thread_wrapper(bounded_iostream*stream_out,
+                            BlockBasedImagePerChannel<true> &framebuffer,
+                            int mcuv,
+                            const std::vector<ThreadHandoff> &thread_handoffs,
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::NumBlockTypes> max_coded_heights,
+                            Sirikata::Array1d<uint32_t,
+                                              (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks,
+                            int physical_thread_id,
+                            abitwriter * huffw) {
+    recode_physical_thread(stream_out,
+                           framebuffer,
+                           mcuv,
+                           thread_handoffs,
+                           max_coded_heights,
+                           component_size_in_blocks,
+                           physical_thread_id,
+                           huffw);
+}
 /* -----------------------------------------------
     JPEG encoding routine
     ----------------------------------------------- */
 bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
 {    
-
     unsigned int local_bound = max_file_size - grbs;
     str_out->set_bound(local_bound);
 
@@ -707,6 +714,14 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if (luma_bounds.size() && luma_bounds[0].is_legacy_mode()) {
         g_threaded = false;
     }
+    for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        int logical_thread_start, logical_thread_end;
+        std::tie(logical_thread_start, logical_thread_end)
+            = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
+        for (int log_thread = logical_thread_start; log_thread < logical_thread_end; ++log_thread) {
+            static_cast<VP8ComponentDecoder*>(g_decoder)->map_logical_thread_to_physical_thread(log_thread, physical_thread_id);
+        }
+    }
     /* step 3: decode the scan, row by row */
     std::tuple<uint8_t, uint8_t, Sirikata::Array1d<int16_t, (size_t)ColorChannel::NumBlockTypes> > overhang_byte_and_bit_count;
     std::get<0>(overhang_byte_and_bit_count) = 0;
@@ -720,9 +735,19 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         huffws[i] = new abitwriter(65536, max_file_size);
     }
 
-    if (g_threaded) {
-        for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+    for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+        int logical_thread_start, logical_thread_end;
+        std::tie(logical_thread_start, logical_thread_end)
+            = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
+        for (int logical_thread_id = logical_thread_start; logical_thread_id < logical_thread_end; ++logical_thread_id) {
+            g_decoder->map_logical_thread_to_physical_thread(logical_thread_id, physical_thread_id);
+        }
+
+    }
+    if (NUM_THREADS != 1 && g_threaded) {
+        for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
             int work_size = 0;
+            unsigned int physical_thread_offset = physical_thread_id;
             int logical_thread_start, logical_thread_end;
             std::tie(logical_thread_start, logical_thread_end)
                 = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
@@ -733,48 +758,62 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
             if (!work_size) {
                 work_size = max_file_size;
             }
-            local_buffers[physical_thread_id - 1].set_bound(work_size);
-            auto work_fn = std::bind(&recode_physical_thread_wrapper,
-                                  &local_buffers[physical_thread_id - 1],
-                                  framebuffer[physical_thread_id],
-                                  mcu_count_vertical,
-                                  luma_bounds,
-                                  max_coded_heights,
-                                  component_size_in_blocks,
-                                  physical_thread_id,
-                                  huffws[physical_thread_id]);
-            g_decoder->getWorker(physical_thread_id - 1)->work
-                = work_fn;
-            g_decoder->getWorker(physical_thread_id - 1)->activate_work();
-                    
+            if (physical_thread_id != 0) {
+                local_buffers[physical_thread_offset - 1].set_bound(work_size);
+                auto work_fn = std::bind(&recode_physical_thread_wrapper,
+                                         &local_buffers[physical_thread_id - 1],
+                                         framebuffer[physical_thread_id],
+                                         mcu_count_vertical,
+                                         luma_bounds,
+                                         max_coded_heights,
+                                         component_size_in_blocks,
+                                         physical_thread_id,
+                                         huffws[physical_thread_id]);
+                g_decoder->getWorker(physical_thread_offset)->work = work_fn;
+            } else {
+                auto work_fn = std::bind(&recode_physical_first_thread_wrapper,
+                                         str_out,
+                                         framebuffer[physical_thread_id],
+                                         mcu_count_vertical,
+                                         luma_bounds,
+                                         max_coded_heights,
+                                         component_size_in_blocks,
+                                         physical_thread_id,
+                                         huffws[physical_thread_id]);
+                g_decoder->getWorker(physical_thread_offset)->work = work_fn;
+            }
+            g_decoder->getWorker(physical_thread_offset)->activate_work();
         }
-    }
-    recode_physical_thread(str_out,
-                           framebuffer[0],
-                           mcu_count_vertical,
-                           luma_bounds,
-                           max_coded_heights,
-                           component_size_in_blocks,
-                           0,
-                           huffws[0]);
-    TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-    for (unsigned int physical_thread_id = 1;physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
-        TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
-
-        g_decoder->getWorker(physical_thread_id - 1)->main_wait_for_done();
-        TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] =
-            TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-        size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
-        if (bytes_to_copy) {
-            local_bound -= bytes_to_copy;
-            str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
-                           bytes_to_copy);
+        g_decoder->flush();
+        for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
+            unsigned int physical_thread_offset = physical_thread_id;
+            TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
+            
+            g_decoder->getWorker(physical_thread_offset)->main_wait_for_done();
+            TimingHarness::timing[physical_thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] =
+                TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
+            if (physical_thread_id > 0) { // the first guy goes right to stdout
+                size_t bytes_to_copy = local_buffers[physical_thread_id - 1].bytes_written();
+                if (bytes_to_copy) {
+                    local_bound -= bytes_to_copy;
+                    str_out->write(&local_buffers[physical_thread_id - 1].buffer()[0],
+                                   bytes_to_copy);
+                }
+            }
+            TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
         }
-        TimingHarness::timing[physical_thread_id][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
-
+    } else {
+        TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
+        recode_physical_thread(str_out,
+                               framebuffer[0],
+                               mcu_count_vertical,
+                               luma_bounds,
+                               max_coded_heights,
+                               component_size_in_blocks,
+                               0,
+                               huffws[0]);
     }
     if (!rst_err.empty()) {
-
         unsigned int cumulative_reset_markers = rsti ? (mcuh * mcuv - 1)/ rsti : 0;
         for (unsigned char i = 0; i < rst_err[0]; ++i) {
             const unsigned char mrk = 0xFF;

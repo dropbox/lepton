@@ -52,6 +52,7 @@ class BoolDecoder : public JpegBoolDecoder {public:
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public VPXBoolReader { public:
     BoolDecoder(const uint8_t *data, size_t size) : VPXBoolReader(data, size){}
+    BoolDecoder(PacketReader*pr) : VPXBoolReader(pr){}
     BoolDecoder() {}
 };
 #endif

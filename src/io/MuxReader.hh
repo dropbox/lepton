@@ -81,6 +81,9 @@ public:
         size_t size() const {
             return mSize;
         }
+        bool empty()const {
+            return !mSize;
+        }
         JpegAllocator<uint8_t> get_allocator() {
             return mAlloc;
         }
@@ -121,6 +124,7 @@ public:
         ~ResizableByteBuffer() {
             if (mBegin) {
                 mAlloc.destroy(mBegin);
+                mAlloc.deallocate(mBegin, mReserved);
             }
         }
     };
@@ -139,8 +143,7 @@ private:
         }
         return JpegError::nil();
     }
-
-    JpegError fillBufferOnce(ResizableByteBuffer &incomingBuffer) {
+    JpegError fillBufferOnce() {
         uint8_t header[4] = {0, 0, 0};
         JpegError err = ReadFull(mReader, header, 3);
         if (err != JpegError::nil()) {
@@ -200,6 +203,44 @@ private:
     void init (Reader *reader){
         mReader = reader;
     }
+    std::pair<uint8_t, JpegError> nextDataPacket(ResizableByteBuffer &retval) {
+        uint8_t header[4] = {0, 0, 0};
+        JpegError err = ReadFull(mReader, header, 3);
+        if (err != JpegError::nil()) {
+            return std::pair<uint8_t, JpegError>(0, err);
+        }
+        uint8_t stream_id = 0xf & header[0];
+        dev_assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
+        if (stream_id >= MAX_STREAM_ID) {
+            return std::pair<uint8_t, JpegError>(0, JpegError::errMissingFF00());
+        }
+        ResizableByteBuffer *buffer = &retval;
+        uint8_t flags = (header[0] >> 4) & 3;
+        size_t offset = buffer->size();
+        uint32_t len;
+        if (flags == 0) {
+            len = header[2];
+            len *= 0x100;
+            len += header[1] + 1;
+            buffer->resize(offset + len);
+        } else {
+            len = (1024 << (2 * flags));
+            buffer->resize(offset + len);
+            (*buffer)[offset] = header[1];
+            (*buffer)[offset + 1] = header[2];
+            len -= 2;
+            offset += 2;
+        }
+        JpegError ret = ReadFull(mReader, buffer->data() + offset, len);
+        if (ret == JpegError::nil()) {
+            if (flags == 0) {
+                mOverhead += 3;
+            } else {
+                mOverhead += 1;
+            }
+        }
+        return std::pair<uint8_t, JpegError>(stream_id, ret);
+    }
     void fillBufferEntirely(std::pair<ResizableByteBuffer::const_iterator,
                                       ResizableByteBuffer::const_iterator>* ret) {
         bool all_error = false;
@@ -207,7 +248,7 @@ private:
         while (!all_error) {
             all_error = true;
             for (int i = 0; i < MAX_STREAM_ID; ++i) {
-                if (fillBufferOnce(ib) == JpegError::nil()) {
+                if (fillBufferOnce() == JpegError::nil()) {
                     all_error = false;
                 }
             }
@@ -227,7 +268,7 @@ private:
         incomingBuffer.swap(mBuffer[desired_stream_id]);
         do {
             JpegError err = JpegError::nil();
-            if ((err = fillBufferOnce(incomingBuffer)) != JpegError::nil()) {
+            if ((err = fillBufferOnce()) != JpegError::nil()) {
                 return err;
             }
         } while(mOffset[desired_stream_id] == mBuffer[desired_stream_id].size());
@@ -381,7 +422,6 @@ public:
         return retval.second;
     }
     JpegError flush(uint8_t stream_id) {
-        JpegError retval = JpegError::nil();
         for (uint8_t i= 0; i < MAX_STREAM_ID; ++i) {
             uint32_t toBeFlushed = mBuffer[i].size() - mOffset[i];
             if (i == stream_id || !toBeFlushed) {
@@ -391,20 +431,19 @@ public:
             if (toBeFlushed < 4096) {
                 if (isUrgent) {
                     // we need to flush what we have
-                    retval = flushFull(i, toBeFlushed);
+                    flushFull(i, toBeFlushed);
                     dev_assert(mTotalWritten == mLowWaterMark[i]);
                 }
             } else {
                 if (isUrgent && toBeFlushed < 16384) {
-                    retval = flushFull(i, toBeFlushed);
+                    flushFull(i, toBeFlushed);
                 } else {
-                    retval = flushPartial(i, toBeFlushed);
+                    flushPartial(i, toBeFlushed);
                 }
             }
         }
         uint32_t toBeFlushed = mBuffer[stream_id].size() - mOffset[stream_id];
-        retval = flushPartial(stream_id, toBeFlushed);
-        return retval;
+        return flushPartial(stream_id, toBeFlushed);
     }
     std::pair<uint32, JpegError> Write(uint8_t stream_id, const uint8*data, unsigned int size) {
         std::pair<uint32, JpegError> retval(size, JpegError::nil());

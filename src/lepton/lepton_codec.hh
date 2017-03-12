@@ -141,17 +141,8 @@ protected:
         TimingHarness::timing[thread_id][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     }
     void registerWorkers(GenericWorker* workers, unsigned int num_workers) {
-        always_assert(num_workers < MAX_NUM_THREADS);
-        always_assert(num_workers  + 1 == NUM_THREADS);
         num_registered_workers_ = num_workers;
         spin_workers_ = workers;
-        for (unsigned int i = 0; i < num_workers + 1 ; ++i) {
-            if (!thread_state_[i]) {
-                //thread_state_[i] = new ThreadState;
-                //thread_state_[i]->model_.model().set_tables_identity();
-                //thread_state_[i]->model_.load_probability_tables();
-            }
-        }
     }
     size_t model_worker_memory_used() const {
         size_t retval = 0;
@@ -173,6 +164,7 @@ protected:
         return retval;
     }
     LeptonCodec(bool do_threading) {
+        spin_workers_ = NULL;
         num_registered_workers_ = 0; // need to wait
         do_threading_ = do_threading;
         unsigned int num_threads = 1;

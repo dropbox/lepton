@@ -28,7 +28,6 @@ class VP8ComponentEncoder : protected LeptonCodec, public BaseEncoder {
 public:
     VP8ComponentEncoder(bool do_threading);
     void registerWorkers(GenericWorker * workers, unsigned int num_workers) {
-        always_assert(num_workers + 1 == NUM_THREADS);
         this->LeptonCodec::registerWorkers(workers, num_workers);
     }
 

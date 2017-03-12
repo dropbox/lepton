@@ -63,6 +63,14 @@ AC_ARG_ENABLE([custom-allocator],
 AC_SUBST([MEMORY_MANAGEMENT_CFLAGS])
 
 
+AC_ARG_ENABLE([benchmark],
+  [AS_HELP_STRING([--enable-benchmark]
+    [Placeholder flag to enable longer/more in depth benchmark @<:@no@:>@])],
+  [BENCHMARK_CFLAGS="-DREALISTIC_BENCHMARK"],
+  [BENCHMARK_CFLAGS=""])
+AC_SUBST([BENCHMARK_CFLAGS])
+
+
 # Make single thread the default
 AC_ARG_ENABLE([best-ratio-slow-decompression],
   [AS_HELP_STRING([--enable-best-ratio-slow-decompression],
@@ -70,6 +78,14 @@ AC_ARG_ENABLE([best-ratio-slow-decompression],
   [THREAD_FLAGS="-DDEFAULT_SINGLE_THREAD "],
   [THREAD_FLAGS=""])
 AC_SUBST([THREAD_FLAGS])
+
+# Make single thread the default
+AC_ARG_ENABLE([billing],
+  [AS_HELP_STRING([--enable-billing],
+    [Print out a bill receipt @<:@no@:>@])],
+  [BILLING_FLAGS="-DENABLE_BILLING "],
+  [BILLING_FLAGS=""])
+AC_SUBST([BILLING_FLAGS])
 
 CODEC_FLAGS=""
 # Disable advanced features

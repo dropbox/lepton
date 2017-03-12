@@ -47,6 +47,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     #include <unistd.h>
 #else
     #include <io.h>
+#include <chrono>
+#include <ctime>
 #endif
 #ifdef __linux
 #include <sys/sysinfo.h>
@@ -128,8 +130,10 @@ namespace TimingHarness {
 Sirikata::Array1d<Sirikata::Array1d<uint64_t, NUM_STAGES>, MAX_NUM_THREADS> timing = {{{{0}}}};
 
 uint64_t get_time_us(bool force) {
-#ifndef _WIN32
-    //FIXME
+#ifdef _WIN32
+    return std::chrono::duration_cast<std::chrono::microseconds>
+        (std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+#else
     if (force || !g_use_seccomp) {
         struct timeval val = {0,0};
         gettimeofday(&val,NULL);
@@ -406,15 +410,15 @@ int cs_to        =   0  ; // end - band of current scan ( inclusive )
 int cs_sah       =   0  ; // successive approximation bit pos high
 int cs_sal       =   0  ; // successive approximation bit pos low
 void kill_workers(void * workers, uint64_t num_workers);
-
+BaseDecoder* g_decoder = NULL;
 GenericWorker * get_worker_threads(unsigned int num_workers) {
-    always_assert(num_workers + 1 == NUM_THREADS);
+    // in this case decoding is asymmetric to encoding, just forget the assert
     if (NUM_THREADS < 2) {
         return NULL;
     }
-    GenericWorker *retval = new GenericWorker[num_workers];
+    GenericWorker* retval = GenericWorker::get_n_worker_threads(num_workers);
     TimingHarness::timing[0][TimingHarness::TS_THREAD_STARTED] = TimingHarness::get_time_us();
-    custom_atexit(&kill_workers, retval, num_workers);
+
     return retval;
 }
 
@@ -422,7 +426,11 @@ VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
     VP8ComponentDecoder *retval = new VP8ComponentDecoder(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
-        retval->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
+        retval->registerWorkers(get_worker_threads(
+                                    NUM_THREADS
+                                    ),
+                                NUM_THREADS
+            );
     }
     return retval;
 }
@@ -449,7 +457,7 @@ F_TYPE filetype;            // type of current file
 F_TYPE ofiletype = LEPTON;            // desired type of output file
 bool g_do_preload = false;
 std::unique_ptr<BaseEncoder> g_encoder;
-BaseDecoder* g_decoder = NULL;
+
 std::unique_ptr<BaseDecoder> g_reference_to_free;
 ServiceInfo g_socketserve_info;
 bool g_threaded = true;
@@ -506,7 +514,7 @@ FILE*  msgout   = stderr;    // stream for output of messages
 bool   pipe_on  = false;    // use stdin/stdout instead of filelist
 
 
-void gen_nop(){}
+
 void sig_nop(int){}
 /* -----------------------------------------------
     global variables: info about program
@@ -568,11 +576,7 @@ void timing_operation_first_byte( char operation ) {
     if (current_operation_first_byte.tv_sec == 0 &&
         current_operation_first_byte.tv_usec == 0) {
         gettimeofday(&current_operation_first_byte, NULL);
-        fprintf(stderr,"FIRST BYTE ACHIEVED %ld %ld\n",
-                (long)current_operation_first_byte.tv_sec,
-                (long)current_operation_first_byte.tv_usec );
     }
-
 #endif
 #endif
 }
@@ -689,6 +693,7 @@ void compute_thread_mem(const char * arg,
     main-function
     ----------------------------------------------- */
 
+#ifdef EMSCRIPTEN
 const char *fake_argv[] =  {
     "lepton-scalar",
     "-skipverify",
@@ -698,7 +703,6 @@ const char *fake_argv[] =  {
 
 const int fake_argc = sizeof(fake_argv) / sizeof(char *);
 
-#ifdef EMSCRIPTEN
 int EMSCRIPTEN_KEEPALIVE main(void) {
     const int argc = fake_argc;
     const char **argv = fake_argv;
@@ -793,7 +797,7 @@ int EMSCRIPTEN_KEEPALIVE main(void) {
     return error_cnt == 0 ? 0 : 1;
 }
 #else
-int main( int argc, char** argv )
+int app_main( int argc, char** argv )
 {
     g_argc = argc;
     g_argv = (const char **)argv;
@@ -854,7 +858,7 @@ int main( int argc, char** argv )
         UncompressedComponents::max_number_of_blocks = mem_limit - 36 * 1024 * 1024;
     }
     UncompressedComponents::max_number_of_blocks /= (sizeof(uint16_t) * 64);
-    int n_threads = MAX_NUM_THREADS - 1;
+    int n_threads = MAX_NUM_THREADS;
 #ifndef __linux
     n_threads += 4;
 #endif
@@ -1100,10 +1104,7 @@ int initialize_options( int argc, const char*const * argv )
             fprintf(stderr, "FOUND UJG ARG: using that as output\n");
             action = comp;
             ofiletype = UJG;
-        } else if ( ( strcmp((*argv), "-comp") == 0) ) {
-            action = comp;
-        } else if ( ( strcmp((*argv), "-info") == 0) ) {
-            action = info;
+#ifndef _WIN32
         } else if ( strcmp((*argv), "-fork") == 0 ) {    
             action = forkserve;
             // sets it up in serving mode
@@ -1135,6 +1136,7 @@ int initialize_options( int argc, const char*const * argv )
             }
         } else if ( strncmp((*argv), "-zliblisten", strlen("-zliblisten")) == 0 ) {
             g_socketserve_info.zlib_port = atoi((*argv) + strlen("-zliblisten="));
+#endif
         } else if ( strcmp((*argv), "-") == 0 ) {    
             msgout = stderr;
             // set binary mode for stdin & stdout
@@ -1261,21 +1263,6 @@ void check_decompression_memory_bound_ok() {
     if (g_decompression_memory_bound) {
         if (decompression_memory_bound() > g_decompression_memory_bound) {
             custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
-        }
-    }
-}
-/* -----------------------------------------------
-    processes one file
-    ----------------------------------------------- */
-void kill_workers(void * workers, uint64_t num_workers) {
-    GenericWorker * generic_workers = (GenericWorker*)workers;
-    if (generic_workers) {
-        for (uint64_t i = 0; i < num_workers; ++i){
-            if (!generic_workers[i].has_ever_queued_work()){
-                generic_workers[i].work = &gen_nop;
-                generic_workers[i].activate_work();
-                generic_workers[i].main_wait_for_done();
-            }
         }
     }
 }
@@ -1466,7 +1453,9 @@ void process_file(IOUtil::FileReader* reader,
 
 
     if (g_inject_syscall_test == 2) {
-        unsigned int num_workers = std::max(NUM_THREADS - 1, 1U);
+        unsigned int num_workers = std::max(
+            NUM_THREADS - 1,
+            1U);
         GenericWorker* generic_workers = get_worker_threads(num_workers);
         if (g_inject_syscall_test == 2) {
             for (size_t i = 0; i < num_workers; ++i) {
@@ -1566,12 +1555,15 @@ void process_file(IOUtil::FileReader* reader,
         }
     } else if (filetype == LEPTON) {
         NUM_THREADS = read_fixed_ujpg_header();
+        if (NUM_THREADS == 1) {
+            g_threaded = false; // with singlethreaded, doesn't make sense to split out reader/writer
+        }
         if (!g_decoder) {
             g_decoder = makeDecoder(g_threaded, g_threaded);
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (NUM_THREADS > 1 && g_threaded && (action == socketserve || action == forkserve)) {
-            g_decoder->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
+            g_decoder->registerWorkers(get_worker_threads(NUM_THREADS), NUM_THREADS);
         }
     }else if (filetype == UJG) {
         (void)read_fixed_ujpg_header();
@@ -1901,30 +1893,40 @@ void show_help( void )
     fprintf(msgout, "Usage: %s [switches] input_file [output_file]", appname );
     fprintf(msgout, "\n" );
     fprintf(msgout, "\n" );
-    fprintf(msgout, " [-version]       Version of lepton codec\n" );
-    fprintf(msgout, " [-revision]      Source revision of lepton binary\n" );
+    fprintf(msgout, " [-version]       File format version of lepton codec\n" );
+    fprintf(msgout, " [-revision]      GIT Hash of lepton source that built this binary\n");
+    fprintf(msgout, " [-zlib0]         Instead of a jpg, return a zlib-compressed jpeg\n");
+    fprintf(msgout, " [-startbyte=<n>] Encoded file will only contain data at and after <n>\n");
+    fprintf(msgout, " [-trunc=<n>]     Encoded file will be truncated at size <n> - startbyte\n");
+//    fprintf(msgout, " [-avx2upgrade]   Try to exec <binaryname>-avx if avx is available\n");
+//    fprintf(msgout, " [-injectsyscall={1..4}]  Inject a \"chdir\" syscall & check SECCOMP crashes\n");
     fprintf(msgout, " [-unjailed]      Do not jail this process (use only with trusted data)\n" );
     fprintf(msgout, " [-singlethread]  Do not clone threads to operate on the input file\n" );
-    fprintf(msgout, " [-maxchildren]   Max codes to ever spawn at the same time in socket mode\n");
-    fprintf(msgout, " [-preload]       Preload decoding code\n" );
-    fprintf(msgout, " [-unkillable]    Ignore SIGTERM and SIGQUIT after alarm timer is set\n");
+    fprintf(msgout, " [-maxencodethreads=<n>] Can use <n> threads to decode: higher=bigger file\n");
     fprintf(msgout, " [-allowprogressive] Allow progressive jpegs through the compressor\n");
-    fprintf(msgout, " [-fork]          Serve requests on a series of pipes [deprecated]\n");
-    fprintf(msgout, " [-zlib0]         Instead of a jpg, return a zlib-compressed jpeg\n");
+    fprintf(msgout, " [-rejectprogressive] Reject encoding of progressive jpegs\n");
     fprintf(msgout, " [-timebound=<>ms]For -socket, enforce a timeout since first byte received\n");
-    fprintf(msgout, " [-trunc=<>]      Truncate input file to N bytes and do not read further\n");
     fprintf(msgout, " [-memory=<>M]    Upper bound on the amount of memory allocated by main\n");
     fprintf(msgout, " [-threadmemory=<>M] Bound on the amount of memory allocated by threads\n");
-    fprintf(msgout, " [-hugepages]     Allocate from the hugepages on the system\n");
-    fprintf(msgout, " [-avx2upgrade]   Try to exec <binaryname>-avx if avx is available\n");
-    fprintf(msgout, " [-injectsyscall={1..4}]  Inject a \"chdir\" syscall & check SECCOMP crashes\n");
-    fprintf(msgout, " [-socket]        Serve requests on a Unix Domain Socket\n" );
-    fprintf(msgout, " [-socket=<name>] Path to socket (otherwise random path used and printed)\n");
-    fprintf(msgout, " [-listen]        Serve requests on a TCP socket on port 2402\n" );
-    fprintf(msgout, " [-listen=<port>] Serve requests on a TCP socket on port <port>\n" );
-    fprintf(msgout, " [-zliblisten]        Serve requests on a TCP socket oi port 2403\n" );
-    fprintf(msgout, " [-zliblisten=<port>] Serve requests on a TCP socket on port <port>\n" );
     fprintf(msgout, " [-recodememory=<>M] Check that a singlethreaded recode only uses <>M mem\n");
+#ifndef _WIN32
+    fprintf(msgout, " [-hugepages]     Allocate from the hugepages on the system\n");
+    fprintf(msgout, " [-socket=<name>] Serve requests on a Unix Domain Socket at path <name>\n" );
+    fprintf(msgout, " [-listen=<port>] Serve requests on a TCP socket on <port> (default 2402)\n" );
+    fprintf(msgout, " [-listenbacklog=<n>] n clients queued for encoding if maxchildren reached\n" );
+    fprintf(msgout, " [-zliblisten=<port>] Serve requests on a TCP socket on <port> (def 2403)\n" );
+    fprintf(msgout, " [-maxchildren]   Max codes to ever spawn at the same time in socket mode\n");
+#endif
+    fprintf(msgout, " [-benchmark]     Run a benchmark on optional [<input_file>] (or included file)\n");
+    fprintf(msgout, " [-verbose]       Run the benchmark in verbose mode (more output to stderr)\n");
+    fprintf(msgout, " [-benchreps=<n>] Number of trials to run the benchmark for each category\n");
+    fprintf(msgout, " [-benchthreads=<n>] Max number of parallel codings to benchmark\n");
+#ifdef SKIP_VALIDATION
+    fprintf(msgout, " [-validate]      Round-trip this file when encoding [default:off]\n");
+#else
+    fprintf(msgout, " [-validate]      Round-trip this file when encoding [default:on]\n");
+    fprintf(msgout, " [-skipvalidate]  Avoid round-trip check when encoding (Warning: unsafe)\n");
+#endif
 }
 
 /* ----------------------- End of main interface functions -------------------------- */
@@ -2993,8 +2995,6 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                                     errorlevel.store(1);
                                 }
 
-                                // store eobrun
-                                peobrun = eobrun;
                             }
                             else {
                                 if(!huffr->eof) max_dpos[cmp] = std::max(dpos, max_dpos[cmp]); // record the max block serialized
@@ -3006,7 +3006,8 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                                     errorlevel.store(1);
                                 }
                             }
-
+                            // store eobrun
+                            peobrun = eobrun;
                             // copy back to colldata
                             for ( bpos = cs_from; bpos <= cs_to; bpos++ ) {
                                 uint16_t block_bpos = block[ bpos ];
@@ -3351,9 +3352,6 @@ bool recode_jpeg( void )
                             // next mcupos if no error happened
                             if ( sta != -1 )
                                 sta = next_mcuposn( &cmp, &dpos, &rstw );
-                        }
-                        if (sta == 0 && huffw->no_remainder()) {
-                            merge_jpeg_streaming(&streaming_progress, huffw->peekptr(), huffw->getpos(), false);
                         }
                         if (str_out->has_exceeded_bound()) {
                             sta = 2;
@@ -3856,7 +3854,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
 /* -----------------------------------------------
     read uncompressed JPEG file
     ----------------------------------------------- */
-namespace {
+#if !defined(USE_STANDARD_MEMORY_ALLOCATORS) && !defined(_WIN32) && !defined(EMSCRIPTEN)
 void mem_nop (void *opaque, void *ptr){
 
 }
@@ -3866,7 +3864,7 @@ void * mem_init_nop(size_t prealloc_size, uint8_t align){
 void* mem_realloc_nop(void * ptr, size_t size, size_t *actualSize, unsigned int movable, void *opaque){
     return NULL;
 }
-}
+#endif
 bool read_ujpg( void )
 {
     using namespace IOUtil;
@@ -4734,7 +4732,7 @@ int decode_ac_prg_fs( abitreader* huffr, huffTree* actree, short* block, unsigne
 
     // check eobrun
     if ( (*eobrun) > 0 ) {
-        for ( bpos = from; bpos <= to; )
+        for ( bpos = from; bpos <= to; ++bpos)
             block[ bpos ] = 0;
         (*eobrun)--;
         return from;
@@ -5119,7 +5117,7 @@ int next_huffcode( abitreader *huffw, huffTree *ctree, Billing min_bill, Billing
 
 
     while ( node < 256 ) {
-#ifndef NDEBUG
+#if defined(ENABLE_BILLING) || !defined(NDEBUG)
         write_bit_bill(min_bill, false, 1);
         if (min_bill != max_bill) {
             min_bill = (Billing)((int)min_bill + 1);

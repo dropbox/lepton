@@ -24,8 +24,11 @@ public:
                       "min size must be caught by the size check, so allocations happen after");
         static_assert(((MIN_SIZE - 1) & SIZE_CHECK) == 0,
                       "min size -1 must not be caught by the size check");
-        
-
+        boolwriter.lowvalue = 0;
+        boolwriter.range = 0;
+        boolwriter.count = 0;
+        boolwriter.pos = 0;
+        boolwriter.buffer = NULL;
     }
     void init () {
 #ifdef DEBUG_ARICODER
