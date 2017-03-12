@@ -1916,11 +1916,11 @@ void show_help( void )
     fprintf(msgout, " [-listenbacklog=<n>] n clients queued for encoding if maxchildren reached\n" );
     fprintf(msgout, " [-zliblisten=<port>] Serve requests on a TCP socket on <port> (def 2403)\n" );
     fprintf(msgout, " [-maxchildren]   Max codes to ever spawn at the same time in socket mode\n");
+#endif
     fprintf(msgout, " [-benchmark]     Run a benchmark on optional [<input_file>] (or included file)\n");
     fprintf(msgout, " [-verbose]       Run the benchmark in verbose mode (more output to stderr)\n");
     fprintf(msgout, " [-benchreps=<n>] Number of trials to run the benchmark for each category\n");
     fprintf(msgout, " [-benchthreads=<n>] Max number of parallel codings to benchmark\n");
-#endif
 #ifdef SKIP_VALIDATION
     fprintf(msgout, " [-validate]      Round-trip this file when encoding [default:off]\n");
 #else
