@@ -65,7 +65,7 @@ AC_SUBST([MEMORY_MANAGEMENT_CFLAGS])
 
 AC_ARG_ENABLE([benchmark],
   [AS_HELP_STRING([--enable-benchmark]
-    [Use custom allocators instead of the standard ones @<:@no@:>@])],
+    [Placeholder flag to enable longer/more in depth benchmark @<:@no@:>@])],
   [BENCHMARK_CFLAGS="-DREALISTIC_BENCHMARK"],
   [BENCHMARK_CFLAGS=""])
 AC_SUBST([BENCHMARK_CFLAGS])

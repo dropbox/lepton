@@ -65,23 +65,23 @@ extern unsigned char benchmark_file[3560812];
 #endif
 int benchmark(int argc, char ** argv) {
     const char * filename = NULL;
-    bool verbose = false;
     int default_reps = 16;
     int max_concurrency = 16;
     for (int i = 1; i < argc; ++i){
         if (strstr(argv[i], "-v")) {
-            verbose = true;
             g_verbose = true;
             continue;
         }
         char * where = NULL;
-        if ((where =strstr(argv[i], "-reps=")) != NULL) {
-            where += strlen("-reps=");
-            default_reps = atoi(where);
+        if ((where =strstr(argv[i], "-benchreps=")) != NULL) {
+            where += strlen("-benchreps=");
+            int reps;
+            default_reps = reps = atoi(where);
+            always_assert(reps > 1);
             continue;
         }
-        if ((where =strstr(argv[i], "-concurrency=")) != NULL) {
-            where += strlen("-concurrency=");
+        if ((where =strstr(argv[i], "-benchthreads=")) != NULL) {
+            where += strlen("-benchthreads=");
             max_concurrency = atoi(where);
             continue;
         }
@@ -90,6 +90,12 @@ int benchmark(int argc, char ** argv) {
             break;
         }
     }
+    Sirikata::memmgr_init(256 * 1024 * 1024,
+                          1024 * 1024,
+                          max_concurrency * 16,
+                          256,
+                          false);
+
     std::vector<unsigned char> data;
     if (filename != NULL) {
         FILE * fp = fopen(filename, "rb");
