@@ -2,7 +2,7 @@
 #ifndef DECODER_HH
 #define DECODER_HH
 template<bool all_neighbors_present, BlockType color>
-void parse_tokens(BlockContext context,
+uint32_t parse_tokens(BlockContext context,
                   BoolDecoder& data,
                   ProbabilityTables<all_neighbors_present, color> & probability_tables,
                   ProbabilityTablesBase&pt);

@@ -5,7 +5,8 @@
 #include "bool_decoder.hh"
 #include "base_coders.hh"
 class UncompressedComponents;
-
+void print_stats();
+void add_jpg_bits(uint32_t bits, uint16_t x, uint16_t y, int color);
 class LeptonCodec {
 protected:
     struct ThreadState {

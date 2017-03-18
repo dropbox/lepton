@@ -172,6 +172,7 @@ typedef struct {
   int count;
   BiRope buffer;
   PacketReader *reader;
+  uint32_t bits_consumed;
 //  vpx_decrypt_cb decrypt_cb;
 //  void *decrypt_state;
 } vpx_reader;
@@ -360,6 +361,7 @@ inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split, Billing 
     range <<= shift;
     value <<= shift;
     count -= shift;
+    r->bits_consumed+= shift;
     write_bit_bill(bill, true, shift);
     r->value = value;
     r->count = count;
@@ -392,6 +394,7 @@ inline bool vpx_read(vpx_reader *r, int prob, Billing bill) {
   }
   //unsigned int shift = vpx_norm[range];
   unsigned int shift = count_leading_zeros_uint8(range);
+  r->bits_consumed+= shift;
   range <<= shift;
   value <<= shift;
   count -= shift;

@@ -1,9 +1,83 @@
 #include "lepton_codec.hh"
 #include "uncompressed_components.hh"
 #include "../vp8/decoder/decoder.hh"
+#include <thread>
+#include <mutex>
+#include "jpgcoder.hh"
+std::mutex stats_mutex;
+struct Stats{
+    uint64_t time_us_lep;
+    uint64_t time_us_jpg;
+    uint32_t color;
+    uint16_t x;
+    uint16_t y;
+    uint16_t num_bits_lep;
+    uint16_t num_bits_jpg;
+    bool operator<(const Stats&other) const {
+        if (y != other.y) {
+            return y < other.y;
+        }
+        if (x != other.x) {
+            return x < other.x;
+        }
+        if (color != other.color) {
+            return color < other.color;
+        }
+        return time_us_jpg < other.time_us_jpg;
+    }
+};
 
-
-
+std::vector<Stats> cur_stats;
+void add_lep_bits(uint32_t bits, uint16_t x, uint16_t y, int color) {
+    Stats s;
+    s.time_us_lep = TimingHarness::get_time_us(true);
+    s.time_us_jpg = 0;
+    s.color = (int)color;
+    s.x =x;
+    s.y = y;
+    s.num_bits_lep = bits;
+    s.num_bits_jpg = 0;
+    std::lock_guard<std::mutex> l(stats_mutex);
+    cur_stats.push_back(s);
+    
+}
+void add_jpg_bits(uint32_t bits, uint16_t x, uint16_t y, int color) {
+    Stats s;
+    s.time_us_lep = 0;
+    s.time_us_jpg = TimingHarness::get_time_us(true);
+    s.color = (int)color;
+    s.x =x;
+    s.y = y;
+    s.num_bits_jpg = bits;
+    s.num_bits_lep = 0;
+    std::lock_guard<std::mutex> l(stats_mutex);
+    cur_stats.push_back(s);
+}
+FILE * fs = fopen("/tmp/lepton_stats.csv", "w");
+void print_stats() {
+    std::sort(cur_stats.begin(), cur_stats.end());
+    auto s = cur_stats.size();
+    for (size_t i = 0;i < s; ++i) {
+        auto cur = cur_stats[i];
+        if (cur.time_us_lep != 0) {
+            if ( i + 1 < s) {
+                auto next = cur_stats[i+1];
+                if (cur.x == next.x && cur.y == next.y && cur.color == next.color) {
+                    fprintf(fs, "%d,%d,%d, %d,%d, %ld,%ld\n",
+                            cur.x, cur.y, cur.color,
+                            cur.num_bits_lep,
+                            next.num_bits_jpg,
+                            cur.time_us_lep,
+                            next.time_us_jpg);
+                } else {
+                    fprintf(stderr, "MISMATCH %d != %d %d != %d %d != %d\n", cur.x, next.x, cur.y, next.y, cur.color, next.color);
+                }
+            }
+        }
+    }
+    fclose(fs);
+    fs = NULL;
+}
 template<class Left, class Middle, class Right, bool force_memory_optimization>
 void LeptonCodec::ThreadState::decode_row(Left & left_model,
                                           Middle& middle_model,
@@ -14,10 +88,11 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
     uint32_t block_width = image_data[(int)middle_model.COLOR]->block_width();
     if (block_width > 0) {
         BlockContext context = context_.at((int)middle_model.COLOR);
-        parse_tokens(context,
+        uint32_t bits = parse_tokens(context,
                      bool_decoder_,
                      left_model,
                      model_); //FIXME
+        add_lep_bits(bits, 0, curr_y, (int)middle_model.COLOR);
         int offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), true, curr_y);
         if (offset >= component_size_in_block) {
             return;
@@ -25,23 +100,26 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
     }
     for (unsigned int jpeg_x = 1; jpeg_x + 1 < block_width; jpeg_x++) {
         BlockContext context = context_.at((int)middle_model.COLOR);
-        parse_tokens(context,
+        uint32_t bits = parse_tokens(context,
                      bool_decoder_,
                      middle_model,
                      model_); //FIXME
         int offset = image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR),
 							  true,
 							  curr_y);
+        add_lep_bits(bits, jpeg_x, curr_y, (int)middle_model.COLOR);
         if (offset >= component_size_in_block) {
             return;
         }
     }
     if (block_width > 1) {
         BlockContext context = context_.at((int)middle_model.COLOR);
-        parse_tokens(context,
+        
+        uint32_t bits = parse_tokens(context,
                      bool_decoder_,
                      right_model,
                      model_);
+        add_lep_bits(bits, block_width - 1, curr_y, (int)middle_model.COLOR);
         image_data[middle_model.COLOR]->next(context_.at((int)middle_model.COLOR), false, curr_y);
     }
 }

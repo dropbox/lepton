@@ -165,10 +165,11 @@ void decode_edge(BlockContext mcontext,
 
 
 template<bool all_neighbors_present, BlockType color>
-void parse_tokens(BlockContext context,
+uint32_t parse_tokens(BlockContext context,
                   BoolDecoder& decoder,
                   ProbabilityTables<all_neighbors_present, color> & probability_tables,
                   ProbabilityTablesBase &pt) {
+    uint32_t start_bits = decoder.bits_consumed();
     context.here().bzero();
     auto num_nonzeros_prob = probability_tables.nonzero_counts_7x7(pt, context.copy());
     uint8_t num_nonzeros_7x7 = 0;
@@ -315,15 +316,17 @@ void parse_tokens(BlockContext context,
     context.num_nonzeros_here->set_vertical(outp_sans_dc.begin(),
                                             ProbabilityTablesBase::quantization_table((int)color),
                                             context.here().dc());
+    uint32_t end_bits = decoder.bits_consumed();
+    return end_bits - start_bits;
 }
 #ifdef ALLOW_FOUR_COLORS
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
 #endif
 
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
+template uint32_t parse_tokens(BlockContext, BoolDecoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);

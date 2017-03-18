@@ -73,7 +73,7 @@ public:
     int size_bound;
 public:
     void debug() const;
-
+    uint32_t bits_written;
     
     abitwriter( int size, int size_bound);
 	~abitwriter( void );
@@ -117,7 +117,7 @@ public:
     
     void write( unsigned int val, int nbits )
     {
-
+        bits_written += nbits;
         int nbits2 = nbits;
         unsigned int val2 = val;
         dev_assert(nbits <= 64);
