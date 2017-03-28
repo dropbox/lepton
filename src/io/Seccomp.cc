@@ -60,6 +60,7 @@
 
 
 #endif
+
 namespace Sirikata {
 bool installStrictSyscallFilter(bool verbose) {
 #ifdef __linux
@@ -83,6 +84,10 @@ bool installStrictSyscallFilter(bool verbose) {
         ALLOW_SYSCALL(mprotect),
         ALLOW_SYSCALL(mremap),
         ALLOW_SYSCALL(futex),
+
+#ifdef __i386__
+       ALLOW_SYSCALL(mmap2),
+#endif
 #endif
         ALLOW_SYSCALL(exit),
         ALLOW_SYSCALL(read),
