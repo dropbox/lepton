@@ -218,7 +218,7 @@ void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_
         thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_[thread_id].luma_y_start;
         thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_[thread_id].luma_y_end;
     } else {
-        thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_.back().luma_y_end;
+        thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_.back().luma_y_start;
         thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_.back().luma_y_end;
     }
     //fprintf(stderr, "tid: %d   %d -> %d\n", thread_id, thread_state_[target_thread_state]->luma_splits_[0],
