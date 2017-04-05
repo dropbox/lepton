@@ -26,7 +26,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#if defined (__linux) || defined (__APPLE__) || defined(BSD)
+#if defined (__linux__) || defined (__APPLE__) || defined(BSD)
 #define SIRIKATA_FUNCTION_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_EXPORT __attribute__ ((visibility("default")))
 #define SIRIKATA_PLUGIN_EXPORT __attribute__ ((visibility("default")))

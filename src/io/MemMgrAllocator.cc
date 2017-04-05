@@ -121,7 +121,7 @@ void memmgr_destroy() {
 #endif
     memmgr_thread_id_plus_one = 0; // only clears this thread
     if (memmgrs) {
-#if defined(USE_MMAP) && defined(__linux) // only linux guarantees all zeros
+#if defined(USE_MMAP) && defined(__linux__) // only linux guarantees all zeros
         if (!memmgrs->used_calloc) {
             munmap(memmgrs, memmgr_bytes_allocated);
         } else 
@@ -167,7 +167,7 @@ void memmgr_init(size_t main_thread_pool_size, size_t worker_thread_pool_size, s
     size_t total_size = pool_overhead_size + main_thread_pool_size + worker_thread_pool_size * num_workers;
     uint8_t * data = NULL;
     bool used_calloc = false;
-#if defined(USE_MMAP) && defined(__linux) // only linux guarantees all zeros
+#if defined(USE_MMAP) && defined(__linux__) // only linux guarantees all zeros
     if (needs_huge_pages) {
         data = (uint8_t*)mmap(NULL, total_size, PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB, -1, 0);
         if (data == MAP_FAILED) {

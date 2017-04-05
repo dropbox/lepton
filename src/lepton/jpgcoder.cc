@@ -50,7 +50,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <chrono>
 #include <ctime>
 #endif
-#ifdef __linux
+#ifdef __linux__
 #include <sys/sysinfo.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
@@ -861,7 +861,7 @@ int app_main( int argc, char** argv )
     }
     UncompressedComponents::max_number_of_blocks /= (sizeof(uint16_t) * 64);
     int n_threads = MAX_NUM_THREADS;
-#ifndef __linux
+#ifndef __linux__
     n_threads += 4;
 #endif
 #if !defined(_WIN32) && !defined(EMSCRIPTEN)

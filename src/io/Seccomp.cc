@@ -1,5 +1,5 @@
 #include <stdio.h>
-#ifdef __linux
+#ifdef __linux__
 #include <sys/sysinfo.h>
 #include <sys/wait.h>
 #include <linux/seccomp.h>
@@ -63,7 +63,7 @@
 
 namespace Sirikata {
 bool installStrictSyscallFilter(bool verbose) {
-#ifdef __linux
+#ifdef __linux__
     get_nprocs();
     get_nprocs_conf();
     struct sock_filter filter[] = {

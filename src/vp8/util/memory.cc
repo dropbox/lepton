@@ -10,7 +10,7 @@
 #include <unistd.h>
 #endif
 #include <errno.h>
-#ifdef __linux
+#ifdef __linux__
 #include <sys/syscall.h>
 #endif
 #if defined(_WIN32) || defined(EMSCRIPTEN)
@@ -159,7 +159,7 @@ void * custom_calloc(size_t size) {
 }
 }
 bool g_use_seccomp =
-#ifndef __linux
+#ifndef __linux__
     false
 #else
     true
@@ -221,7 +221,7 @@ void reset_close_thread_handle() {
 
 void custom_terminate_this_thread(uint8_t exit_code) {
     close_thread_handle();
-#ifdef __linux
+#ifdef __linux__
     syscall(SYS_exit, exit_code);
 #endif
 }
@@ -239,7 +239,7 @@ void custom_exit(ExitCode exit_code) {
               && errno == EINTR) {
         }
     }
-#ifdef __linux
+#ifdef __linux__
     syscall(SYS_exit, (int)exit_code);
 #else
     exit((int)exit_code);

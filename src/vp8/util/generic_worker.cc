@@ -14,7 +14,7 @@
 #include <unistd.h>
 #endif
 #include <errno.h>
-#ifdef __linux
+#ifdef __linux__
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
