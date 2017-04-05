@@ -97,7 +97,9 @@ AS_IF([test "x$enable_advanced_jpeg_features" != "xno"], [
 AC_SUBST([CODEC_FLAGS])
 
 
-
+if test -z $CXXFLAGS; then
+    CXXFLAGS='-O3 -g -DNDEBUG'
+fi
 
 # Checks for programs.
 AC_PROG_CXX
