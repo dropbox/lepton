@@ -187,9 +187,11 @@ set(LEPTON_SOURCES
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
    )
+if(SSE_VECTORIZATION)
 add_executable(lepton ${LEPTON_SOURCES})
 add_executable(lepton-slow-best-ratio ${LEPTON_SOURCES})
 add_executable(lepton-avx ${LEPTON_SOURCES})
+endif()
 add_executable(lepton-scalar ${LEPTON_SOURCES})
 set(ADDITIONAL_FLAGS)
 
@@ -278,15 +280,19 @@ if(USE_SYSTEM_DEPENDENCIES)
     include_directories(${ZLIB_INCLUDE_DIRS})
     find_package(OpenSSL)
     include_directories(${OPENSSL_INCLUDE_DIRS})
-    target_link_libraries(lepton ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+    if(SSE_VECTORIZATION)
+      target_link_libraries(lepton ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-slow-best-ratio ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-avx ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+    endif()
     target_link_libraries(lepton-scalar ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
-    target_link_libraries(lepton-slow-best-ratio ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
-    target_link_libraries(lepton-avx ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
 else()
-    target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
+    if(SSE_VECTORIZATION)
+      target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-slow-best-ratio localzlib localmd5 ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
+    endif()
     target_link_libraries(lepton-scalar localzlib localmd5 ${ADDITIONAL_FLAGS})
-    target_link_libraries(lepton-slow-best-ratio localzlib localmd5 ${ADDITIONAL_FLAGS})
-    target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
     set_target_properties(localmd5 PROPERTIES COMPILE_FLAGS "${VECTOR_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
     if(WIN32)
         set(ZLIB_EXTRA_INCLUDE_DIRS)
@@ -295,14 +301,15 @@ else()
     endif()
     set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "${VECTOR_FLAGS} ${ZLIB_EXTRA_INCLUDE_DIRS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
 endif()
-
+if(SSE_VECTORIZATION)
 set_target_properties(lepton PROPERTIES COMPILE_FLAGS "${VECTOR_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} ${ALLOCATOR_FLAGS} ${BILLING_FLAGS}")
 set_target_properties(lepton-slow-best-ratio PROPERTIES COMPILE_FLAGS "${VECTOR_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} ${ALLOCATOR_FLAGS} ${BILLING_FLAGS} -DDEFAULT_SINGLE_THREAD")
+set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "${ARCH_AVX2_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} ${ALLOCATOR_FLAGS} ${BILLING_FLAGS}")
+endif()
 set_target_properties(lepton-scalar PROPERTIES COMPILE_FLAGS "${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} ${ALLOCATOR_FLAGS} ${BILLING_FLAGS} -DUSE_SCALAR")
 
 set_target_properties(localzlib PROPERTIES COMPILE_FLAGS "${ARCH_SSE2_FLAGS} ${ZLIB_EXTRA_INCLUDE_DIRS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} ${ALLOCATOR_FLAGS} ${BILLING_FLAGS}")
 
-set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "${ARCH_AVX2_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES} ${ALLOCATOR_FLAGS} ${BILLING_FLAGS}")
 #add_executable(print-model
 #   src/vp8/util/debug.cc
 #   src/vp8/util/debug.hh
@@ -319,6 +326,7 @@ set_target_properties(lepton-avx PROPERTIES COMPILE_FLAGS "${ARCH_AVX2_FLAGS} ${
 #   src/vp8/model/numeric.cc
 #   )
 # target_link_libraries(print-model ${ADDITIONAL_FLAGS})
+if(SSE_VECTORIZATION)
 add_executable(test_invariants
    src/io/MemMgrAllocator.cc
    src/io/MemMgrAllocator.hh
@@ -336,6 +344,7 @@ endif()
 
 #set_target_properties(print-model PROPERTIES COMPILE_FLAGS "-msse4.2")
 set_target_properties(test_invariants PROPERTIES COMPILE_FLAGS "${VECTOR_FLAGS}")
+endif()
 file(WRITE ${CMAKE_BINARY_DIR}/version.hh.in
 "\#define GIT_REVISION \"@VERSION@\"\n"
 )
@@ -359,9 +368,14 @@ add_custom_target(
 )
 file(GLOB JS_FILES "src/js/*")
 file(COPY ${JS_FILES} DESTINATION ${CMAKE_BINARY_DIR})
+if(SSE_VECTORIZATION)
 add_dependencies(lepton version)
 add_dependencies(lepton-avx version)
 add_dependencies(lepton-slow-best-ratio version)
+endif()
 add_dependencies(lepton-scalar version)
-
+if(SSE_VECTORIZATION)
 install (TARGETS lepton lepton-slow-best-ratio lepton-avx lepton-scalar DESTINATION bin)
+else()
+install (TARGETS lepton-scalar DESTINATION bin)
+endif()
