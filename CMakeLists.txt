@@ -15,7 +15,11 @@ option(ENABLE_BILLING "Always print out a receipt of which parts of the jpeg too
 if(ENABLE_BILLING)
 set(BILLING_FLAGS "-DENABLE_BILLING")
 endif()
-
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc")
+option(SSE_VECTORIZATION "SSE instructions" OFF)
+else()
+option(SSE_VECTORIZATION "SSE instructions" ON)
+endif()
 option(BENCHMARK "Include a test file for benchmarking lepton" OFF)
 set(flags_configs "")
 if("${CMAKE_CONFIGURATION_TYPES}" STREQUAL "")
@@ -42,8 +46,11 @@ if(WIN32)
         endif()
     endforeach()
 endif()
-
-set(VECTOR_FLAGS "-mssse3 -msse4.2")
+if(SSE_VECTORIZATION)
+  set(VECTOR_FLAGS "-mssse3 -msse4.2")
+else()
+  set(VECTOR_FLAGS "")
+endif()
 if(EMSCRIPTEN)
     set(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -fno-rtti -s DEMANGLE_SUPPORT=1 -s TOTAL_MEMORY=184549376 --pre-js pre.js --post-js post.js -O2")
 else()
@@ -205,6 +212,10 @@ endif()
 endif()
 
 set(ADDITIONAL_COMPILE_FLAGS)
+if(NOT CMAKE_BUILD_TYPE)
+  set(ADDITIONAL_COMPILE_FLAGS "${ADDITIONAL_COMPILE_FLAGS} -DNDEBUG -O3 -g")
+endif()
+
 set(ADDITIONAL_DEFINES)
 if(BENCHMARK)
   set(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DREALISTIC_BENCHMARK")
@@ -213,6 +224,7 @@ if(USE_SYSTEM_DEPENDENCIES)
     set(ADDITIONAL_DEFINES "${ADDITIONAL_DEFINES} -DUSE_SYSTEM_LIBRARIES -DUSE_SYSTEM_MD5_DEPENDENCY")
 endif()
 
+if(SSE_VECTORIZATION)
 IF(WIN32)
 IF("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
 SET(ARCH_SSE2_FLAGS "/D__SSE2__")
@@ -228,7 +240,10 @@ SET(ARCH_AVX2_FLAGS "/arch:AVX2 /D__SSE2__")
 ELSE()
 set(ARCH_AVX2_FLAGS "-march=core-avx2")
 ENDIF()
-
+else()
+set(ARCH_SSE2_FLAGS "")
+set(ARCH_AVX2_FLAGS "")
+endif()
 option(BEST_RATIO_SLOW_DECOMPRESSION "Turn on single threaded decode in exchange for more compression ratio " OFF)
 
 if(BEST_RATIO_SLOW_DECOMPRESSION)
@@ -337,7 +352,7 @@ file(WRITE ${CMAKE_BINARY_DIR}/version.cmake
 include_directories(${CMAKE_BINARY_DIR})
 
 add_custom_target(
-    version
+    version ALL
     ${CMAKE_COMMAND} -D SRC=${CMAKE_BINARY_DIR}/version.hh.in
                      -D DST=${CMAKE_BINARY_DIR}/version.hh
                      -P ${CMAKE_BINARY_DIR}/version.cmake
@@ -345,5 +360,8 @@ add_custom_target(
 file(GLOB JS_FILES "src/js/*")
 file(COPY ${JS_FILES} DESTINATION ${CMAKE_BINARY_DIR})
 add_dependencies(lepton version)
+add_dependencies(lepton-avx version)
+add_dependencies(lepton-slow-best-ratio version)
+add_dependencies(lepton-scalar version)
 
 install (TARGETS lepton lepton-slow-best-ratio lepton-avx lepton-scalar DESTINATION bin)

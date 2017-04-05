@@ -26,17 +26,29 @@ protected:
                         int curr_y,
                         BlockBasedImagePerChannel<should_force_memory_optimization>&image_data,
                         int component_size_in_block);
-        template<bool force_memory_optimization>
-        void decode_row(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
-                                          Sirikata::Array1d<uint32_t,
-                                                            (uint32_t)ColorChannel::
-                                                            NumBlockTypes> component_size_in_block,
-                                                  int component,
-                                                  int curr_y);
 
+        void decode_rowf(BlockBasedImagePerChannel<false>& image_data,
+                         Sirikata::Array1d<uint32_t,
+                         (uint32_t)ColorChannel::
+                         NumBlockTypes> component_size_in_block,
+                         int component,
+                         int curr_y);
+        void decode_rowt(BlockBasedImagePerChannel<true>& image_data,
+                         Sirikata::Array1d<uint32_t,
+                         (uint32_t)ColorChannel::
+                         NumBlockTypes> component_size_in_block,
+                         int component,
+                         int curr_y);
         CodingReturnValue vp8_decode_thread(unsigned int thread_id,
                                             UncompressedComponents * const colldata);
     private:
+        template<bool force_memory_optimization>
+        void decode_row_internal(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
+                                 Sirikata::Array1d<uint32_t,
+                                 (uint32_t)ColorChannel::
+                                 NumBlockTypes> component_size_in_block,
+                                 int component,
+                                 int curr_y);
         void decode_row_wrapper(BlockBasedImagePerChannel<true>& image_data,
                                 Sirikata::Array1d<uint32_t,
                                                   (uint32_t)ColorChannel::

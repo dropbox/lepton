@@ -343,7 +343,7 @@ std::vector<unsigned int>  scnp;   // scan start positions in huffdata
 int            rstc             =    0  ;   // count of restart markers
 int            scnc             =    0  ;   // count of scans
 int            rsti             =    0  ;   // restart interval
-char           padbit           =    -1 ;   // padbit (for huffman coding)
+int8_t         padbit           =    -1 ;   // padbit (for huffman coding)
 std::vector<unsigned char> rst_err;   // number of wrong-set RST markers per scan
 std::vector<unsigned int> rst_cnt;
 bool rst_cnt_set = false;
@@ -827,6 +827,7 @@ int app_main( int argc, char** argv )
                            &avx2upgrade);
 #ifndef __AVX2__
 #ifndef __clang__
+#ifndef _ARCH_PPC        
 #ifndef _WIN32
         if (avx2upgrade &&
             __builtin_cpu_supports("avx2")
@@ -846,6 +847,7 @@ int app_main( int argc, char** argv )
             execvp(command, argv);
             argv[0] = old_command; // exec failed
         }
+#endif
 #endif
 #endif
 #endif

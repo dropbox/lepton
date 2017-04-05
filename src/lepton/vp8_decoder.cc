@@ -29,7 +29,7 @@ void VP8ComponentDecoder::decode_row(int target_thread_id,
                                                        NumBlockTypes> component_size_in_blocks,
                                      int component,
                                      int curr_y) {
-    thread_state_[target_thread_id]->decode_row(image_data,
+    thread_state_[target_thread_id]->decode_rowt(image_data,
                                                component_size_in_blocks,
                                                component,
                                                curr_y);

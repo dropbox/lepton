@@ -95,10 +95,26 @@ void LeptonCodec::ThreadState::decode_row_wrapper(BlockBasedImagePerChannel<true
                                                             NumBlockTypes> component_size_in_blocks,
                                           int component,
                                           int curr_y) {
-    return decode_row(image_data, component_size_in_blocks, component, curr_y);
+    return decode_rowt(image_data, component_size_in_blocks, component, curr_y);
+}
+void LeptonCodec::ThreadState::decode_rowf(BlockBasedImagePerChannel<false>& image_data,
+                                          Sirikata::Array1d<uint32_t,
+                                                            (uint32_t)ColorChannel::
+                                                            NumBlockTypes> component_size_in_blocks,
+                                          int component,
+                                          int curr_y) {
+    decode_row_internal(image_data, component_size_in_blocks,component,curr_y);
+}
+void LeptonCodec::ThreadState::decode_rowt(BlockBasedImagePerChannel<true>& image_data,
+                                          Sirikata::Array1d<uint32_t,
+                                                            (uint32_t)ColorChannel::
+                                                            NumBlockTypes> component_size_in_blocks,
+                                          int component,
+                                          int curr_y) {
+    decode_row_internal(image_data, component_size_in_blocks,component,curr_y);
 }
 template<bool force_memory_optimization>
-void LeptonCodec::ThreadState::decode_row(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
+void LeptonCodec::ThreadState::decode_row_internal(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           Sirikata::Array1d<uint32_t,
                                                             (uint32_t)ColorChannel::
                                                             NumBlockTypes> component_size_in_blocks,
@@ -275,7 +291,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int threa
         if (cur_row.luma_y < min_y) {
             continue;
         }
-        decode_row(image_data,
+        decode_rowf(image_data,
                    component_size_in_blocks,
                    cur_row.component,
                    cur_row.curr_y);

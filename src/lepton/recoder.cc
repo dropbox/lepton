@@ -16,7 +16,7 @@ int next_mcuposn(int* cmp, int* dpos, int* rstw );
 extern BaseDecoder *g_decoder;
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 
-extern char padbit;
+extern int8_t padbit; // signed
 
 
 extern Sirikata::Array1d<int, 4> cs_cmp; // component numbers  in current scan
