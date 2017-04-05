@@ -254,8 +254,10 @@ public:
             1020, 854, 854, 838, 1020, 838, 1020, 838
         };
         for (int coord = 0; coord < 64; ++coord) {
-            freqmax_[(int)color][coord] = (freqmax[coord] + quantization_table_[(int)color][coord] - 1)
-                / quantization_table_[(int)color][coord];
+            freqmax_[(int)color][coord] = (freqmax[coord] + quantization_table_[(int)color][coord] - 1);
+            if (quantization_table_[(int)color][coord]) {
+                freqmax_[(int)color][coord] /= quantization_table_[(int)color][coord];
+            }
             uint8_t max_len = uint16bit_length(freqmax_[(int)color][coord]);
             bitlen_freqmax_[(int)color][coord] = max_len;
             if (max_len > (int)RESIDUAL_NOISE_FLOOR) {

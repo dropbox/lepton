@@ -119,9 +119,15 @@ public:
             int64_t max_cmp_bc = max_number_of_blocks;
             max_cmp_bc *= header_[cmp].info_.bcv;
             max_cmp_bc *= header_[cmp].info_.bch;
-            max_cmp_bc /= total_req_blocks;
+            if (total_req_blocks) {
+                max_cmp_bc /= total_req_blocks;
+            }
             if (bc_allocated > max_cmp_bc) {
-                bc_allocated = max_cmp_bc - (max_cmp_bc % header_[cmp].info_.bch);
+                int rem = 0;
+                if (header_[cmp].info_.bch) {
+                    rem = (max_cmp_bc % header_[cmp].info_.bch);
+                }
+                bc_allocated = max_cmp_bc - rem;
             }
             if (cmp == desired_cmp) {
                 framebuffer->init(header_[cmp].info_.bch,
