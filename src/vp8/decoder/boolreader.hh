@@ -119,7 +119,9 @@ public:
             return;
         }
         size_t del = rope[0].second-rope[0].first;
-        memcpy(dest, rope[0].first, del);
+        if (del) {
+            memcpy(dest, rope[0].first, del);
+        }
         dest += del;
         size -=del;
         if (size) {

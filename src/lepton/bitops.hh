@@ -467,12 +467,12 @@ class bounded_iostream
     uint8_t buffer[buffer_size];
     uint32_t buffer_position;
     Sirikata::DecoderWriter *parent;
-    unsigned int byte_bound;
-    unsigned int byte_position;
-    unsigned int num_bytes_attempted_to_write;
+    uint32_t byte_bound;
+    uint32_t byte_position;
+    uint32_t num_bytes_attempted_to_write;
     Sirikata::JpegError err;
     std::function<void(Sirikata::DecoderWriter*, size_t)> size_callback;
-    unsigned int write_no_buffer( const void* from, size_t bytes_to_write );
+    uint32_t write_no_buffer( const void* from, size_t bytes_to_write );
 public:
 	bounded_iostream( Sirikata::DecoderWriter * parent,
                       const std::function<void(Sirikata::DecoderWriter*, size_t)> &size_callback,

@@ -356,6 +356,7 @@ bounded_iostream::bounded_iostream(Sirikata::DecoderWriter *w,
     this->size_callback = size_callback;
     buffer_position = 0;
     byte_position = 0;
+    byte_bound = 0x7FFFFFFF;
     num_bytes_attempted_to_write = 0;
     set_bound(0);
 }
@@ -384,7 +385,7 @@ void bounded_iostream::close() {
     parent->Close();
 }
 
-unsigned int bounded_iostream::write_no_buffer(const void *from, size_t bytes_to_write) {
+uint32_t bounded_iostream::write_no_buffer(const void *from, size_t bytes_to_write) {
     //return iostream::write(from,tpsize,dtsize);
     std::pair<unsigned int, Sirikata::JpegError> retval;
     if (byte_bound != 0 && byte_position + bytes_to_write > byte_bound) {

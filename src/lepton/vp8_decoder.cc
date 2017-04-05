@@ -417,6 +417,7 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
 void VP8ComponentDecoder::flush() {
         mux_splicer.drain(mux_reader_);
 }
+namespace{void nop(){}}
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     mux_splicer.init(spin_workers_);
@@ -455,14 +456,19 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     if (do_threading_) {
         for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             unsigned int cur_spin_worker = thread_id;
-            spin_workers_[cur_spin_worker].work
-                = std::bind(worker_thread,
-                            thread_state_[thread_id],
-                            thread_id,
-                            colldata,
-                            mux_splicer.thread_target,
-                            getWorker(cur_spin_worker),
-                            &send_to_actual_thread_state);
+            if (!thread_state_[thread_id]) {
+                spin_workers_[cur_spin_worker].work
+                    = &nop;
+            } else {
+                spin_workers_[cur_spin_worker].work
+                    = std::bind(worker_thread,
+                                thread_state_[thread_id],
+                                thread_id,
+                                colldata,
+                                mux_splicer.thread_target,
+                                getWorker(cur_spin_worker),
+                                &send_to_actual_thread_state);
+            }
             spin_workers_[cur_spin_worker].activate_work();
         }
         flush();

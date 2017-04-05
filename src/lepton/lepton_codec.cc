@@ -275,6 +275,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int threa
     /* deserialize each block in planar order */
 
     dev_assert(luma_splits_.size() == 2); // not ready to do multiple work items on a thread yet
+    always_assert(luma_splits_.size() >= 2);
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];
     while(true) {
