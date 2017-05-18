@@ -678,7 +678,9 @@ void recode_physical_first_thread_wrapper(bounded_iostream*stream_out,
     ----------------------------------------------- */
 bool recode_baseline_jpeg(bounded_iostream*str_out,
                           int max_file_size)
-{    
+{
+    always_assert(max_file_size > grbs && "Lepton only supports files that have some scan data");
+    // if the entire file is garbage, lepton will not support the file
     unsigned int local_bound = max_file_size - grbs;
     str_out->set_bound(local_bound);
 

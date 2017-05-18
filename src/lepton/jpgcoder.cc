@@ -2360,6 +2360,7 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
     unsigned char  type = 0x00; // type of current marker segment
 
     if (progress.ipos == 0 && progress.hpos == 0 && progress.scan == 1 && progress.within_scan == false) {
+        always_assert(max_file_size > grbs && "Lepton only supports files that have some scan data");
         str_out->set_bound(max_file_size - grbs);
 
         // write SOI

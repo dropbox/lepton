@@ -195,7 +195,9 @@ static INLINE void vpx_reader_fill(vpx_reader *r) {
         while(true) {
             auto next = r->reader->getNext();
             if (next.second - next.first + bytes_left <= sizeof(BD_VALUE)) {
-                memcpy(local_buffer + bytes_left, next.first, next.second - next.first);
+                if (next.first != next.second) {
+                    memcpy(local_buffer + bytes_left, next.first, next.second - next.first);
+                }
                 bytes_left += next.second - next.first;
             } else {
                 if (bytes_left) {

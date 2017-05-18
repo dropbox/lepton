@@ -389,6 +389,7 @@ uint32_t bounded_iostream::write_no_buffer(const void *from, size_t bytes_to_wri
     //return iostream::write(from,tpsize,dtsize);
     std::pair<unsigned int, Sirikata::JpegError> retval;
     if (byte_bound != 0 && byte_position + bytes_to_write > byte_bound) {
+        always_assert(byte_position <= byte_bound); // otherwise we already wrote too much
         size_t real_bytes_to_write = byte_bound - byte_position;
         byte_position += real_bytes_to_write;
         retval = parent->Write(reinterpret_cast<const unsigned char*>(from), real_bytes_to_write);
