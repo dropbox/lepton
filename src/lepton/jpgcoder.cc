@@ -4226,6 +4226,7 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
         cmpnfo[ cmp ].nch = ( int ) ceil( (float) imgwidth *
                             ( (float) cmpnfo[ cmp ].sfv / ( 8.0 * sfvm ) ) );
         cmpnfo[ cmp ].nc  = cmpnfo[ cmp ].ncv * cmpnfo[ cmp ].nch;
+        cmpnfo[cmp].check_valid_value_range();
         if (cmp == 0) {
             maxLumaWidth = cmpnfo[ cmp ].bch * 8;
             maxLumaHeight = cmpnfo[ cmp ].bcv * 8;
