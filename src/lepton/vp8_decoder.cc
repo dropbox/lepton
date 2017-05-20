@@ -14,7 +14,6 @@
 #include "../io/Reader.hh"
 #include "../vp8/decoder/decoder.hh"
 using namespace std;
-
 void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input,
                                       const std::vector<ThreadHandoff>& thread_handoff)
 {
