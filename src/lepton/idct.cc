@@ -151,9 +151,9 @@ idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], b
         outp[8*6+x] = (y3 - y2) >> 11;
         outp[8*7+x] = (y7 - y1) >> 11;
     }
-    for (int i = 0; i < 64;++i) {
-        //outp[i]>>=3;
-    }
+    //for (int i = 0; i < 64;++i) {
+    //    outp[i]>>=3;
+    //}
 }
 #else /* At least SSE2 is available { */
 
