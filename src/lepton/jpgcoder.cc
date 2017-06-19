@@ -28,6 +28,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **/
 
+volatile int volatile1024 = 1024;
 #include "../vp8/util/memory.hh"
 #include "../vp8/util/debug.hh"
 #include <stdio.h>
@@ -702,7 +703,6 @@ const char *fake_argv[] =  {
 };
 
 const int fake_argc = sizeof(fake_argv) / sizeof(char *);
-
 int EMSCRIPTEN_KEEPALIVE main(void) {
     const int argc = fake_argc;
     const char **argv = fake_argv;

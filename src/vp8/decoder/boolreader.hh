@@ -342,7 +342,6 @@ inline uint8_t count_leading_zeros_uint8(uint8_t v) {
     }
     return 7 - r;
 }
-
 inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split, Billing bill) {
     BD_VALUE bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
     vpx_reader_fill(r);

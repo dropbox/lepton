@@ -15,6 +15,15 @@
 #include "../util/mm_mullo_epi32.hh"
 #endif
 
+#ifdef __GNUC__
+#if __GNUC__ == 7
+#if __GNUC_MINOR__ == 1
+// workaround https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81015
+#define WORKAROUND_CLZ_BUG
+#endif
+#endif
+#endif
+
 #ifdef _WIN32
 #include <intrin.h>
 #pragma intrinsic(_BitScanReverse)
@@ -83,15 +92,30 @@ inline constexpr uint8_t k16bit_length(uint16_t v) {
     ? 8 + LenTable256[v >> 8]
     : LenTable256[v];
 }
+
+
 inline uint8_t uint16log2(uint16_t v) {
+#ifdef WORKAROUND_CLZ_BUG
+    return k16log2(v);
+#else
     return 31 - __builtin_clz((uint32_t)v);
+#endif
 }
 inline uint8_t nonzero_bit_length(uint16_t v) {
     dev_assert(v);
+#ifdef WORKAROUND_CLZ_BUG
+    return k16bit_length(v);
+#else
     return 32 - __builtin_clz((uint32_t)v);
+#endif
+    
 }
 inline uint8_t uint16bit_length(uint16_t v) {
+#ifdef WORKAROUND_CLZ_BUG
+    return k16bit_length(v);
+#else
     return v ? 32 - __builtin_clz((uint32_t)v) : 0;
+#endif
 }
 #endif
 
@@ -363,11 +387,13 @@ template<typename intt> intt local_log2(intt v) {
 
 
 template <typename intt> intt bit_length(intt v) {
+#ifndef WORKAROUND_CLZ_BUG
     if (sizeof(intt) <= 4) {
         return v ? 32 - __builtin_clz((uint32_t)v) : 0;
     } else {
         return v ? 64 - __builtin_clzl((uint64_t)v) : 0;
     }
+#endif
     return v == 0 ? 0 : local_log2(v) + 1;
 }
 

@@ -194,6 +194,7 @@ void load_model(Model &model, const char* filename);
 #define WINALIGN16
 #define UNIXALIGN16 __attribute__((aligned(16)))
 #endif
+extern volatile int volatile1024;
 class ProbabilityTablesBase {
 protected:
     Model model_;
@@ -253,6 +254,8 @@ public:
             1020, 854, 871, 870, 1010, 969, 1020, 1020,
             1020, 854, 854, 838, 1020, 838, 1020, 838
         };
+        always_assert(uint16bit_length(volatile1024) == 11);
+        always_assert(uint16bit_length(1024) == 11);
         for (int coord = 0; coord < 64; ++coord) {
             freqmax_[(int)color][coord] = (freqmax[coord] + quantization_table_[(int)color][coord] - 1);
             if (quantization_table_[(int)color][coord]) {
