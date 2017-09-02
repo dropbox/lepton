@@ -50,7 +50,7 @@ std::vector<uint8_t,
                                                              &custom_bdeallocator,
                                                              &local_alloc);
     BrotliEncoderSetParameter(state, BROTLI_PARAM_SIZE_HINT, size);
-    BrotliEncoderSetParameter(state, BROTLI_PARAM_QUALITY, 9);
+    BrotliEncoderSetParameter(state, BROTLI_PARAM_QUALITY, 10);
     uint32_t lgwin = 1;
     size_t tmp = size;
     while (tmp) {
