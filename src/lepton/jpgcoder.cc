@@ -228,22 +228,29 @@ void show_help( void );
     ----------------------------------------------- */
 
 bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
-                Sirikata::Array1d<uint8_t, 2> two_byte_header, bool is_socket);
+                bool is_embedded_jpeg, Sirikata::Array1d<uint8_t, 2> two_byte_header,
+                bool is_socket);
 
 template <class stream_reader>
 bool read_jpeg(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offset,
-               stream_reader *jpg_str_in);
+               stream_reader *jpg_str_in,
+               Sirikata::Array1d<uint8_t, 2> header,
+               bool is_embedded_jpeg);
 bool read_jpeg_wrapper(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offset,
-                       ibytestream *jpg_str_in){
-    return read_jpeg(huff_input_offset, jpg_str_in);
+                       ibytestream *jpg_str_in,
+                       Sirikata::Array1d<uint8_t, 2> header,
+                       bool is_embedded_jpeg) {
+    return read_jpeg(huff_input_offset, jpg_str_in, header, is_embedded_jpeg);
 }
 
 bool read_jpeg_and_copy_to_side_channel(std::vector<std::pair<uint32_t,
                                                     uint32_t>> *huff_input_offset,
-                                        ibytestreamcopier *jpg_str_in){
-    return read_jpeg(huff_input_offset, jpg_str_in);
+                                        ibytestreamcopier *jpg_str_in,
+                                        Sirikata::Array1d<uint8_t, 2> header,
+                                        bool is_embedded_jpeg) {
+    return read_jpeg(huff_input_offset, jpg_str_in, header, is_embedded_jpeg);
 }
 
 struct MergeJpegProgress;
@@ -329,6 +336,7 @@ Sirikata::Array1d<Sirikata::Array1d<unsigned short, 64>, 4> qtables; // quantiza
 Sirikata::Array1d<Sirikata::Array1d<huffCodes, 4>, 2> hcodes; // huffman codes
 Sirikata::Array1d<Sirikata::Array1d<huffTree, 4>, 2> htrees; // huffman decoding trees
 Sirikata::Array1d<Sirikata::Array1d<unsigned char, 4>, 2> htset;// 1 if huffman table is set
+bool embedded_jpeg = false;
 unsigned char* grbgdata            =     NULL;    // garbage data
 unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
@@ -351,6 +359,7 @@ std::vector<unsigned int> rst_cnt;
 bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
 size_t            start_byte       =    0;     // support for producing a slice of jpeg
+size_t         jpeg_embedding_offset = 0;
 size_t max_encode_threads = 
 #ifdef DEFAULT_SINGLE_THREAD
                                          1
@@ -1092,6 +1101,10 @@ int initialize_options( int argc, const char*const * argv )
         else if ( strncmp((*argv), "-startbyte=", strlen("-startbyte=") ) == 0 ) {
             start_byte = local_atoi((*argv) + strlen("-startbyte="));
         }        
+        else if ( strncmp((*argv), "-embedding=", strlen("-embedding=") ) == 0 ) {
+            jpeg_embedding_offset = local_atoi((*argv) + strlen("-embedding="));
+            embedded_jpeg = true;
+        }
         else if ( strncmp((*argv), "-trunc=", strlen("-trunc=") ) == 0 ) {
             max_file_size = local_atoi((*argv) + strlen("-trunc="));
         }
@@ -1393,6 +1406,7 @@ std::string postfix_uniq(const std::string &filename, const char * ext) {
 
 int open_fdout(const char *ifilename,
                     IOUtil::FileWriter *writer,
+               bool is_embedded_jpeg,
                     Sirikata::Array1d<uint8_t, 2> fileid,
                     bool force_compressed_output,
                     bool *is_socket) {
@@ -1409,7 +1423,7 @@ int open_fdout(const char *ifilename,
     // check file id, determine filetype
     if (file_no + 1 < file_cnt && ofilename != ifilename) {
         ofilename = filelist[file_no + 1];
-    } else if (is_jpeg_header(fileid)) {
+    } else if (is_jpeg_header(fileid) || is_embedded_jpeg) {
         ofilename = postfix_uniq(ifilename, (ofiletype == UJG ? ".ujg" : ".lep"));
     } else if ( ( ( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) )
                 || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
@@ -1485,7 +1499,7 @@ void process_file(IOUtil::FileReader* reader,
     bool is_socket = false;
     int fdin = open_fdin(ifilename, reader, header, &is_socket);
     int fdout = -1;
-    if (is_jpeg_header(header) && !g_skip_validation) {
+    if ((embedded_jpeg || is_jpeg_header(header)) && !g_skip_validation) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
         Sirikata::MuxReader::ResizableByteBuffer lepton_data;
@@ -1515,7 +1529,7 @@ void process_file(IOUtil::FileReader* reader,
             //fprintf(stderr, "CONTINUE AS LEPTON...\n");
             break;
           case ValidationContinuation::ROUNDTRIP_OK:
-            fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0, &is_socket);
+            fdout = open_fdout(ifilename, writer, embedded_jpeg, header, g_force_zlib0_out || force_zlib0, &is_socket);
             for (size_t data_sent = 0; data_sent < lepton_data.size();) {
                 ssize_t sent = write(fdout,
                                      lepton_data.data() + data_sent,
@@ -1536,10 +1550,10 @@ void process_file(IOUtil::FileReader* reader,
             custom_exit(validation_exit_code);
         }        
     } else {
-        fdout = open_fdout(ifilename, writer, header, g_force_zlib0_out || force_zlib0, &is_socket);
+        fdout = open_fdout(ifilename, writer, embedded_jpeg, header, g_force_zlib0_out || force_zlib0, &is_socket);
     }
     // check input file and determine filetype
-    check_file(fdin, fdout, max_file_size, force_zlib0, header, is_socket);
+    check_file(fdin, fdout, max_file_size, force_zlib0, embedded_jpeg, header, is_socket);
     begin = clock();
     if ( filetype == JPEG )
     {
@@ -1647,7 +1661,7 @@ void process_file(IOUtil::FileReader* reader,
                                                jpg_ident_offset,
                                                Sirikata::JpegAllocator<uint8_t>());
 
-                        execute(std::bind(&read_jpeg_wrapper, &huff_input_offset, &str_jpg_in));
+                        execute(std::bind(&read_jpeg_wrapper, &huff_input_offset, &str_jpg_in, header, embedded_jpeg));
                     } else {
                         ibytestreamcopier str_jpg_in(str_in,
                                                      jpg_ident_offset,
@@ -1656,7 +1670,8 @@ void process_file(IOUtil::FileReader* reader,
                         str_jpg_in.mutate_read_data().push_back(0xff);
                         str_jpg_in.mutate_read_data().push_back(0xd8);
                         execute(std::bind(&read_jpeg_and_copy_to_side_channel,
-                                          &huff_input_offset, &str_jpg_in));
+                                          &huff_input_offset, &str_jpg_in, header,
+                                          embedded_jpeg));
                         jpeg_file_raw_bytes.swap(str_jpg_in.mutate_read_data());
                     }
                     TimingHarness::timing[0][TimingHarness::TS_JPEG_DECODE_STARTED] =
@@ -1677,7 +1692,8 @@ void process_file(IOUtil::FileReader* reader,
                 {
                     unsigned int jpg_ident_offset = 2;
                     ibytestream str_jpg_in(str_in, jpg_ident_offset, Sirikata::JpegAllocator<uint8_t>());
-                    execute(std::bind(read_jpeg_wrapper, &huff_input_offset, &str_jpg_in));
+                    execute(std::bind(read_jpeg_wrapper, &huff_input_offset, &str_jpg_in, header,
+                                      embedded_jpeg));
                 }
                 execute( write_info );
                 break;
@@ -1985,7 +2001,7 @@ unsigned char read_fixed_ujpg_header() {
 }
 
 bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
-                Sirikata::Array1d<uint8_t, 2> fileid, bool is_socket)
+                bool is_embedded_jpeg, Sirikata::Array1d<uint8_t, 2> fileid, bool is_socket)
 {
     IOUtil::FileReader * reader = IOUtil::BindFdToReader(fd_in, max_file_size, is_socket);
     if (!reader) {
@@ -1998,7 +2014,7 @@ bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
     IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out, is_socket);
     ujg_base_in = reader;
     // check file id, determine filetype
-    if (is_jpeg_header(fileid)) {
+    if (is_embedded_jpeg || is_jpeg_header(fileid)) {
         str_in = new Sirikata::BufferedReader<JPG_READ_BUFFER_SIZE>(reader);
         // file is JPEG
         filetype = JPEG;
@@ -2073,7 +2089,17 @@ unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
 template<class input_byte_stream>
 bool read_jpeg(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offsets,
-               input_byte_stream *jpg_in){
+               input_byte_stream *jpg_in,
+               Sirikata::Array1d<uint8_t, 2> header,
+               bool is_embedded_jpeg){
+    if (jpeg_embedding_offset) {
+        prefix_grbs = jpeg_embedding_offset + 2;
+        prefix_grbgdata = aligned_alloc(prefix_grbs);
+        prefix_grbgdata[0] = header[0];
+        prefix_grbgdata[1] = header[1];
+        prefix_grbs = jpg_in->read(prefix_grbgdata + 2, jpeg_embedding_offset);
+        always_assert((size_t)prefix_grbs == jpeg_embedding_offset); // the ffd8 gets baked in...again
+    }
     std::vector<unsigned char> segment(1024); // storage for current segment
     unsigned char  type = 0x00; // type of current marker segment
     unsigned int   len  = 0; // length of current marker segment
@@ -3587,7 +3613,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     if (start_byte) {
         always_assert(jpeg_file_raw_bytes);
     }
-    if (start_byte && jpeg_file_raw_bytes && !row_thread_handoffs.empty()) {
+    if (start_byte && jpeg_file_raw_bytes && !row_thread_handoffs.empty()) { // FIXME: respect jpeg_embedding?
         if (row_thread_handoffs[0].segment_size >= start_byte) {
             prefix_grbs = row_thread_handoffs[0].segment_size - start_byte;
             if (row_thread_handoffs.size() > 1) {
@@ -3772,7 +3798,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     // write garbage (data including and after EOI) (if any) to file
     if ( prefix_grbs > 0 || prefix_grbgdata != NULL) {
         // marker: "GRB" + [size of garbage]
-        unsigned char grb_mrk[] = {'P', 'G', 'R'};
+        unsigned char grb_mrk[] = {'P', 'G', embedded_jpeg ? (unsigned char)'E': (unsigned char)'R'};
         err = mrw.Write( grb_mrk, sizeof(grb_mrk) ).second;
         uint32toLE(prefix_grbs, ujpg_mrk);
         err = mrw.Write( ujpg_mrk, 4 ).second;
@@ -4040,8 +4066,12 @@ bool read_ujpg( void )
             // read garbage data
             ReadFull(&header_reader, grbgdata, grbs );
         }
-        else if ( memcmp( ujpg_mrk, "PGR", 3 ) == 0 ) {
+        else if ( memcmp( ujpg_mrk, "PGR", 3 ) == 0 || memcmp( ujpg_mrk, "PGE", 3 ) == 0 ) {
             // read prefix garbage (data before beginning of JPG) from file
+            if (ujpg_mrk[2] == 'E') {
+                // embedded jpeg: full header required
+                embedded_jpeg = true;
+            }
             ReadFull(&header_reader, ujpg_mrk, 4);
             prefix_grbs = LEtoUint32(ujpg_mrk);
             prefix_grbgdata = aligned_alloc(prefix_grbs);

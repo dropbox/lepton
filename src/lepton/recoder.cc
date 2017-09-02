@@ -22,6 +22,7 @@ extern int8_t padbit; // signed
 extern Sirikata::Array1d<int, 4> cs_cmp; // component numbers  in current scan
 extern Sirikata::Array1d<componentInfo, 4> cmpnfo;
 
+extern bool embedded_jpeg;
 extern int grbs;   // size of garbage
 extern int            hdrs;   // size of header
 extern Sirikata::Array1d<Sirikata::Array1d<unsigned short, 64>, 4> qtables; // quantization tables
@@ -442,12 +443,11 @@ unsigned int handle_initial_segments( bounded_iostream * const str_out )
         if ( type == 0xDA ) {
             if (prefix_grbgdata) {
                 str_out->write(prefix_grbgdata, prefix_grbs);
-            } else {
-                {
-                    unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
-                    // write SOI
-                    str_out->write( SOI, 2 );
-                }
+            }
+            if (embedded_jpeg || !prefix_grbgdata) {
+                unsigned char SOI[ 2 ] = { 0xFF, 0xD8 }; // SOI segment
+                // write SOI
+                str_out->write( SOI, 2 );
                 str_out->write( hdrdata, byte_position );
             }
             return byte_position; /* ready for the scan */
