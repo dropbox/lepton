@@ -95,10 +95,88 @@ if(NOT USE_SYSTEM_DEPENDENCIES)
     dependencies/zlib/uncompr.c
     dependencies/zlib/deflate.h)
 endif()
+add_library(localbrotli
+    dependencies/brotli/c/include/brotli/encode.h
+    dependencies/brotli/c/include/brotli/types.h
+    dependencies/brotli/c/include/brotli/decode.h
+    dependencies/brotli/c/include/brotli/port.h
+    dependencies/brotli/c/common/constants.h
+    dependencies/brotli/c/common/version.h
+    dependencies/brotli/c/common/dictionary.h
+    dependencies/brotli/c/common/dictionary.c
+    dependencies/brotli/c/enc/block_encoder_inc.h
+    dependencies/brotli/c/enc/memory.c
+    dependencies/brotli/c/enc/bit_cost.h
+    dependencies/brotli/c/enc/ringbuffer.h
+    dependencies/brotli/c/enc/entropy_encode.c
+    dependencies/brotli/c/enc/quality.h
+    dependencies/brotli/c/enc/utf8_util.h
+    dependencies/brotli/c/enc/block_splitter_inc.h
+    dependencies/brotli/c/enc/block_splitter.h
+    dependencies/brotli/c/enc/compress_fragment.c
+    dependencies/brotli/c/enc/utf8_util.c
+    dependencies/brotli/c/enc/cluster_inc.h
+    dependencies/brotli/c/enc/cluster.h
+    dependencies/brotli/c/enc/literal_cost.c
+    dependencies/brotli/c/enc/static_dict.c
+    dependencies/brotli/c/enc/backward_references_hq.c
+    dependencies/brotli/c/enc/hash.h
+    dependencies/brotli/c/enc/literal_cost.h
+    dependencies/brotli/c/enc/compress_fragment_two_pass.c
+    dependencies/brotli/c/enc/dictionary_hash.c
+    dependencies/brotli/c/enc/entropy_encode.h
+    dependencies/brotli/c/enc/command.h
+    dependencies/brotli/c/enc/metablock_inc.h
+    dependencies/brotli/c/enc/context.h
+    dependencies/brotli/c/enc/metablock.h
+    dependencies/brotli/c/enc/hash_longest_match_quickly_inc.h
+    dependencies/brotli/c/enc/hash_longest_match_inc.h
+    dependencies/brotli/c/enc/hash_to_binary_tree_inc.h
+    dependencies/brotli/c/enc/backward_references.h
+    dependencies/brotli/c/enc/find_match_length.h
+    dependencies/brotli/c/enc/prefix.h
+    dependencies/brotli/c/enc/static_dict.h
+    dependencies/brotli/c/enc/cluster.c
+    dependencies/brotli/c/enc/brotli_bit_stream.h
+    dependencies/brotli/c/enc/bit_cost_inc.h
+    dependencies/brotli/c/enc/metablock.c
+    dependencies/brotli/c/enc/backward_references_hq.h
+    dependencies/brotli/c/enc/write_bits.h
+    dependencies/brotli/c/enc/entropy_encode_static.h
+    dependencies/brotli/c/enc/histogram.c
+    dependencies/brotli/c/enc/encode.c
+    dependencies/brotli/c/enc/port.h
+    dependencies/brotli/c/enc/compress_fragment.h
+    dependencies/brotli/c/enc/static_dict_lut.h
+    dependencies/brotli/c/enc/histogram.h
+    dependencies/brotli/c/enc/hash_forgetful_chain_inc.h
+    dependencies/brotli/c/enc/block_splitter.c
+    dependencies/brotli/c/enc/brotli_bit_stream.c
+    dependencies/brotli/c/enc/compress_fragment_two_pass.h
+    dependencies/brotli/c/enc/backward_references_inc.h
+    dependencies/brotli/c/enc/bit_cost.c
+    dependencies/brotli/c/enc/backward_references.c
+    dependencies/brotli/c/enc/histogram_inc.h
+    dependencies/brotli/c/enc/hash_longest_match64_inc.h
+    dependencies/brotli/c/enc/fast_log.h
+    dependencies/brotli/c/enc/memory.h
+    dependencies/brotli/c/enc/dictionary_hash.h
+    dependencies/brotli/c/dec/state.h
+    dependencies/brotli/c/dec/huffman.h
+    dependencies/brotli/c/dec/transform.h
+    dependencies/brotli/c/dec/state.c
+    dependencies/brotli/c/dec/bit_reader.c
+    dependencies/brotli/c/dec/huffman.c
+    dependencies/brotli/c/dec/context.h
+    dependencies/brotli/c/dec/bit_reader.h
+    dependencies/brotli/c/dec/prefix.h
+    dependencies/brotli/c/dec/port.h
+    dependencies/brotli/c/dec/decode.c)
 
 include_directories(
     ${CMAKE_BINARY_DIR}
     ${PROJECT_SOURCE_DIR}/src/vp8/util
+    ${PROJECT_SOURCE_DIR}/dependencies/brotli/c/include
     ${PROJECT_SOURCE_DIR}/src/vp8/model
     ${PROJECT_SOURCE_DIR}/src/vp8/encoder
     ${PROJECT_SOURCE_DIR}/src/vp8/decoder)
@@ -281,18 +359,18 @@ if(USE_SYSTEM_DEPENDENCIES)
     find_package(OpenSSL)
     include_directories(${OPENSSL_INCLUDE_DIRS})
     if(SSE_VECTORIZATION)
-      target_link_libraries(lepton ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
-      target_link_libraries(lepton-slow-best-ratio ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
-      target_link_libraries(lepton-avx ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton localbrotli ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-slow-best-ratio localbrotli ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-avx localbrotli ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
     endif()
-    target_link_libraries(lepton-scalar ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
+    target_link_libraries(lepton-scalar localbrotli ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
 else()
     if(SSE_VECTORIZATION)
-      target_link_libraries(lepton localzlib localmd5 ${ADDITIONAL_FLAGS})
-      target_link_libraries(lepton-slow-best-ratio localzlib localmd5 ${ADDITIONAL_FLAGS})
-      target_link_libraries(lepton-avx localzlib localmd5 ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton localzlib localbrotli localmd5 ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-slow-best-ratio localzlib localbrotli localmd5 ${ADDITIONAL_FLAGS})
+      target_link_libraries(lepton-avx localzlib localbrotli localmd5 ${ADDITIONAL_FLAGS})
     endif()
-    target_link_libraries(lepton-scalar localzlib localmd5 ${ADDITIONAL_FLAGS})
+    target_link_libraries(lepton-scalar localzlib localbrotli localmd5 ${ADDITIONAL_FLAGS})
     set_target_properties(localmd5 PROPERTIES COMPILE_FLAGS "${VECTOR_FLAGS} ${ADDITIONAL_COMPILE_FLAGS} ${ADDITIONAL_DEFINES}")
     if(WIN32)
         set(ZLIB_EXTRA_INCLUDE_DIRS)

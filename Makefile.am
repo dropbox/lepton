@@ -1,4 +1,4 @@
-includes = -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder -I$(srcdir)/dependencies -I$(srcdir)/dependencies -I$(srcdir)/dependencies/xz/src/liblzma/common -I$(srcdir)/dependencies/xz/src/common -I$(srcdir)/dependencies/xz/src/liblzma/lzma -I$(srcdir)/dependencies/xz/src/liblzma/lz -I$(srcdir)/dependencies/xz/src/liblzma/check -I$(srcdir)/dependencies/xz/src/liblzma/rangecoder -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/dependencies/xz/src/liblzma/simple -I$(srcdir)/dependencies/xz/src/liblzma/delta -I$(srcdir)/dependencies/xz/src/liblzma
+includes = -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util -I$(srcdir)/src/vp8/model -I$(srcdir)/src/vp8/decoder -I$(srcdir)/src/vp8/encoder -I$(srcdir)/dependencies -I$(srcdir)/dependencies -I$(srcdir)/dependencies/brotli/c/include -I$(srcdir)/dependencies/xz/src/liblzma/common -I$(srcdir)/dependencies/xz/src/common -I$(srcdir)/dependencies/xz/src/liblzma/lzma -I$(srcdir)/dependencies/xz/src/liblzma/lz -I$(srcdir)/dependencies/xz/src/liblzma/check -I$(srcdir)/dependencies/xz/src/liblzma/rangecoder -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/dependencies/xz/src/liblzma/simple -I$(srcdir)/dependencies/xz/src/liblzma/delta -I$(srcdir)/dependencies/xz/src/liblzma
 
 
 
@@ -6,13 +6,13 @@ liblocalmd5_a_SOURCES = dependencies/md5/md5.c
 
 AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(PICKY_CXXFLAGS) $(BENCHMARK_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
 
-AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(BENCHMARK_CFLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS)
+AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(BENCHMARK_CFLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -I$(srcdir)/dependencies/brotli/c/include
 
-noinst_LIBRARIES = liblocalzlib.a liblocalmd5.a libtestdriver.a
+noinst_LIBRARIES = liblocalzlib.a liblocalmd5.a libtestdriver.a liblocalbrotli.a
 
 bin_PROGRAMS = lepton test_suite/test_invariants
 
-lepton_LDADD = liblocalmd5.a $(SYSTEM_DEPENDENCIES_LDFLAGS) -lpthread
+lepton_LDADD = liblocalmd5.a liblocalbrotli.a $(SYSTEM_DEPENDENCIES_LDFLAGS) -lpthread
 
 lepton_SOURCES = \
    src/io/MemReadWriter.cc \
@@ -98,6 +98,85 @@ lepton_SOURCES = \
    src/vp8/decoder/boolreader.cc \
    src/vp8/encoder/vpx_bool_writer.hh \
    src/vp8/decoder/vpx_bool_reader.hh
+
+
+liblocalbrotli_a_SOURCES =     dependencies/brotli/c/include/brotli/encode.h \
+    dependencies/brotli/c/include/brotli/types.h \
+    dependencies/brotli/c/include/brotli/decode.h \
+    dependencies/brotli/c/include/brotli/port.h \
+    dependencies/brotli/c/common/constants.h \
+    dependencies/brotli/c/common/version.h \
+    dependencies/brotli/c/common/dictionary.h \
+    dependencies/brotli/c/common/dictionary.c \
+    dependencies/brotli/c/enc/block_encoder_inc.h \
+    dependencies/brotli/c/enc/memory.c \
+    dependencies/brotli/c/enc/bit_cost.h \
+    dependencies/brotli/c/enc/ringbuffer.h \
+    dependencies/brotli/c/enc/entropy_encode.c \
+    dependencies/brotli/c/enc/quality.h \
+    dependencies/brotli/c/enc/utf8_util.h \
+    dependencies/brotli/c/enc/block_splitter_inc.h \
+    dependencies/brotli/c/enc/block_splitter.h \
+    dependencies/brotli/c/enc/compress_fragment.c \
+    dependencies/brotli/c/enc/utf8_util.c \
+    dependencies/brotli/c/enc/cluster_inc.h \
+    dependencies/brotli/c/enc/cluster.h \
+    dependencies/brotli/c/enc/literal_cost.c \
+    dependencies/brotli/c/enc/static_dict.c \
+    dependencies/brotli/c/enc/backward_references_hq.c \
+    dependencies/brotli/c/enc/hash.h \
+    dependencies/brotli/c/enc/literal_cost.h \
+    dependencies/brotli/c/enc/compress_fragment_two_pass.c \
+    dependencies/brotli/c/enc/dictionary_hash.c \
+    dependencies/brotli/c/enc/entropy_encode.h \
+    dependencies/brotli/c/enc/command.h \
+    dependencies/brotli/c/enc/metablock_inc.h \
+    dependencies/brotli/c/enc/context.h \
+    dependencies/brotli/c/enc/metablock.h \
+    dependencies/brotli/c/enc/hash_longest_match_quickly_inc.h \
+    dependencies/brotli/c/enc/hash_longest_match_inc.h \
+    dependencies/brotli/c/enc/hash_to_binary_tree_inc.h \
+    dependencies/brotli/c/enc/backward_references.h \
+    dependencies/brotli/c/enc/find_match_length.h \
+    dependencies/brotli/c/enc/prefix.h \
+    dependencies/brotli/c/enc/static_dict.h \
+    dependencies/brotli/c/enc/cluster.c \
+    dependencies/brotli/c/enc/brotli_bit_stream.h \
+    dependencies/brotli/c/enc/bit_cost_inc.h \
+    dependencies/brotli/c/enc/metablock.c \
+    dependencies/brotli/c/enc/backward_references_hq.h \
+    dependencies/brotli/c/enc/write_bits.h \
+    dependencies/brotli/c/enc/entropy_encode_static.h \
+    dependencies/brotli/c/enc/histogram.c \
+    dependencies/brotli/c/enc/encode.c \
+    dependencies/brotli/c/enc/port.h \
+    dependencies/brotli/c/enc/compress_fragment.h \
+    dependencies/brotli/c/enc/static_dict_lut.h \
+    dependencies/brotli/c/enc/histogram.h \
+    dependencies/brotli/c/enc/hash_forgetful_chain_inc.h \
+    dependencies/brotli/c/enc/block_splitter.c \
+    dependencies/brotli/c/enc/brotli_bit_stream.c \
+    dependencies/brotli/c/enc/compress_fragment_two_pass.h \
+    dependencies/brotli/c/enc/backward_references_inc.h \
+    dependencies/brotli/c/enc/bit_cost.c \
+    dependencies/brotli/c/enc/backward_references.c \
+    dependencies/brotli/c/enc/histogram_inc.h \
+    dependencies/brotli/c/enc/hash_longest_match64_inc.h \
+    dependencies/brotli/c/enc/fast_log.h \
+    dependencies/brotli/c/enc/memory.h \
+    dependencies/brotli/c/enc/dictionary_hash.h \
+    dependencies/brotli/c/dec/state.h \
+    dependencies/brotli/c/dec/huffman.h \
+    dependencies/brotli/c/dec/transform.h \
+    dependencies/brotli/c/dec/state.c \
+    dependencies/brotli/c/dec/bit_reader.c \
+    dependencies/brotli/c/dec/huffman.c \
+    dependencies/brotli/c/dec/context.h \
+    dependencies/brotli/c/dec/bit_reader.h \
+    dependencies/brotli/c/dec/prefix.h \
+    dependencies/brotli/c/dec/port.h \
+    dependencies/brotli/c/dec/decode.c
+
 
 liblocalzlib_a_SOURCES = dependencies/zlib/inflate.c \
 dependencies/zlib/inflate.h \
