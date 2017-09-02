@@ -267,7 +267,7 @@ test_suite_test_seccomp_decode_thread_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DI
 test_suite_test_seccomp_decode_thread_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_phone_outdoor_SOURCES = test_suite/test_harness.cc
-test_suite_test_phone_outdoor_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphonecity
+test_suite_test_phone_outdoor_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=iphonecity -DZLIB_HEADER
 test_suite_test_phone_outdoor_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_trailing_header_SOURCES = test_suite/test_harness.cc
@@ -287,7 +287,8 @@ test_suite_test_hq_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=hq -DMORE_
 test_suite_test_hq_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_misc_SOURCES = test_suite/test_harness.cc
-test_suite_test_misc_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2
+test_suite_test_misc_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=androidcrop -DTEST_FILE0=androidcropoptions -DTEST_FILE1=iphonecrop -DTEST_FILE2=iphonecrop2 -DZLIB_HEADER
+
 test_suite_test_misc_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_arithmetic_failfast_SOURCES = test_suite/test_harness.cc

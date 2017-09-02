@@ -90,7 +90,7 @@ void check_out(int output, const unsigned char *data, size_t data_size, bool *ok
 
 }
 enum {
-    MAX_ARGS=32
+    MAX_ARGS=33
 };
 void print_args(const char*const*const args) {
     for (int i = 0; i < MAX_ARGS; ++i) {
@@ -215,7 +215,8 @@ int run_test(const std::vector<unsigned char> &testImage,
              bool use_lepton, bool jailed, int inject_failure_level, int allow_progressive_files,
              bool multithread,
              bool expect_failure, bool expect_decoder_failure,
-             const char* encode_memory, const char *decode_memory, const char * singlethread_recode_memory, const char* thread_memory) {
+             const char* encode_memory, const char *decode_memory, const char * singlethread_recode_memory, const char* thread_memory,
+             bool use_brotli) {
     std::vector<unsigned char> leptonBuffer(use_lepton ? testImage.size()
                                            : testImage.size() * 40 + 4096 * 1024);
     std::vector<unsigned char> roundtripBuffer(testImage.size());
@@ -227,6 +228,9 @@ int run_test(const std::vector<unsigned char> &testImage,
     const char * decode_args[MAX_ARGS] = {"./lepton", "-hugepages", "-recode", NULL};
     if (!use_lepton) {
         encode_args[get_last_arg(encode_args)] = "-ujg";
+    }
+    if (use_brotli) {
+        encode_args[get_last_arg(encode_args)] = "-brotliheader";
     }
     if (inject_failure_level) {
         const char ** which_args = encode_args;
@@ -492,7 +496,8 @@ std::vector<unsigned char> load(const char *filename) {
 }
 int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_syscall_level, int allow_progressive_files, bool multithread,
               const std::vector<const char *> &filenames, bool expect_encode_failure, bool expect_decode_failure,
-              const char* encode_memory, const char * decode_memory, const char * singlethread_recode_memory, const char* thread_memory) {
+              const char* encode_memory, const char * decode_memory, const char * singlethread_recode_memory, const char* thread_memory,
+              bool use_brotli) {
     always_assert(argc > 0);
     for (int i = int(strlen(argv[0])) - 1; i > 0; --i) {
         if (argv[0][i] == '/' || argv[0][i] == '\\') {
@@ -510,14 +515,16 @@ int test_file(int argc, char **argv, bool use_lepton, bool jailed, int inject_sy
     std::vector<unsigned char> testImage(abstractJpeg, abstractJpeg+sizeof(abstractJpeg));
     if (filenames.empty()) {
         return run_test(testImage, use_lepton, jailed, inject_syscall_level, allow_progressive_files, multithread,
-                        expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, singlethread_recode_memory, thread_memory);
+                        expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, singlethread_recode_memory, thread_memory,
+                        use_brotli);
     }
     for (std::vector<const char *>::const_iterator filename = filenames.begin(); filename != filenames.end(); ++filename) {
         testImage = load(*filename);
         fprintf(stderr, "Loading %lu\n", (unsigned long)testImage.size());
         int retval = run_test(testImage,
                               use_lepton, jailed, inject_syscall_level, allow_progressive_files, multithread,
-                              expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, singlethread_recode_memory, thread_memory);
+                              expect_encode_failure, expect_decode_failure, encode_memory, decode_memory, singlethread_recode_memory, thread_memory,
+                              use_brotli);
         if (retval) {
             return retval;
         }

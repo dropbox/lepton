@@ -54,7 +54,7 @@ std::vector<uint8_t,
     uint32_t lgwin = 1;
     size_t tmp = size;
     while (tmp) {
-        size >>= 1;
+        tmp >>= 1;
         lgwin += 1;
     }
     if (lgwin < BROTLI_MIN_WINDOW_BITS) {
