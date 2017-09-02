@@ -220,6 +220,8 @@ set(LEPTON_SOURCES
    src/io/BufferedIO.hh
    src/io/ZlibCompression.cc
    src/io/ZlibCompression.hh
+   src/io/BrotliCompression.cc
+   src/io/BrotliCompression.hh
    src/io/Seccomp.hh
    src/io/Seccomp.cc
    src/io/seccomp-bpf.hh

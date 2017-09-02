@@ -74,7 +74,8 @@ std::vector<uint8_t,
     return retval;
 }
 std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
-          JpegError > ZlibDecoderDecompressionReader::Decompress(const uint8_t *buffer, size_t size, const JpegAllocator<uint8_t> &alloc) {
+          JpegError > ZlibDecoderDecompressionReader::Decompress(const uint8_t *buffer, size_t size, const JpegAllocator<uint8_t> &alloc,
+                                                                 size_t max_file_size) {
     z_stream strm;
     memset(&strm, 0, sizeof(z_stream));
     JpegAllocator<uint8_t> local_alloc;
@@ -113,7 +114,11 @@ std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
             }
             if (strm.avail_out == 0) {
                 retval_size += avail_bytes - strm.avail_out;
-                retval.first.resize(retval.first.size() * 2);
+                if (retval.first.size() == max_file_size) {
+                    retval.second = JpegError::errShortHuffmanData();
+                    break;
+                }
+                retval.first.resize(std::min(retval.first.size() * 2, max_file_size));
                 avail_bytes = retval.first.size() - retval_size;
 
                 strm.next_out = retval.first.data() + retval_size;

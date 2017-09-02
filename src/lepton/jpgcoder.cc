@@ -78,6 +78,7 @@ volatile int volatile1024 = 1024;
 #include "socket_serve.hh"
 #include "validation.hh"
 #include "../io/ZlibCompression.hh"
+#include "../io/BrotliCompression.hh"
 #include "../io/MemReadWriter.hh"
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
@@ -1080,8 +1081,9 @@ int initialize_options( int argc, const char*const * argv )
             g_skip_validation = false;
         } else if ( strcmp((*argv), "-roundtrip") == 0 ) {
             g_skip_validation = false;
-        }
-        else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
+        } else if ( strcmp((*argv), "-brotliheader") == 0 ) {
+            ujgversion = 2; // use brotli to compress the header and trailer rather than zlib
+        } else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
             g_socketserve_info.max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
         }
         else if ( strncmp((*argv), "-listenbacklog=", strlen("-listenbacklog=") ) == 0 ) {
@@ -1952,7 +1954,7 @@ unsigned char read_fixed_ujpg_header() {
         custom_exit(ExitCode::SHORT_READ);
     }
     // check version number
-    if (header[0] != 1 && header[0] != 2 && header[0] != ujgversion) {
+    if (header[0] != 1 && header[0] != 2 && header[0] != 3 && header[0] != ujgversion) {
         // let us roll out a new version gently
         fprintf( stderr, "incompatible file, use %s v%i.%i",
             appname, header[ 0 ] / 10, header[ 0 ] % 10 );
@@ -3791,11 +3793,16 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         //custom_exit(ExitCode::HEADER_TOO_LARGE);
     }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
-    compressed_header =
+    if (ujgversion == 1) {
+        compressed_header =
             Sirikata::ZlibDecoderCompressionWriter::Compress(mrw.buffer().data(),
                                                              mrw.buffer().size(),
                                                              Sirikata::JpegAllocator<uint8_t>());
-
+    } else {
+        compressed_header = Sirikata::BrotliCodec::Compress(mrw.buffer().data(),
+                                                            mrw.buffer().size(),
+                                                            Sirikata::JpegAllocator<uint8_t>());
+    }
     write_byte_bill(Billing::HEADER, false, 2 + hdrs + prefix_grbs + grbs);
     static_assert(MAX_NUM_THREADS <= 255, "We only have a single byte for num threads");
     always_assert(NUM_THREADS <= 255);
@@ -3903,18 +3910,35 @@ bool read_ujpg( void )
                                                  &mem_realloc_nop,
                                                  &MemMgrAllocatorMsize);
 #endif
-        std::pair<std::vector<uint8_t,
-                              Sirikata::JpegAllocator<uint8_t> >,
-                  JpegError> uncompressed_header_buffer(
-                ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
-                                                         compressed_header_buffer.size(),
-                                                           no_free_allocator));
-        if (uncompressed_header_buffer.second) {
-            always_assert(false && "Data not properly zlib coded");
-            return false;
+        if (ujgversion == 1) {
+            std::pair<std::vector<uint8_t,
+                                  Sirikata::JpegAllocator<uint8_t> >,
+                      JpegError> uncompressed_header_buffer(
+                          ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
+                                                                     compressed_header_buffer.size(),
+                                                                     no_free_allocator,
+                                                                     max_file_size));
+            if (uncompressed_header_buffer.second) {
+                always_assert(false && "Data not properly zlib coded");
+                return false;
+            }
+            zlib_hdrs = compressed_header_buffer.size();
+            header_reader.SwapIn(uncompressed_header_buffer.first, 0);
+        } else {
+            std::pair<std::vector<uint8_t,
+                                  Sirikata::JpegAllocator<uint8_t> >,
+                      JpegError> uncompressed_header_buffer(
+                          Sirikata::BrotliCodec::Decompress(compressed_header_buffer.data(),
+                                                            compressed_header_buffer.size(),
+                                                            no_free_allocator,
+                              max_file_size));
+            if (uncompressed_header_buffer.second) {
+                always_assert(false && "Data not properly zlib coded");
+                return false;
+            }
+            zlib_hdrs = compressed_header_buffer.size();
+            header_reader.SwapIn(uncompressed_header_buffer.first, 0);            
         }
-        zlib_hdrs = compressed_header_buffer.size();
-        header_reader.SwapIn(uncompressed_header_buffer.first, 0);
     }
     grbs = sizeof(EOI);
     grbgdata = EOI; // if we don't have any garbage, assume FFD9 EOI
