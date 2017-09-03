@@ -128,6 +128,15 @@ public:
             }
         }
     };
+    static size_t eofMarkerSize() {
+        return 3;
+    }
+    static const uint8_t *getEofMarker() {
+        static const uint8_t eofH[3] = {15|(15 << 4),
+                                       14|(15 << 4),
+                                       15|(15 << 4)};
+        return eofH;
+    }
 private:
     typedef Sirikata::DecoderReader Reader;
     Reader *mReader;
@@ -144,10 +153,17 @@ private:
         return JpegError::nil();
     }
     JpegError fillBufferOnce() {
+        if (eof) {
+            return JpegError::errEOF();
+        }
         uint8_t header[4] = {0, 0, 0};
         JpegError err = ReadFull(mReader, header, 3);
         if (err != JpegError::nil()) {
             return err;
+        }
+        if (memcmp(header, getEofMarker(), 3) ==0 ) {
+            eof = true;
+            return JpegError::errEOF();
         }
         uint8_t stream_id = 0xf & header[0];
         dev_assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
@@ -187,6 +203,9 @@ private:
     uint32_t mOffset[MAX_STREAM_ID];
     bool eof;
     size_t mOverhead;
+    Reader* getReader() {
+        return mReader;
+    }
     MuxReader(const JpegAllocator<uint8_t> &alloc,
               int num_stream_hint = 4, int stream_hint_reserve_size=65536, Reader *reader = NULL)
         : mReader(reader) {
@@ -204,11 +223,19 @@ private:
         mReader = reader;
     }
     std::pair<uint8_t, JpegError> nextDataPacket(ResizableByteBuffer &retval) {
+        if (eof) {
+            return std::pair<uint8_t, JpegError>(0, JpegError::errEOF());
+        }
         uint8_t header[4] = {0, 0, 0};
         JpegError err = ReadFull(mReader, header, 3);
         if (err != JpegError::nil()) {
             return std::pair<uint8_t, JpegError>(0, err);
         }
+        if (memcmp(header, getEofMarker(), 3) == 0) {
+            eof = true;
+            return std::pair<uint8_t, JpegError>(0, JpegError::errEOF());
+        }
+
         uint8_t stream_id = 0xf & header[0];
         dev_assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
         if (stream_id >= MAX_STREAM_ID) {
@@ -289,7 +316,8 @@ private:
     size_t getOverhead() const {
         return mOverhead;
     }
-    ~MuxReader(){}
+    ~MuxReader(){
+    }
 };
 
 class SIRIKATA_EXPORT MuxWriter {
@@ -305,8 +333,9 @@ public:
     uint32_t mFlushed[MAX_STREAM_ID];
     uint32_t mTotalWritten;
     uint32_t mLowWaterMark[MAX_STREAM_ID];
-    MuxWriter(Writer* writer, const JpegAllocator<uint8_t> &alloc)
-        : mWriter(writer) {
+    uint8_t version;
+    MuxWriter(Writer* writer, const JpegAllocator<uint8_t> &alloc, uint8_t ver)
+        : mWriter(writer), version(ver) {
         mOverhead = 0;
         for (uint8_t i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
             mBuffer[i] = std::vector<uint8_t, JpegAllocator<uint8_t> >(alloc);
@@ -468,6 +497,9 @@ public:
                 dev_assert(mBuffer[i].size() - mOffset[i] < 65536);
                 flushFull(i, mBuffer[i].size() - mOffset[i]);
             }
+        }
+        if (version > 1) {
+            mWriter->Write(MuxReader::getEofMarker(), MuxReader::eofMarkerSize());
         }
     }
     size_t getOverhead() const {

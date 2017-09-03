@@ -20,7 +20,7 @@
 #include "../vp8/model/model.hh"
 #include "../vp8/encoder/encoder.hh"
 #include "../io/MuxReader.hh"
-
+extern unsigned char ujgversion;
 using namespace std;
 typedef Sirikata::MuxReader::ResizableByteBuffer ResizableByteBuffer;
 void printContext(FILE * fp) {
@@ -536,7 +536,7 @@ CodingReturnValue VP8ComponentEncoder::vp8_full_encoder( const UncompressedCompo
     }
     TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
 
-    Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>());
+    Sirikata::MuxWriter mux_writer(str_out, JpegAllocator<uint8_t>(), ujgversion);
     size_t stream_data_offset[MuxReader::MAX_STREAM_ID] = {0};
     bool any_written = true;
     while (any_written) {

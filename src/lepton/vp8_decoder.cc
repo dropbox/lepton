@@ -44,6 +44,7 @@ VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
 }
 
 VP8ComponentDecoder::~VP8ComponentDecoder() {
+
 }
 
 
@@ -299,6 +300,10 @@ void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader)
         always_assert(data->size()); // the protocol can't store empty runs
         send(data);
     }
+    uint8_t buf[4] = {0};
+    reader.getReader()->Read(buf, 4);
+    fprintf(stderr, "FINAL BUF %02x %02x %02x %02x\n", buf[0], buf[1], buf[2], buf[3]);
+
 }
 ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
     using namespace Sirikata;

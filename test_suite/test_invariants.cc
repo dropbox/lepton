@@ -81,7 +81,7 @@ void EofHelper(bool useLazyWrapper) {
     MemReadWriter rw(alloc);
     LazyReaderWrapper lrw(&rw);
     MuxReader reader(alloc, 4, 65536, useLazyWrapper ? (DecoderReader*)&lrw : (DecoderReader*)&rw);
-    MuxWriter writer(&rw, alloc);
+    MuxWriter writer(&rw, alloc, 2);
     writer.Write(1, &testData[1][0], a1);
     writer.Write(0, &testData[0][0], a0);
     writer.Write(1, &testData[1][a1], b1);
@@ -163,7 +163,7 @@ void RoundtripHelper(bool useLazyWrapper) {
     MemReadWriter rw(alloc);
     LazyReaderWrapper lrw(&rw);
     MuxReader reader(alloc, 4, 65536, useLazyWrapper ? (DecoderReader*)&lrw : (DecoderReader*)&rw);
-    MuxWriter writer(&rw, alloc);
+    MuxWriter writer(&rw, alloc, 2);
     srand(1023);
     
     bool allDone;
