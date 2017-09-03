@@ -1514,6 +1514,7 @@ void process_file(IOUtil::FileReader* reader,
             is_socket = false;
             break;
           case ValidationContinuation::CONTINUE_AS_LEPTON:
+            embedded_jpeg = false;
             is_socket = false;
             g_force_zlib0_out = false;
             force_zlib0 = false;
