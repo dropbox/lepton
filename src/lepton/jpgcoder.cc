@@ -1458,6 +1458,23 @@ int open_fdout(const char *ifilename,
     return retval;
 }
 
+
+void prep_for_new_file() {
+    auto cur_num_threads = read_fixed_ujpg_header();
+    always_assert(cur_num_threads <= NUM_THREADS); // this is an invariant we need to maintain
+    str_out->prep_for_new_file();
+    if (prefix_grbgdata) {
+        aligned_dealloc(prefix_grbgdata);
+        prefix_grbgdata = NULL;
+    }
+    if (grbgdata) {
+        aligned_dealloc(grbgdata);
+        grbgdata = NULL;
+    }
+    
+    prefix_grbs = 0;
+}
+
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
                   int max_file_size,
@@ -1742,9 +1759,7 @@ void process_file(IOUtil::FileReader* reader,
                     } else if (trailer_new_header[4] != header[0] ||  trailer_new_header[5] != header[1]) {
                         break;
                     } else {
-                        auto cur_num_threads = read_fixed_ujpg_header();
-                        always_assert(cur_num_threads <= NUM_THREADS); // this is an invariant we need to maintain
-                        str_out->prep_for_new_file();
+                        prep_for_new_file();
                     }
                 }
                 str_out->close();
