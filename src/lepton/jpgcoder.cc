@@ -89,6 +89,7 @@ volatile int volatile1024 = 1024;
 #include <emscripten.h>
 #endif
 
+unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
 int g_argc = 0;
 const char** g_argv = NULL;
 #ifndef GIT_REVISION
@@ -1467,11 +1468,11 @@ void prep_for_new_file() {
         aligned_dealloc(prefix_grbgdata);
         prefix_grbgdata = NULL;
     }
-    if (grbgdata) {
+    if (grbgdata && grbgdata != &EOI[0]) {
         aligned_dealloc(grbgdata);
         grbgdata = NULL;
     }
-    
+
     prefix_grbs = 0;
 }
 
@@ -2122,7 +2123,6 @@ bool is_needed_for_second_block(const std::vector<unsigned char>&segment) {
 /* -----------------------------------------------
     Read in header & image data
     ----------------------------------------------- */
-unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
 template<class input_byte_stream>
 bool read_jpeg(std::vector<std::pair<uint32_t,
                                      uint32_t>> *huff_input_offsets,
