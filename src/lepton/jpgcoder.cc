@@ -90,6 +90,7 @@ volatile int volatile1024 = 1024;
 #endif
 
 unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
+extern int r_bitcount;
 int g_argc = 0;
 const char** g_argv = NULL;
 #ifndef GIT_REVISION
@@ -1461,9 +1462,7 @@ int open_fdout(const char *ifilename,
 
 
 void prep_for_new_file() {
-    auto cur_num_threads = read_fixed_ujpg_header();
-    always_assert(cur_num_threads <= NUM_THREADS); // this is an invariant we need to maintain
-    str_out->prep_for_new_file();
+    r_bitcount = 0;
     if (prefix_grbgdata) {
         aligned_dealloc(prefix_grbgdata);
         prefix_grbgdata = NULL;
@@ -1474,6 +1473,10 @@ void prep_for_new_file() {
     }
 
     prefix_grbs = 0;
+    reset_buffers();
+    auto cur_num_threads = read_fixed_ujpg_header();
+    always_assert(cur_num_threads <= NUM_THREADS); // this is an invariant we need to maintain
+    str_out->prep_for_new_file();
 }
 
 void process_file(IOUtil::FileReader* reader,
@@ -3980,7 +3983,7 @@ bool read_ujpg( void )
                           ZlibDecoderDecompressionReader::Decompress(compressed_header_buffer.data(),
                                                                      compressed_header_buffer.size(),
                                                                      no_free_allocator,
-                                                                     max_file_size));
+                                                                     max_file_size + 2048));
             if (uncompressed_header_buffer.second) {
                 always_assert(false && "Data not properly zlib coded");
                 return false;
@@ -3994,7 +3997,7 @@ bool read_ujpg( void )
                           Sirikata::BrotliCodec::Decompress(compressed_header_buffer.data(),
                                                             compressed_header_buffer.size(),
                                                             no_free_allocator,
-                              max_file_size));
+                              max_file_size + 2048));
             if (uncompressed_header_buffer.second) {
                 always_assert(false && "Data not properly zlib coded");
                 return false;

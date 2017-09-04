@@ -47,7 +47,7 @@ public:
         if (!any_read) {
                any_read = true;
                static int count=0;
-               r_bitcount = count * 500000000;
+               r_bitcount += count * 500000000;
 	       count++;
         }
 #endif
