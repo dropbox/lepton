@@ -48,8 +48,8 @@ void kill_workers(void * workers, uint64_t num_workers) {
             if (!generic_workers[i].has_ever_queued_work()){
                 generic_workers[i].work = &gen_nop;
                 generic_workers[i].activate_work();
-                generic_workers[i].main_wait_for_done();
             }
+            generic_workers[i].instruct_to_exit();
         }
     }
 }
@@ -95,26 +95,32 @@ void GenericWorker::wait_for_work() {
     }
     _generic_respond_to_main(0); // startup
     char data = 0;
-    if (use_pipes) {
-        int err = 0;
-        while ((err = read(new_work_pipe[0], &data, 1)) < 0 && errno == EINTR) {
+    while(true) {
+        if (use_pipes) {
+            int err = 0;
+            while ((err = read(new_work_pipe[0], &data, 1)) < 0 && errno == EINTR) {
+            }
+            if (err <= 0) {
+                set_close_thread_handle(work_done_pipe[1]);
+                custom_terminate_this_thread(0);
+                return;
+            }
+            if (data == 127) {
+                //fprintf(stderr,"BRAKE\n");
+                break;
+            }
         }
-        if (err <= 0) {
-            set_close_thread_handle(work_done_pipe[1]);
-            custom_terminate_this_thread(0);
-            return;
+        set_close_thread_handle(work_done_pipe[1]);
+        while(!new_work_exists_.load()) {
+            
         }
+        if (new_work_exists_.load()) { // enforce memory ordering
+            work();
+        }else {
+            always_assert(false && "variable never decrements");
+        }
+        _generic_respond_to_main(1);
     }
-    set_close_thread_handle(work_done_pipe[1]);
-    while(!new_work_exists_.load()) {
-
-    }
-    if (new_work_exists_.load()) { // enforce memory ordering
-        work();
-    }else {
-        always_assert(false && "variable never decrements");
-    }
-    _generic_respond_to_main(1);
     reset_close_thread_handle();
     custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }
@@ -126,6 +132,13 @@ bool GenericWorker::is_done() {
 void GenericWorker::activate_work() {
     ++new_work_exists_;
     char data = 0;
+    while (write(new_work_pipe[1], &data, 1) < 0 && errno == EINTR) {
+        
+    }
+}
+void GenericWorker::instruct_to_exit() {
+    ++new_work_exists_;
+    char data = 127;
     while (write(new_work_pipe[1], &data, 1) < 0 && errno == EINTR) {
         
     }
@@ -267,4 +280,5 @@ void GenericWorker::main_wait_for_done() {
     always_assert(child_begun);
     always_assert(new_work_exists_.load()); // make sure this has work to do
     _generic_wait(1);
+//    instruct_to_exit();
 }

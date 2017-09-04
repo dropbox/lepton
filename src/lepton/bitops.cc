@@ -354,6 +354,7 @@ bounded_iostream::bounded_iostream(Sirikata::DecoderWriter *w,
                                    const Sirikata::JpegAllocator<uint8_t> &alloc) 
     : parent(w), err(Sirikata::JpegError::nil()) {
     this->size_callback = size_callback;
+    bookkeeping_bytes_written = 0;
     buffer_position = 0;
     byte_position = 0;
     byte_bound = 0x7FFFFFFF;
@@ -366,7 +367,14 @@ void bounded_iostream::call_size_callback(size_t size) {
 bool bounded_iostream::chkerr() {
     return err != Sirikata::JpegError::nil();
 }
-
+void bounded_iostream::prep_for_new_file() {
+    buffer_position = 0;
+    byte_position = 0;
+    byte_bound = 0x7FFFFFFF;;
+    num_bytes_attempted_to_write = 0;
+    set_bound(0);
+    
+}
 void bounded_iostream::set_bound(size_t bound) {
     flush();
     if (num_bytes_attempted_to_write > byte_bound) {

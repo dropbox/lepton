@@ -80,6 +80,7 @@ struct GenericWorker {
     void activate_work();
     bool is_done();
     void main_wait_for_done();
+    void instruct_to_exit();
     void wait_for_work();
     bool has_ever_queued_work() {
         return new_work_exists_.load() != 0;

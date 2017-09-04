@@ -464,6 +464,7 @@ class bounded_iostream
     enum {
         buffer_size = 65536
     };
+    size_t bookkeeping_bytes_written;
     uint8_t buffer[buffer_size];
     uint32_t buffer_position;
     Sirikata::DecoderWriter *parent;
@@ -481,11 +482,16 @@ public:
     void call_size_callback(size_t size);
     bool chkerr();
     unsigned int getsize();
+    size_t get_bookkeeping_bytes_written() const {
+        return bookkeeping_bytes_written + bytes_written();
+    }
     unsigned int bytes_written()const {
         return std::max(byte_position,
                         std::min(byte_position + buffer_position, byte_bound));
     }
     void set_bound(size_t bound); // bound of zero = fine
+    void prep_for_new_file();
+
     size_t get_bound() const {
         return byte_bound;
     }

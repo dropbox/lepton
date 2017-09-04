@@ -300,10 +300,11 @@ void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader)
         always_assert(data->size()); // the protocol can't store empty runs
         send(data);
     }
+    /*
     uint8_t buf[4] = {0};
     reader.getReader()->Read(buf, 4);
     fprintf(stderr, "FINAL BUF %02x %02x %02x %02x\n", buf[0], buf[1], buf[2], buf[3]);
-
+    */
 }
 ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
     using namespace Sirikata;
@@ -422,6 +423,15 @@ void VP8ComponentDecoder::flush() {
         mux_splicer.drain(mux_reader_);
 }
 namespace{void nop(){}}
+
+void VP8ComponentDecoder::reset_all_comm_buffers() {
+    for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+        while (!send_to_actual_thread_state.vbuffers[thread_id].empty()) {
+            send_to_actual_thread_state.vbuffers[thread_id].pop();
+        }
+    }
+}
+
 CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
 {
     mux_splicer.init(spin_workers_);
@@ -458,6 +468,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
     }
     if (do_threading_) {
+        reset_all_comm_buffers();
         for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             unsigned int cur_spin_worker = thread_id;
             if (!thread_state_[thread_id]) {

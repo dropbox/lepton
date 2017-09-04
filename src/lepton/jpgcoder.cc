@@ -1481,6 +1481,7 @@ void process_file(IOUtil::FileReader* reader,
                 value.store(0);
                 generic_workers[i].work = std::bind(&test_syscall_injection, &value);
                 generic_workers[i].activate_work();
+                generic_workers[i].instruct_to_exit();
                 generic_workers[i].join_via_syscall();
                 if (value.load() < 1) {
                     abort(); // this should exit_group
@@ -1712,20 +1713,40 @@ void process_file(IOUtil::FileReader* reader,
                 }
                 timing_operation_start( 'd' );
                 TimingHarness::timing[0][TimingHarness::TS_READ_STARTED] = TimingHarness::get_time_us();
-                execute( read_ujpg ); // replace with decompression function!
-                TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
-                if (!g_use_seccomp) {
-                    read_done = clock();
+                while (true) {
+                    execute( read_ujpg ); // replace with decompression function!
+                    TimingHarness::timing[0][TimingHarness::TS_READ_FINISHED] = TimingHarness::get_time_us();
+                    if (!g_use_seccomp) {
+                        read_done = clock();
+                    }
+                    TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
+                    if (filetype != UJG && !g_allow_progressive) {
+                        execute(recode_baseline_jpeg_wrapper);
+                    } else {
+                        execute(recode_jpeg);
+                    }
+                    timing_operation_complete( 'd' );
+                    TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
+                    Sirikata::Array1d<uint8_t, 6> trailer_new_header;
+                    std::pair<uint32_t, Sirikata::JpegError> continuity;
+                    size_t off = 0;
+                    while (off < trailer_new_header.size()) {
+                        continuity = str_in->Read(&trailer_new_header[off], trailer_new_header.size() - off);
+                        off += continuity.first;
+                        if (continuity.second != Sirikata::JpegError::nil()) {
+                            break;
+                        }
+                    }
+                    if (continuity.second != Sirikata::JpegError::nil()) {
+                        break;
+                    } else if (trailer_new_header[4] != header[0] ||  trailer_new_header[5] != header[1]) {
+                        break;
+                    } else {
+                        auto cur_num_threads = read_fixed_ujpg_header();
+                        always_assert(cur_num_threads <= NUM_THREADS); // this is an invariant we need to maintain
+                        str_out->prep_for_new_file();
+                    }
                 }
-                TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_STARTED] = TimingHarness::get_time_us();
-                if (filetype != UJG && !g_allow_progressive) {
-                    execute(recode_baseline_jpeg_wrapper);
-                } else {
-                    execute(recode_jpeg);
-                }
-                timing_operation_complete( 'd' );
-                TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
-
                 str_out->close();
                 break;
             case info:

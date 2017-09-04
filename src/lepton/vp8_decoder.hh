@@ -92,6 +92,7 @@ public:
                                                int physical_thread_id) {
         mux_splicer.bind_thread(logical_thread_id, physical_thread_id);
     }
+    void reset_all_comm_buffers();
 private:
     SendToActualThread send_to_actual_thread_state;
     Sirikata::DecoderReader *str_in {};

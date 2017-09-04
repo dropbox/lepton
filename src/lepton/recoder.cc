@@ -718,6 +718,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if (luma_bounds.size() && luma_bounds[0].is_legacy_mode()) {
         g_threaded = false;
     }
+    static_cast<VP8ComponentDecoder*>(g_decoder)->reset_all_comm_buffers();
     for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
         int logical_thread_start, logical_thread_end;
         std::tie(logical_thread_start, logical_thread_end)
@@ -817,6 +818,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
                                0,
                                huffws[0]);
     }
+
     if (!rst_err.empty()) {
         unsigned int cumulative_reset_markers = rsti ? (mcuh * mcuv - 1)/ rsti : 0;
         for (unsigned char i = 0; i < rst_err[0]; ++i) {

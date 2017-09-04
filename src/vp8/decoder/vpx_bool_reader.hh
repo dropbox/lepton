@@ -8,8 +8,15 @@ private:
 #ifdef DEBUG_ARICODER
     bool any_read;
 #endif
+    void clear_local_bit_reader() {
+        bit_reader.value = 0;
+        bit_reader.range = 0;
+        bit_reader.count = 0;
+        bit_reader.reader = NULL;
+    }
 public:
     void init (PacketReader *pr) {
+        clear_local_bit_reader();
         vpx_reader_init(&bit_reader,
                         pr);
     }
@@ -17,10 +24,7 @@ public:
 #ifdef DEBUG_ARICODER
         any_read = false;
 #endif
-        bit_reader.value = 0;
-        bit_reader.range = 0;
-        bit_reader.count = 0;
-        bit_reader.reader = NULL;
+        clear_local_bit_reader();
     }
     VPXBoolReader(const uint8_t *buffer, size_t size) {
 #ifdef DEBUG_ARICODER
