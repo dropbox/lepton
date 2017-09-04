@@ -262,6 +262,11 @@ VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
 
 void VP8ComponentDecoder::SendToVirtualThread::init(GenericWorker * all_workers) {
     this->eof = false;
+    for (unsigned int thread_id = 0; thread_id < MAX_NUM_THREADS; ++thread_id) {
+        if (!vbuffers[thread_id].empty()) {
+            vbuffers[thread_id].pop();
+        }
+    }
     this->all_workers = all_workers;
 }
 void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode *data) {
