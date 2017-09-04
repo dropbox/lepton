@@ -207,20 +207,22 @@ private:
         return mReader;
     }
     MuxReader(const JpegAllocator<uint8_t> &alloc,
-              int num_stream_hint = 4, int stream_hint_reserve_size=65536, Reader *reader = NULL)
-        : mReader(reader) {
-        eof = false;
+              int num_stream_hint = 4, int stream_hint_reserve_size=65536, Reader *reader = NULL) {
         for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
             mBuffer[i].set_allocator(alloc);
             if (i < num_stream_hint) {
                 mBuffer[i].reserve(stream_hint_reserve_size); // prime some of the vectors
             }
-            mOffset[i] = 0;
         }
-        mOverhead = 0;
+        init(reader);
     }
     void init (Reader *reader){
         mReader = reader;
+        eof = false;
+        for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
+            mOffset[i] = 0;
+        }
+        mOverhead = 0;
     }
     std::pair<uint8_t, JpegError> nextDataPacket(ResizableByteBuffer &retval) {
         if (eof) {

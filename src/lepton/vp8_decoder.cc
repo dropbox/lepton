@@ -261,6 +261,7 @@ VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
 }
 
 void VP8ComponentDecoder::SendToVirtualThread::init(GenericWorker * all_workers) {
+    this->eof = false;
     this->all_workers = all_workers;
 }
 void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode *data) {
