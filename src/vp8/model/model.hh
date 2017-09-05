@@ -265,6 +265,8 @@ public:
             bitlen_freqmax_[(int)color][coord] = max_len;
             if (max_len > (int)RESIDUAL_NOISE_FLOOR) {
                 min_noise_threshold_[(int)color][coord] = max_len - RESIDUAL_NOISE_FLOOR;
+            } else {
+                min_noise_threshold_[(int)color][coord] = 0;
             }
         }
     }
