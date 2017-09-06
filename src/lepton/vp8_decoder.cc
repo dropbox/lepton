@@ -475,6 +475,10 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     }
     if (do_threading_) {
         reset_all_comm_buffers();
+        for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? getNumWorkers() : 1); ++physical_thread_id) {
+            getWorker(physical_thread_id)->work = nop;
+        }
+
         for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             unsigned int cur_spin_worker = thread_id;
             if (!thread_state_[thread_id]) {

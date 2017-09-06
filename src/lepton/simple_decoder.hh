@@ -19,6 +19,10 @@ public:
 
     CodingReturnValue decode_chunk(UncompressedComponents* colldata);
     virtual void registerWorkers(GenericWorker *, unsigned int num_workers) {}
+    unsigned int getNumWorkers() const {
+        return 0;
+    }
+
     GenericWorker *getWorker(unsigned int i) {
         return NULL;
     }

@@ -133,6 +133,9 @@ public:
     void registerWorkers(GenericWorker *workers, unsigned int num_workers) {
         this->VP8ComponentEncoder::registerWorkers(workers, num_workers);
     }
+    unsigned int getNumWorkers() const {
+        return num_registered_workers_;
+    }
     GenericWorker *getWorker(unsigned int i) {
         always_assert(i < num_registered_workers_);
         return &spin_workers_[i];

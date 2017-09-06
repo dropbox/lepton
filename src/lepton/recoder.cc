@@ -42,6 +42,8 @@ extern std::vector<unsigned int> rst_cnt;
 extern int prefix_grbs;   // size of prefix garbage
 extern unsigned char *prefix_grbgdata; // the actual prefix garbage: if present, hdrdata not serialized
 
+static void nop(){}
+
 void check_decompression_memory_bound_ok();
 
 bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
@@ -568,6 +570,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
     int logical_thread_start, logical_thread_end;
     std::tie(logical_thread_start, logical_thread_end)
         = logical_thread_range_from_physical_thread_id(physical_thread_id, num_logical_threads);
+    fprintf(stderr, "Worker %d running %d - %d - %d\n", physical_thread_id, logical_thread_start, (int)thread_handoffs.size(), logical_thread_end);
     always_assert((size_t)logical_thread_start < thread_handoffs.size()
                   && (size_t)logical_thread_end <= thread_handoffs.size());
     ThreadHandoff th = thread_handoffs[logical_thread_start];
@@ -750,6 +753,9 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
 
     }
     if (NUM_THREADS != 1 && g_threaded) {
+        for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? g_decoder->getNumWorkers() : 1); ++physical_thread_id) {
+            g_decoder->getWorker(physical_thread_id)->work = nop;
+        }
         for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
             int work_size = 0;
             unsigned int physical_thread_offset = physical_thread_id;
