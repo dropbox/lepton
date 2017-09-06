@@ -362,6 +362,7 @@ bool rst_cnt_set = false;
 int            max_file_size    =    0  ;   // support for truncated jpegs 0 means full jpeg
 size_t            start_byte       =    0;     // support for producing a slice of jpeg
 size_t         jpeg_embedding_offset = 0;
+unsigned int min_encode_threads = 1;
 size_t max_encode_threads = 
 #ifdef DEFAULT_SINGLE_THREAD
                                          1
@@ -1070,6 +1071,8 @@ int initialize_options( int argc, const char*const * argv )
             if (max_encode_threads > MAX_NUM_THREADS) {
                 custom_exit(ExitCode::VERSION_UNSUPPORTED);
             }
+        } else if (strncmp((*argv), "-minencodethreads=", strlen("-minencodethreads=") ) == 0 ) {
+            min_encode_threads = local_atoi((*argv) + strlen("-minencodethreads="));
         } else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
             g_inject_syscall_test = strtol((*argv) + strlen("-injectsyscall="), NULL, 10);
         } else if ( strcmp((*argv), "-skipvalidation") == 0 ) {
@@ -3699,11 +3702,11 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         NUM_THREADS = std::max(num_rows / 2, 1U);
     }
     if (framebuffer_byte_size < 125000) {
-        NUM_THREADS = 1;
+        NUM_THREADS = std::min(std::max(min_encode_threads, 1U), (unsigned int)NUM_THREADS);
     } else if (framebuffer_byte_size < 250000) {
-        NUM_THREADS = std::min(2U, (unsigned int)NUM_THREADS);
+        NUM_THREADS = std::min(std::max(min_encode_threads, 2U), (unsigned int)NUM_THREADS);
     } else if (framebuffer_byte_size < 500000) {
-        NUM_THREADS = std::min(4U, (unsigned int)NUM_THREADS);
+        NUM_THREADS = std::min(std::max(min_encode_threads, 4U), (unsigned int)NUM_THREADS);
     }
     //fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
     std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
