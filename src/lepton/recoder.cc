@@ -570,7 +570,7 @@ void recode_physical_thread(BoundedWriter *stream_out,
     int logical_thread_start, logical_thread_end;
     std::tie(logical_thread_start, logical_thread_end)
         = logical_thread_range_from_physical_thread_id(physical_thread_id, num_logical_threads);
-    fprintf(stderr, "Worker %d running %d - %d - %d\n", physical_thread_id, logical_thread_start, (int)thread_handoffs.size(), logical_thread_end);
+    //fprintf(stderr, "Worker %d running %d - %d - %d\n", physical_thread_id, logical_thread_start, (int)thread_handoffs.size(), logical_thread_end);
     always_assert((size_t)logical_thread_start < thread_handoffs.size()
                   && (size_t)logical_thread_end <= thread_handoffs.size());
     ThreadHandoff th = thread_handoffs[logical_thread_start];
