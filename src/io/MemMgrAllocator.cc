@@ -47,8 +47,13 @@
 #include <atomic>
 #define THREAD_LOCAL_STORAGE thread_local
 #endif
-
+#ifdef DEBUG_MEMMGR
+volatile int last_adj = 0;
+#endif
 namespace Sirikata {
+
+void memmgr_free_helper(void*, bool);
+
 using std::size_t;
 union mem_header_union
 {
@@ -290,7 +295,7 @@ static mem_header_t* get_mem_from_pool(MemMgrState& memmgr, size_t nquantas, mem
     {
         h = (mem_header_t*) (memmgr.pool + memmgr.pool_free_pos);
         h->s.size = nquantas;
-        memmgr_free((void*) (h + 1));
+        memmgr_free_helper((void*) (h + 1), false);
         memmgr.pool_free_pos += total_req_size;
         bytes_currently_used += total_req_size;
     }
@@ -335,7 +340,6 @@ void* memmgr_alloc(size_t nuint8_ts)
     mem_header_t* blessed_zero = NULL;
     mem_header_t* p;
     mem_header_t* prevp;
-
     // Calculate how many quantas are required: we need enough to house all
     // the requested uint8_ts, plus the header. The -1 and +1 are there to make sure
     // that if nuint8_ts is a multiple of nquantas, we don't allocate too much
@@ -376,12 +380,19 @@ void* memmgr_alloc(size_t nuint8_ts)
             }
 
             memmgr.freep = prevp;
+#ifdef DEBUG_MEMMGR
+            last_adj =  p->s.size * sizeof(mem_header_t);
+            fprintf(stderr, "%08ld ALLOC\n", p->s.size * sizeof(mem_header_t));
+#endif
             if (blessed_zero == p) {
                 dev_assert(is_zero(p + 1, nuint8_ts) && "The item returned from the new pool must be zero");
                 return p + 1;
             } else {
 #ifndef _WIN32
                 (void)is_zero;
+#endif
+#ifdef DEBUG_MEMMGR
+                last_adj = 0;
 #endif
                 return memset((p + 1), 0, nuint8_ts); // this makes sure we always return zero'd data
             }
@@ -403,20 +414,33 @@ void* memmgr_alloc(size_t nuint8_ts)
 #ifdef MEMMGR_EXIT_OOM
                 custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
 #endif
-
+#ifdef DEBUG_MEMMGR
+                last_adj = 0;
+#endif
                 return 0;
             }
         }
     }
+#ifdef DEBUG_MEMMGR
+    last_adj = std::max(nquantas, min_pool_alloc_quantas)
+      * sizeof(mem_header_t);
+    fprintf(stderr, "%08ld ALLOC\n", std::max(nquantas, min_pool_alloc_quantas)
+            * sizeof(mem_header_t));
+    last_adj = 0;
+#endif
 }
-
 
 // Scans the free list, starting at memmgr.freep, looking the the place to insert the
 // free block. This is either between two existing blocks or at the end of the
 // list. In any case, if the block being freed is adjacent to either neighbor,
 // the adjacent blocks are combined.
 //
-void memmgr_free(void* ap)
+void memmgr_free(void* ap){
+    memmgr_free_helper(ap, true);
+}
+
+// same as memmgr_free but with some differences in debug logging
+void memmgr_free_helper(void* ap, bool actually_free)
 {
     MemMgrState& memmgr = get_local_memmgr();
     if ((uint8_t*)ap >= memmgr.pool + memmgr.pool_size
@@ -432,8 +456,13 @@ void memmgr_free(void* ap)
 
     // acquire pointer to block header
     block = ((mem_header_t*) ap) - 1;
-
-    // Find the correct place to place the block in (the free list is sorted by
+#ifdef DEBUG_MEMMGR
+    if (actually_free) {
+        fprintf(stderr, "%08ld FREE\n", block->s.size * sizeof(mem_header_t));
+        last_adj = -(int)(block->s.size * sizeof(mem_header_t));
+    }
+#endif
+   // Find the correct place to place the block in (the free list is sorted by
     // address, increasing order)
     //
     for (p = memmgr.freep; !(block > p && block < p->s.next); p = p->s.next)
@@ -472,6 +501,11 @@ void memmgr_free(void* ap)
     }
 
     memmgr.freep = p;
+#ifdef DEBUG_MEMMGR
+    if (actually_free) {
+    last_adj = 0;
+    }
+#endif
 }
 
 

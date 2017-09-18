@@ -20,11 +20,18 @@ class BlockBasedImageBase {
 public:
     BlockBasedImageBase()
       : memory_optimized_image_(force_memory_optimization) {
-        image_ = nullptr;
         storage_ = nullptr;
+        reset();
+    }
+  void reset() {
         width_ = 0;
         nblocks_ = 0;
         theoretical_component_height_ = 0;
+        image_ = nullptr;
+        if (storage_ != nullptr) {
+            custom_free(storage_);
+        }
+        storage_ = nullptr;
     }
     bool is_memory_optimized() const {
         return force_memory_optimization

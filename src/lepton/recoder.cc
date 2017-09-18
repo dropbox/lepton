@@ -13,6 +13,7 @@
 #define ENVLI(s,v)        ( ( v > 0 ) ? v : ( v - 1 ) + ( 1 << s ) )
 
 int next_mcuposn(int* cmp, int* dpos, int* rstw );
+extern unsigned char ujgversion;
 extern BaseDecoder *g_decoder;
 extern UncompressedComponents colldata; // baseline sorted DCT coefficients
 
@@ -840,7 +841,22 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if (!str_out->has_reached_bound() ) {
         str_out->write( hdrdata + byte_position, hdrs - byte_position );
     }
-
+    if (ujgversion != 1) {
+        for (size_t i = 0; i < NUM_THREADS; ++i) {
+            delete huffws[i];
+        }
+        huffws.memset(0);
+        for (size_t thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+            for(int cmp = 0; cmp < colldata.get_num_components(); ++cmp) {
+                framebuffer[thread_id][cmp]->reset();
+                delete framebuffer[thread_id][cmp];
+                framebuffer[thread_id][cmp] = NULL;
+            }
+            if (!g_threaded) {
+                break;
+            }
+        }
+    }
     check_decompression_memory_bound_ok();
 
     // write EOI (now EOI is stored in garbage of at least 2 bytes)

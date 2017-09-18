@@ -1268,11 +1268,14 @@ size_t decompression_memory_bound() {
         abit_writer += 3 * jpgfilesize;
     }
     size_t total = Sirikata::memmgr_size_allocated();
-    size_t decom_memory_bound = total
-            - current_run_size
-            + streaming_buffer_size
-            - single_threaded_model_bonus
-            + single_threaded_buffer_bonus;
+    ptrdiff_t decom_memory_bound = total;
+    decom_memory_bound -= current_run_size;
+    decom_memory_bound += streaming_buffer_size;
+    decom_memory_bound -= single_threaded_model_bonus;
+    decom_memory_bound += single_threaded_buffer_bonus;
+    if (decom_memory_bound < 1){
+        decom_memory_bound = 1;
+    }
     if (filetype == JPEG) {
         decom_memory_bound = streaming_buffer_size
             + abit_writer + jpgfilesize + sizeof(ProbabilityTablesBase)
@@ -3971,6 +3974,7 @@ bool read_ujpg( void )
     IOUtil::ReadFull(str_in, compressed_header_buffer.data(), compressed_header_buffer.size());
     MemReadWriter header_reader((JpegAllocator<uint8_t>()));
     {
+        if (ujgversion == 1) {
         JpegAllocator<uint8_t> no_free_allocator;
 #if !defined(USE_STANDARD_MEMORY_ALLOCATORS) && !defined(_WIN32) && !defined(EMSCRIPTEN)
         no_free_allocator.setup_memory_subsystem(32 * 1024 * 1024,
@@ -3981,7 +3985,6 @@ bool read_ujpg( void )
                                                  &mem_realloc_nop,
                                                  &MemMgrAllocatorMsize);
 #endif
-        if (ujgversion == 1) {
             std::pair<std::vector<uint8_t,
                                   Sirikata::JpegAllocator<uint8_t> >,
                       JpegError> uncompressed_header_buffer(
@@ -4001,7 +4004,7 @@ bool read_ujpg( void )
                       JpegError> uncompressed_header_buffer(
                           Sirikata::BrotliCodec::Decompress(compressed_header_buffer.data(),
                                                             compressed_header_buffer.size(),
-                                                            no_free_allocator,
+                                                            JpegAllocator<uint8_t>(),
                               max_file_size + 2048));
             if (uncompressed_header_buffer.second) {
                 always_assert(false && "Data not properly zlib coded");
@@ -4252,7 +4255,6 @@ bool reset_buffers( void )
 
     // reset padbit
     padbit = -1;
-
 
     return true;
 }
