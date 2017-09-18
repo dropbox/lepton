@@ -3699,7 +3699,9 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     uint32_t num_rows = row_thread_handoffs.size();
     NUM_THREADS = std::min(NUM_THREADS, (unsigned int)max_encode_threads);
     if (num_rows / 2 < NUM_THREADS) {
-        NUM_THREADS = std::max(num_rows / 2, 1U);
+        unsigned int desired_count = std::max((unsigned int)num_rows / 2,
+                                              (unsigned int)min_encode_threads);
+        NUM_THREADS = std::min(std::max(desired_count, 1U), (unsigned int)NUM_THREADS);
     }
     if (framebuffer_byte_size < 125000) {
         NUM_THREADS = std::min(std::max(min_encode_threads, 1U), (unsigned int)NUM_THREADS);
