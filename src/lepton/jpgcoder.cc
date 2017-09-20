@@ -1556,6 +1556,11 @@ void concatenate_files(int fdint, int fdout) {
         }
         mega_header.insert(mega_header.end(), uncompressed_header_buffer.first.begin(), uncompressed_header_buffer.first.end());
     }
+    uint8_t desired_thread_count = lepton_headers_28[0][4];
+    for (size_t i = 0; i < files_to_concatenate.size(); ++i) {
+        always_assert(lepton_headers_28[i][4] == desired_thread_count && "All thread counts must match in lepton");
+        always_assert(lepton_headers_28[i][2] >= 2 && "Only version 2 supported for file concatenation");
+    }
     std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_mega_header =
         BrotliCodec::Compress(mega_header.data(),
                               mega_header.size(),
