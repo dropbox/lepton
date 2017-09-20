@@ -195,6 +195,7 @@ set(LEPTON_SOURCES
    src/lepton/socket_serve.cc
    src/lepton/socket_serve.hh
    src/lepton/jpgcoder.cc
+   src/lepton/concat.cc
    src/lepton/smalljpg.hh
    src/lepton/benchmark.cc
    src/lepton/main.cc
