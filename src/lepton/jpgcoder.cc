@@ -185,7 +185,8 @@ enum ACTION {
     comp  =  1,
     forkserve = 2,
     socketserve = 3,
-    info = 4
+    info = 4,
+    lepton_concatenate = 5
 };
 
 enum F_TYPE {
@@ -498,7 +499,6 @@ IOUtil::FileReader * ujg_base_in = NULL;
 const char** filelist = NULL;        // list of files to process
 int    file_cnt = 0;        // count of files in list (1 for input only)
 int    file_no  = 0;        // number of current file
-
 /* -----------------------------------------------
     global variables: messages
     ----------------------------------------------- */
@@ -906,7 +906,7 @@ int app_main( int argc, char** argv )
     }
     // check if user input is wrong, show help screen if it is
     if ((file_cnt == 0 && action != forkserve && action != socketserve)
-        || ((!developer) && ((action != comp && action != forkserve && action != socketserve)))) {
+        || ((!developer) && ((action != lepton_concatenate && action != comp && action != forkserve && action != socketserve)))) {
         show_help();
         return -1;
     }
@@ -1071,6 +1071,8 @@ int initialize_options( int argc, const char*const * argv )
             if (max_encode_threads > MAX_NUM_THREADS) {
                 custom_exit(ExitCode::VERSION_UNSUPPORTED);
             }
+        } else if (strcmp((*argv), "-lepcat") == 0) {
+            action = lepton_concatenate;
         } else if (strncmp((*argv), "-minencodethreads=", strlen("-minencodethreads=") ) == 0 ) {
             min_encode_threads = local_atoi((*argv) + strlen("-minencodethreads="));
         } else if ( strncmp((*argv), "-injectsyscall=", strlen("-injectsyscall=") ) == 0 ) {
@@ -1485,6 +1487,113 @@ void prep_for_new_file() {
     str_out->prep_for_new_file();
 }
 
+void concatenate_files(int fdint, int fdout) {
+    using namespace Sirikata;
+    std::vector<IOUtil::FileReader*,
+                JpegAllocator<uint8_t>> files_to_concatenate;
+    files_to_concatenate.push_back(new IOUtil::FileReader(fdint, 0x7fffffff, false));
+    if (fdout == -1) {
+        fdout = 1; // push to stdout
+    }
+    IOUtil::FileWriter writer(fdout, false, false);
+    for (const char ** file = filelist + 1; *file != NULL; ++file) {
+        int cur_file = open(*file, O_RDONLY
+#ifdef _WIN32
+                            |O_BINARY
+#endif
+            );
+        
+        files_to_concatenate.push_back(new IOUtil::FileReader(cur_file, 0x7fffffff, false));
+    }
+    if (g_use_seccomp) {
+        Sirikata::installStrictSyscallFilter(true);
+    }
+    std::vector<std::vector<uint8_t, JpegAllocator<uint8_t> >, JpegAllocator<uint8_t> > lepton_headers_28;
+    lepton_headers_28.resize(files_to_concatenate.size());
+    for (size_t i = 0; i < files_to_concatenate.size(); ++i) {
+        lepton_headers_28[i].resize(28);
+        if (i == 0) {
+            lepton_headers_28[i][0] = lepton_header[0];
+            lepton_headers_28[i][1] = lepton_header[1];
+            if (ReadFull(files_to_concatenate[i], &lepton_headers_28[i][2], 26) != 26) {
+                custom_exit(ExitCode::SHORT_READ);
+            }
+        }else {
+            if (ReadFull(files_to_concatenate[i], &lepton_headers_28[i][0], 28) != 28) {
+                custom_exit(ExitCode::SHORT_READ);
+            }
+        }
+    }
+    std::vector<uint8_t, JpegAllocator<uint8_t> > mega_header;
+    std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_header;
+    for (size_t i = 0; i < files_to_concatenate.size(); ++i) {
+        uint32_t header_size = LEtoUint32(&lepton_headers_28[i][24]);
+        uint32toLE(0, &lepton_headers_28[i][24]);
+        compressed_header.resize(header_size);
+        if (ReadFull(files_to_concatenate[i], &compressed_header[0], header_size) != header_size) {
+            custom_exit(ExitCode::STREAM_INCONSISTENT);
+        }
+        std::pair<std::vector<uint8_t,
+                              Sirikata::JpegAllocator<uint8_t> >,
+                  JpegError> uncompressed_header_buffer(
+                      Sirikata::BrotliCodec::Decompress(compressed_header.data(),
+                                                        compressed_header.size(),
+                                                        JpegAllocator<uint8_t>(),
+                                                        0xffffffff));
+        always_assert(uncompressed_header_buffer.second == JpegError::nil() && "must be able to read from buffer ");
+        
+        if (i != 0) {
+            if(memcmp(&mega_header[mega_header.size() - 3],
+                      "CMP", 3) == 0) {
+                mega_header[mega_header.size() - 3] = 'C';
+                mega_header[mega_header.size() - 2] = 'N';
+                mega_header[mega_header.size() - 1] = 'T'; // set continuation
+            } else {
+                mega_header.push_back('C');
+                mega_header.push_back('N');
+                mega_header.push_back('T'); // add this to break from header loop
+            }
+        }
+        mega_header.insert(mega_header.end(), uncompressed_header_buffer.first.begin(), uncompressed_header_buffer.first.end());
+    }
+    std::vector<uint8_t, JpegAllocator<uint8_t> > compressed_mega_header =
+        BrotliCodec::Compress(mega_header.data(),
+                              mega_header.size(),
+                              JpegAllocator<uint8_t>(),
+                              11);
+    std::vector<uint8_t, JpegAllocator<uint8_t> > body;    
+    uint32toLE(compressed_mega_header.size(), &lepton_headers_28[0][24]);
+    for (size_t i = 0; i < files_to_concatenate.size(); ++i) {
+        uint32_t accumulated_size = 0;
+        std::pair<size_t, JpegError> ret = writer.Write(lepton_headers_28[i].data(),lepton_headers_28[i].size());
+        accumulated_size += ret.first;
+        always_assert(ret.second == JpegError::nil());
+        if (i == 0) {
+            ret = writer.Write(&compressed_mega_header[0],compressed_mega_header.size());
+            accumulated_size += ret.first;
+            always_assert(ret.second == JpegError::nil());
+        }
+        unsigned char buffer[65536];
+        body.resize(0);
+        while (true) {
+            ret = files_to_concatenate[i]->Read(buffer, sizeof(buffer));
+            if (ret.first ==0 ){
+                break;
+            }
+            body.insert(body.end(), buffer, buffer + ret.first);
+            if (ret.second != JpegError::nil()) {
+                break;
+            }
+        }
+        always_assert(body.size() > 4 && "must have enough room for EOF header");
+        accumulated_size += body.size();
+        uint32toLE(accumulated_size, &body[body.size() - 4]);
+        ret = writer.Write(body.data(), body.size());
+        always_assert(ret.second == JpegError::nil());
+    }
+    custom_exit(ExitCode::SUCCESS);
+}
+
 void process_file(IOUtil::FileReader* reader,
                   IOUtil::FileWriter *writer,
                   int max_file_size,
@@ -1579,10 +1688,17 @@ void process_file(IOUtil::FileReader* reader,
             custom_exit(validation_exit_code);
         }        
     } else {
-        fdout = open_fdout(ifilename, writer, embedded_jpeg, header, g_force_zlib0_out || force_zlib0, &is_socket);
+        if (action != lepton_concatenate) {
+            fdout = open_fdout(ifilename, writer, embedded_jpeg, header, g_force_zlib0_out || force_zlib0, &is_socket);
+        }
+    }
+    if (action == lepton_concatenate) {
+        concatenate_files(fdin, fdout);
+        return;
     }
     // check input file and determine filetype
     check_file(fdin, fdout, max_file_size, force_zlib0, embedded_jpeg, header, is_socket);
+    
     begin = clock();
     if ( filetype == JPEG )
     {
@@ -1676,6 +1792,10 @@ void process_file(IOUtil::FileReader* reader,
     {
         switch ( action )
         {
+            case lepton_concatenate:
+              fprintf(stderr, "Unable to concatenate raw JPEG files together\n");
+              custom_exit(ExitCode::VERSION_UNSUPPORTED);
+              break;
             case comp:
             case forkserve:
             case socketserve:
@@ -1732,6 +1852,8 @@ void process_file(IOUtil::FileReader* reader,
     {
         switch ( action )
         {
+            case lepton_concatenate:
+              always_assert(false && "should have been handled above");
             case comp:
             case forkserve:
             case socketserve:
@@ -1973,6 +2095,7 @@ void show_help( void )
     fprintf(msgout, " [-allowprogressive] Allow progressive jpegs through the compressor\n");
     fprintf(msgout, " [-rejectprogressive] Reject encoding of progressive jpegs\n");
     fprintf(msgout, " [-timebound=<>ms]For -socket, enforce a timeout since first byte received\n");
+    fprintf(msgout, " [-lepcat] Concatenate lepton files together into a file that contains multiple substrings\n");
     fprintf(msgout, " [-memory=<>M]    Upper bound on the amount of memory allocated by main\n");
     fprintf(msgout, " [-threadmemory=<>M] Bound on the amount of memory allocated by threads\n");
     fprintf(msgout, " [-recodememory=<>M] Check that a singlethreaded recode only uses <>M mem\n");
@@ -2058,7 +2181,7 @@ bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
     if (is_socket) {
         dev_assert(fd_in == fd_out);
     }
-    IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out, is_socket);
+    IOUtil::FileWriter * writer = IOUtil::BindFdToWriter(fd_out == -1 ? 1 /* stdout */ : fd_out, is_socket);
     ujg_base_in = reader;
     // check file id, determine filetype
     if (is_embedded_jpeg || is_jpeg_header(fileid)) {
@@ -4022,6 +4145,8 @@ bool read_ujpg( void )
         write_byte_bill(Billing::HEADER,
                         true,
                         compressed_header_buffer.size());
+    } else {
+        always_assert(compressed_header_size == 0 && "Special concatenation requires 0 size header");
     }
     grbs = sizeof(EOI);
     grbgdata = EOI; // if we don't have any garbage, assume FFD9 EOI
@@ -4184,7 +4309,7 @@ bool read_ujpg( void )
     write_byte_bill(Billing::DELIMITERS, true, 4 * NUM_THREADS); // trailing vpx_encode bits
     write_byte_bill(Billing::HEADER, true, 4); //trailing size
 
-    if (memcmp(ujpg_mrk, "CMP", 3) != 0 && memcmp(ujpg_mrk, "CNT", 3) != 0) {
+    if (memcmp(ujpg_mrk, "CMP", 3) != 0) {
         always_assert(false && "CMP must be present (uncompressed) in the file or CNT continue marker");
         return false; // not a JPG
     }

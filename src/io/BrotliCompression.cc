@@ -44,13 +44,14 @@ void custom_bdeallocator(void * opaque2, void * data) {
 std::vector<uint8_t,
             JpegAllocator<uint8_t> > BrotliCodec::Compress(const uint8_t *buffer,
                                                                         size_t size,
-                                                                        const JpegAllocator<uint8_t> &alloc) {
+                                                           const JpegAllocator<uint8_t> &alloc,
+                                                           int quality) {
     JpegAllocator<uint8_t> local_alloc(alloc);
     BrotliEncoderState * state = BrotliEncoderCreateInstance(&custom_ballocator,
                                                              &custom_bdeallocator,
                                                              &local_alloc);
     BrotliEncoderSetParameter(state, BROTLI_PARAM_SIZE_HINT, size);
-    BrotliEncoderSetParameter(state, BROTLI_PARAM_QUALITY, 10);
+    BrotliEncoderSetParameter(state, BROTLI_PARAM_QUALITY, quality);
     uint32_t lgwin = 1;
     size_t tmp = size;
     while (tmp) {

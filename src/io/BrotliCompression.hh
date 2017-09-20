@@ -43,6 +43,7 @@ public:
                                            const JpegAllocator<uint8_t> &alloc,
                                            size_t max_file_size);
     static std::vector<uint8_t, JpegAllocator<uint8_t> > Compress(const uint8_t *buffer,
-                                                                  size_t size, const JpegAllocator<uint8_t> &alloc);
+                                                                  size_t size, const JpegAllocator<uint8_t> &alloc,
+                                                                  int quality=10);
 };
 }
