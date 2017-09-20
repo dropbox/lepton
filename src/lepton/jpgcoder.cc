@@ -917,7 +917,7 @@ int app_main( int argc, char** argv )
 
     // process file(s) - this is the main function routine
     begin = clock();
-    if (file_cnt > 2) {
+    if (file_cnt > 2 && action != lepton_concatenate) {
         show_help();
         custom_exit(ExitCode::FILE_NOT_FOUND);
     }
