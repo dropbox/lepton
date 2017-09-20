@@ -45,7 +45,8 @@ void concatenate_files(int fdint, int fdout) {
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
-    std::vector<std::vector<uint8_t, JpegAllocator<uint8_t> >, JpegAllocator<uint8_t> > lepton_headers_28;
+    std::vector<std::vector<uint8_t, JpegAllocator<uint8_t> >,
+                JpegAllocator<std::vector<uint8_t, JpegAllocator<uint8_t> > > > lepton_headers_28;
     lepton_headers_28.resize(files_to_concatenate.size());
     for (size_t i = 0; i < files_to_concatenate.size(); ++i) {
         lepton_headers_28[i].resize(28);
