@@ -135,11 +135,15 @@ std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
             break;
         }
         if (ret == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT) {
-            if (retval.first.size() == max_size) {
-                retval.second = JpegError::errShortHuffmanData();
-                break;
+            size_t new_size = retval.first.size() * 2;
+            if (new_size > max_size) {
+	      if (retval.first.size() >= max_size) {
+                    retval.second = JpegError::errShortHuffmanData();
+                    break;
+              }
+              new_size = std::max(retval.first.size() + 1, max_size);
             }
-            retval.first.resize(std::min(retval.first.size() * 2, max_size));
+            retval.first.resize(new_size);
             avail_out = retval.first.size() - total_out;
             next_out = retval.first.data() + total_out;
         }

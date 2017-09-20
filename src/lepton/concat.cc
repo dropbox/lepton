@@ -27,7 +27,7 @@ extern const char** filelist;
 void concatenate_files(int fdint, int fdout) {
     using namespace Sirikata;
     std::vector<IOUtil::FileReader*,
-                JpegAllocator<uint8_t>> files_to_concatenate;
+                JpegAllocator<IOUtil::FileReader*>> files_to_concatenate;
     files_to_concatenate.push_back(new IOUtil::FileReader(fdint, 0x7fffffff, false));
     if (fdout == -1) {
         fdout = 1; // push to stdout

@@ -111,7 +111,9 @@ static BROTLI_INLINE uint16_t BrotliLoad16LE(const uint8_t* in) {
 
 static BROTLI_INLINE uint32_t BrotliLoad32LE(const uint8_t* in) {
   if (BROTLI_LITTLE_ENDIAN) {
-    return *((const uint32_t*)in);
+    uint32_t retval = 0;
+    memcpy(&retval, in, sizeof(retval));
+    return retval;
   } else if (BROTLI_BIG_ENDIAN) {
     uint32_t value = *((const uint32_t*)in);
     return ((value & 0xFFU) << 24) | ((value & 0xFF00U) << 8) |
@@ -128,7 +130,9 @@ static BROTLI_INLINE uint32_t BrotliLoad32LE(const uint8_t* in) {
 #if (BROTLI_64_BITS)
 static BROTLI_INLINE uint64_t BrotliLoad64LE(const uint8_t* in) {
   if (BROTLI_LITTLE_ENDIAN) {
-    return *((const uint64_t*)in);
+    uint64_t retval;
+    memcpy(&retval, in, sizeof(retval));
+    return retval;
   } else if (BROTLI_BIG_ENDIAN) {
     uint64_t value = *((const uint64_t*)in);
     return
