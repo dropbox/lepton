@@ -3149,9 +3149,13 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     if (early_eof_encountered) {
         colldata.set_truncation_bounds(max_cmp, max_bpos, max_dpos, max_sah);
     }
-
-    luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, mcu / mcuh, lastdc, cmpnfo[0].bcv / mcuv));
-
+    luma_row_offset_return->push_back(crystallize_thread_handoff(huffr, huff_input_offsets, (uint16_t)(mcu / mcuh), lastdc, cmpnfo[0].bcv / mcuv));
+    for (size_t i = 1; i < luma_row_offset_return->size(); ++i) {
+        if ((*luma_row_offset_return)[i].luma_y_start < 
+            (*luma_row_offset_return)[i-1].luma_y_end) {
+            (*luma_row_offset_return)[i].luma_y_start = (*luma_row_offset_return)[i-1].luma_y_end;
+        }
+    }
     // check for unneeded data
     if ( !huffr->eof ) {
         fprintf( stderr, "unneeded data found after coded image data" );
@@ -3735,24 +3739,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
     std::vector<int> split_indices(NUM_THREADS);
     for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
-        ThreadHandoff desired_handoff = row_thread_handoffs.back();
-        if(max_file_size && max_file_size + start_byte < desired_handoff.segment_size) {
-            desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
-        }
-        desired_handoff.segment_size -= row_thread_handoffs.front().segment_size;
-
-        desired_handoff.segment_size *= (i + 1);
-        desired_handoff.segment_size /= NUM_THREADS;
-        desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
-        auto split = std::lower_bound(row_thread_handoffs.begin() + 1, row_thread_handoffs.end(),
-                                      desired_handoff,
-                                      ThreadHandoffSegmentCompare());
-        if (split == row_thread_handoffs.begin() && split != row_thread_handoffs.end()) {
-            //++split;
-        } else if (split != row_thread_handoffs.begin() + 1) {
-            --split;
-        }
-        split_indices[i] = split - row_thread_handoffs.begin();
+        split_indices[i] = row_thread_handoffs.size() * (i + 1) / NUM_THREADS;
     }
     for (uint32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
         if (split_indices[index] == split_indices[index + 1]) {

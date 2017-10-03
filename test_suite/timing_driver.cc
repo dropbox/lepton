@@ -246,6 +246,8 @@ int run_test(const std::vector<unsigned char> &testImage,
     } else if (!multithread) {
         encode_args[get_last_arg(encode_args)] = "-singlethread";
         decode_args[get_last_arg(decode_args)] = "-singlethread";
+    } else {
+        encode_args[get_last_arg(encode_args)] = "-minencodethreads=8";
     }
     if (!jailed) {
         encode_args[get_last_arg(encode_args)] = "-unjailed";
