@@ -3738,7 +3738,27 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     //fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
     std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
     std::vector<int> split_indices(NUM_THREADS);
-    for (uint32_t i = 0; i < NUM_THREADS - 1 ; ++ i) {
+    for (uint32_t i = 0; ujgversion == 1 && i < NUM_THREADS - 1 ; ++ i) {
+        ThreadHandoff desired_handoff = row_thread_handoffs.back();
+        if(max_file_size && max_file_size + start_byte < desired_handoff.segment_size) {
+            desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
+        }
+        desired_handoff.segment_size -= row_thread_handoffs.front().segment_size;
+        
+        desired_handoff.segment_size *= (i + 1);
+        desired_handoff.segment_size /= NUM_THREADS;
+        desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
+        auto split = std::lower_bound(row_thread_handoffs.begin() + 1, row_thread_handoffs.end(),
+                                      desired_handoff,
+                                      ThreadHandoffSegmentCompare());
+        if (split == row_thread_handoffs.begin() && split != row_thread_handoffs.end()) {
+            //++split;
+        } else if (split != row_thread_handoffs.begin() + 1) {
+            --split;
+        }
+        split_indices[i] = split - row_thread_handoffs.begin();
+    }
+    for (uint32_t i = 0; ujgversion != 1 && i < NUM_THREADS - 1 ; ++ i) {
         split_indices[i] = row_thread_handoffs.size() * (i + 1) / NUM_THREADS;
     }
     for (uint32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {
