@@ -535,6 +535,7 @@ void sig_nop(int){}
     ----------------------------------------------- */
 
 unsigned char ujgversion   = 1;
+bool g_even_thread_split = false;
 uint8_t get_current_file_lepton_version() {
     return ujgversion;
 }
@@ -1048,9 +1049,10 @@ int initialize_options( int argc, const char*const * argv )
         }
         else if ( strcmp((*argv), "-unjailed" ) == 0)  {
             g_use_seccomp = false;
-        }
-        else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
+        } else if ( strcmp((*argv), "-multithread" ) == 0 || strcmp((*argv), "-m") == 0)  {
             g_threaded = true;
+        } else if ( strcmp((*argv), "-evensplit" ) == 0)  {
+            g_even_thread_split = true;
         } else if ( strstr((*argv), "-recodememory=") == *argv ) {
             g_decompression_memory_bound
                 = local_atoi(*argv + strlen("-recodememory="));
@@ -3738,7 +3740,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
     //fprintf(stderr, "Byte size %d num_rows %d Using num threads %u\n", framebuffer_byte_size, num_rows, NUM_THREADS);
     std::vector<ThreadHandoff> selected_splits(NUM_THREADS);
     std::vector<int> split_indices(NUM_THREADS);
-    for (uint32_t i = 0; ujgversion == 1 && i < NUM_THREADS - 1 ; ++ i) {
+    for (uint32_t i = 0; g_even_thread_split == false && i < NUM_THREADS - 1 ; ++ i) {
         ThreadHandoff desired_handoff = row_thread_handoffs.back();
         if(max_file_size && max_file_size + start_byte < desired_handoff.segment_size) {
             desired_handoff.segment_size += row_thread_handoffs.front().segment_size;
@@ -3758,7 +3760,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
         }
         split_indices[i] = split - row_thread_handoffs.begin();
     }
-    for (uint32_t i = 0; ujgversion != 1 && i < NUM_THREADS - 1 ; ++ i) {
+    for (uint32_t i = 0; g_even_thread_split && i < NUM_THREADS - 1 ; ++ i) {
         split_indices[i] = row_thread_handoffs.size() * (i + 1) / NUM_THREADS;
     }
     for (uint32_t index = 0; index < NUM_THREADS - 1 ; ++ index) {

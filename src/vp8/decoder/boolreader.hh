@@ -374,18 +374,24 @@ inline bool vpx_reader_fill_and_read(vpx_reader *r, unsigned int split, Billing 
 __attribute__((always_inline))
 #endif
 inline bool vpx_read(vpx_reader *r, int prob, Billing bill) {
-  unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
+  int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
   BD_VALUE value = r->value;
   int count = r->count;
   BD_VALUE bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
-  bool bit = (value >= bigsplit);
+  bool bit = value >= bigsplit;
   unsigned int range;
+#if 0
+  BD_VALUE mask = -(long long)bit;
+  value -= mask & bigsplit;
+  range = (r->range & mask) + (split ^ mask) - mask;
+#else
   if (bit) {
-    range = r->range - split;
-    value = value - bigsplit;
+      range = r->range - split;
+      value = value - bigsplit;
   } else {
-    range = split;
+      range = split;
   }
+#endif
   if (__builtin_expect(r->count < 0, 0)) {
       bit = vpx_reader_fill_and_read(r, split, bill);
 #ifdef DEBUG_ARICODER
