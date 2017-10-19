@@ -88,7 +88,8 @@ volatile int volatile1024 = 1024;
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
 #endif
-
+unsigned char g_zlib_0_writer[sizeof(Sirikata::Zlib0Writer)];
+void * uninit_g_zlib_0_writer = &g_zlib_0_writer[0];
 unsigned char EOI[ 2 ] = { 0xFF, 0xD9 }; // EOI segment
 extern int r_bitcount;
 int g_argc = 0;
@@ -1290,7 +1291,11 @@ size_t decompression_memory_bound() {
 
 void check_decompression_memory_bound_ok() {
     if (g_decompression_memory_bound) {
-        if (decompression_memory_bound() > g_decompression_memory_bound) {
+        size_t adjustment = 0;
+        if (!uninit_g_zlib_0_writer) {
+            adjustment = 8192; // add an extra 8kb if we're decoding zlib
+        }
+        if (decompression_memory_bound() > g_decompression_memory_bound + adjustment) {
             custom_exit(ExitCode::TOO_MUCH_MEMORY_NEEDED);
         }
     }
@@ -2100,7 +2105,13 @@ bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
         std::function<void(Sirikata::DecoderWriter*, size_t file_size)> known_size_callback = &nop;
         Sirikata::DecoderWriter * write_target = writer;
         if (compressed_output) {
-            Sirikata::Zlib0Writer *zwriter = new Sirikata::Zlib0Writer(writer, 0);
+            Sirikata::Zlib0Writer * zwriter;
+            if (uninit_g_zlib_0_writer) {
+                zwriter = new(uninit_g_zlib_0_writer)Sirikata::Zlib0Writer(writer, 0);
+                uninit_g_zlib_0_writer = NULL;
+            }else {
+                zwriter = new Sirikata::Zlib0Writer(writer, 0);
+            }
             known_size_callback = &static_cast_to_zlib_and_call;
             write_target = zwriter;
         }
