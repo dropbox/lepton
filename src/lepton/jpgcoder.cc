@@ -2028,9 +2028,12 @@ void show_help( void )
 
 void nop (Sirikata::DecoderWriter*w, size_t) {
 }
-void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
-    (static_cast<Sirikata::Zlib0Writer*>(w))->setFullFileSize(size);
-}
+
+//void static_cast_to_zlib_and_call (Sirikata::DecoderWriter*w, size_t size) {
+//    (static_cast<Sirikata::Zlib0Writer*>(w))->setFullFileSize(size);
+//}
+
+
 /* -----------------------------------------------
     check file and determine filetype
     ----------------------------------------------- */
@@ -2112,7 +2115,7 @@ bool check_file(int fd_in, int fd_out, uint32_t max_file_size, bool force_zlib0,
             }else {
                 zwriter = new Sirikata::Zlib0Writer(writer, 0);
             }
-            known_size_callback = &static_cast_to_zlib_and_call;
+            known_size_callback = &nop;
             write_target = zwriter;
         }
         str_out = new bounded_iostream( write_target,

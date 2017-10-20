@@ -34,20 +34,19 @@
 namespace Sirikata {
 uint32_t adler32(uint32_t adler, const uint8_t *buf, uint32_t len);
 
+#define MAX_ZLIB_CHUNK_SIZE 65535
 Zlib0Writer::Zlib0Writer(DecoderWriter * stream, int level){
     mBase = stream;
-    mBilledBytesLeft = 0;
     mWritten = 0;
     mClosed = false;
     mAdler32 = adler32(0, NULL, 0);
     always_assert(level == 0 && "Only support stored/raw/literal zlib");
-    mFileSize = 0;
+    mBufferPos = ZLIB_CHUNK_HEADER_LEN;
 }
 
 std::pair<uint32, JpegError> Zlib0Writer::Write(const uint8*data, unsigned int size) {
-    always_assert(mWritten + size <= mFileSize);
     mAdler32 = adler32(mAdler32, data, size);
-    if (mClosed || mWritten == mFileSize) {
+    if (mClosed) {
         return std::pair<uint32, JpegError>(0, JpegError::errEOF());
     }
     if (mWritten == 0) {
@@ -57,51 +56,36 @@ std::pair<uint32, JpegError> Zlib0Writer::Write(const uint8*data, unsigned int s
             return retval;
         }
     }
+    mWritten += size;
     std::pair<uint32, JpegError> retval(0, JpegError::nil());
-    if (mBilledBytesLeft) { // we've already said we'll write these bytes...lets actually write them
-        unsigned int toWrite = std::min(size, (unsigned int)mBilledBytesLeft);
-        retval = mBase->Write(data, toWrite);
-        if (retval.second != JpegError::nil()) {
-            mWritten += retval.first;
-            return retval;
-        }
-        mBilledBytesLeft -= toWrite;
-        mWritten += toWrite;
-        size -= toWrite;
-        data += toWrite;
-    }
     while (size) {
-        uint8_t buffer[(1<<16) + 1 + 4];
-        const uint16_t max_size = 65535;
-        if (mWritten + max_size >= mFileSize) {
-            buffer[0] = 0x1; // last block
-            mBilledBytesLeft = mFileSize - mWritten;
-        } else {
-            buffer[0] = 0x0;
-            mBilledBytesLeft = max_size;
+        size_t toCopy = size;
+        if (size > MAX_ZLIB_CHUNK_SIZE + ZLIB_CHUNK_HEADER_LEN - mBufferPos) {
+            toCopy = MAX_ZLIB_CHUNK_SIZE + ZLIB_CHUNK_HEADER_LEN - mBufferPos;
         }
-        buffer[1] = mBilledBytesLeft & 0xff;
-        buffer[2] = (mBilledBytesLeft >> 8) & 0xff;
-        buffer[3] = (~buffer[1]) & 0xff;
-        buffer[4] = (~buffer[2]) & 0xff;
-        uint32_t toSend = 5;
-        uint32_t toWrite = std::min((unsigned int)mBilledBytesLeft, size);
-        std::memcpy(buffer + toSend, data, toWrite);
-        toSend += toWrite;
-        std::pair<uint32, JpegError> retval2 = mBase->Write(buffer, toSend);
-        if (retval2.second != JpegError::nil()) {
-            if (retval2.first > toSend - toWrite) {
-                retval.first += retval2.first - (toSend - toWrite);
-                mWritten += retval2.first - (toSend - toWrite);
+        memcpy(mBuffer + mBufferPos, data, toCopy);
+        data += toCopy;
+        size -= toCopy;
+        retval.first += toCopy;
+        mBufferPos += toCopy;
+        if (mBufferPos == MAX_ZLIB_CHUNK_SIZE + ZLIB_CHUNK_HEADER_LEN && size != 0) {
+            // if size = 0 this could be a last chunk
+            mBuffer[0] = 0x0;
+            mBuffer[1] = MAX_ZLIB_CHUNK_SIZE & 0xff;
+            mBuffer[2] = (MAX_ZLIB_CHUNK_SIZE >> 8) & 0xff;
+            mBuffer[3] = (~mBuffer[1]) & 0xff;
+            mBuffer[4] = (~mBuffer[2]) & 0xff;
+            std::pair<uint32, JpegError> retval2 = mBase->Write(mBuffer, mBufferPos);
+            if (retval2.second != JpegError::nil()) {
+                if (mBufferPos - retval2.first > retval.first) {
+                    retval2.first = 0;
+                } else {
+                    retval2.first = retval.first - (mBufferPos - retval2.first);
+                }
+                return retval2;
             }
-            retval.second = retval2.second;
-            return retval;
+            mBufferPos = ZLIB_CHUNK_HEADER_LEN;
         }
-        mWritten += toWrite;
-        mBilledBytesLeft -= toWrite;
-        size -= toWrite;
-        data += toWrite;
-        retval.first += toWrite;
     }
     return retval;
 }
@@ -118,12 +102,22 @@ std::pair<uint32_t, JpegError> Zlib0Writer::writeHeader() {
 }
 /// writes the adler32 sum
 void Zlib0Writer::Close() {
-    always_assert(mWritten == mFileSize && "Must have written as much as promised");
     uint8_t adler[4] = {static_cast<uint8_t>((mAdler32 >> 24) & 0xff),
                         static_cast<uint8_t>((mAdler32 >> 16) & 0xff),
                         static_cast<uint8_t>((mAdler32 >> 8) & 0xff),
                         static_cast<uint8_t>(mAdler32 & 0xff)};
-    std::pair<uint32, JpegError> retval = mBase->Write(adler, 4);
+    mBuffer[0] = 0x1; // eof
+    mBuffer[1] = (mBufferPos - ZLIB_CHUNK_HEADER_LEN)& 0xff;
+    mBuffer[2] = ((mBufferPos - ZLIB_CHUNK_HEADER_LEN) >> 8) & 0xff;
+    mBuffer[3] = (~mBuffer[1]) & 0xff;
+    mBuffer[4] = (~mBuffer[2]) & 0xff;
+    mBuffer[mBufferPos + 0] = adler[0];
+    mBuffer[mBufferPos + 1] = adler[1];
+    mBuffer[mBufferPos + 2] = adler[2];
+    mBuffer[mBufferPos + 3] = adler[3];
+    mBufferPos += 4;
+    std::pair<uint32, JpegError> retval = mBase->Write(mBuffer, mBufferPos);
+    mBufferPos = ZLIB_CHUNK_HEADER_LEN;
     if (retval.second != JpegError::nil()) {
         return;
     }
@@ -132,7 +126,7 @@ void Zlib0Writer::Close() {
 }
 size_t Zlib0Writer::getCompressedSize(size_t originalSize) {
     size_t fullSize = sizeof(zlibHeader);
-    size_t numPackets = originalSize /= 65535 + (originalSize % 65535 ? 1 : 0);
+    size_t numPackets = originalSize /= MAX_ZLIB_CHUNK_SIZE + (originalSize % MAX_ZLIB_CHUNK_SIZE ? 1 : 0);
     fullSize += numPackets * 5;
     fullSize += 4;// adler32
     return fullSize;

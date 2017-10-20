@@ -28,6 +28,7 @@
  */
 #include "Reader.hh"
 namespace Sirikata {
+#define ZLIB_CHUNK_HEADER_LEN 5
 /**
  * Writes a zlib compression stream given an input
  * Currently only supports nop mode
@@ -35,17 +36,16 @@ namespace Sirikata {
 class SIRIKATA_EXPORT Zlib0Writer : public DecoderWriter {
     DecoderWriter *mBase;
     // currently the system only works for a preconceived filesize
-    size_t mFileSize;
-    size_t mWritten;
     uint32_t mAdler32; // adler32 sum
     bool mClosed;
-    uint16_t mBilledBytesLeft; // how many bytes are left in this block
+    uint16_t mBilledBytesLeft;
     std::pair<uint32, JpegError> writeHeader();
+
+    uint8_t mBuffer[(1<<16) + ZLIB_CHUNK_HEADER_LEN + 4];
+    size_t mBufferPos;
+    size_t mWritten;
   public:
     Zlib0Writer(DecoderWriter * stream, int level);
-    void setFullFileSize(size_t size) {
-        mFileSize = size;
-    }
     virtual std::pair<uint32, JpegError> Write(const uint8*data, unsigned int size);
     virtual ~Zlib0Writer();
     /// writes the adler32 sum
