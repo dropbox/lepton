@@ -75,10 +75,10 @@ class ANSBoolWriter
             Rans64EncPut(&rans_pair.first, &pptr, i->sym.first.start, i->sym.first.prob, 8);
             Rans64EncPut(&rans_pair.second, &pptr, i->sym.second.start, i->sym.second.prob, 8);
         }
-        final_buffer.resize(finish - pptr + 16);
-        memcpy(final_buffer.data() + sizeof(uint64_t) + sizeof(uint64_t), pptr, finish - pptr);
-        memcpy(final_buffer.data(), &rans_pair.first, sizeof(uint64_t));
-        memcpy(final_buffer.data() + sizeof(uint64_t), &rans_pair.second, sizeof(uint64_t));
+        Rans64EncFlush(&rans_pair.first, &pptr);
+        Rans64EncFlush(&rans_pair.second, &pptr);
+        final_buffer.resize(finish - pptr);
+        memcpy(final_buffer.data(), pptr, finish - pptr);
     }
 
 };
