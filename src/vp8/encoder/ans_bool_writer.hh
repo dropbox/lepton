@@ -40,11 +40,11 @@ class ANSBoolWriter
     void put( const bool value, Branch & branch, Billing bill) {
         Symbol sym;
         Probability prob =  branch.prob();
-        if (prob < 128) {
-            prob += 1;
-        }
-        sym.start = value ? 255 ^ prob: 0;
-        sym.prob = prob;
+        uint32_t prob_from_512 = prob;
+        prob_from_512 <<= 1;
+        prob_from_512 += 1;
+        sym.start = prob & (-(int32_t)value);
+        sym.prob = value ? 512 - prob: prob;
         if (odd) {
             symbol_buffer.back().sym.second = sym;
         }else {
@@ -71,9 +71,9 @@ class ANSBoolWriter
         uint32_t *finish = pptr;
         for (std::vector<UnionSymbolPair>::reverse_iterator ie = symbol_buffer.rend();
              i!=ie; ++i) {
-            always_assert(pptr + 2 >= &i->data && "we can't have a 16:1 expansion ratio due to 8 bit probability ranges");
-            Rans64EncPut(&rans_pair.first, &pptr, i->sym.first.start, i->sym.first.prob, 8);
-            Rans64EncPut(&rans_pair.second, &pptr, i->sym.second.start, i->sym.second.prob, 8);
+            always_assert(pptr + 2 >= &i->data && "we can't have a 16:1 expansion ratio due to 9 bit probability ranges");
+            Rans64EncPut(&rans_pair.first, &pptr, i->sym.first.start, i->sym.first.prob, 9);
+            Rans64EncPut(&rans_pair.second, &pptr, i->sym.second.start, i->sym.second.prob, 9);
         }
         Rans64EncFlush(&rans_pair.first, &pptr);
         Rans64EncFlush(&rans_pair.second, &pptr);

@@ -6,6 +6,7 @@
 #include "../../io/Reader.hh"
 #include "JpegArithmeticCoder.hh"
 #include "vpx_bool_reader.hh"
+#include "ans_bool_reader.hh"
 typedef int8_t TreeNode;
 
 class Branch;
