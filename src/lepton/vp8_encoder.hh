@@ -27,12 +27,21 @@ template<class BoolDecoder> class VP8ComponentEncoder : protected LeptonCodec<Bo
                            Sirikata::Array1d<std::vector<NeighborSummary>,
                                              (uint32_t)ColorChannel::NumBlockTypes> *num_nonzeros);
     bool mUseAnsEncoder;
+    template<class BoolEncoder> void threaded_encode_inner(const UncompressedComponents * const colldata,
+                                                           IOUtil::FileWriter *str_out,
+                                                           const ThreadHandoff * selected_splits,
+                                                           unsigned int num_selected_splits,
+                                                           BoolEncoder bool_encoder[MAX_NUM_THREADS],
+                                                           Sirikata::MuxReader::ResizableByteBuffer stream[Sirikata::MuxReader::MAX_STREAM_ID]);
+
 public:
     VP8ComponentEncoder(bool do_threading, bool use_ans_encoder);
     void registerWorkers(GenericWorker * workers, unsigned int num_workers) {
         this->LeptonCodec<BoolDecoder>::registerWorkers(workers, num_workers);
     }
-
+    bool do_threading() const {
+        return this->do_threading_;
+    }
     CodingReturnValue vp8_full_encoder( const UncompressedComponents * const colldata,
                                         IOUtil::FileWriter *,
                                         const ThreadHandoff * selected_splits,

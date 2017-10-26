@@ -457,12 +457,73 @@ int load_model_file_fd_output() {
 }
 int model_file_fd = load_model_file_fd_output();
 
+template <class BoolDecoder>
+template<class BoolEncoder> void VP8ComponentEncoder<BoolDecoder>::threaded_encode_inner(const UncompressedComponents * const colldata,
+                                                                               IOUtil::FileWriter *str_out,
+                                                                               const ThreadHandoff * selected_splits,
+                                                                               unsigned int num_selected_splits,
+                                                                               BoolEncoder bool_encoder[MAX_NUM_THREADS],
+                                                                               ResizableByteBuffer stream[Sirikata::MuxReader::MAX_STREAM_ID]) {
+    using namespace Sirikata;
+    Array1d<std::vector<NeighborSummary>,
+            (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros[MAX_NUM_THREADS];
+    for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
+        bool_encoder[thread_id].init();
+        for (size_t i = 0; i < num_nonzeros[thread_id].size(); ++i) {
+            num_nonzeros[thread_id].at(i).resize(colldata->block_width(i) << 1);
+        }
+    }
+    
+    if (this->do_threading()) {
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            this->spin_workers_[thread_id - 1].work
+                = std::bind(&VP8ComponentEncoder<BoolDecoder>::process_row_range<VPXBoolWriter>, this,
+                            thread_id,
+                            colldata,
+                            selected_splits[thread_id].luma_y_start,
+                            selected_splits[thread_id].luma_y_end,
+                            &stream[thread_id],
+                            &bool_encoder[thread_id],
+                            &num_nonzeros[thread_id]);
+            this->spin_workers_[thread_id - 1].activate_work();
+        }
+    }
+    process_row_range(0,
+                          colldata,
+                      selected_splits[0].luma_y_start,
+                      selected_splits[0].luma_y_end,
+                      &stream[0],
+                      &bool_encoder[0],
+                      &num_nonzeros[0]);
+    if(!this->do_threading()) { // single threading
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            process_row_range(thread_id,
+                              colldata,
+                              selected_splits[thread_id].luma_y_start,
+                              selected_splits[thread_id].luma_y_end,
+                              &stream[thread_id],
+                                  &bool_encoder[thread_id],
+                              &num_nonzeros[thread_id]);
+        }
+    }
+    static_assert(MAX_NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
+                  "Need to have enough mux streams for all threads and simd width");
+    
+    if (this->do_threading()) {
+        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
+            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
+            this->spin_workers_[thread_id - 1].main_wait_for_done();
+            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
+        }
+    }
+}
+
 template<class BoolDecoder>
-CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder( const UncompressedComponents * const colldata,
-                                                                      IOUtil::FileWriter *str_out,
-                                                                      const ThreadHandoff * selected_splits,
-                                                                      unsigned int num_selected_splits,
-                                                                      bool use_ans_encoder)
+CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder(const UncompressedComponents * const colldata,
+                                                                     IOUtil::FileWriter *str_out,
+                                                                     const ThreadHandoff * selected_splits,
+                                                                     unsigned int num_selected_splits,
+                                                                     bool use_ans_encoder)
 {
     /* cmpc is a global variable with the component count */
     using namespace Sirikata;
@@ -492,57 +553,12 @@ CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder( const Unco
     } else {
     
         VPXBoolWriter bool_encoder[MAX_NUM_THREADS];
-        Array1d<std::vector<NeighborSummary>,
-                (uint32_t)ColorChannel::NumBlockTypes> num_nonzeros[MAX_NUM_THREADS];
-        for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
-            bool_encoder[thread_id].init();
-            for (size_t i = 0; i < num_nonzeros[thread_id].size(); ++i) {
-                num_nonzeros[thread_id].at(i).resize(colldata->block_width(i) << 1);
-            }
-        }
-        
-        if (this->do_threading_) {
-            for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-                this->spin_workers_[thread_id - 1].work
-                    = std::bind(&VP8ComponentEncoder<BoolDecoder>::process_row_range<VPXBoolWriter>, this,
-                                thread_id,
-                                colldata,
-                                selected_splits[thread_id].luma_y_start,
-                                selected_splits[thread_id].luma_y_end,
-                                &stream[thread_id],
-                                &bool_encoder[thread_id],
-                                &num_nonzeros[thread_id]);
-                this->spin_workers_[thread_id - 1].activate_work();
-            }
-        }
-        process_row_range(0,
-                          colldata,
-                          selected_splits[0].luma_y_start,
-                          selected_splits[0].luma_y_end,
-                          &stream[0],
-                          &bool_encoder[0],
-                          &num_nonzeros[0]);
-        if(!this->do_threading_) { // single threading
-            for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-                process_row_range(thread_id,
-                                  colldata,
-                                  selected_splits[thread_id].luma_y_start,
-                                  selected_splits[thread_id].luma_y_end,
-                                  &stream[thread_id],
-                                  &bool_encoder[thread_id],
-                                  &num_nonzeros[thread_id]);
-            }
-        }
-    }
-    static_assert(MAX_NUM_THREADS * SIMD_WIDTH <= MuxReader::MAX_STREAM_ID,
-                  "Need to have enough mux streams for all threads and simd width");
-
-    if (this->do_threading_) {
-        for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
-            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
-            this->spin_workers_[thread_id - 1].main_wait_for_done();
-            TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
-        }
+        this->threaded_encode_inner(colldata,
+                                    str_out,
+                                    selected_splits,
+                                    num_selected_splits,
+                                    bool_encoder,
+                                    stream);
     }
     TimingHarness::timing[0][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
 
