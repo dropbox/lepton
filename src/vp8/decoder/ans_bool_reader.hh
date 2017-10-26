@@ -24,6 +24,7 @@ class ANSBoolReader {
                     mReader->setFree(mLastPacket);
                 }
                 mLastPacket = mReader->getNext();
+                mLastPacketReadPtr = mLastPacket.first;
             }
             size_t last_packet_size = mLastPacket.second - mLastPacketReadPtr;
             size_t to_copy = last_packet_size;
@@ -42,6 +43,7 @@ class ANSBoolReader {
         static_assert(sizeof(mBuffer) == sizeof(local_buffer),
                       "Packet buffer and local buffer must be same size");
         memcpy(mBuffer, local_buffer, sizeof(mBuffer));
+        mPptr = &mBuffer[0];
     }
 public:
     void init (PacketReader *pr) {
@@ -79,11 +81,14 @@ public:
         bool retval = cumulative_freq >= prob;
         uint32_t start = prob & (-(int32_t)retval);
         uint32_t freq = retval ? 512 - prob: prob;
+        //fprintf(stderr, "Going to decode %d %d (%d) [%d]: state = %ld\n", start, freq, branch.prob(), retval, local_state);
         Rans64DecAdvance(&local_state, &mPptr, start, freq, 9);
+        //fprintf(stderr, "Decoded         %d %d (%d) [%d]: state = %ld\n", start, freq, branch.prob(), retval, local_state);
         r1 = local_state;
         if (__builtin_expect(mPptr == &mBuffer[sizeof(mBuffer)/sizeof(mBuffer[0])], 0)) {
             fill();
         }
+        branch.record_obs_and_update(retval);
         return retval;
     }
 };

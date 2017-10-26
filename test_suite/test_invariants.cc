@@ -1,13 +1,15 @@
+#include <stdio.h>
 #include <assert.h>
 #include <cstdint>
 #include <cstddef>
 #include "../src/vp8/util/nd_array.hh"
 #include "../src/vp8/model/numeric.hh"
+#include "../src/vp8/model/branch.hh"
 #include "../src/io/MuxReader.hh"
 #include "../src/io/MemReadWriter.hh"
 #include "../src/lepton/thread_handoff.hh"
-
-#include <stdio.h>
+#include "../src/vp8/decoder/ans_bool_reader.hh"
+#include "../src/vp8/encoder/ans_bool_writer.hh"
 struct Data {
     unsigned char prob;
     unsigned short trueCount;
@@ -337,12 +339,118 @@ void test_thread_handoff() {
     handoff_compare(test8, roundtrip8);
 }
 
-
+void test_ans_coding() {
+    ANSBoolWriter writer;
+    Branch p50_50 = Branch::identity();
+    Branch p66_44 = Branch::identity();
+    p66_44.record_obs_and_update(true);
+    p66_44.record_obs_and_update(false);
+    p66_44.record_obs_and_update(false);
+    Branch p90_10 = Branch::identity();
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    p90_10.record_obs_and_update(false);
+    Branch p10_90 = Branch::identity();
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    p10_90.record_obs_and_update(true);
+    Branch p44_66 = Branch::identity();
+    p66_44.record_obs_and_update(true);
+    p66_44.record_obs_and_update(true);
+    p66_44.record_obs_and_update(false);
+    Branch p20_80 = Branch::identity();
+    p20_80.record_obs_and_update(true);
+    p20_80.record_obs_and_update(true);
+    p20_80.record_obs_and_update(true);
+    const Branch probs[16] = {
+        p50_50,
+        p66_44,
+        p90_10,
+        p10_90,
+        p44_66,
+        p20_80,
+        p66_44,
+        p66_44,
+        p66_44,
+        p66_44,
+        p66_44,
+        p66_44,
+        p10_90,
+        p10_90,
+        p10_90,
+        p10_90
+    };
+    Branch enc_probs[16];
+    Branch dec_probs[16];
+    memcpy(enc_probs, probs, sizeof(probs));
+    memcpy(dec_probs, probs, sizeof(probs));
+    bool vals[16] = {
+        true,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+    };
+    std::vector<Branch> prob_stream;
+    for (int j =0;j < 64; ++j) {
+        for (int i =0;i < 16; ++i) {
+            prob_stream.push_back(enc_probs[i]);
+            writer.put(vals[i], enc_probs[i], Billing::HEADER);
+        }
+    }
+    Sirikata::MuxReader::ResizableByteBuffer final_buffer;
+    writer.finish(final_buffer);
+    ANSBoolReader reader(final_buffer.data(), final_buffer.size());
+    size_t prob_index = 0;
+    for (int j = 0; j < 64; ++j) {
+        for (int i =0;i < 16; ++i) {
+            int prob_similarity_res = memcmp(&dec_probs[i], &prob_stream[prob_index++], sizeof(Branch));
+            if (prob_similarity_res) {
+                fprintf(stderr, "pass %d %d) [%d %d %d] != [%d %d %d]\n",
+                        j, i,
+                        dec_probs[i].false_count(),dec_probs[i].true_count(),(int)dec_probs[i].prob(),
+                        prob_stream[prob_index - 1].false_count(),prob_stream[prob_index-1].true_count(),(int)prob_stream[prob_index -1].prob());
+            }
+            always_assert(prob_similarity_res == 0);
+            bool val = reader.get(dec_probs[i], Billing::HEADER);
+            if (val != vals[i]) {
+                for (int inner =0;inner <= i; ++inner) {
+                    fprintf(stderr, "pass:%d %d) [prob=%d] val=%d (should be %d)\n",
+                            j, inner, probs[i].prob(), inner == i ? val:vals[i], vals[i]);
+                }
+            }
+            always_assert(val == vals[i]);
+        }
+    }
+    
+}
 int main() {
     Sirikata::memmgr_init(32 * 1024 * 1024,
                           16 * 1024 * 1024,
                           3,
                           256);
+    test_ans_coding();
     test_thread_handoff();
     for (size_t i = 0; i < karray.size(); ++i) {
         always_assert(karray[i] == i);
