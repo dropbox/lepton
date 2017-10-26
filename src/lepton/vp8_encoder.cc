@@ -477,7 +477,7 @@ template<class BoolEncoder> void VP8ComponentEncoder<BoolDecoder>::threaded_enco
     if (this->do_threading()) {
         for (unsigned int thread_id = 1; thread_id < NUM_THREADS; ++thread_id) {
             this->spin_workers_[thread_id - 1].work
-                = std::bind(&VP8ComponentEncoder<BoolDecoder>::process_row_range<VPXBoolWriter>, this,
+                = std::bind(&VP8ComponentEncoder<BoolDecoder>::process_row_range<BoolEncoder>, this,
                             thread_id,
                             colldata,
                             selected_splits[thread_id].luma_y_start,
@@ -549,7 +549,13 @@ CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder(const Uncom
     
     ResizableByteBuffer stream[MuxReader::MAX_STREAM_ID];
     if (use_ans_encoder) {
-        always_assert(false&& "NOT IMPL");
+        ANSBoolWriter bool_encoder[MAX_NUM_THREADS];
+        this->threaded_encode_inner(colldata,
+                                    str_out,
+                                    selected_splits,
+                                    num_selected_splits,
+                                    bool_encoder,
+                                    stream);
     } else {
     
         VPXBoolWriter bool_encoder[MAX_NUM_THREADS];
@@ -621,3 +627,4 @@ CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder(const Uncom
     return CODING_DONE;
 }
 template class VP8ComponentEncoder<VPXBoolReader>;
+template class VP8ComponentEncoder<ANSBoolReader>;
