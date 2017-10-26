@@ -416,7 +416,9 @@ add_executable(test_invariants
    src/lepton/thread_handoff.hh
    src/vp8/util/memory.cc
    test_suite/test_invariants.cc
- )
+   src/vp8/util/billing.cc
+   src/vp8/util/billing.hh
+   )
 if(USE_SYSTEM_DEPENDENCIES)
     target_link_libraries(test_invariants ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})
 else()

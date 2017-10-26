@@ -93,6 +93,7 @@ public:
         this->worker = worker;
         this->stream_id = stream_id;
         this->base = base;
+        this->last = NULL;
     }
     // returns a buffer with at least sizeof(BD_VALUE) before it
     virtual ROBuffer getNext() {
