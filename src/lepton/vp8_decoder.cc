@@ -14,36 +14,39 @@
 #include "../io/Reader.hh"
 #include "../vp8/decoder/decoder.hh"
 using namespace std;
-void VP8ComponentDecoder::initialize( Sirikata::DecoderReader *input,
+template<class BoolEncoder>
+void VP8ComponentDecoder<BoolEncoder>::initialize( Sirikata::DecoderReader *input,
                                       const std::vector<ThreadHandoff>& thread_handoff)
 {
     str_in = input;
     mux_reader_.init(input);
     thread_handoff_ = thread_handoff;
 }
-void VP8ComponentDecoder::decode_row(int target_thread_id,
+template<class BoolEncoder>
+void VP8ComponentDecoder<BoolEncoder>::decode_row(int target_thread_id,
                                      BlockBasedImagePerChannel<true>& image_data, // FIXME: set image_data to true
                                      Sirikata::Array1d<uint32_t,
                                                        (uint32_t)ColorChannel::
                                                        NumBlockTypes> component_size_in_blocks,
                                      int component,
                                      int curr_y) {
-    thread_state_[target_thread_id]->decode_rowt(image_data,
+    this->thread_state_[target_thread_id]->decode_rowt(image_data,
                                                component_size_in_blocks,
                                                component,
                                                curr_y);
 }
 
-
-VP8ComponentDecoder::VP8ComponentDecoder(bool do_threading)
-    : VP8ComponentEncoder(do_threading),
+ 
+template<class BoolDecoder>
+VP8ComponentDecoder<BoolDecoder>::VP8ComponentDecoder(bool do_threading)
+    : VP8ComponentEncoder<BoolDecoder>(do_threading, IsDecoderAns<BoolDecoder>::IS_ANS),
       mux_reader_(Sirikata::JpegAllocator<uint8_t>(),
                   8,
                   0) {
     virtual_thread_id_ = -1;
 }
-
-VP8ComponentDecoder::~VP8ComponentDecoder() {
+template<class BoolEncoder>
+VP8ComponentDecoder<BoolEncoder>::~VP8ComponentDecoder() {
 
 }
 
@@ -68,90 +71,21 @@ VP8ComponentDecoder::~VP8ComponentDecoder() {
                         BlockType::Cr
 #endif
 
-void VP8ComponentDecoder::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
+template <class BoolEncoder>
+void VP8ComponentDecoder<BoolEncoder>::clear_thread_state(int thread_id, int target_thread_state, BlockBasedImagePerChannel<true>& framebuffer) {
 
 
     initialize_thread_id(thread_id, target_thread_state, framebuffer);
     initialize_bool_decoder(thread_id, target_thread_state);
 }
-class ActualThreadPacketReader : public PacketReader{
-    GenericWorker *worker;
-    VP8ComponentDecoder::SendToActualThread *base;
-    uint8_t stream_id;
-    ResizableByteBufferListNode* last;
-public:
-    ActualThreadPacketReader(uint8_t stream_id, GenericWorker*worker, VP8ComponentDecoder::SendToActualThread*base) {
-        this->worker = worker;
-        this->stream_id = stream_id;
-        this->base = base;
-    }
-    // returns a buffer with at least sizeof(BD_VALUE) before it
-    virtual ROBuffer getNext() {
-        if (!base->vbuffers[stream_id].empty()) {
-            auto retval = base->vbuffers[stream_id].front();
-            if (!retval->empty()) {
-                base->vbuffers[stream_id].pop();
-            }
-            if (retval->empty()) {
-                isEof = true;
-                return {NULL, NULL};
-            }
-            return {retval->data(), retval->data() + retval->size()};
-        }
-        while(!isEof) {
-            auto dat = worker->batch_recv_data();
-            for (unsigned int i = 0; i < dat.count; ++i) {
-                ResizableByteBufferListNode* lnode = (ResizableByteBufferListNode*) dat.data[i];
-                if (dat.count == 1 && lnode->stream_id == stream_id && lnode && lnode->size()) {
-                    assert(stream_id == lnode->stream_id);
-                    last = lnode;
-                    return {lnode->data(), lnode->data() + lnode->size()};
-                } else {
-                    base->vbuffers[lnode->stream_id].push(lnode);
-                }
-            }
-            if (!base->vbuffers[stream_id].empty()) {
-                return getNext(); // recursive call, 1 deep
-            }
-            if (dat.return_code < 0) {
-                isEof = true; // hmm... should we bail here?
-                always_assert(false);
-            }
-        }
-        return {NULL, NULL};
-    }
-    bool eof()const {
-        return isEof;
-    }
-    virtual void setFree(ROBuffer buffer) {// don't even bother
-        if (last && last->data() == buffer.first) {
-            delete last; // hax
-            last = NULL;
-        }
-    }
-    virtual ~ActualThreadPacketReader(){}
-};
-void VP8ComponentDecoder::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata,
-                                        int8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
-                                        GenericWorker *worker,
-                                        SendToActualThread *send_to_actual_thread_state) {
-    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
-    for (uint8_t i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
-        if (thread_target[i] == int8_t(thread_id)) {
-            ts->bool_decoder_.init(new ActualThreadPacketReader(i,worker, send_to_actual_thread_state));
-        }
-    }
-    while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
-    }
-    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
-}
+
 class VirtualThreadPacketReader : public PacketReader{
-    VP8ComponentDecoder::SendToVirtualThread*base;
+    VP8ComponentDecoder_SendToVirtualThread*base;
     uint8_t stream_id;
     Sirikata::MuxReader*mux_reader_;
     Sirikata::MuxReader::ResizableByteBuffer * last;
 public:
-    VirtualThreadPacketReader(uint8_t stream_id, Sirikata::MuxReader * mr, VP8ComponentDecoder::SendToVirtualThread*base) {
+    VirtualThreadPacketReader(uint8_t stream_id, Sirikata::MuxReader * mr, VP8ComponentDecoder_SendToVirtualThread*base) {
         this->base = base;
         this->stream_id = stream_id;
         this->mux_reader_ = mr;
@@ -179,64 +113,72 @@ public:
     virtual ~VirtualThreadPacketReader(){}
 };
 
-void VP8ComponentDecoder::initialize_bool_decoder(int thread_id, int target_thread_state) {
+template <class BoolDecoder>
+void VP8ComponentDecoder<BoolDecoder>::registerWorkers(GenericWorker *workers, unsigned int num_workers) {
+        this->VP8ComponentEncoder<BoolDecoder>::registerWorkers(workers, num_workers);
+}
+
+template <class BoolDecoder>
+void VP8ComponentDecoder<BoolDecoder>::initialize_bool_decoder(int thread_id, int target_thread_state) {
     if (NUM_THREADS > 1 && g_threaded) {
-        thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
+        this->thread_state_[target_thread_state]->bool_decoder_.init(new ActualThreadPacketReader(thread_id,
                                                                                             getWorker(target_thread_state),
                                                                                             &send_to_actual_thread_state));
     } else {
-        thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+        this->thread_state_[target_thread_state]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
     }
 }
 
-    template <bool force_memory_optimized>
-void VP8ComponentDecoder::initialize_thread_id(int thread_id, int target_thread_state,
+template <class BoolDecoder> template <bool force_memory_optimized>
+void VP8ComponentDecoder<BoolDecoder>::initialize_thread_id(int thread_id, int target_thread_state,
                                                BlockBasedImagePerChannel<force_memory_optimized>& framebuffer) {
     if (target_thread_state) {
-        always_assert(spin_workers_);
+        always_assert(this->spin_workers_);
     }
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_STARTED] = TimingHarness::get_time_us();
     //if (thread_id != target_thread_state) {
-        reset_thread_model_state(target_thread_state);
+        this->reset_thread_model_state(target_thread_state);
     //}
-    thread_state_[target_thread_state]->decode_index_ = 0;
+    this->thread_state_[target_thread_state]->decode_index_ = 0;
     for (unsigned int i = 0; i < framebuffer.size(); ++i) {
         if (framebuffer[i] != NULL)  {
-            thread_state_[target_thread_state]->is_top_row_.at(i) = true;
-            thread_state_[target_thread_state]->num_nonzeros_.at(i).resize(framebuffer[i]->block_width() << 1);
-            thread_state_[target_thread_state]->context_.at(i)
-                = framebuffer[i]->begin(thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
+            this->thread_state_[target_thread_state]->is_top_row_.at(i) = true;
+            this->thread_state_[target_thread_state]->num_nonzeros_.at(i).resize(framebuffer[i]->block_width() << 1);
+            this->thread_state_[target_thread_state]->context_.at(i)
+                = framebuffer[i]->begin(this->thread_state_[target_thread_state]->num_nonzeros_.at(i).begin());
         }
     }
     /* initialize the bool decoder */
     int index = thread_id;
     always_assert((size_t)index < streams_.size());
     
-    thread_state_[target_thread_state]->is_valid_range_ = false;
-    thread_state_[target_thread_state]->luma_splits_.resize(2);
+    this->thread_state_[target_thread_state]->is_valid_range_ = false;
+    this->thread_state_[target_thread_state]->luma_splits_.resize(2);
     if ((size_t)index < thread_handoff_.size()) {
-        thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_[thread_id].luma_y_start;
-        thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_[thread_id].luma_y_end;
+        this->thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_[thread_id].luma_y_start;
+        this->thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_[thread_id].luma_y_end;
     } else {
         // we have extra threads that are not in use during this decode.
         // set them to zero sized work (i.e. starting at end and ending at end)
         // since they don't have any rows to decode
-        thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_.back().luma_y_end; // <- not a typo
-        thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_.back().luma_y_end; // both start and end at end
+        this->thread_state_[target_thread_state]->luma_splits_[0] = thread_handoff_.back().luma_y_end; // <- not a typo
+        this->thread_state_[target_thread_state]->luma_splits_[1] = thread_handoff_.back().luma_y_end; // both start and end at end
     }
     //fprintf(stderr, "tid: %d   %d -> %d\n", thread_id, thread_state_[target_thread_state]->luma_splits_[0],
     //        thread_state_[target_thread_state]->luma_splits_[1]);
     TimingHarness::timing[thread_id%NUM_THREADS][TimingHarness::TS_STREAM_MULTIPLEX_FINISHED] = TimingHarness::get_time_us();
 }
-std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_baseline_decoder(
+
+template <class BoolDecoder> 
+std::vector<ThreadHandoff> VP8ComponentDecoder<BoolDecoder>::initialize_baseline_decoder(
     const UncompressedComponents * const colldata,
     Sirikata::Array1d<BlockBasedImagePerChannel<true>,
                       MAX_NUM_THREADS>& framebuffer) {
-    mux_splicer.init(spin_workers_);
+    mux_splicer.init(this->spin_workers_);
     return initialize_decoder_state(colldata, framebuffer);
 }
 
-void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
+void VP8ComponentDecoder_SendToVirtualThread::set_eof() {
     using namespace Sirikata;
     if (!eof) {
         for (unsigned int thread_id = 0; thread_id < Sirikata::MuxReader::MAX_STREAM_ID; ++thread_id) {
@@ -252,7 +194,7 @@ void VP8ComponentDecoder::SendToVirtualThread::set_eof() {
     }
     eof = true;
 }
-VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
+VP8ComponentDecoder_SendToVirtualThread::VP8ComponentDecoder_SendToVirtualThread(){
     eof = false;
     for (int i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
         thread_target[i] = -1;
@@ -260,7 +202,7 @@ VP8ComponentDecoder::SendToVirtualThread::SendToVirtualThread(){
     this->all_workers = NULL;
 }
 
-void VP8ComponentDecoder::SendToVirtualThread::init(GenericWorker * all_workers) {
+void VP8ComponentDecoder_SendToVirtualThread::init(GenericWorker * all_workers) {
     this->eof = false;
     for (unsigned int thread_id = 0; thread_id < MAX_NUM_THREADS; ++thread_id) {
         if (!vbuffers[thread_id].empty()) {
@@ -269,7 +211,7 @@ void VP8ComponentDecoder::SendToVirtualThread::init(GenericWorker * all_workers)
     }
     this->all_workers = all_workers;
 }
-void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode *data) {
+void VP8ComponentDecoder_SendToVirtualThread::send(ResizableByteBufferListNode *data) {
     always_assert(data);
     always_assert(data->stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
                   "INVALID SEND STREAM ID");
@@ -294,7 +236,7 @@ void VP8ComponentDecoder::SendToVirtualThread::send(ResizableByteBufferListNode 
         always_assert(false && "Cannot send to thread that wasn't bound");
     }
 }
-void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader) {
+void VP8ComponentDecoder_SendToVirtualThread::drain(Sirikata::MuxReader&reader) {
     while (!reader.eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
         auto ret = reader.nextDataPacket(*data);
@@ -312,7 +254,7 @@ void VP8ComponentDecoder::SendToVirtualThread::drain(Sirikata::MuxReader&reader)
     fprintf(stderr, "FINAL BUF %02x %02x %02x %02x\n", buf[0], buf[1], buf[2], buf[3]);
     */
 }
-ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
+ResizableByteBufferListNode* VP8ComponentDecoder_SendToVirtualThread::read(Sirikata::MuxReader&reader, uint8_t stream_id) {
     using namespace Sirikata;
     always_assert(stream_id < sizeof(vbuffers) / sizeof(vbuffers[0]) &&
                   "INVALID READ STREAM ID");
@@ -355,7 +297,7 @@ ResizableByteBufferListNode* VP8ComponentDecoder::SendToVirtualThread::read(Siri
     }
     return NULL;
 }
-void VP8ComponentDecoder::SendToVirtualThread::read_all(Sirikata::MuxReader&reader) {
+void VP8ComponentDecoder_SendToVirtualThread::read_all(Sirikata::MuxReader&reader) {
     using namespace Sirikata;
     while (!eof) {
         ResizableByteBufferListNode *data = new ResizableByteBufferListNode;
@@ -370,8 +312,8 @@ void VP8ComponentDecoder::SendToVirtualThread::read_all(Sirikata::MuxReader&read
     }
 }
 
-template <bool force_memory_optimized>
-std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const UncompressedComponents * const colldata,
+template<class BoolDecoder> template <bool force_memory_optimized>
+std::vector<ThreadHandoff> VP8ComponentDecoder<BoolDecoder>::initialize_decoder_state(const UncompressedComponents * const colldata,
                                                    Sirikata::Array1d<BlockBasedImagePerChannel<force_memory_optimized>,
                                                                      MAX_NUM_THREADS>& framebuffer) {
     if (colldata->get_num_components() > (int)BlockType::Y) {
@@ -425,12 +367,14 @@ std::vector<ThreadHandoff> VP8ComponentDecoder::initialize_decoder_state(const U
     }
     return thread_handoff_;
 }
-void VP8ComponentDecoder::flush() {
+template <class BoolDecoder>
+void VP8ComponentDecoder<BoolDecoder>::flush() {
         mux_splicer.drain(mux_reader_);
 }
 namespace{void nop(){}}
 
-void VP8ComponentDecoder::reset_all_comm_buffers() {
+template <class BoolDecoder>
+void VP8ComponentDecoder<BoolDecoder>::reset_all_comm_buffers() {
     for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
         while (!send_to_actual_thread_state.vbuffers[thread_id].empty()) {
             send_to_actual_thread_state.vbuffers[thread_id].pop();
@@ -438,14 +382,15 @@ void VP8ComponentDecoder::reset_all_comm_buffers() {
     }
 }
 
-CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * const colldata)
+template <class BoolDecoder>
+CodingReturnValue VP8ComponentDecoder<BoolDecoder>::decode_chunk(UncompressedComponents * const colldata)
 {
-    mux_splicer.init(spin_workers_);
+    mux_splicer.init(this->spin_workers_);
     /* cmpc is a global variable with the component count */
 
 
     /* construct 4x4 VP8 blocks to hold 8x8 JPEG blocks */
-    if ( thread_state_[0] == nullptr || thread_state_[0]->context_[0].isNil() ) {
+    if ( this->thread_state_[0] == nullptr || this->thread_state_[0]->context_[0].isNil() ) {
         /* first call */
         BlockBasedImagePerChannel<false> framebuffer;
         framebuffer.memset(0);
@@ -465,7 +410,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
         }
         for (size_t i = 0;i < num_threads_needed; ++i) {
             initialize_thread_id(i, i, framebuffer);
-            if (!do_threading_) {
+            if (!this->do_threading_) {
                 break;
             }
         }
@@ -473,7 +418,7 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             return CODING_ERROR;
         }
     }
-    if (do_threading_) {
+    if (this->do_threading_) {
         reset_all_comm_buffers();
         for (unsigned int physical_thread_id = 0; physical_thread_id < (g_threaded ? getNumWorkers() : 1); ++physical_thread_id) {
             getWorker(physical_thread_id)->work = nop;
@@ -481,33 +426,33 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
 
         for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             unsigned int cur_spin_worker = thread_id;
-            if (!thread_state_[thread_id]) {
-                spin_workers_[cur_spin_worker].work
+            if (!this->thread_state_[thread_id]) {
+                this->spin_workers_[cur_spin_worker].work
                     = &nop;
             } else {
-                spin_workers_[cur_spin_worker].work
-                    = std::bind(worker_thread,
-                                thread_state_[thread_id],
+                this->spin_workers_[cur_spin_worker].work
+                    = std::bind(LeptonCodec<BoolDecoder>::worker_thread,
+                                this->thread_state_[thread_id],
                                 thread_id,
                                 colldata,
                                 mux_splicer.thread_target,
                                 getWorker(cur_spin_worker),
                                 &send_to_actual_thread_state);
             }
-            spin_workers_[cur_spin_worker].activate_work();
+            this->spin_workers_[cur_spin_worker].activate_work();
         }
         flush();
         for (unsigned int thread_id = 0; thread_id < NUM_THREADS; ++thread_id) {
             unsigned int cur_spin_worker = thread_id;
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_STARTED] = TimingHarness::get_time_us();
-            spin_workers_[cur_spin_worker].main_wait_for_done();
+            this->spin_workers_[cur_spin_worker].main_wait_for_done();
             TimingHarness::timing[thread_id][TimingHarness::TS_THREAD_WAIT_FINISHED] = TimingHarness::get_time_us();
         }
         // join on all threads
     } else {
         if (virtual_thread_id_ != -1) {
             TimingHarness::timing[0][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
-            CodingReturnValue ret = thread_state_[0]->vp8_decode_thread(0, colldata);
+            CodingReturnValue ret = this->thread_state_[0]->vp8_decode_thread(0, colldata);
             if (ret == CODING_PARTIAL) {
                 return ret;
             }
@@ -523,10 +468,10 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
             }
 
             initialize_thread_id(thread_id, 0, framebuffer);
-            thread_state_[0]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
+            this->thread_state_[0]->bool_decoder_.init(new VirtualThreadPacketReader(thread_id, &mux_reader_, &mux_splicer));
             TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
             CodingReturnValue ret;
-            if ((ret = thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
+            if ((ret = this->thread_state_[0]->vp8_decode_thread(0, colldata)) == CODING_PARTIAL) {
                 return ret;
             }
             TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
@@ -541,3 +486,5 @@ CodingReturnValue VP8ComponentDecoder::decode_chunk(UncompressedComponents * con
     write_byte_bill(Billing::DELIMITERS, true, mux_reader_.getOverhead());
     return CODING_DONE;
 }
+
+template class VP8ComponentDecoder<VPXBoolReader>;

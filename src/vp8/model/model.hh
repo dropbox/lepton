@@ -18,7 +18,7 @@
 #include "../util/mm_mullo_epi32.hh"
 #endif
 
-class BoolEncoder;
+
 constexpr bool advanced_dc_prediction = true;
 enum TableParams : unsigned int {
     MAX_EXPONENT = 11,

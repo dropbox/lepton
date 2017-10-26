@@ -22,7 +22,7 @@ public:
     unsigned int getNumWorkers() const {
         return 0;
     }
-
+    void reset_all_comm_buffers(){}
     GenericWorker *getWorker(unsigned int i) {
         return NULL;
     }

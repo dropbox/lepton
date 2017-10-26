@@ -37,7 +37,7 @@ enum {
 };
 
 template<bool all_neighbors_present, BlockType color,
-         bool horizontal>
+         bool horizontal,  class BoolEncoder>
 void encode_one_edge(ConstBlockContext context,
                  BoolEncoder& encoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
@@ -163,7 +163,7 @@ void encode_one_edge(ConstBlockContext context,
     }
 }
 
-template<bool all_neighbors_present, BlockType color>
+template<bool all_neighbors_present, BlockType color, class BoolEncoder>
 void encode_edge(ConstBlockContext context,
                  BoolEncoder& encoder,
                  ProbabilityTables<all_neighbors_present, color> & probability_tables,
@@ -191,7 +191,7 @@ int med_err = 0;
 int avg_err = 0;
 int ori_err = 0;
 
-template <bool all_neighbors_present, BlockType color>
+template <bool all_neighbors_present, BlockType color, class BoolEncoder>
 void serialize_tokens(ConstBlockContext context,
                       BoolEncoder& encoder,
                       ProbabilityTables<all_neighbors_present, color> & probability_tables,
@@ -401,14 +401,14 @@ void serialize_tokens(ConstBlockContext context,
     }
 }
 #ifdef ALLOW_FOUR_COLORS
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
 #endif
 
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
-template void serialize_tokens(ConstBlockContext, BoolEncoder&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<false, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<false, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<false, BlockType::Cr>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
+template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
 

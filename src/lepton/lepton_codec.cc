@@ -4,8 +4,8 @@
 
 
 
-template<class Left, class Middle, class Right, bool force_memory_optimization>
-void LeptonCodec::ThreadState::decode_row(Left & left_model,
+template<class BoolDecoder> template<class Left, class Middle, class Right, bool force_memory_optimization>
+void LeptonCodec<BoolDecoder>::ThreadState::decode_row(Left & left_model,
                                           Middle& middle_model,
                                           Right& right_model,
                                           int curr_y,
@@ -89,7 +89,8 @@ void LeptonCodec::ThreadState::decode_row(Left & left_model,
 
 
 
-void LeptonCodec::ThreadState::decode_row_wrapper(BlockBasedImagePerChannel<true>& image_data,
+template <class BoolDecoder>
+void LeptonCodec<BoolDecoder>::ThreadState::decode_row_wrapper(BlockBasedImagePerChannel<true>& image_data,
                                           Sirikata::Array1d<uint32_t,
                                                             (uint32_t)ColorChannel::
                                                             NumBlockTypes> component_size_in_blocks,
@@ -97,7 +98,8 @@ void LeptonCodec::ThreadState::decode_row_wrapper(BlockBasedImagePerChannel<true
                                           int curr_y) {
     return decode_rowt(image_data, component_size_in_blocks, component, curr_y);
 }
-void LeptonCodec::ThreadState::decode_rowf(BlockBasedImagePerChannel<false>& image_data,
+template <class BoolDecoder>
+void LeptonCodec<BoolDecoder>::ThreadState::decode_rowf(BlockBasedImagePerChannel<false>& image_data,
                                           Sirikata::Array1d<uint32_t,
                                                             (uint32_t)ColorChannel::
                                                             NumBlockTypes> component_size_in_blocks,
@@ -105,7 +107,8 @@ void LeptonCodec::ThreadState::decode_rowf(BlockBasedImagePerChannel<false>& ima
                                           int curr_y) {
     decode_row_internal(image_data, component_size_in_blocks,component,curr_y);
 }
-void LeptonCodec::ThreadState::decode_rowt(BlockBasedImagePerChannel<true>& image_data,
+template <class BoolDecoder>
+void LeptonCodec<BoolDecoder>::ThreadState::decode_rowt(BlockBasedImagePerChannel<true>& image_data,
                                           Sirikata::Array1d<uint32_t,
                                                             (uint32_t)ColorChannel::
                                                             NumBlockTypes> component_size_in_blocks,
@@ -113,8 +116,8 @@ void LeptonCodec::ThreadState::decode_rowt(BlockBasedImagePerChannel<true>& imag
                                           int curr_y) {
     decode_row_internal(image_data, component_size_in_blocks,component,curr_y);
 }
-template<bool force_memory_optimization>
-void LeptonCodec::ThreadState::decode_row_internal(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
+template <class BoolDecoder> template<bool force_memory_optimization>
+void LeptonCodec<BoolDecoder>::ThreadState::decode_row_internal(BlockBasedImagePerChannel<force_memory_optimization>& image_data,
                                           Sirikata::Array1d<uint32_t,
                                                             (uint32_t)ColorChannel::
                                                             NumBlockTypes> component_size_in_blocks,
@@ -260,8 +263,8 @@ void LeptonCodec::ThreadState::decode_row_internal(BlockBasedImagePerChannel<for
         }
     }
 }
-
-CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int thread_id,
+template <class BoolDecoder>
+CodingReturnValue LeptonCodec<BoolDecoder>::ThreadState::vp8_decode_thread(unsigned int thread_id,
                                                               UncompressedComponents *const colldata) {
     Sirikata::Array1d<uint32_t, (uint32_t)ColorChannel::NumBlockTypes> component_size_in_blocks;
     BlockBasedImagePerChannel<false> image_data;
@@ -279,7 +282,7 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int threa
     int min_y = luma_splits_[0];
     int max_y = luma_splits_[1];
     while(true) {
-        RowSpec cur_row = row_spec_from_index(decode_index_++, image_data, colldata->get_mcu_count_vertical(), max_coded_heights);
+        LeptonCodec_RowSpec cur_row = LeptonCodec_row_spec_from_index(decode_index_++, image_data, colldata->get_mcu_count_vertical(), max_coded_heights);
         if (cur_row.done) {
             break;
         }
@@ -304,3 +307,20 @@ CodingReturnValue LeptonCodec::ThreadState::vp8_decode_thread(unsigned int threa
     }
     return CODING_DONE;
 }
+
+
+template<class BoolDecoder> void LeptonCodec<BoolDecoder>::worker_thread(ThreadState *ts, int thread_id, UncompressedComponents * const colldata,
+                                        int8_t thread_target[Sirikata::MuxReader::MAX_STREAM_ID],
+                                        GenericWorker *worker,
+                                        VP8ComponentDecoder_SendToActualThread *send_to_actual_thread_state) {
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_STARTED] = TimingHarness::get_time_us();
+    for (uint8_t i = 0; i < Sirikata::MuxReader::MAX_STREAM_ID; ++i) {
+        if (thread_target[i] == int8_t(thread_id)) {
+            ts->bool_decoder_.init(new ActualThreadPacketReader(i,worker, send_to_actual_thread_state));
+        }
+    }
+    while (ts->vp8_decode_thread(thread_id, colldata) == CODING_PARTIAL) {
+    }
+    TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
+}
+template class LeptonCodec<VPXBoolReader>;

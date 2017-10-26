@@ -483,7 +483,7 @@ ThreadHandoff recode_row_range(BoundedWriter *stream_out,
                                                 retval.num_overhang_bits);
     int decode_index = 0;
     while (true) {
-        LeptonCodec::RowSpec cur_row = LeptonCodec::row_spec_from_index(decode_index++,
+        LeptonCodec_RowSpec cur_row = LeptonCodec_row_spec_from_index(decode_index++,
                                                                         framebuffer,
                                                                         mcuv,
                                                                         max_coded_heights);
@@ -725,13 +725,13 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
     if (luma_bounds.size() && luma_bounds[0].is_legacy_mode()) {
         g_threaded = false;
     }
-    static_cast<VP8ComponentDecoder*>(g_decoder)->reset_all_comm_buffers();
+    g_decoder->reset_all_comm_buffers();
     for (unsigned int physical_thread_id = 1; physical_thread_id < (g_threaded ? NUM_THREADS : 1); ++physical_thread_id) {
         int logical_thread_start, logical_thread_end;
         std::tie(logical_thread_start, logical_thread_end)
             = logical_thread_range_from_physical_thread_id(physical_thread_id, luma_bounds.size());
         for (int log_thread = logical_thread_start; log_thread < logical_thread_end; ++log_thread) {
-            static_cast<VP8ComponentDecoder*>(g_decoder)->map_logical_thread_to_physical_thread(log_thread, physical_thread_id);
+            g_decoder->map_logical_thread_to_physical_thread(log_thread, physical_thread_id);
         }
     }
     /* step 3: decode the scan, row by row */

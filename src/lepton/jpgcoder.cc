@@ -83,7 +83,7 @@ volatile int volatile1024 = 1024;
 #include "../io/BufferedIO.hh"
 #include "../io/Zlib0.hh"
 #include "../io/Seccomp.hh"
-
+#include "../vp8/encoder/vpx_bool_writer.hh"
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
@@ -438,8 +438,8 @@ GenericWorker * get_worker_threads(unsigned int num_workers) {
     return retval;
 }
 
-VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
-    VP8ComponentDecoder *retval = new VP8ComponentDecoder(threaded);
+template <class BoolEncoder>VP8ComponentDecoder<BoolEncoder> *makeBoth(bool threaded, bool start_workers) {
+    VP8ComponentDecoder<BoolEncoder> *retval = new VP8ComponentDecoder<BoolEncoder>(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
         retval->registerWorkers(get_worker_threads(
@@ -451,9 +451,9 @@ VP8ComponentDecoder *makeBoth(bool threaded, bool start_workers) {
     return retval;
 }
 
-BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
+template <class BoolDecoder>BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT_BEGIN] = TimingHarness::get_time_us();
-    VP8ComponentEncoder * retval = new VP8ComponentEncoder(threaded);
+    VP8ComponentEncoder<BoolDecoder> * retval = new VP8ComponentEncoder<BoolDecoder>(threaded, IsDecoderAns<BoolDecoder>::IS_ANS);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
         retval->registerWorkers(get_worker_threads(NUM_THREADS - 1), NUM_THREADS - 1);
@@ -461,7 +461,7 @@ BaseEncoder *makeEncoder(bool threaded, bool start_workers) {
     return retval;
 }
 BaseDecoder *makeDecoder(bool threaded, bool start_workers) {
-    return makeBoth(threaded, start_workers);
+    return makeBoth<VPXBoolReader>(threaded, start_workers);
 }
 /* -----------------------------------------------
     global variables: info about files
@@ -1190,7 +1190,7 @@ int initialize_options( int argc, const char*const * argv )
         exit(1);
     }
     if (g_do_preload && g_skip_validation) {
-        VP8ComponentDecoder *d = makeBoth(g_threaded, g_threaded && action != forkserve && action != socketserve);
+        VP8ComponentDecoder<VPXBoolReader> *d = makeBoth<VPXBoolReader>(g_threaded, g_threaded && action != forkserve && action != socketserve);
         g_encoder.reset(d);
         g_decoder = d;
     }
@@ -1608,7 +1608,7 @@ void process_file(IOUtil::FileReader* reader,
 
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
-                g_encoder.reset(makeEncoder(g_threaded, g_threaded));
+                g_encoder.reset(makeEncoder<VPXBoolReader>(g_threaded, g_threaded));
                 TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
                 g_decoder = NULL;
             } else if (g_threaded && (action == socketserve || action == forkserve)) {

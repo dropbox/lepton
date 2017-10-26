@@ -85,8 +85,7 @@ static IdentityArray1d raster_to_aligned;
 static IdentityArray1d aligned_to_raster;
 #endif
 
-class BoolEncoder;
-class BoolDecoder;
+
 struct BlockColorContext;
 
 

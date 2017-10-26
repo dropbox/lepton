@@ -43,7 +43,7 @@ public:
         return jpeg_coder_.arith_decode(this, &branch.probability_);
     }
 };
-
+/*
 #ifdef JPEG_ENCODER
 //easier than a typedef so that we can forward declare this class elsewhere
 class BoolDecoder : public JpegBoolDecoder {public:
@@ -57,6 +57,6 @@ class BoolDecoder : public VPXBoolReader { public:
     BoolDecoder() {}
 };
 #endif
-
+*/
 
 #endif /* BOOL_DECODER_HH */

@@ -29,8 +29,8 @@ public:
 };
 
 #ifdef JPEG_ENCODER
-class BoolEncoder : public JpegBoolEncoder{};
+//class BoolEncoder : public JpegBoolEncoder{};
 #else
-class BoolEncoder : public VPXBoolWriter{};
+//class BoolEncoder : public VPXBoolWriter{};
 #endif
 #endif /* BOOL_ENCODER_HH */
