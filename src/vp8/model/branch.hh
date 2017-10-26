@@ -16,7 +16,15 @@ private:
   friend class JpegBoolDecoder;
   friend class JpegBoolEncoder;
 public:
+    static Branch update_lookup[256][256][2];
   Probability prob() const { return probability_; }
+    static Branch set_particular_value(int false_count, int true_count) {
+        Branch retval;
+        retval.counts_[0] = false_count;
+        retval.counts_[1] = true_count;
+        retval.probability_ = retval.optimize(false_count + true_count + 1);
+        return retval;
+    }
   void set_identity() {
     counts_[0] = 1;
     counts_[1] = 1;
@@ -49,32 +57,48 @@ public:
 #ifndef _WIN32
   __attribute__((always_inline))
 #endif
-  void record_obs_and_update(bool obs) {
+  void adv_record_obs_and_update(bool obs) {
       /*
-      static bool pr = true;
-      if (pr) {
-          pr = false;
-          print_prob_update();
-          }*/
-      unsigned int fcount = counts_[0];
-      unsigned int tcount = counts_[1];
-      bool overflow = (counts_[obs]++ == 0xff);
-      if (__builtin_expect(overflow, 0)) { // check less than 512
-          bool neverseen = counts_[!obs] == 1;
-          if (neverseen) {
-              counts_[obs] = 0xff;
-              probability_ = obs ? 0 : 255;
-          } else {
-              counts_[0] = ((1 + (unsigned int)fcount) >> 1);
-              counts_[1] = ((1 + (unsigned int)tcount) >> 1);
-              counts_[obs] = 129;
-              probability_ = optimize(counts_[0] + counts_[1]);
-          }
-      } else {
-          probability_ = optimize(fcount + tcount + 1);
+        bool overflow = (counts_[obs]++ == 0xff);
+        if (__builtin_expect(overflow, 0)) { // check less than 512
+            counts_[!obs] = ((1 + (unsigned int)counts_[!obs]) >> 1);
+            counts_[obs] = 129;
+        }
+        probability_ = optimize(counts_[0] + counts_[1]) | 1;
+      */
+      unsigned int val = counts_[obs]++;
+      if (__builtin_expect(val == 0xff, 0)) {
+          unsigned int other_in = counts_[!obs];
+          unsigned int other = (other_in + 1) >> 1;
+          counts_[obs] = 129;
+          counts_[!obs] = other;
       }
+      probability_ = optimize(counts_[0] + counts_[1]) | 1;        
   }
-  void normalize() {
+  void tbl_record_obs_and_update(bool obs) {
+      *this = update_lookup[counts_[0]][counts_[1]][(int)obs];
+      this->probability_ |= 1;
+  }
+    void record_obs_and_update(bool obs) {
+        unsigned int fcount = counts_[0];
+        unsigned int tcount = counts_[1];
+        bool overflow = (counts_[obs]++ == 0xff);
+        if (__builtin_expect(overflow, 0)) { // check less than 512
+            bool neverseen = counts_[!obs] == 1;
+            if (neverseen) {
+                counts_[obs] = 0xff;
+                probability_ = obs ? 0 : 255;
+            } else {
+                counts_[0] = ((1 + (unsigned int)fcount) >> 1);
+                counts_[1] = ((1 + (unsigned int)tcount) >> 1);
+                counts_[obs] = 129;
+                probability_ = optimize(counts_[0] + counts_[1]);
+            }
+        } else {
+            probability_ = optimize(fcount + tcount + 1);
+        }
+    }
+    void normalize() {
       counts_[0] = ((1 + (unsigned int)counts_[0]) >> 1);
       counts_[1] = ((1 + (unsigned int)counts_[1]) >> 1);
   }

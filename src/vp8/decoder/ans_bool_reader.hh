@@ -7,7 +7,7 @@ class ANSBoolReader {
     Rans64State r1;
     uint32_t *mPptr;
     PacketReader *mReader;
-    uint32_t mBuffer[32];
+    uint32_t mBuffer[8];
     const uint8_t *mLastPacketReadPtr;
     ROBuffer mLastPacket;
     void fill() {
@@ -74,21 +74,20 @@ public:
     bool get(Branch &branch, Billing bill=Billing::RESERVED) {
         Rans64State local_state = r0;
         r0 = r1;
-        uint32_t cumulative_freq = Rans64DecGet(&local_state, 9);
+        uint32_t cumulative_freq = Rans64DecGet(&local_state, 8);
         uint32_t prob = branch.prob();
-        prob <<= 1;
-        prob += 1;
         bool retval = cumulative_freq >= prob;
         uint32_t start = prob & (-(int32_t)retval);
-        uint32_t freq = retval ? 512 - prob: prob;
+        uint32_t freq = (prob ^ -retval) + (retval | (retval << 8));
+        //uint32_t freq = retval ? 256 - prob: prob;
         //fprintf(stderr, "Going to decode %d %d (%d) [%d]: state = %ld\n", start, freq, branch.prob(), retval, local_state);
-        Rans64DecAdvance(&local_state, &mPptr, start, freq, 9);
+        Rans64DecAdvance(&local_state, &mPptr, start, freq, 8);
         //fprintf(stderr, "Decoded         %d %d (%d) [%d]: state = %ld\n", start, freq, branch.prob(), retval, local_state);
         r1 = local_state;
         if (__builtin_expect(mPptr == &mBuffer[sizeof(mBuffer)/sizeof(mBuffer[0])], 0)) {
             fill();
         }
-        branch.record_obs_and_update(retval);
+        branch.adv_record_obs_and_update(retval);
         return retval;
     }
 };

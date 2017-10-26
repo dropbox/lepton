@@ -418,6 +418,8 @@ add_executable(test_invariants
    test_suite/test_invariants.cc
    src/vp8/util/billing.cc
    src/vp8/util/billing.hh
+   src/vp8/model/numeric.cc
+   src/vp8/model/numeric.hh
    )
 if(USE_SYSTEM_DEPENDENCIES)
     target_link_libraries(test_invariants ${ZLIB_LIBRARIES} ${ADDITIONAL_FLAGS})

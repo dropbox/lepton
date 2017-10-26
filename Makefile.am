@@ -216,6 +216,8 @@ test_suite_test_invariants_SOURCES = test_suite/test_invariants.cc    src/io/All
    src/io/ioutil.hh \
    src/vp8/util/billing.cc \
    src/vp8/util/billing.hh \
+   src/vp8/model/numeric.cc \
+   src/vp8/model/numeric.hh \
    src/io/ioutil.cc \
    src/io/Zlib0.hh \
    src/io/Zlib0.cc \
