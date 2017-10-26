@@ -438,8 +438,8 @@ GenericWorker * get_worker_threads(unsigned int num_workers) {
     return retval;
 }
 
-template <class BoolEncoder>VP8ComponentDecoder<BoolEncoder> *makeBoth(bool threaded, bool start_workers) {
-    VP8ComponentDecoder<BoolEncoder> *retval = new VP8ComponentDecoder<BoolEncoder>(threaded);
+template <class BoolDecoder>VP8ComponentDecoder<BoolDecoder> *makeBoth(bool threaded, bool start_workers) {
+    VP8ComponentDecoder<BoolDecoder> *retval = new VP8ComponentDecoder<BoolDecoder>(threaded);
     TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
     if (start_workers) {
         retval->registerWorkers(get_worker_threads(
@@ -460,7 +460,10 @@ template <class BoolDecoder>BaseEncoder *makeEncoder(bool threaded, bool start_w
     }
     return retval;
 }
-BaseDecoder *makeDecoder(bool threaded, bool start_workers) {
+BaseDecoder *makeDecoder(bool threaded, bool start_workers, bool ans) {
+    if (ans) {
+        return makeBoth<ANSBoolReader>(threaded, start_workers);
+    }
     return makeBoth<VPXBoolReader>(threaded, start_workers);
 }
 /* -----------------------------------------------
@@ -1101,7 +1104,11 @@ int initialize_options( int argc, const char*const * argv )
         } else if ( strcmp((*argv), "-roundtrip") == 0 ) {
             g_skip_validation = false;
         } else if ( strcmp((*argv), "-brotliheader") == 0 ) {
-            ujgversion = 2; // use brotli to compress the header and trailer rather than zlib
+            if (ujgversion < 2) {
+                ujgversion = 2; // use brotli to compress the header and trailer rather than zlib
+            }
+        } else if ( strcmp((*argv), "-ans") == 0 ) {
+            ujgversion = 3; // use brotli to compress the header and trailer rather than zlib and ANS encoder/decoder
         } else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
             g_socketserve_info.max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
         }
@@ -1608,7 +1615,11 @@ void process_file(IOUtil::FileReader* reader,
 
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
-                g_encoder.reset(makeEncoder<VPXBoolReader>(g_threaded, g_threaded));
+                if (ujgversion > 2) {
+                    g_encoder.reset(makeEncoder<ANSBoolReader>(g_threaded, g_threaded));
+                } else {
+                    g_encoder.reset(makeEncoder<VPXBoolReader>(g_threaded, g_threaded));
+                }
                 TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
                 g_decoder = NULL;
             } else if (g_threaded && (action == socketserve || action == forkserve)) {
@@ -1624,7 +1635,7 @@ void process_file(IOUtil::FileReader* reader,
             g_threaded = false; // with singlethreaded, doesn't make sense to split out reader/writer
         }
         if (!g_decoder) {
-            g_decoder = makeDecoder(g_threaded, g_threaded);
+            g_decoder = makeDecoder(g_threaded, g_threaded, ujgversion > 2);
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (NUM_THREADS > 1 && g_threaded && (action == socketserve || action == forkserve)) {
