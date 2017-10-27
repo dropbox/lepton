@@ -201,6 +201,8 @@ private:
     enum {MAX_STREAM_ID = 16};
     ResizableByteBuffer mBuffer[MAX_STREAM_ID];
     uint32_t mOffset[MAX_STREAM_ID];
+    unsigned char mNextHeader[3];
+    bool mNextHeaderValid;
     bool eof;
     size_t mOverhead;
     Reader* getReader() {
@@ -217,6 +219,7 @@ private:
         init(reader);
     }
     void init (Reader *reader){
+        mNextHeaderValid = false;
         mReader = reader;
         eof = false;
         for (int i = 0; i < MAX_STREAM_ID; ++i) { // assign a better allocator
@@ -228,40 +231,48 @@ private:
         if (eof) {
             return std::pair<uint8_t, JpegError>(0, JpegError::errEOF());
         }
-        uint8_t header[4] = {0, 0, 0};
-        JpegError err = ReadFull(mReader, header, 3);
-        if (err != JpegError::nil()) {
-            return std::pair<uint8_t, JpegError>(0, err);
+        if (!mNextHeaderValid) {
+            JpegError err = ReadFull(mReader, mNextHeader, 3);
+            if (err != JpegError::nil()) {
+                return std::pair<uint8_t, JpegError>(0, err);
+            }
+            mNextHeaderValid = true;
         }
-        if (memcmp(header, getEofMarker(), 3) == 0) {
+        if (memcmp(mNextHeader, getEofMarker(), 3) == 0) {
             eof = true;
             return std::pair<uint8_t, JpegError>(0, JpegError::errEOF());
         }
 
-        uint8_t stream_id = 0xf & header[0];
+        uint8_t stream_id = 0xf & mNextHeader[0];
         dev_assert(stream_id < MAX_STREAM_ID && "Stream Id Must be within range");
         if (stream_id >= MAX_STREAM_ID) {
             return std::pair<uint8_t, JpegError>(0, JpegError::errMissingFF00());
         }
         ResizableByteBuffer *buffer = &retval;
-        uint8_t flags = (header[0] >> 4) & 3;
+        uint8_t flags = (mNextHeader[0] >> 4) & 3;
         size_t offset = buffer->size();
         uint32_t len;
+        size_t next_chunk_len = 0;
         if (flags == 0) {
-            len = header[2];
+            len = mNextHeader[2];
             len *= 0x100;
-            len += header[1] + 1;
-            buffer->resize(offset + len);
+            len += mNextHeader[1] + 1;
+            next_chunk_len = offset + len;
+            buffer->resize(next_chunk_len + 3);
         } else {
             len = (1024 << (2 * flags));
-            buffer->resize(offset + len);
-            (*buffer)[offset] = header[1];
-            (*buffer)[offset + 1] = header[2];
+            next_chunk_len = offset + len;
+            buffer->resize(next_chunk_len + 3);
+            (*buffer)[offset] = mNextHeader[1];
+            (*buffer)[offset + 1] = mNextHeader[2];
             len -= 2;
             offset += 2;
         }
-        JpegError ret = ReadFull(mReader, buffer->data() + offset, len);
+        JpegError ret = ReadFull(mReader, buffer->data() + offset, len + 3);
         if (ret == JpegError::nil()) {
+            mNextHeaderValid = true;
+            memcpy(mNextHeader, buffer->data() + offset + len, 3);
+            buffer->resize(buffer->size() - 3); // scrap the next header
             if (flags == 0) {
                 mOverhead += 3;
             } else {
