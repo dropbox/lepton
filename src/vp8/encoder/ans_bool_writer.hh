@@ -1,3 +1,7 @@
+#ifndef ENABLE_ANS_EXPERIMENTAL
+#error "Need to enable ANS compile flag to include ANS"
+#endif
+
 #include "../util/options.hh"
 #include "../../ans/rans64.hh"
 #include "../model/branch.hh"
@@ -65,6 +69,10 @@ class ANSBoolWriter
         nop_sym.sym.first.prob = 128;
         nop_sym.sym.second.val = false;
         nop_sym.sym.second.prob = 128;
+        symbol_buffer.push_back(nop_sym); // four extra bits
+        symbol_buffer.push_back(nop_sym);
+        symbol_buffer.push_back(nop_sym);
+        symbol_buffer.push_back(nop_sym);
         symbol_buffer.push_back(nop_sym); // four extra bits
         symbol_buffer.push_back(nop_sym);
         symbol_buffer.push_back(nop_sym);

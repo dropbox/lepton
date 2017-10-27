@@ -324,4 +324,6 @@ template<class BoolDecoder> void LeptonCodec<BoolDecoder>::worker_thread(ThreadS
     TimingHarness::timing[thread_id][TimingHarness::TS_ARITH_FINISHED] = TimingHarness::get_time_us();
 }
 template class LeptonCodec<VPXBoolReader>;
+#ifdef ENABLE_ANS_EXPERIMENTAL
 template class LeptonCodec<ANSBoolReader>;
+#endif

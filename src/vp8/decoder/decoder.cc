@@ -327,7 +327,7 @@ template void parse_tokens(BlockContext, VPXBoolReader&, ProbabilityTables<false
 template void parse_tokens(BlockContext, VPXBoolReader&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
 template void parse_tokens(BlockContext, VPXBoolReader&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
 template void parse_tokens(BlockContext, VPXBoolReader&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
-
+#ifdef ENABLE_ANS_EXPERIMENTAL
 #ifdef ALLOW_FOUR_COLORS
 template void parse_tokens(BlockContext, ANSBoolReader&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
 template void parse_tokens(BlockContext, ANSBoolReader&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
@@ -339,3 +339,4 @@ template void parse_tokens(BlockContext, ANSBoolReader&, ProbabilityTables<false
 template void parse_tokens(BlockContext, ANSBoolReader&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
 template void parse_tokens(BlockContext, ANSBoolReader&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
 template void parse_tokens(BlockContext, ANSBoolReader&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
+#endif

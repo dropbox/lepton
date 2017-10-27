@@ -9,7 +9,9 @@
 #include "../../io/MemReadWriter.hh"
 #include "JpegArithmeticCoder.hh"
 #include "vpx_bool_writer.hh"
+#ifdef ENABLE_ANS_EXPERIMENTAL
 #include "ans_bool_writer.hh"
+#endif
 /* Routines taken from ISO/IEC 10918-1 : 1993(E) */
 
 class JpegBoolEncoder : public Sirikata::MemReadWriter {

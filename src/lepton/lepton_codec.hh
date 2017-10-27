@@ -21,12 +21,13 @@ class UncompressedComponents;
 
 template<class BoolDecoder> struct IsDecoderAns {
 };
+#ifdef ENABLE_ANS_EXPERIMENTAL
 template<> struct IsDecoderAns<ANSBoolReader> {
     enum {
         IS_ANS = true
     };
 };
-
+#endif
 template<> struct IsDecoderAns<VPXBoolReader> {
     enum {
         IS_ANS = false

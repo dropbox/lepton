@@ -63,6 +63,14 @@ AC_ARG_ENABLE([custom-allocator],
 AC_SUBST([MEMORY_MANAGEMENT_CFLAGS])
 
 
+AC_ARG_ENABLE([ans-experimental],
+  [AS_HELP_STRING([--enable-ans-experimental]
+    [Enable ANS arithmetic coder as an option instead of the VPX arithmetic coder @<:@no@:>@])],
+  [ARITHMETIC_CODER_CFLAGS="-DENABLE_ANS_EXPERIMENTAL"],
+  [ARITHMETIC_CODER_CFLAGS=""])
+AC_SUBST([ARITHMETIC_CODER_CFLAGS])
+
+
 AC_ARG_ENABLE([benchmark],
   [AS_HELP_STRING([--enable-benchmark]
     [Placeholder flag to enable longer/more in depth benchmark @<:@no@:>@])],

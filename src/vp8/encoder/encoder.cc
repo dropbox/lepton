@@ -411,7 +411,7 @@ template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTab
 template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Y>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, VPXBoolWriter&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
-
+#ifdef ENABLE_ANS_EXPERIMENTAL
 #ifdef ALLOW_FOUR_COLORS
 template void serialize_tokens(ConstBlockContext, ANSBoolWriter&, ProbabilityTables<false, BlockType::Ck>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, ANSBoolWriter&, ProbabilityTables<true, BlockType::Ck>&, ProbabilityTablesBase&);
@@ -424,3 +424,4 @@ template void serialize_tokens(ConstBlockContext, ANSBoolWriter&, ProbabilityTab
 template void serialize_tokens(ConstBlockContext, ANSBoolWriter&, ProbabilityTables<true, BlockType::Cb>&, ProbabilityTablesBase&);
 template void serialize_tokens(ConstBlockContext, ANSBoolWriter&, ProbabilityTables<true, BlockType::Cr>&, ProbabilityTablesBase&);
 
+#endif

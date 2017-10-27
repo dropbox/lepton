@@ -8,8 +8,12 @@
 #include "../src/io/MuxReader.hh"
 #include "../src/io/MemReadWriter.hh"
 #include "../src/lepton/thread_handoff.hh"
+#ifndef ENABLE_ANS_EXPERIMENTAL
+#define ENABLE_ANS_EXPERIMENTAL
+#endif
 #include "../src/vp8/decoder/ans_bool_reader.hh"
 #include "../src/vp8/encoder/ans_bool_writer.hh"
+#undef ENABLE_ANS_EXPERIMENTAL
 struct Data {
     unsigned char prob;
     unsigned short trueCount;

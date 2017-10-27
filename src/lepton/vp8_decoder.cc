@@ -488,4 +488,6 @@ CodingReturnValue VP8ComponentDecoder<BoolDecoder>::decode_chunk(UncompressedCom
 }
 
 template class VP8ComponentDecoder<VPXBoolReader>;
+#ifdef ENABLE_ANS_EXPERIMENTAL
 template class VP8ComponentDecoder<ANSBoolReader>;
+#endif

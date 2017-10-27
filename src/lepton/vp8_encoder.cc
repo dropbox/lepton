@@ -549,6 +549,7 @@ CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder(const Uncom
     
     ResizableByteBuffer stream[MuxReader::MAX_STREAM_ID];
     if (use_ans_encoder) {
+#ifdef ENABLE_ANS_EXPERIMENTAL
         ANSBoolWriter bool_encoder[MAX_NUM_THREADS];
         this->threaded_encode_inner(colldata,
                                     str_out,
@@ -556,6 +557,9 @@ CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder(const Uncom
                                     num_selected_splits,
                                     bool_encoder,
                                     stream);
+#else
+        always_assert(false && "Need to enable ANS compile flag to include ANS");
+#endif
     } else {
     
         VPXBoolWriter bool_encoder[MAX_NUM_THREADS];
@@ -627,4 +631,6 @@ CodingReturnValue VP8ComponentEncoder<BoolDecoder>::vp8_full_encoder(const Uncom
     return CODING_DONE;
 }
 template class VP8ComponentEncoder<VPXBoolReader>;
+#ifdef ENABLE_ANS_EXPERIMENTAL
 template class VP8ComponentEncoder<ANSBoolReader>;
+#endif

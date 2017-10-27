@@ -9,7 +9,8 @@ extern int test_file(int argc, char **argv, bool use_lepton, bool jailed, int in
                      const std::vector<const char *> &filenames,
                      bool expect_encoder_failure, bool expect_decoder_failure,
                      const char* encode_memory, const char * decode_memory, const char * singlethread_memory,
-                     const char* thread_memory, bool use_brotli);
+                     const char* thread_memory, bool use_brotli,
+                     bool force_no_ans);
 #ifdef UNJAILED
 #define IS_JAILED false
 #else
@@ -49,6 +50,10 @@ int main (int argc, char **argv) {
     bool use_brotli=true;
 #ifdef ZLIB_HEADER
     use_brotli=false;
+#endif
+    bool force_no_ans = false;
+#ifdef FORCE_NO_ANS
+    force_no_ans = true;
 #endif
     for (int i = 1; i < argc; ++i) {
         if (strstr(argv[i], "-unjailed")) {
@@ -114,5 +119,6 @@ int main (int argc, char **argv) {
                      multithread, filenames,
                      expect_failure,
                      expect_decode_failure, encode_memory, decode_memory, singlethread_memory, thread_memory,
-                     use_brotli);
+                     use_brotli,
+                     force_no_ans);
 }

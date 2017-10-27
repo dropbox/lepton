@@ -4,7 +4,7 @@ includes = -I$(srcdir)/dependencies/xz/src/liblzma/api -I$(srcdir)/src/vp8/util 
 
 liblocalmd5_a_SOURCES = dependencies/md5/md5.c
 
-AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(PICKY_CXXFLAGS) $(BENCHMARK_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
+AM_CXXFLAGS = $(CXX11_FLAGS) $(CODEC_FLAGS) $(SYSTEM_DEPENDENCIES_CFLAGS) $(ARITHMETIC_CODER_CFLAGS) $(MEMORY_MANAGEMENT_CFLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(PICKY_CXXFLAGS) $(BENCHMARK_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -DGIT_REVISION=\"$(shell git describe --dirty --always 2> /dev/null || basename `pwd`)\" $(includes)
 
 AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(BENCHMARK_CFLAGS) $(PICKY_CFLAGS) $(ARCH_FLAGS) $(SANITIZE_FLAGS) $(NODEBUG_CXXFLAGS) -I$(srcdir)/dependencies/brotli/c/include
 
@@ -341,7 +341,7 @@ test_suite_test_gray2sf_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=gray2
 test_suite_test_gray2sf_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_colorswap_SOURCES = test_suite/test_harness.cc
-test_suite_test_colorswap_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=colorswap
+test_suite_test_colorswap_CXXFLAGS = $(AM_CXXFLAGS) -DUSE_LEPTON -DTEST_FILE=colorswap -DFORCE_NO_ANS
 test_suite_test_colorswap_LDADD = libtestdriver.a -lpthread
 
 test_suite_test_odd_rst_SOURCES = test_suite/test_harness.cc

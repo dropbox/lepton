@@ -462,7 +462,11 @@ template <class BoolDecoder>BaseEncoder *makeEncoder(bool threaded, bool start_w
 }
 BaseDecoder *makeDecoder(bool threaded, bool start_workers, bool ans) {
     if (ans) {
+#ifdef ENABLE_ANS_EXPERIMENTAL
         return makeBoth<ANSBoolReader>(threaded, start_workers);
+#else
+        always_assert(false && "ANS compile flag not selected");
+#endif
     }
     return makeBoth<VPXBoolReader>(threaded, start_workers);
 }
@@ -1108,7 +1112,11 @@ int initialize_options( int argc, const char*const * argv )
                 ujgversion = 2; // use brotli to compress the header and trailer rather than zlib
             }
         } else if ( strcmp((*argv), "-ans") == 0 ) {
+#ifdef ENABLE_ANS_EXPERIMENTAL
             ujgversion = 3; // use brotli to compress the header and trailer rather than zlib and ANS encoder/decoder
+#else
+            always_assert(false && "ANS selected via command line but not enabled in build flags");
+#endif          
         } else if ( strncmp((*argv), "-maxchildren=", strlen("-maxchildren=") ) == 0 ) {
             g_socketserve_info.max_children = strtol((*argv) + strlen("-maxchildren="), NULL, 10);
         }
@@ -1615,8 +1623,12 @@ void process_file(IOUtil::FileReader* reader,
 
         if (ofiletype == LEPTON) {
             if (!g_encoder) {
-                if (ujgversion > 2) {
+                if (ujgversion == 3) {
+#ifdef ENABLE_ANS_EXPERIMENTAL
                     g_encoder.reset(makeEncoder<ANSBoolReader>(g_threaded, g_threaded));
+#else
+                    always_assert(false&&"ANS-encoded file encountered but ANS not selected in build flags");
+#endif
                 } else {
                     g_encoder.reset(makeEncoder<VPXBoolReader>(g_threaded, g_threaded));
                 }
@@ -1635,7 +1647,7 @@ void process_file(IOUtil::FileReader* reader,
             g_threaded = false; // with singlethreaded, doesn't make sense to split out reader/writer
         }
         if (!g_decoder) {
-            g_decoder = makeDecoder(g_threaded, g_threaded, ujgversion > 2);
+            g_decoder = makeDecoder(g_threaded, g_threaded, ujgversion == 3);
             TimingHarness::timing[0][TimingHarness::TS_MODEL_INIT] = TimingHarness::get_time_us();
             g_reference_to_free.reset(g_decoder);
         } else if (NUM_THREADS > 1 && g_threaded && (action == socketserve || action == forkserve)) {

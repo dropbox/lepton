@@ -1,3 +1,6 @@
+#ifndef ENABLE_ANS_EXPERIMENTAL
+#error "Need to enable ANS compile flag to include ANS"
+#endif
 #include "billing.hh"
 #include "../model/numeric.hh"
 #include "boolreader.hh"
