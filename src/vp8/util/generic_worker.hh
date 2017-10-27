@@ -89,7 +89,10 @@ struct GenericWorker {
     int send_more_data(const void *data_ptr);
     std::pair<const void*, int> recv_data();
     struct DataBatch {
-        typedef Sirikata::Array1d<void *, 15> DataType;
+        enum {
+            DATA_BATCH_SIZE = 15
+        };
+        typedef Sirikata::Array1d<void *, DATA_BATCH_SIZE> DataType;
         DataType data;
         int32_t return_code;
         uint8_t count;

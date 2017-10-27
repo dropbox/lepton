@@ -88,26 +88,36 @@ void GenericWorker::_generic_respond_to_main(uint8_t arg) {
     }
 }
 
+#define THREAD_PACKET_SIZE (sizeof(void*) + 1)
 
 void GenericWorker::wait_for_work() {
     if (g_use_seccomp) {
         Sirikata::installStrictSyscallFilter(true);
     }
     _generic_respond_to_main(0); // startup
-    char data = 0;
     while(true) {
         if (use_pipes) {
-            int err = 0;
-            while ((err = read(new_work_pipe[0], &data, 1)) < 0 && errno == EINTR) {
+            char new_work_buffer[THREAD_PACKET_SIZE] = {63};
+            size_t amount_read = 0;
+            while (amount_read < THREAD_PACKET_SIZE) {
+                auto err = read(new_work_pipe[0], &new_work_buffer[amount_read], THREAD_PACKET_SIZE - amount_read);
+                if (err <0 && errno == EINTR) {
+                        continue;
+                }
+                if (err <= 0) {
+                    set_close_thread_handle(work_done_pipe[1]);
+                    custom_terminate_this_thread(0);
+                    break;
+                }
+                amount_read += err;
             }
-            if (err <= 0) {
-                set_close_thread_handle(work_done_pipe[1]);
-                custom_terminate_this_thread(0);
-                return;
-            }
-            if (data == 127) {
+            if (new_work_buffer[0] == 127) {
                 //fprintf(stderr,"BRAKE\n");
                 break;
+            }
+            if (new_work_buffer[0] == 63) {
+                // ignore excess work
+                continue;
             }
         }
         set_close_thread_handle(work_done_pipe[1]);
@@ -124,29 +134,54 @@ void GenericWorker::wait_for_work() {
     reset_close_thread_handle();
     custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
 }
-
 bool GenericWorker::is_done() {
         return work_done_.load() != 0; // enforce memory ordering
     }
 
 void GenericWorker::activate_work() {
     ++new_work_exists_;
-    char data = 0;
-    while (write(new_work_pipe[1], &data, 1) < 0 && errno == EINTR) {
-        
+    char data[THREAD_PACKET_SIZE] = {0};
+    size_t data_sent = 0;
+    while (data_sent != THREAD_PACKET_SIZE) {
+        auto ret = write(new_work_pipe[1], &data[data_sent], THREAD_PACKET_SIZE - data_sent);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return; // nothing we can do here.
+        }
+        if (ret == 0) {
+            return; // closed the pipe!?
+        }
+        data_sent += ret;
     }
 }
 void GenericWorker::instruct_to_exit() {
     ++new_work_exists_;
-    char data = 127;
-    while (write(new_work_pipe[1], &data, 1) < 0 && errno == EINTR) {
-        
+    char data[THREAD_PACKET_SIZE] = {0};
+    memset(data, 127, THREAD_PACKET_SIZE);
+    size_t data_sent = 0;
+    while (data_sent != THREAD_PACKET_SIZE) {
+        auto ret = write(new_work_pipe[1], &data[data_sent], THREAD_PACKET_SIZE - data_sent);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return; // nothing we can do here.
+        }
+        if (ret == 0) {
+            return; // closed the pipe!?
+        }
+        data_sent += ret;
     }
 }
 int GenericWorker::send_more_data(const void *data_ptr) {
     ++new_work_exists_;
-    const uint8_t *ptr = (const uint8_t*)&data_ptr;
-    size_t size = sizeof(void*);
+    unsigned char buffer[THREAD_PACKET_SIZE];
+    buffer[0] = 63;
+    memcpy(&buffer[1], &data_ptr, sizeof(data_ptr));
+    size_t size = THREAD_PACKET_SIZE;
+    const unsigned char*ptr = &buffer[0];
     do {
         ssize_t ret = write(new_work_pipe[1], ptr, size);
         if (ret < 0) {
@@ -164,8 +199,9 @@ int GenericWorker::send_more_data(const void *data_ptr) {
 
 std::pair<const void*, int> GenericWorker::recv_data() {
     std::pair<const void*, int> retval = {NULL, -1};
-    uint8_t *ptr = (uint8_t*)&retval.first;
-    size_t size = sizeof(retval.first);
+    unsigned char buffer[THREAD_PACKET_SIZE];
+    uint8_t *ptr = &buffer[0];
+    size_t size = THREAD_PACKET_SIZE;
     do {
         ssize_t ret = read(new_work_pipe[0], ptr, size);
         if (ret < 0) {
@@ -179,19 +215,46 @@ std::pair<const void*, int> GenericWorker::recv_data() {
         size -= ret;
         ptr += ret;
     }while(size > 0);
+    if (buffer[0] == 127) {
+        reset_close_thread_handle();
+        custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
+        return retval;
+    }
+    if (buffer[0] != 63) {
+        return retval;
+    }
+    memcpy(&retval.first, &buffer[1], sizeof(retval.first));
     auto val = new_work_exists_.load(); // lets allow our thread to see what retval.first points to
     always_assert(val != 0);
     retval.second = 0;
     return retval;
 }
 
-
+bool copy_to_data_batch(GenericWorker::DataBatch *output, unsigned char buffer[GenericWorker::DataBatch::DATA_BATCH_SIZE]) {
+    size_t source_loc = 0;
+    for (size_t i = 0;i< output->count; ++i) {
+        if (buffer[source_loc] == 127) {
+            reset_close_thread_handle();
+            custom_terminate_this_thread(0); // cleanly exit the thread with an allowed syscall
+        }
+        if (buffer[source_loc] != 63) {
+            output->count = i;
+            return false;
+        }
+        static_assert(THREAD_PACKET_SIZE == sizeof(void*) + 1,
+                      "We must send 1 byte of ddata over thread socket and size of pointer");
+        memcpy(&output->data[i], &buffer[source_loc + 1], sizeof(void *));
+        source_loc += THREAD_PACKET_SIZE;
+    }
+    return true;
+}
 GenericWorker::DataBatch GenericWorker::batch_recv_data() {
     DataBatch retval;
+    unsigned char buffer[DataBatch::DATA_BATCH_SIZE * THREAD_PACKET_SIZE] = {0};
     retval.count = 0;
     retval.return_code = 0;
-    uint8_t *ptr = (uint8_t*)&retval.data[0];
-    size_t size = sizeof(retval.data[0]) * retval.data.size();
+    uint8_t *ptr = &buffer[0];
+    size_t size = sizeof(buffer);
     size_t amt_read = 0;
     //fprintf(stderr, "Start read %ld\n", size);
     do {
@@ -201,15 +264,19 @@ GenericWorker::DataBatch GenericWorker::batch_recv_data() {
                 continue;
             }else {
                 retval.return_code = ret;
+                copy_to_data_batch(&retval, buffer);
                 return retval;
             }
         }
         size -= ret;
         ptr += ret;
         amt_read += ret;
-        retval.count = amt_read / sizeof(retval.data[0]);
-    }while(amt_read % sizeof(retval.data[0]));
+        retval.count = amt_read / THREAD_PACKET_SIZE;
+    }while(amt_read % THREAD_PACKET_SIZE);
     //fprintf(stderr, "End read %ld : %d\n", amt_read, retval.count);
+    if (!copy_to_data_batch(&retval, buffer)) {
+        retval.return_code = -1;
+    }
     auto val = new_work_exists_.load(); // lets allow our thread to see what retval.first points to
     always_assert(val != 0);
     return retval;
