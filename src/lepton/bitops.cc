@@ -70,6 +70,7 @@ abitreader::~abitreader( void )
 
 abitwriter::abitwriter( int size , int max_file_size)
 {
+    bits_written = 0;
     size_bound = max_file_size;
     if (size_bound) {
         size_bound += 8; // 64 bits of padding on the end

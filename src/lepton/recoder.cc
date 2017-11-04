@@ -347,10 +347,13 @@ bool recode_one_mcu_row(abitwriter *huffw, int mcu,
             lastdc[ cmp ] = dc;
 
             // encode block
+            uint32_t start_bit_pos = huffw->bits_written;
             int eob = encode_block_seq(huffw,
                                        &(hcodes[ 0 ][ cmpnfo[cmp].huffdc ]),
                                        &(hcodes[ 1 ][ cmpnfo[cmp].huffac ]),
                                        block.begin() );
+            uint32_t end_bit_pos = huffw->bits_written;
+            add_jpg_bits(end_bit_pos - start_bit_pos, dpos%cmpnfo[cmp].bch, dpos/cmpnfo[cmp].bch, cmp);
             int old_mcu = mcu;
             // check for errors, proceed if no error encountered
             if ( eob < 0 ) sta = -1;
@@ -873,6 +876,7 @@ bool recode_baseline_jpeg(bounded_iostream*str_out,
         str_out->write( grbgdata, grbs );
     check_decompression_memory_bound_ok();
     str_out->flush();
+    print_stats();
     TimingHarness::timing[0][TimingHarness::TS_JPEG_RECODE_FINISHED] = TimingHarness::get_time_us();
 
     // errormessage if write error

@@ -30,6 +30,7 @@ int vpx_reader_init(vpx_reader *r,
     r->value = 0;
     r->count = -8;
     r->range = 255;
+    r->bits_consumed=0;
     vpx_reader_fill(r);
     return vpx_read(r, 128, Billing::HEADER) != 0;  // marker bit
 }

@@ -39,6 +39,9 @@ public:
 #endif
         init(pr);
     }
+    uint32_t bits_consumed() const{
+        return bit_reader.bits_consumed;
+    }
 #ifndef _WIN32
     __attribute__((always_inline))
 #endif
