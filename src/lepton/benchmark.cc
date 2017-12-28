@@ -194,6 +194,7 @@ Sirikata::Array1d<uint8_t, 16> do_first_encode(const unsigned char * file, size_
                                                                   encode_pipes.pipe_stdout,
                                                                   &size,
                                                                   out,
+                                                                  NULL,
                                                                   is_socket);
     wtp.join();
    return md5;

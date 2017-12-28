@@ -155,6 +155,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                                                 int input, HANDLE_or_fd input_tee,
                                                 HANDLE_or_fd output, size_t *input_size,
                                                 Sirikata::MuxReader::ResizableByteBuffer *stored_outpt,
+                                                std::vector<uint8_t>*optional_original_input_return,
                                                 bool is_socket);
 
 struct SubprocessConnection {

@@ -37,6 +37,8 @@ lepton_SOURCES = \
    src/lepton/main.cc \
    src/lepton/validation.hh \
    src/lepton/validation.cc \
+   src/lepton/generic_compress.hh \
+   src/lepton/generic_compress.cc \
    src/lepton/recoder.cc \
    src/lepton/uncompressed_components.cc \
    src/lepton/jpgcoder.hh \

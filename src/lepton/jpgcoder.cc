@@ -100,6 +100,7 @@ const char** g_argv = NULL;
 #define GIT_REVISION "unknown"
 #endif
 #endif
+bool g_permissive = false;
 bool fast_exit = true;
 #ifdef SKIP_VALIDATION
 bool g_skip_validation = true;
@@ -209,13 +210,13 @@ uint32_t LEtoUint32(const uint8_t*buffer) {
     retval |= buffer[0];
     return retval;
 }
+}
 
 void uint32toLE(uint32_t value, uint8_t *retval) {
     retval[0] = uint8_t(value & 0xff);
     retval[1] = uint8_t((value >> 8) & 0xff);
     retval[2] = uint8_t((value >> 16) & 0xff);
     retval[3] = uint8_t((value >> 24) & 0xff);
-}
 }
 /* -----------------------------------------------
     function declarations: main interface
@@ -1107,6 +1108,8 @@ int initialize_options( int argc, const char*const * argv )
             g_skip_validation = false;
         } else if ( strcmp((*argv), "-roundtrip") == 0 ) {
             g_skip_validation = false;
+        } else if ( strcmp((*argv), "-permissive") == 0 ) {
+            g_permissive = true;
         } else if ( strcmp((*argv), "-brotliheader") == 0 ) {
             if (ujgversion < 2) {
                 ujgversion = 2; // use brotli to compress the header and trailer rather than zlib
@@ -1455,7 +1458,7 @@ int open_fdout(const char *ifilename,
     // check file id, determine filetype
     if (file_no + 1 < file_cnt && ofilename != ifilename) {
         ofilename = filelist[file_no + 1];
-    } else if (is_jpeg_header(fileid) || is_embedded_jpeg) {
+    } else if (is_jpeg_header(fileid) || is_embedded_jpeg || g_permissive) {
         ofilename = postfix_uniq(ifilename, (ofiletype == UJG ? ".ujg" : ".lep"));
     } else if ( ( ( fileid[0] == ujg_header[0] ) && ( fileid[1] == ujg_header[1] ) )
                 || ( ( fileid[0] == lepton_header[0] ) && ( fileid[1] == lepton_header[1] ) )
@@ -1553,7 +1556,7 @@ void process_file(IOUtil::FileReader* reader,
     bool is_socket = false;
     int fdin = open_fdin(ifilename, reader, header, &is_socket);
     int fdout = -1;
-    if ((embedded_jpeg || is_jpeg_header(header)) && !g_skip_validation) {
+    if ((embedded_jpeg || is_jpeg_header(header) || g_permissive) && (g_permissive ||  !g_skip_validation)) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
         Sirikata::MuxReader::ResizableByteBuffer lepton_data;
@@ -1562,6 +1565,7 @@ void process_file(IOUtil::FileReader* reader,
                                     &lepton_data,
                                     g_argc,
                                     g_argv,
+                                    g_permissive,
                                     is_socket)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
             //fprintf(stderr, "CONTINUE AS JPEG...\n");
@@ -3674,7 +3678,6 @@ public: bool operator() (const ThreadHandoff &a,
     return a.segment_size < b.segment_size;
 }
 };
-
 
 /* -----------------------------------------------
     write uncompressed JPEG file

@@ -14,4 +14,5 @@ ValidationContinuation validateAndCompress(int *reader, int *writer,
                                            Sirikata::MuxReader::ResizableByteBuffer *output,
                                            int argc, 
                                            const char** argv,
+                                           bool is_permissive,
                                            bool is_socket);

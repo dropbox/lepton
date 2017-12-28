@@ -10,6 +10,8 @@
 #include "../io/MuxReader.hh"
 #include "../io/ioutil.hh"
 #include "validation.hh"
+#include "generic_compress.hh"
+
 ValidationContinuation validateAndCompress(int *reader,
                                            int *writer,
                                            Sirikata::Array1d<uint8_t, 2> header,
@@ -19,7 +21,13 @@ ValidationContinuation validateAndCompress(int *reader,
                                            Sirikata::MuxReader::ResizableByteBuffer *lepton_data,
                                            int argc,
                                            const char ** argv,
+                                           bool is_permissive,
                                            bool is_socket) {
+    std::vector<uint8_t> permissive_jpeg_return_backing;
+    std::vector<uint8_t> *permissive_jpeg_return = NULL;
+    if (is_permissive){
+        permissive_jpeg_return = &permissive_jpeg_return_backing;
+    }
 #ifdef _WIN32
     std::vector<const char*> args;
     args.push_back(argv[0]);
@@ -48,6 +56,7 @@ ValidationContinuation validateAndCompress(int *reader,
         encode_pipes.pipe_stdout,
         &size,
         lepton_data,
+        permissive_jpeg_return,
         is_socket);
     auto decode_pipes = IOUtil::start_subprocess(args.size(), &args[0], false);
     size_t roundtrip_size = 0;
@@ -62,6 +71,9 @@ ValidationContinuation validateAndCompress(int *reader,
             &roundtrip_size);
     }
     if (roundtrip_size != size || memcmp(&md5[0], &rtmd5[0], md5.size()) != 0) {
+        if (is_permissive) {
+            return generic_compress(permissive_jpeg_return, validation_exit_code);
+        }
         fprintf(stderr, "Input Size %lu != Roundtrip Size %lu\n", (unsigned long)size, (unsigned long)roundtrip_size);
         for (size_t i = 0; i < md5.size(); ++i) {
             fprintf(stderr, "%02x", md5[i]);
@@ -132,6 +144,7 @@ ValidationContinuation validateAndCompress(int *reader,
                                                                   lepton_output_pipes[0],
                                                                   &size,
                                                                   lepton_data,
+                                                                  permissive_jpeg_return,
                                                                   is_socket);
 
     int status = 0;
@@ -139,9 +152,15 @@ ValidationContinuation validateAndCompress(int *reader,
     if (WIFEXITED(status)) {
         int exit_code = WEXITSTATUS(status);
         if (exit_code != 0) {
+            if (is_permissive) {
+                return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            }
             exit(exit_code);
         }
     } else if (WIFSIGNALED(status)) {
+        if (is_permissive) {
+            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+        }
         raise(WTERMSIG(status));
     }
     size_t roundtrip_size = 0;
@@ -156,6 +175,9 @@ ValidationContinuation validateAndCompress(int *reader,
             &roundtrip_size);
     }
     if (roundtrip_size != size || memcmp(&md5[0], &rtmd5[0], md5.size()) != 0) {
+        if (is_permissive) {
+            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+        }
         fprintf(stderr, "Input Size %ld != Roundtrip Size %ld\n", size, roundtrip_size);
         for (size_t i = 0; i < md5.size(); ++i) {
             fprintf(stderr, "%02x", md5[i]);            
@@ -173,9 +195,15 @@ ValidationContinuation validateAndCompress(int *reader,
     if (WIFEXITED(status)) {
         int exit_code = WEXITSTATUS(status);
         if (exit_code != 0) {
+            if (is_permissive) {
+                return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            }
             exit(exit_code);
         }
     } else if (WIFSIGNALED(status)) {
+        if (is_permissive) {
+            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+        }
         raise(WTERMSIG(status));
     }
 #endif

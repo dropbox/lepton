@@ -273,12 +273,16 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                                                 int copy_to_input_tee, int input_tee,
                                                 int copy_to_storage, size_t *input_size,
                                                 Sirikata::MuxReader::ResizableByteBuffer *storage,
+                                                std::vector<uint8_t> *byte_return,
                                                 bool is_socket) {
     bool close_input = false;
     MD5_CTX context;
     MD5_Init(&context);
     if (start_byte < header.size()) {
         MD5_Update(&context, &header[start_byte], header.size() - start_byte);
+        if (byte_return) {
+            byte_return->insert(byte_return->end(), &header[start_byte], &header[start_byte] + (header.size() - start_byte));
+        }
     }
     if (send_header) {
         size_t offset = 0;
@@ -443,9 +447,19 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 if (*input_size + del > start_byte) {
                     if (*input_size >= start_byte) {
                         MD5_Update(&context, &buffer[cursor], del);
+                        if (byte_return) {
+                            byte_return->insert(byte_return->end(),
+                                                &buffer[cursor],
+                                                &buffer[cursor] + del);
+                        }
                     } else {
                         size_t offset = (start_byte - *input_size);
                         MD5_Update(&context, &buffer[cursor + offset], del - offset);
+                        if (byte_return) {
+                            byte_return->insert(byte_return->end(),
+                                                &buffer[cursor + offset],
+                                                &buffer[cursor + offset] + del - offset);
+                        }
                     }
                 }
                 *input_size += del;

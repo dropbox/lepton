@@ -209,6 +209,8 @@ set(LEPTON_SOURCES
    src/lepton/main.cc
    src/lepton/validation.cc
    src/lepton/validation.hh
+   src/lepton/generic_compress.cc
+   src/lepton/generic_compress.hh
    src/lepton/recoder.cc
    src/lepton/recoder.hh
    src/lepton/idct.cc
