@@ -178,20 +178,31 @@ ValidationContinuation generic_compress(const std::vector<uint8_t>*input,
     }
     unsigned char cmp_mrk[] = {'C', 'M', 'P'};
     err = ujg_out->Write( cmp_mrk, sizeof(cmp_mrk) ).second;
-    Sirikata::MuxWriter mux_writer(ujg_out, Sirikata::JpegAllocator<uint8_t>(), ujgversion);
-    write_byte_bill(Billing::DELIMITERS, true, mux_writer.getOverhead());
-    mux_writer.Close();
-    write_byte_bill(Billing::HEADER, true, 3);
-    /*while (g_encoder->encode_chunk(&colldata, ujg_out,
-                                   &selected_splits[0], selected_splits.size()) == CODING_PARTIAL) {
-                                   }*/
-    
     // errormessage if write error
     if ( err != Sirikata::JpegError::nil() ) {
         fprintf( stderr, "write error, possibly drive is full" );
         return ValidationContinuation::BAD;
     }
+    Sirikata::MuxWriter mux_writer(ujg_out, Sirikata::JpegAllocator<uint8_t>(), ujgversion);
+    write_byte_bill(Billing::DELIMITERS, true, mux_writer.getOverhead());
+    mux_writer.Close();
 
+    write_byte_bill(Billing::HEADER, true, 3);
+    /*while (g_encoder->encode_chunk(&colldata, ujg_out,
+                                   &selected_splits[0], selected_splits.size()) == CODING_PARTIAL) {
+                                   }*/
+    uint32_t out_file_size = lepton_data->size() + 4; // gotta include the final uint32_t
+    uint8_t out_buffer[sizeof(out_file_size)] = {};
+    for (uint8_t i = 0; i < sizeof(out_file_size); ++i) {
+        out_buffer[i] = out_file_size & 0xff;
+        out_file_size >>= 8;
+    }
+    err = ujg_out->Write(out_buffer, sizeof(out_file_size)).second;
+        // errormessage if write error
+    if ( err != Sirikata::JpegError::nil() ) {
+        fprintf( stderr, "write error, possibly drive is full" );
+        return ValidationContinuation::BAD;
+    }
     // get filesize, if avail
 
     ujgfilesize = lepton_data->size();
