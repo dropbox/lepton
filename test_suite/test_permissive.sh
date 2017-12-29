@@ -1,13 +1,37 @@
 #!/bin/sh
-for i in $*; do
-    ./lepton -brotliheader -permissive "$i" "${i%.jpg}.lep";
+export A=`mktemp`
+export ASRC="`dirname $0`"/../images/badzerorun.jpg
+cp --  "$ASRC" "$A"
+export B=`mktemp`
+export BSRC="`dirname $0`"/../images/roundtripfail.jpg
+cp --  "$BSRC" "$B"
+export C=`mktemp`
+echo -n a > "$C"
+export D=`mktemp`
+echo -n bc > "$D"
+export E=`mktemp`
+export ESRC="`dirname $0`"/../images/gold-legacy.lep
+cp -- "$ESRC" "$E"
+export F=`mktemp`
+export FSRC="`dirname $0`"/../images/nofsync.jpg
+cp -- "$FSRC" "$F"
+for i in "$A" "$B" "$C" "$D" "$E" "$F"; do
+    ./lepton -brotliheader -permissive -validate "$i" "$i.lep" || exit 1;
 done
+ls -l "$A".lep || exit 1
+ls -l "$B".lep || exit 1
+ls -l "$C".lep || exit 1
+ls -l "$D".lep || exit 1
+ls -l "$E".lep || exit 1
+ls -l "$F".lep || exit 1
+cat "$C".lep | ./lepton - | (md5sum || md5) | grep -l 0cc175b9c0f1b6a831c399e269772661 || exit 1
+cat "$D".lep | ./lepton - | (md5sum || md5) | grep -l 5360af35bde9ebd8f01f492dc059593c || exit 1
 export tmp=`mktemp`
 export tmp2=`mktemp`
-for i in $*; do
-  for j in $*; do
-     export ilep="${i%.jpg}.lep"
-     export jlep="${j%.jpg}.lep"
+for i in "$A" "$D" "$E"; do
+  for j in "$B" "$C"; do
+     export ilep="$i.lep"
+     export jlep="$j.lep"
        
      if stat "$ilep" > /dev/null && stat "$jlep" > /dev/null; then
        echo "starting $i $j"
@@ -19,12 +43,12 @@ for i in $*; do
   done
 done
 
-for i in $*; do
-  for j in $*; do
-    for k in $*; do
-     export ilep="${i%.jpg}.lep"
-     export jlep="${j%.jpg}.lep"
-     export klep="${k%.jpg}.lep"
+for i in "$F"  "$B"; do
+  for j in "$C" "$D"; do
+    for k in "$E" "$B"; do
+     export ilep="$i.lep"
+     export jlep="$j.lep"
+     export klep="$k.lep"
      if stat "$ilep" > /dev/null && stat "$jlep" > /dev/null && stat "$klep" > /dev/null ; then
        echo "starting $i $j $k"
        cat "$ilep" "$jlep" "$klep" | ./lepton - > "$tmp"
@@ -35,3 +59,18 @@ for i in $*; do
     done
   done
 done
+rm -f -- "$tmp"
+rm -f -- "$tmp2"
+rm -f -- "$A"
+rm -f -- "$A.lep"
+rm -f -- "$B"
+rm -f -- "$B.lep"
+rm -f -- "$C"
+rm -f -- "$C.lep"
+rm -f -- "$D"
+rm -f -- "$D.lep"
+rm -f -- "$E"
+rm -f -- "$E.lep"
+rm -f -- "$F"
+rm -f -- "$F.lep"
+echo SUCCESS
