@@ -56,13 +56,13 @@ extern bool rebuild_header_jpg();
 extern void uint32toLE(uint32_t value, uint8_t *retval);
 extern bool hex_to_bin(unsigned char *output, const char *input, size_t output_size);
 extern int ujgfilesize;
-ValidationContinuation generic_compress(std::vector<uint8_t>*input,
+ValidationContinuation generic_compress(const std::vector<uint8_t>*input,
                                         Sirikata::MuxReader::ResizableByteBuffer *lepton_data,
                                         ExitCode *validation_exit_code){
-    if (input->size() < 2) {
-        return ValidationContinuation::BAD;
-    }
     lepton_data->resize(0);
+    if (input->size() == 0) {
+        custom_exit(ExitCode::UNSUPPORTED_JPEG);
+    }
     ResizableBufferWriter ujg_out_backing(lepton_data);
     ResizableBufferWriter*ujg_out = &ujg_out_backing;
     unsigned char ujpg_mrk[ 64 ];
@@ -127,22 +127,22 @@ ValidationContinuation generic_compress(std::vector<uint8_t>*input,
     {
         unsigned char grb_mrk[] = {'P', 'G', 'E'};
         err = mrw.Write( grb_mrk, sizeof(grb_mrk) ).second;
-        uint32_t prefix_grbs = input->size() - 2;
+        uint32_t prefix_grbs = input->size();
         uint32toLE(prefix_grbs, ujpg_mrk);
         err = mrw.Write( ujpg_mrk, 4 ).second;
         // data: garbage data
-        err = mrw.Write( &(*input)[0], input->size() - 2).second;
+        err = mrw.Write( &(*input)[0], input->size()).second;
     }
 // write garbage (data including and after EOI) (if any) to file
     // marker: "GRB" + [size of garbage]
     {
         unsigned char grb_mrk[] = {'G', 'R', 'B'};
         err = mrw.Write( grb_mrk, sizeof(grb_mrk) ).second;
-        uint32_t grbs = 2;
+        uint32_t grbs = 0;
         uint32toLE(grbs, ujpg_mrk);
         err = mrw.Write( ujpg_mrk, 4 ).second;
-        // data: garbage data
-        err = mrw.Write(&(*input)[input->size() - 2], 2).second;
+        // data: no garbage data
+        //err = mrw.Write(&(*input)[input->size() - 2], 2).second;
     }
     std::vector<uint8_t, Sirikata::JpegAllocator<uint8_t> > compressed_header;
     if (ujgversion == 1) {

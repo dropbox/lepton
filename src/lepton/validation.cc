@@ -15,6 +15,7 @@
 ValidationContinuation validateAndCompress(int *reader,
                                            int *writer,
                                            Sirikata::Array1d<uint8_t, 2> header,
+                                           size_t header_size,
                                            size_t start_byte,
                                            size_t end_byte,
                                            ExitCode *validation_exit_code,
@@ -27,6 +28,13 @@ ValidationContinuation validateAndCompress(int *reader,
     std::vector<uint8_t> *permissive_jpeg_return = NULL;
     if (is_permissive){
         permissive_jpeg_return = &permissive_jpeg_return_backing;
+        if (header_size < header.size()) {
+            permissive_jpeg_return->resize(header_size);
+            if (header_size) {
+                memcpy(permissive_jpeg_return->data(), header.data, header_size);
+            }
+            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+        }
     }
 #ifdef _WIN32
     std::vector<const char*> args;
@@ -72,7 +80,7 @@ ValidationContinuation validateAndCompress(int *reader,
     }
     if (roundtrip_size != size || memcmp(&md5[0], &rtmd5[0], md5.size()) != 0) {
         if (is_permissive) {
-            return generic_compress(permissive_jpeg_return, validation_exit_code);
+            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
         }
         fprintf(stderr, "Input Size %lu != Roundtrip Size %lu\n", (unsigned long)size, (unsigned long)roundtrip_size);
         for (size_t i = 0; i < md5.size(); ++i) {

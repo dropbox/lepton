@@ -276,6 +276,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                                                 std::vector<uint8_t> *byte_return,
                                                 bool is_socket) {
     bool close_input = false;
+    bool failed = false;
     MD5_CTX context;
     MD5_Init(&context);
     if (start_byte < header.size()) {
@@ -292,6 +293,10 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 if (delta < 0 && errno == EINTR) {
                     continue;
                 } else {
+                    if (byte_return) {
+                        failed = true;
+                        break; // we can't simply exit if subprocess quits
+                    }
                     custom_exit(ExitCode::OS_ERROR);
                 }
             }
@@ -304,7 +309,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     std::thread worker(std::bind(&md5_and_copy_to_tee,
         copy_to_input_tee, input_tee, &context, input_size, start_byte, end_byte, close_input, is_socket));
 #if 1
-    while(true) {
+    while(!failed) {
         auto old_size = storage->size();
         if (storage->how_much_reserved() < old_size + 65536) {
             storage->reserve(storage->how_much_reserved() * 2);
@@ -316,6 +321,10 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             if (errno == EINTR) {
                 storage->resize(old_size);
                 continue;
+            }
+            if (byte_return) {
+                failed = true;
+                break;
             }
             custom_exit(ExitCode::SHORT_READ);
         }

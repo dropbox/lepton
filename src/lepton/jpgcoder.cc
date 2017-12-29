@@ -44,7 +44,6 @@ volatile int volatile1024 = 1024;
 #ifndef _WIN32
 #include <sys/time.h>
 #include <sys/types.h>
-
     #include <unistd.h>
 #else
     #include <io.h>
@@ -84,7 +83,7 @@ volatile int volatile1024 = 1024;
 #include "../io/Zlib0.hh"
 #include "../io/Seccomp.hh"
 #include "../vp8/encoder/vpx_bool_writer.hh"
-
+#include "generic_compress.hh"
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
 #endif
@@ -1110,6 +1109,9 @@ int initialize_options( int argc, const char*const * argv )
             g_skip_validation = false;
         } else if ( strcmp((*argv), "-permissive") == 0 ) {
             g_permissive = true;
+#ifndef _WIN32
+            signal(SIGPIPE, SIG_IGN);
+#endif
         } else if ( strcmp((*argv), "-brotliheader") == 0 ) {
             if (ujgversion < 2) {
                 ujgversion = 2; // use brotli to compress the header and trailer rather than zlib
@@ -1375,9 +1377,10 @@ bool recode_baseline_jpeg_wrapper() {
 
 
 int open_fdin(const char *ifilename,
-                   IOUtil::FileReader *reader,
-                   Sirikata::Array1d<uint8_t, 2> &header,
-    bool *is_socket) {
+              IOUtil::FileReader *reader,
+              Sirikata::Array1d<uint8_t, 2> &header,
+              ssize_t *bytes_read,
+              bool *is_socket) {
     int fdin = -1;    
     if (reader != NULL) {
         *is_socket = reader->is_socket();
@@ -1403,14 +1406,21 @@ int open_fdin(const char *ifilename,
             while(write(2, "\n", 1) == -1 && errno == EINTR) {}
         }
     }
+    *bytes_read = 0;
     ssize_t data_read = 0;
     do {
         data_read = read(fdin, &header[0], 2);
     } while (data_read == -1 && errno == EINTR);
+    if (data_read >= 0) {
+        *bytes_read = data_read;
+    }
     if (__builtin_expect(data_read < 2, false)) {
         do {
             data_read = read(fdin, &header[1], 1);
         } while (data_read == -1 && errno == EINTR);
+        if (data_read >= 0) {
+            *bytes_read += data_read;
+        }
     }
     if (data_read < 0) {
         perror("read");
@@ -1554,13 +1564,48 @@ void process_file(IOUtil::FileReader* reader,
     Sirikata::Array1d<uint8_t, 2> header = {{0, 0}};
     const char * ifilename = filelist[file_no];
     bool is_socket = false;
-    int fdin = open_fdin(ifilename, reader, header, &is_socket);
+    ssize_t bytes_read =0 ;
+    int fdin = open_fdin(ifilename, reader, header, &bytes_read, &is_socket);
+    /*
+    if (g_permissive && bytes_read < 2) {
+        std::vector<uint8_t> input(bytes_read);
+        if (bytes_read > 0) {
+            memcpy(&input[0], header.data, bytes_read);
+        }
+        Sirikata::MuxReader::ResizableByteBuffer lepton_data;
+        ExitCode exit_code = ExitCode::UNSUPPORTED_JPEG;
+        ValidationContinuation validation_exit_code = generic_compress(&input, &lepton_data, &exit_code);
+        if (exit_code != ExitCode::SUCCESS) {
+            custom_exit(exit_code);
+        }
+        if (validation_exit_code != ValidationContinuation::ROUNDTRIP_OK) {
+            custom_exit(ExitCode::UNSUPPORTED_JPEG);
+        }
+        int fdout = open_fdout(ifilename, writer, true, header, g_force_zlib0_out || force_zlib0, &is_socket);
+        for (size_t data_sent = 0; data_sent < lepton_data.size();) {
+            ssize_t sent = write(fdout,
+                                 lepton_data.data() + data_sent,
+                                 lepton_data.size() - data_sent);
+            if (sent < 0 && errno == EINTR){
+                continue;
+            }
+            if (sent <= 0) {
+                custom_exit(ExitCode::SHORT_READ);
+            }
+            data_sent += sent;
+        }
+        //fprintf(stderr, "OK...\n");
+        custom_exit(ExitCode::SUCCESS);
+        
+        }*/
     int fdout = -1;
     if ((embedded_jpeg || is_jpeg_header(header) || g_permissive) && (g_permissive ||  !g_skip_validation)) {
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
         Sirikata::MuxReader::ResizableByteBuffer lepton_data;
-        switch (validateAndCompress(&fdin, &fdout, header, start_byte, max_file_size,
+        switch (validateAndCompress(&fdin, &fdout, header,
+                                    bytes_read,
+                                    start_byte, max_file_size,
                                     &validation_exit_code,
                                     &lepton_data,
                                     g_argc,
