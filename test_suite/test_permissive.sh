@@ -24,10 +24,12 @@ ls -l "$C".lep || exit 1
 ls -l "$D".lep || exit 1
 ls -l "$E".lep || exit 1
 ls -l "$F".lep || exit 1
-cat "$C".lep | ./lepton - | (md5sum || md5) | grep -l 0cc175b9c0f1b6a831c399e269772661 || exit 1
-cat "$D".lep | ./lepton - | (md5sum || md5) | grep -l 5360af35bde9ebd8f01f492dc059593c || exit 1
 export tmp=`mktemp`
 export tmp2=`mktemp`
+./lepton "$C".lep "$tmp"
+./lepton "$D".lep "$tmp2"
+diff "$C" "$tmp" || exit 1
+diff "$D" "$tmp2" || exit 1
 for i in "$A" "$D" "$E"; do
   for j in "$B" "$C"; do
      export ilep="$i.lep"
