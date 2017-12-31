@@ -153,7 +153,6 @@ ValidationContinuation validateAndCompress(int *reader,
                                                                   lepton_data,
                                                                   permissive_jpeg_return,
                                                                   is_socket);
-
     int status = 0;
     while (waitpid(encode_pid, &status, 0) < 0 && errno == EINTR) {} // wait on encode
     if (WIFEXITED(status)) {

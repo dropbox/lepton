@@ -23,7 +23,7 @@
 #if 1//def __APPLE__
 #include <mutex>
 #endif
-const size_t MAX_PERMISSIVE_LEPTON_SIZE = 1024 * 1024 * 1024;
+const size_t MAX_PERMISSIVE_LEPTON_SIZE = 32 * 1024 * 1024;
 namespace IOUtil {
 /*
 FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_size) {
@@ -379,7 +379,8 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     static_assert(sizeof(buffer) >= header.size(), "Buffer must be able to hold header");
     uint32_t cursor = 0;
     bool finished = false;
-    while (!finished) {
+    bool input_fully_read = false;
+    while (input_fully_read == false || !finished) {
 #ifndef EMSCRIPTEN
         FD_ZERO(&readfds);
         FD_ZERO(&writefds);
@@ -446,6 +447,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
             }
             ssize_t del = read(copy_to_input_tee, &buffer[cursor], max_to_read);
             if (del == 0) {
+              input_fully_read = true;
               while (fcntl(copy_to_input_tee, F_SETFL, copy_to_input_tee_flags) == -1
                      && errno == EINTR){}
                 if (close_input) {
@@ -493,6 +495,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                         while (close(copy_to_input_tee) < 0 && errno == EINTR) {}
                     }
                     //fprintf(stderr,"input:Should close(%d) size:%ld\n", copy_to_input_tee, *input_size);
+                    input_fully_read = true;
                     copy_to_input_tee = -1;
                 }
             } else if (!(errno == EINTR || errno == EWOULDBLOCK  || errno == EAGAIN)) {
@@ -522,7 +525,9 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 storage->resize(old_size);
             } else if (del < 0) {
                 //fprintf(stderr, "Error %d\n", errno);
-                break;
+	      if (input_fully_read) {
+                break; //can't break from the whole loop if subprocess unable to deliver
+              }
             }else{
                 if (del == 0) {
                     storage->resize(old_size);
@@ -563,7 +568,15 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 }
                 cursor -= del;
             }
+            if (del < 0) {
+                while (close(input_tee) < 0 && errno == EINTR) {}
+                //fprintf(stderr,"output_to_compressor:Should close (%d) \n", input_tee );
+                input_tee = -1;
+            }
         }
+	if (input_tee == -1) {
+          cursor = 0;
+	}
         if (cursor == 0 && copy_to_input_tee == -1 && input_tee != -1) {
             //fprintf(stderr,"E\n");
             //fprintf(stderr, "CLosing %d\n", input_tee);
