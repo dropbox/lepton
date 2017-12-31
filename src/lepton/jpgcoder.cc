@@ -1603,6 +1603,7 @@ void process_file(IOUtil::FileReader* reader,
         //fprintf(stderr, "ENTERED VALIDATION...\n");
         ExitCode validation_exit_code = ExitCode::SUCCESS;
         Sirikata::MuxReader::ResizableByteBuffer lepton_data;
+        std::vector<uint8_t> permissive_jpeg_return_backing;
         switch (validateAndCompress(&fdin, &fdout, header,
                                     bytes_read,
                                     start_byte, max_file_size,
@@ -1611,7 +1612,8 @@ void process_file(IOUtil::FileReader* reader,
                                     g_argc,
                                     g_argv,
                                     g_permissive,
-                                    is_socket)) {
+                                    is_socket,
+                                    g_permissive? &permissive_jpeg_return_backing:NULL)) {
           case ValidationContinuation::CONTINUE_AS_JPEG:
             //fprintf(stderr, "CONTINUE AS JPEG...\n");
             is_socket = false;
@@ -1632,7 +1634,32 @@ void process_file(IOUtil::FileReader* reader,
             }
             //fprintf(stderr, "CONTINUE AS LEPTON...\n");
             break;
-          case ValidationContinuation::ROUNDTRIP_OK:
+        case ValidationContinuation::EVALUATE_AS_PERMISSIVE:
+            if (permissive_jpeg_return_backing.size() == 0) {
+                custom_exit(ExitCode::UNSUPPORTED_JPEG);
+            }
+            fdout = open_fdout(ifilename, writer, embedded_jpeg, header, g_force_zlib0_out || force_zlib0, &is_socket);
+            {ExitCode validation_exit_code = ExitCode::UNSUPPORTED_JPEG;
+            generic_compress(&permissive_jpeg_return_backing, &lepton_data, &validation_exit_code);
+            if (validation_exit_code != ExitCode::SUCCESS) {
+                custom_exit(validation_exit_code);
+            }}
+            for (size_t data_sent = 0; data_sent < lepton_data.size();) {
+                ssize_t sent = write(fdout,
+                                     lepton_data.data() + data_sent,
+                                     lepton_data.size() - data_sent);
+                if (sent < 0 && errno == EINTR){
+                    continue;
+                }
+                if (sent <= 0) {
+                    custom_exit(ExitCode::SHORT_READ);
+                }
+                data_sent += sent;
+            }
+            //fprintf(stderr, "OK...\n");
+            custom_exit(ExitCode::SUCCESS);
+            break;
+        case ValidationContinuation::ROUNDTRIP_OK:
             fdout = open_fdout(ifilename, writer, embedded_jpeg, header, g_force_zlib0_out || force_zlib0, &is_socket);
             for (size_t data_sent = 0; data_sent < lepton_data.size();) {
                 ssize_t sent = write(fdout,

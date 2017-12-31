@@ -23,6 +23,7 @@
 #if 1//def __APPLE__
 #include <mutex>
 #endif
+const size_t MAX_PERMISSIVE_LEPTON_SIZE = 1024 * 1024 * 1024;
 namespace IOUtil {
 /*
 FileReader * OpenFileOrPipe(const char * filename, int is_pipe, int max_file_size) {
@@ -295,6 +296,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                 } else {
                     if (byte_return) {
                         failed = true;
+                        (void) failed;
                         break; // we can't simply exit if subprocess quits
                     }
                     custom_exit(ExitCode::OS_ERROR);
@@ -457,17 +459,27 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
                     if (*input_size >= start_byte) {
                         MD5_Update(&context, &buffer[cursor], del);
                         if (byte_return) {
-                            byte_return->insert(byte_return->end(),
-                                                &buffer[cursor],
-                                                &buffer[cursor] + del);
+                            if (byte_return->size() + del > MAX_PERMISSIVE_LEPTON_SIZE) {
+                                byte_return->clear();
+                                byte_return = NULL;
+                            } else {
+                                byte_return->insert(byte_return->end(),
+                                                    &buffer[cursor],
+                                                    &buffer[cursor] + del);
+                            }
                         }
                     } else {
                         size_t offset = (start_byte - *input_size);
                         MD5_Update(&context, &buffer[cursor + offset], del - offset);
                         if (byte_return) {
-                            byte_return->insert(byte_return->end(),
-                                                &buffer[cursor + offset],
-                                                &buffer[cursor + offset] + del - offset);
+                            if (byte_return->size() + del > MAX_PERMISSIVE_LEPTON_SIZE) {
+                                byte_return->clear();
+                                byte_return = NULL;
+                            } else {
+                                byte_return->insert(byte_return->end(),
+                                                    &buffer[cursor + offset],
+                                                    &buffer[cursor + offset] + del - offset);
+                            }
                         }
                     }
                 }

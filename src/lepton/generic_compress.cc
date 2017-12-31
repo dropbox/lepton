@@ -9,6 +9,7 @@
 #include "thread_handoff.hh"
 #include "validation.hh"
 #include "generic_compress.hh"
+#include "../io/Seccomp.hh"
 #include "../vp8/util/billing.hh"
 class ResizableBufferWriter : public Sirikata::DecoderWriter {
     Sirikata::MuxReader::ResizableByteBuffer * backing;
@@ -53,6 +54,9 @@ extern int ujgfilesize;
 ValidationContinuation generic_compress(const std::vector<uint8_t>*input,
                                         Sirikata::MuxReader::ResizableByteBuffer *lepton_data,
                                         ExitCode *validation_exit_code){
+    if (g_use_seccomp) {
+        Sirikata::installStrictSyscallFilter(true);
+    }
     lepton_data->resize(0);
     if (input->size() == 0) {
         custom_exit(ExitCode::UNSUPPORTED_JPEG);

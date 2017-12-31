@@ -23,17 +23,16 @@ ValidationContinuation validateAndCompress(int *reader,
                                            int argc,
                                            const char ** argv,
                                            bool is_permissive,
-                                           bool is_socket) {
-    std::vector<uint8_t> permissive_jpeg_return_backing;
-    std::vector<uint8_t> *permissive_jpeg_return = NULL;
+                                           bool is_socket,
+                                           std::vector<uint8_t> *permissive_jpeg_return) {
     if (is_permissive){
-        permissive_jpeg_return = &permissive_jpeg_return_backing;
+        always_assert(permissive_jpeg_return);
         if (header_size < header.size()) {
             permissive_jpeg_return->resize(header_size);
             if (header_size) {
                 memcpy(permissive_jpeg_return->data(), header.data, header_size);
             }
-            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
         }
     }
 #ifdef _WIN32
@@ -80,7 +79,7 @@ ValidationContinuation validateAndCompress(int *reader,
     }
     if (roundtrip_size != size || memcmp(&md5[0], &rtmd5[0], md5.size()) != 0) {
         if (is_permissive) {
-            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
         }
         fprintf(stderr, "Input Size %lu != Roundtrip Size %lu\n", (unsigned long)size, (unsigned long)roundtrip_size);
         for (size_t i = 0; i < md5.size(); ++i) {
@@ -161,13 +160,13 @@ ValidationContinuation validateAndCompress(int *reader,
         int exit_code = WEXITSTATUS(status);
         if (exit_code != 0) {
             if (is_permissive) {
-                return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+                return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
             }
             exit(exit_code);
         }
     } else if (WIFSIGNALED(status)) {
         if (is_permissive) {
-            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
         }
         raise(WTERMSIG(status));
     }
@@ -184,7 +183,7 @@ ValidationContinuation validateAndCompress(int *reader,
     }
     if (roundtrip_size != size || memcmp(&md5[0], &rtmd5[0], md5.size()) != 0) {
         if (is_permissive) {
-            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
         }
         fprintf(stderr, "Input Size %ld != Roundtrip Size %ld\n", size, roundtrip_size);
         for (size_t i = 0; i < md5.size(); ++i) {
@@ -204,13 +203,13 @@ ValidationContinuation validateAndCompress(int *reader,
         int exit_code = WEXITSTATUS(status);
         if (exit_code != 0) {
             if (is_permissive) {
-                return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+                return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
             }
             exit(exit_code);
         }
     } else if (WIFSIGNALED(status)) {
         if (is_permissive) {
-            return generic_compress(permissive_jpeg_return, lepton_data, validation_exit_code);
+            return ValidationContinuation::EVALUATE_AS_PERMISSIVE;
         }
         raise(WTERMSIG(status));
     }
