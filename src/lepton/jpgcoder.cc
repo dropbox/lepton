@@ -2843,8 +2843,9 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
         // check if huffman tables are available
         for ( csc = 0; csc < cs_cmpc; csc++ ) {
             cmp = cs_cmp[ csc ];
-            if ( (( cs_sal == 0 ) && ( htset[ 0 ][ cmpnfo[cmp].huffdc ] == 0 )) ||
-                 (( cs_sah >  0 ) && ( htset[ 1 ][ cmpnfo[cmp].huffac ] == 0 )) ) {
+            if ( (( jpegtype == 1 || (( cs_cmpc > 1 || cs_to == 0 ) && cs_sah == 0 )) && htset[ 0 ][ cmpnfo[cmp].huffdc ] == 0 ) || 
+                 ( jpegtype == 1 && htset[ 1 ][ cmpnfo[cmp].huffdc ] == 0 ) ||
+                 ( cs_cmpc == 1 && cs_to > 0 && cs_sah == 0 && htset[ 1 ][ cmpnfo[cmp].huffac ] == 0 ) ) {
                 fprintf( stderr, "huffman table missing in scan%i", scnc );
                 delete huffr;
                 errorlevel.store(2);
