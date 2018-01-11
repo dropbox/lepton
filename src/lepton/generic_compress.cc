@@ -11,6 +11,12 @@
 #include "generic_compress.hh"
 #include "../io/Seccomp.hh"
 #include "../vp8/util/billing.hh"
+#ifndef GIT_REVISION
+#include "version.hh"
+#ifndef GIT_REVISION
+#define GIT_REVISION "unknown"
+#endif
+#endif
 class ResizableBufferWriter : public Sirikata::DecoderWriter {
     Sirikata::MuxReader::ResizableByteBuffer * backing;
 public:
