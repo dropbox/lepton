@@ -345,8 +345,8 @@ unsigned char* grbgdata            =     NULL;    // garbage data
 unsigned char* hdrdata          =   NULL;   // header data
 unsigned char* huffdata         =   NULL;   // huffman coded data
 int            hufs             =    0  ;   // size of huffman data
-int            hdrs             =    0  ;   // size of header
-int            zlib_hdrs        =    0  ;   // size of compressed header
+uint32_t       hdrs             =    0  ;   // size of header
+uint32_t       zlib_hdrs        =    0  ;   // size of compressed header
 size_t         total_framebuffer_allocated = 0; // framebuffer allocated
 int            grbs             =    0  ;   // size of garbage
 int            prefix_grbs = 0; // size of prefix;
@@ -2585,13 +2585,17 @@ MergeJpegStreamingStatus merge_jpeg_streaming(MergeJpegProgress *stored_progress
 
             // seek till start-of-scan
             for ( type = 0x00; type != 0xDA; ) {
-                if ( ( int ) progress.hpos >= hdrs ) break;
+                if ( 3 + (uint64_t) progress.hpos >= hdrs ) break;
                 type = hdrdata[ progress.hpos + 1 ];
                 int len = 2 + B_SHORT( hdrdata[ progress.hpos + 2 ], hdrdata[progress.hpos + 3 ] );
                 progress.hpos += len;
             }
+            unsigned int actual_progress_hpos = std::min(progress.hpos, hdrs);
             // write header data to file
-            str_out->write( hdrdata + tmp, ( progress.hpos - tmp ) );
+            str_out->write( hdrdata + tmp, ( actual_progress_hpos - tmp ) );
+            for (unsigned int i = actual_progress_hpos; i < progress.hpos; ++i) {
+                str_out->write("", 1); // write out null bytes beyond buffer
+            }
             if ((!g_use_seccomp) && post_byte == 0) {
                 post_byte = clock();
             }
@@ -2825,11 +2829,20 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
     {
         // seek till start-of-scan, parse only DHT, DRI and SOS
         for ( type = 0x00; type != 0xDA; ) {
-            if ( ( int ) hpos >= hdrs ) break;
+            if ( 3 + ( uint64_t ) hpos >= hdrs ) break;
             type = hdrdata[ hpos + 1 ];
             len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
             if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
-                if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
+                std::vector<unsigned char> over_data;
+                unsigned char * hdr_seg_data = NULL;
+                if ((uint64_t)hpos + (uint64_t)len > (uint64_t)hdrs) {
+                    over_data.insert(over_data.end(), &hdrdata[hpos], &hdrdata[hpos] + (hdrs - hpos));
+                    over_data.resize(len);
+                    hdr_seg_data = &over_data[0];
+                } else {
+                    hdr_seg_data = &( hdrdata[ hpos ] );
+                }
+                if ( !parse_jfif_jpg( type, len, hdr_seg_data ) ) {
                     delete huffr;
                     return false;
                 }
@@ -3331,7 +3344,7 @@ bool recode_jpeg( void )
     {
         // seek till start-of-scan, parse only DHT, DRI and SOS
         for ( type = 0x00; type != 0xDA; ) {
-            if ( ( int ) hpos >= hdrs ) break;
+            if ( hpos >= hdrs ) break;
             type = hdrdata[ hpos + 1 ];
             len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
             if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
@@ -4431,7 +4444,7 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
     int cmp;
 
     // header parser loop
-    while ( ( int ) hpos < hdrs ) {
+    while ( hpos < hdrs ) {
         type = hdrdata[ hpos + 1 ];
         len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
         // do not parse DHT & DRI
@@ -4832,7 +4845,7 @@ bool rebuild_header_jpg( void )
     hdrw = new abytewriter( 4096 );
 
     // header parser loop
-    while ( ( int ) hpos < hdrs ) {
+    while ( hpos < hdrs ) {
         type = hdrdata[ hpos + 1 ];
         len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
         // discard any unneeded meta info
@@ -5606,7 +5619,7 @@ bool write_info( void )
     fprintf( fp, "\nfile header structure:\n" );
     fprintf( fp, " type  length   hpos\n" );
     // header parser loop
-    for ( hpos = 0; (int) hpos < hdrs; hpos += len ) {
+    for ( hpos = 0; hpos < hdrs; hpos += len ) {
         type = hdrdata[ hpos + 1 ];
         len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
         fprintf( fp, " FF%2X  %6i %6i\n", type, len, hpos );
