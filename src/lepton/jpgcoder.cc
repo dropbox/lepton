@@ -2144,7 +2144,7 @@ unsigned char read_fixed_ujpg_header() {
         custom_exit(ExitCode::SHORT_READ);
     }
     // check version number
-    if (header[0] != 1 && header[0] != 2 && header[0] != 3 && header[0] != ujgversion) {
+    if (header[0] != 1 && header[0] != 2 && header[0] != 3 && header[0] != 4 && header[0] != ujgversion) {
         // let us roll out a new version gently
         fprintf( stderr, "incompatible file, use %s v%i.%i",
             appname, header[ 0 ] / 10, header[ 0 ] % 10 );
