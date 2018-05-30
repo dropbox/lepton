@@ -1,5 +1,8 @@
+use brotli::BrotliResult;
+
 pub enum ErrMsg {
-    BrotliCompressStreamFail(u8, u8),
+    BrotliCompressStreamFail,
+    BrotliDecompressFail,
     BrotliEncodeStreamNeedsOutputWithoutFlush,
     BrotliFlushStreamNeedsInput,
 }
@@ -9,6 +12,17 @@ pub enum LeptonEncodeResult {
     Success,
     NeedsMoreInput,
     NeedsMoreOutput,
+}
+
+impl From<BrotliResult> for LeptonEncodeResult {
+    fn from(result: BrotliResult) -> Self {
+        match result {
+            BrotliResult::ResultSuccess => LeptonEncodeResult::Success,
+            BrotliResult::NeedsMoreInput => LeptonEncodeResult::NeedsMoreInput,
+            BrotliResult::NeedsMoreOutput => LeptonEncodeResult::NeedsMoreOutput,
+            BrotliResult::ResultFailure => LeptonEncodeResult::Failure(ErrMsg::BrotliDecompressFail),
+        }
+    }
 }
 
 pub enum LeptonFlushResult {

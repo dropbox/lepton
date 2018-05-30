@@ -1,9 +1,10 @@
 use alloc::Allocator;
 use brotli;
-use brotli::enc::encode::{BrotliEncoderCompressStream, BrotliEncoderIsFinished,
-                          BrotliEncoderOperation, BrotliEncoderStateStruct};
-use core::cmp::{max, min};
-use interface::{Compressor, Decompressor, ErrMsg, LeptonEncodeResult, LeptonFlushResult};
+use brotli::enc::encode::{BrotliEncoderCompressStream, BrotliEncoderCreateInstance,
+                          BrotliEncoderIsFinished, BrotliEncoderOperation,
+                          BrotliEncoderStateStruct};
+use core::cmp::min;
+use interface::{Compressor, ErrMsg, LeptonEncodeResult, LeptonFlushResult};
 use resizable_buffer::ResizableByteBuffer;
 
 pub struct LeptonCompressor<
@@ -73,6 +74,39 @@ impl<
         AllocZN,
     >
 {
+    pub fn new(
+        m8: AllocU8,
+        m16: AllocU16,
+        m32: AllocU32,
+        mi32: AllocI32,
+        mc: AllocCommand,
+        m64: AllocU64,
+        mf64: AllocF64,
+        mfv: AllocFV,
+        mhl: AllocHL,
+        mhc: AllocHC,
+        mhd: AllocHD,
+        mhp: AllocHP,
+        mct: AllocCT,
+        mht: AllocHT,
+        mzn: AllocZN,
+    ) -> Self {
+        LeptonCompressor {
+            brotli_encoder: BrotliEncoderCreateInstance(m8, m16, mi32, m32, mc),
+            brotli_data: ResizableByteBuffer::<u8, AllocU8>::new(),
+            encoded_byte_offset: 0,
+            m64,
+            mf64,
+            mfv,
+            mhl,
+            mhc,
+            mhd,
+            mhp,
+            mct,
+            mht,
+            mzn,
+        }
+    }
     fn internal_encode(
         &mut self,
         op: BrotliEncoderOperation,
@@ -116,7 +150,7 @@ impl<
                 &mut nop_callback,
             ) <= 0
             {
-                return LeptonEncodeResult::Failure(ErrMsg::BrotliCompressStreamFail(0xff, 0xff));
+                return LeptonEncodeResult::Failure(ErrMsg::BrotliCompressStreamFail);
             }
         }
         self.brotli_data.commit_next_buffer(brotli_out_offset);
@@ -192,9 +226,12 @@ impl<
                 LeptonEncodeResult::Failure(ErrMsg::BrotliEncodeStreamNeedsOutputWithoutFlush)
             }
             LeptonEncodeResult::Failure(m) => LeptonEncodeResult::Failure(m),
-            LeptonEncodeResult::Success | LeptonEncodeResult::NeedsMoreInput => LeptonEncodeResult::NeedsMoreInput,
+            LeptonEncodeResult::Success | LeptonEncodeResult::NeedsMoreInput => {
+                LeptonEncodeResult::NeedsMoreInput
+            }
         }
     }
+
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
         let mut zero = 0usize;
         loop {
@@ -212,22 +249,32 @@ impl<
                 }
             }
         }
-        // Finished Encoding
-        let destination = output.split_at_mut(*output_offset).1;
-        let src = self.brotli_data
-            .slice()
-            .split_at(self.encoded_byte_offset)
-            .1;
-        let copy_len = min(src.len(), destination.len());
-        destination
-            .split_at_mut(copy_len)
-            .0
-            .clone_from_slice(src.split_at(copy_len).0);
-        *output_offset += copy_len;
-        self.encoded_byte_offset += copy_len;
-        if self.encoded_byte_offset == self.brotli_data.len() {
-            return LeptonFlushResult::Success;
-        }
-        LeptonFlushResult::NeedsMoreOutput
+        flush_buffer(
+            output,
+            output_offset,
+            &mut self.brotli_data,
+            &mut self.encoded_byte_offset,
+        )
     }
+}
+
+fn flush_buffer<T: Sized + Default + Clone, AllocT: Allocator<T>>(
+    output: &mut [T],
+    output_offset: &mut usize,
+    src_buffer: &ResizableByteBuffer<T, AllocT>,
+    buffer_offset: &mut usize,
+) -> LeptonFlushResult {
+    let destination = output.split_at_mut(*output_offset).1;
+    let src = src_buffer.slice().split_at(*buffer_offset).1;
+    let copy_len = min(src.len(), destination.len());
+    destination
+        .split_at_mut(copy_len)
+        .0
+        .clone_from_slice(src.split_at(copy_len).0);
+    *output_offset += copy_len;
+    *buffer_offset += copy_len;
+    if *buffer_offset == src_buffer.len() {
+        return LeptonFlushResult::Success;
+    }
+    LeptonFlushResult::NeedsMoreOutput
 }
