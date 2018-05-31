@@ -4,5 +4,8 @@ extern crate core;
 
 pub mod compressor;
 pub mod decompressor;
-pub mod interface;
 pub mod resizable_buffer;
+
+mod interface;
+
+pub use interface::{Compressor, Decompressor, ErrMsg, LeptonFlushResult, LeptonOperationResult};

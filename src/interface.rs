@@ -1,5 +1,6 @@
 use brotli::BrotliResult;
 
+#[derive(Copy, Clone, Debug)]
 pub enum ErrMsg {
     BrotliCompressStreamFail,
     BrotliDecompressFail,
@@ -7,20 +8,20 @@ pub enum ErrMsg {
     BrotliFlushStreamNeedsInput,
 }
 
-pub enum LeptonEncodeResult {
+pub enum LeptonOperationResult {
     Failure(ErrMsg),
     Success,
     NeedsMoreInput,
     NeedsMoreOutput,
 }
 
-impl From<BrotliResult> for LeptonEncodeResult {
+impl From<BrotliResult> for LeptonOperationResult {
     fn from(result: BrotliResult) -> Self {
         match result {
-            BrotliResult::ResultSuccess => LeptonEncodeResult::Success,
-            BrotliResult::NeedsMoreInput => LeptonEncodeResult::NeedsMoreInput,
-            BrotliResult::NeedsMoreOutput => LeptonEncodeResult::NeedsMoreOutput,
-            BrotliResult::ResultFailure => LeptonEncodeResult::Failure(ErrMsg::BrotliDecompressFail),
+            BrotliResult::ResultSuccess => LeptonOperationResult::Success,
+            BrotliResult::NeedsMoreInput => LeptonOperationResult::NeedsMoreInput,
+            BrotliResult::NeedsMoreOutput => LeptonOperationResult::NeedsMoreOutput,
+            BrotliResult::ResultFailure => LeptonOperationResult::Failure(ErrMsg::BrotliDecompressFail),
         }
     }
 }
@@ -38,7 +39,7 @@ pub trait Compressor {
         input_offset: &mut usize,
         output: &mut [u8],
         output_offset: &mut usize,
-    ) -> LeptonEncodeResult;
+    ) -> LeptonOperationResult;
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult;
 }
 
@@ -49,5 +50,5 @@ pub trait Decompressor {
         input_offset: &mut usize,
         output: &mut [u8],
         output_offset: &mut usize,
-    ) -> LeptonEncodeResult;
+    ) -> LeptonOperationResult;
 }
