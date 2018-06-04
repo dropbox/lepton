@@ -1,11 +1,18 @@
 use brotli::BrotliResult;
 
+pub const LEPTON_VERSION: u8 = 3;
+pub const HEADER_SIZE: usize = 28;
+pub const MAGIC_NUMBER: [u8; 2] = [0xcf, 0x84];
+
 #[derive(Copy, Clone, Debug)]
 pub enum ErrMsg {
     BrotliCompressStreamFail,
-    BrotliDecompressFail,
-    BrotliEncodeStreamNeedsOutputWithoutFlush,
-    BrotliFlushStreamNeedsInput,
+    BrotliDecompressStreamFail,
+    BrotliEncodeNeedsOutputWithoutFlush,
+    BrotliFlushNeedsInput,
+    IncompleteHeader,
+    InternalDecompressorSwitchFail,
+    WrongMagicNumber,
 }
 
 pub enum LeptonOperationResult {
@@ -21,7 +28,9 @@ impl From<BrotliResult> for LeptonOperationResult {
             BrotliResult::ResultSuccess => LeptonOperationResult::Success,
             BrotliResult::NeedsMoreInput => LeptonOperationResult::NeedsMoreInput,
             BrotliResult::NeedsMoreOutput => LeptonOperationResult::NeedsMoreOutput,
-            BrotliResult::ResultFailure => LeptonOperationResult::Failure(ErrMsg::BrotliDecompressFail),
+            BrotliResult::ResultFailure => {
+                LeptonOperationResult::Failure(ErrMsg::BrotliDecompressStreamFail)
+            }
         }
     }
 }

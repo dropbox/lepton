@@ -2,10 +2,14 @@ extern crate alloc_no_stdlib as alloc;
 extern crate brotli;
 extern crate core;
 
-pub mod compressor;
-pub mod decompressor;
-pub mod resizable_buffer;
-
+mod compressor;
+mod decompressor;
 mod interface;
+mod resizable_buffer;
+mod util;
 
-pub use interface::{Compressor, Decompressor, ErrMsg, LeptonFlushResult, LeptonOperationResult};
+pub use compressor::LeptonCompressor;
+pub use decompressor::LeptonDecompressor;
+pub use interface::{Compressor, Decompressor, ErrMsg, LeptonFlushResult,
+                    LeptonOperationResult};
+pub use resizable_buffer::ResizableByteBuffer;
