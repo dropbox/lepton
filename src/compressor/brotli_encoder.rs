@@ -1,5 +1,5 @@
 use super::flush_resizable_buffer;
-use alloc::Allocator;
+use alloc::HeapAlloc;
 use brotli;
 use brotli::enc::cluster::HistogramPair;
 use brotli::enc::command::Command;
@@ -14,106 +14,50 @@ use brotli::enc::ZopfliNode;
 use interface::{Compressor, ErrMsg, LeptonFlushResult, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;
 
-pub struct BrotliEncoder<
-    AllocU8: Allocator<u8>,
-    AllocU16: Allocator<u16>,
-    AllocU32: Allocator<u32>,
-    AllocI32: Allocator<i32>,
-    AllocCommand: Allocator<Command>,
-    AllocU64: Allocator<u64>,
-    AllocF64: Allocator<floatX>,
-    AllocFV: Allocator<Mem256f>,
-    AllocHL: Allocator<HistogramLiteral>,
-    AllocHC: Allocator<HistogramCommand>,
-    AllocHD: Allocator<HistogramDistance>,
-    AllocHP: Allocator<HistogramPair>,
-    AllocCT: Allocator<ContextType>,
-    AllocHT: Allocator<HuffmanTree>,
-    AllocZN: Allocator<ZopfliNode>,
-> {
-    encoder: BrotliEncoderStateStruct<AllocU8, AllocU16, AllocU32, AllocI32, AllocCommand>,
-    data: ResizableByteBuffer<u8, AllocU8>,
+pub struct BrotliEncoder {
+    encoder: BrotliEncoderStateStruct<
+        HeapAlloc<u8>,
+        HeapAlloc<u16>,
+        HeapAlloc<u32>,
+        HeapAlloc<i32>,
+        HeapAlloc<Command>,
+    >,
+    data: ResizableByteBuffer<u8, HeapAlloc<u8>>,
     written_end: usize,
-    alloc_u64: AllocU64,
-    alloc_f64: AllocF64,
-    alloc_float_vec: AllocFV,
-    alloc_hist_literal: AllocHL,
-    alloc_hist_cmd: AllocHC,
-    alloc_hist_dist: AllocHD,
-    alloc_hist_pair: AllocHP,
-    alloc_context_type: AllocCT,
-    alloc_huffman_tree: AllocHT,
-    alloc_zopfli_node: AllocZN,
+    alloc_u64: HeapAlloc<u64>,
+    alloc_f64: HeapAlloc<floatX>,
+    alloc_float_vec: HeapAlloc<Mem256f>,
+    alloc_hist_cmd: HeapAlloc<HistogramCommand>,
+    alloc_hist_dist: HeapAlloc<HistogramDistance>,
+    alloc_hist_literal: HeapAlloc<HistogramLiteral>,
+    alloc_hist_pair: HeapAlloc<HistogramPair>,
+    alloc_context_type: HeapAlloc<ContextType>,
+    alloc_huffman_tree: HeapAlloc<HuffmanTree>,
+    alloc_zopfli_node: HeapAlloc<ZopfliNode>,
 }
 
-impl<
-        AllocU8: Allocator<u8>,
-        AllocU16: Allocator<u16>,
-        AllocU32: Allocator<u32>,
-        AllocI32: Allocator<i32>,
-        AllocCommand: Allocator<Command>,
-        AllocU64: Allocator<u64>,
-        AllocF64: Allocator<floatX>,
-        AllocFV: Allocator<Mem256f>,
-        AllocHL: Allocator<HistogramLiteral>,
-        AllocHC: Allocator<HistogramCommand>,
-        AllocHD: Allocator<HistogramDistance>,
-        AllocHP: Allocator<HistogramPair>,
-        AllocCT: Allocator<ContextType>,
-        AllocHT: Allocator<HuffmanTree>,
-        AllocZN: Allocator<ZopfliNode>,
-    >
-    BrotliEncoder<
-        AllocU8,
-        AllocU16,
-        AllocU32,
-        AllocI32,
-        AllocCommand,
-        AllocU64,
-        AllocF64,
-        AllocFV,
-        AllocHL,
-        AllocHC,
-        AllocHD,
-        AllocHP,
-        AllocCT,
-        AllocHT,
-        AllocZN,
-    >
-{
-    pub fn new(
-        alloc_u8: AllocU8,
-        alloc_u16: AllocU16,
-        alloc_u32: AllocU32,
-        alloc_i32: AllocI32,
-        alloc_cmd: AllocCommand,
-        alloc_u64: AllocU64,
-        alloc_f64: AllocF64,
-        alloc_float_vec: AllocFV,
-        alloc_hist_literal: AllocHL,
-        alloc_hist_cmd: AllocHC,
-        alloc_hist_dist: AllocHD,
-        alloc_hist_pair: AllocHP,
-        alloc_context_type: AllocCT,
-        alloc_huffman_tree: AllocHT,
-        alloc_zopfli_node: AllocZN,
-    ) -> Self {
+impl BrotliEncoder {
+    pub fn new() -> Self {
         BrotliEncoder {
             encoder: BrotliEncoderCreateInstance(
-                alloc_u8, alloc_u16, alloc_i32, alloc_u32, alloc_cmd,
+                HeapAlloc::<u8>::new(0),
+                HeapAlloc::<u16>::new(0),
+                HeapAlloc::<i32>::new(0),
+                HeapAlloc::<u32>::new(0),
+                HeapAlloc::<Command>::new(Command::default()),
             ),
-            data: ResizableByteBuffer::<u8, AllocU8>::new(),
+            data: ResizableByteBuffer::<u8, HeapAlloc<u8>>::new(),
             written_end: 0,
-            alloc_u64,
-            alloc_f64,
-            alloc_float_vec,
-            alloc_hist_literal,
-            alloc_hist_cmd,
-            alloc_hist_dist,
-            alloc_hist_pair,
-            alloc_context_type,
-            alloc_huffman_tree,
-            alloc_zopfli_node,
+            alloc_u64: HeapAlloc::<u64>::new(0),
+            alloc_f64: HeapAlloc::new(floatX::default()),
+            alloc_float_vec: HeapAlloc::new(Mem256f::default()),
+            alloc_hist_cmd: HeapAlloc::new(HistogramCommand::default()),
+            alloc_hist_dist: HeapAlloc::new(HistogramDistance::default()),
+            alloc_hist_literal: HeapAlloc::new(HistogramLiteral::default()),
+            alloc_hist_pair: HeapAlloc::new(HistogramPair::default()),
+            alloc_context_type: HeapAlloc::new(ContextType::default()),
+            alloc_huffman_tree: HeapAlloc::new(HuffmanTree::default()),
+            alloc_zopfli_node: HeapAlloc::new(ZopfliNode::default()),
         }
     }
 
@@ -184,41 +128,7 @@ impl<
     }
 }
 
-impl<
-        AllocU8: Allocator<u8>,
-        AllocU16: Allocator<u16>,
-        AllocU32: Allocator<u32>,
-        AllocI32: Allocator<i32>,
-        AllocCommand: Allocator<Command>,
-        AllocU64: Allocator<u64>,
-        AllocF64: Allocator<floatX>,
-        AllocFV: Allocator<Mem256f>,
-        AllocHL: Allocator<HistogramLiteral>,
-        AllocHC: Allocator<HistogramCommand>,
-        AllocHD: Allocator<HistogramDistance>,
-        AllocHP: Allocator<HistogramPair>,
-        AllocCT: Allocator<ContextType>,
-        AllocHT: Allocator<HuffmanTree>,
-        AllocZN: Allocator<ZopfliNode>,
-    > Compressor
-    for BrotliEncoder<
-        AllocU8,
-        AllocU16,
-        AllocU32,
-        AllocI32,
-        AllocCommand,
-        AllocU64,
-        AllocF64,
-        AllocFV,
-        AllocHL,
-        AllocHC,
-        AllocHD,
-        AllocHP,
-        AllocCT,
-        AllocHT,
-        AllocZN,
-    >
-{
+impl Compressor for BrotliEncoder {
     fn encode(
         &mut self,
         input: &[u8],

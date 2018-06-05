@@ -1,80 +1,43 @@
-use core::mem;
-
-use alloc::Allocator;
-use brotli::HuffmanCode;
-
 use super::primary_header::{PrimaryHeader, PrimaryHeaderParser};
 use super::secondary_header::{SecondaryHeader, SecondaryHeaderParser};
 use interface::{Decompressor, ErrMsg, LeptonOperationResult};
 
-pub struct LeptonDecompressor<
-    AllocU8: Allocator<u8>,
-    AllocU32: Allocator<u32>,
-    AllocHC: Allocator<HuffmanCode>,
-> {
-    decompressor: InternalDecompressor<AllocU8, AllocU32, AllocHC>,
+pub struct LeptonDecompressor {
+    decompressor: InternalDecompressor,
     primary_header: Option<PrimaryHeader>,
     secondary_header: Option<SecondaryHeader>,
-    alloc_u8: Option<AllocU8>,
-    alloc_u32: Option<AllocU32>,
-    alloc_huffman_code: Option<AllocHC>,
     total_out: usize,
 }
 
-impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<HuffmanCode>>
-    LeptonDecompressor<AllocU8, AllocU32, AllocHC>
-{
-    pub fn new(alloc_u8: AllocU8, alloc_u32: AllocU32, alloc_huffman_code: AllocHC) -> Self {
+impl LeptonDecompressor {
+    pub fn new() -> Self {
         LeptonDecompressor {
             decompressor: InternalDecompressor::PrimaryHeader(PrimaryHeaderParser::new()),
             primary_header: None,
             secondary_header: None,
-            alloc_u8: Some(alloc_u8),
-            alloc_u32: Some(alloc_u32),
-            alloc_huffman_code: Some(alloc_huffman_code),
             total_out: 0,
         }
     }
 
-    fn next_internal_decompressor(
-        &mut self,
-    ) -> Option<InternalDecompressor<AllocU8, AllocU32, AllocHC>> {
-        match self.decompressor {
+    fn next_internal_decompressor(&mut self) -> Result<(), ErrMsg> {
+        self.decompressor = match self.decompressor {
             InternalDecompressor::PrimaryHeader(_) => {
-                let alloc_u8 = match mem::replace(&mut self.alloc_u8, None) {
-                    Some(alloc_u8) => alloc_u8,
-                    None => return None,
-                };
-                let alloc_u32 = match mem::replace(&mut self.alloc_u32, None) {
-                    Some(alloc_u32) => alloc_u32,
-                    None => return None,
-                };
-                let alloc_huffman_code = match mem::replace(&mut self.alloc_huffman_code, None) {
-                    Some(alloc_huffman_code) => alloc_huffman_code,
-                    None => return None,
-                };
                 let primary_header = match self.primary_header {
                     Some(header) => header,
-                    None => return None,
+                    None => return Err(ErrMsg::PrimaryHeaderNotBuilt),
                 };
-                Some(InternalDecompressor::SecondaryHeader(
-                    SecondaryHeaderParser::new(
-                        primary_header.secondary_hdr_size,
-                        alloc_u8,
-                        alloc_u32,
-                        alloc_huffman_code,
-                    ),
+                InternalDecompressor::SecondaryHeader(SecondaryHeaderParser::new(
+                    primary_header.secondary_hdr_size,
                 ))
             }
-            InternalDecompressor::SecondaryHeader(_) => Some(InternalDecompressor::JPEG),
-            InternalDecompressor::JPEG => None,
-        }
+            InternalDecompressor::SecondaryHeader(_) => InternalDecompressor::JPEG,
+            InternalDecompressor::JPEG => return Err(ErrMsg::InternalDecompressorExhausted),
+        };
+        Ok(())
     }
 }
 
-impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<HuffmanCode>> Decompressor
-    for LeptonDecompressor<AllocU8, AllocU32, AllocHC>
-{
+impl Decompressor for LeptonDecompressor {
     fn decode(
         &mut self,
         input: &[u8],
@@ -98,7 +61,7 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
                         LeptonOperationResult::Success => {
                             self.primary_header = match parser.build_header() {
                                 Ok(header) => Some(header),
-                                Err(msg) => return LeptonOperationResult::Failure(msg),
+                                Err(e) => return LeptonOperationResult::Failure(e),
                             }
                         }
                         other => {
@@ -110,8 +73,12 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
                 InternalDecompressor::SecondaryHeader(ref mut parser) => {
                     match parser.decode(input, input_offset, output, output_offset) {
                         LeptonOperationResult::Success => {
-                            self.secondary_header = parser.extract_header();
+                            self.secondary_header = match parser.extract_header() {
+                                Ok(secondary_header) => Some(secondary_header),
+                                Err(e) => return LeptonOperationResult::Failure(e),
+                            };
                             // TODO: parse the simantics of secondary header
+                            // May not need to keep the whole header
                         }
                         other => {
                             self.total_out += *output_offset;
@@ -125,11 +92,11 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
                     return LeptonOperationResult::Success;
                 }
             }
-            self.decompressor = match self.next_internal_decompressor() {
-                Some(internal_decompressor) => internal_decompressor,
-                None => {
+            match self.next_internal_decompressor() {
+                Ok(()) => (),
+                Err(e) => {
                     self.total_out += *output_offset;
-                    return LeptonOperationResult::Failure(ErrMsg::InternalDecompressorSwitchFail);
+                    return LeptonOperationResult::Failure(e);
                 }
             };
             self.total_out += *output_offset;
@@ -148,12 +115,8 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
     }
 }
 
-enum InternalDecompressor<
-    AllocU8: Allocator<u8>,
-    AllocU32: Allocator<u32>,
-    AllocHC: Allocator<HuffmanCode>,
-> {
+enum InternalDecompressor {
     PrimaryHeader(PrimaryHeaderParser),
-    SecondaryHeader(SecondaryHeaderParser<AllocU8, AllocU32, AllocHC>),
+    SecondaryHeader(SecondaryHeaderParser),
     JPEG,
 }

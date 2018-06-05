@@ -3,21 +3,13 @@ extern crate brotli;
 extern crate core;
 extern crate lepton;
 
-use std::fs::File;
 use std::error::Error;
+use std::fs::File;
 use std::io::{self, Read, Result, Write};
 use std::path::Path;
 
-use alloc::HeapAlloc;
-use brotli::enc::cluster::HistogramPair;
-use brotli::enc::command::Command;
-use brotli::enc::entropy_encode::HuffmanTree;
-use brotli::enc::histogram::{ContextType, HistogramCommand, HistogramDistance, HistogramLiteral};
-use brotli::enc::util::floatX;
-use brotli::enc::vectorization::Mem256f;
-use brotli::enc::ZopfliNode;
-use brotli::HuffmanCode;
-use lepton::{Compressor, Decompressor, ErrMsg, LeptonCompressor, LeptonDecompressor, LeptonFlushResult, LeptonOperationResult};
+use lepton::{Compressor, Decompressor, ErrMsg, LeptonCompressor, LeptonDecompressor,
+             LeptonFlushResult, LeptonOperationResult};
 
 #[derive(Copy, Clone, Debug)]
 pub struct LeptonErrMsg(pub ErrMsg);
@@ -98,58 +90,7 @@ fn compress<Reader: Read, Writer: Write>(
     w: &mut Writer,
     buffer_size: &mut usize,
 ) -> Result<()> {
-    let alloc_u8 = HeapAlloc::<u8> { default_value: 0 };
-    let alloc_u16 = HeapAlloc::<u16> { default_value: 0 };
-    let alloc_i32 = HeapAlloc::<i32> { default_value: 0 };
-    let alloc_u32 = HeapAlloc::<u32> { default_value: 0 };
-    let alloc_u64 = HeapAlloc::<u64> { default_value: 0 };
-    let alloc_cmd = HeapAlloc::<Command> {
-        default_value: Command::default(),
-    };
-    let alloc_f64 = HeapAlloc::<floatX> {
-        default_value: 0.0 as floatX,
-    };
-    let alloc_float_vec = HeapAlloc::<Mem256f> {
-        default_value: Mem256f::default(),
-    };
-    let alloc_hist_literal = HeapAlloc::<HistogramLiteral> {
-        default_value: HistogramLiteral::default(),
-    };
-    let alloc_hist_cmd = HeapAlloc::<HistogramCommand> {
-        default_value: HistogramCommand::default(),
-    };
-    let alloc_hist_dist = HeapAlloc::<HistogramDistance> {
-        default_value: HistogramDistance::default(),
-    };
-    let alloc_hist_pair = HeapAlloc::<HistogramPair> {
-        default_value: HistogramPair::default(),
-    };
-    let alloc_context_type = HeapAlloc::<ContextType> {
-        default_value: ContextType::default(),
-    };
-    let alloc_huffman_tree = HeapAlloc::<HuffmanTree> {
-        default_value: HuffmanTree::default(),
-    };
-    let alloc_zopfli_node = HeapAlloc::<ZopfliNode> {
-        default_value: ZopfliNode::default(),
-    };
-    let mut compressor = LeptonCompressor::new(
-        alloc_u8,
-        alloc_u16,
-        alloc_u32,
-        alloc_i32,
-        alloc_cmd,
-        alloc_u64,
-        alloc_f64,
-        alloc_float_vec,
-        alloc_hist_literal,
-        alloc_hist_cmd,
-        alloc_hist_dist,
-        alloc_hist_pair,
-        alloc_context_type,
-        alloc_huffman_tree,
-        alloc_zopfli_node,
-    );
+    let mut compressor = LeptonCompressor::new();
     let ret = compress_internal(r, w, buffer_size, &mut compressor);
     // compressor.free();
     ret
@@ -218,13 +159,7 @@ fn decompress<Reader: Read, Writer: Write>(
     w: &mut Writer,
     buffer_size: &mut usize,
 ) -> Result<()> {
-    let mut decompressor = LeptonDecompressor::new(
-        HeapAlloc::<u8> { default_value: 0 },
-        HeapAlloc::<u32> { default_value: 0 },
-        HeapAlloc::<HuffmanCode> {
-            default_value: HuffmanCode::default(),
-        },
-    );
+    let mut decompressor = LeptonDecompressor::new();
     let ret = decompress_internal(r, w, buffer_size, &mut decompressor);
     // decompressor.free()
     ret

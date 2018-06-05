@@ -10,9 +10,15 @@ pub enum ErrMsg {
     BrotliDecompressStreamFail,
     BrotliEncodeNeedsOutputWithoutFlush,
     BrotliFlushNeedsInput,
-    BuildSecondaryHeaderFail,
-    IncompleteHeader,
-    InternalDecompressorSwitchFail,
+    HDRMissing,
+    IncompletePrimaryHeader,
+    IncompleteSecondaryHeaderMarker,
+    IncompleteSecondaryHeaderSection(u8),
+    InternalDecompressorExhausted,
+    InvalidSecondaryHeaderMarker(u8, u8, u8),
+    PADMIssing,
+    PrimaryHeaderNotBuilt,
+    SecondaryHeaderNotBuilt,
     WrongMagicNumber,
 }
 

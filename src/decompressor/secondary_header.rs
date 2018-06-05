@@ -1,14 +1,14 @@
 use core::mem;
 use std::collections::HashMap;
 
-use alloc::Allocator;
+use alloc::HeapAlloc;
 use brotli::{BrotliDecompressStream, BrotliState, HuffmanCode};
 
 use interface::{ErrMsg, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;
 use secondary_header::{SecondaryHeaderMarker as Marker, MARKER_SIZE, PAD_SECTION_SIZE,
                        SECTION_HDR_SIZE};
-use util::{mem_copy, u8_array_to_u32};
+use util::{le_u8_array_to_u32, mem_copy};
 
 pub struct SecondaryHeader {
     hdr: Vec<u8>,
@@ -16,36 +16,29 @@ pub struct SecondaryHeader {
     optional: HashMap<Marker, Vec<u8>>,
 }
 
-pub struct SecondaryHeaderParser<
-    AllocU8: Allocator<u8>,
-    AllocU32: Allocator<u32>,
-    AllocHC: Allocator<HuffmanCode>,
-> {
-    decoder: BrotliState<AllocU8, AllocU32, AllocHC>,
+pub struct SecondaryHeaderParser {
+    decoder: BrotliState<HeapAlloc<u8>, HeapAlloc<u32>, HeapAlloc<HuffmanCode>>,
     total_out: usize,
     target_len: usize,
     total_in: usize,
-    data: ResizableByteBuffer<u8, AllocU8>,
+    data: ResizableByteBuffer<u8, HeapAlloc<u8>>,
     header: Option<SecondaryHeader>,
     pge_written: usize,
     hdr_written: usize,
 }
 
-impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<HuffmanCode>>
-    SecondaryHeaderParser<AllocU8, AllocU32, AllocHC>
-{
-    pub fn new(
-        target_len: usize,
-        alloc_u8: AllocU8,
-        alloc_u32: AllocU32,
-        alloc_huffman_code: AllocHC,
-    ) -> Self {
+impl SecondaryHeaderParser {
+    pub fn new(target_len: usize) -> Self {
         SecondaryHeaderParser {
-            decoder: BrotliState::new(alloc_u8, alloc_u32, alloc_huffman_code),
+            decoder: BrotliState::new(
+                HeapAlloc::<u8>::new(0),
+                HeapAlloc::<u32>::new(0),
+                HeapAlloc::<HuffmanCode>::new(HuffmanCode::default()),
+            ),
             total_out: 0,
             target_len,
             total_in: 0,
-            data: ResizableByteBuffer::<u8, AllocU8>::new(),
+            data: ResizableByteBuffer::<u8, HeapAlloc<u8>>::new(),
             header: None,
             pge_written: 0,
             hdr_written: 0,
@@ -81,10 +74,10 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
     }
 
     // This function will change the parser's own copy of header to `None`.
-    pub fn extract_header(&mut self) -> Option<SecondaryHeader> {
-        match self.header {
-            Some(_) => mem::replace(&mut self.header, None),
-            None => None,
+    pub fn extract_header(&mut self) -> Result<SecondaryHeader, ErrMsg> {
+        match mem::replace(&mut self.header, None) {
+            Some(header) => Ok(header),
+            None => Err(ErrMsg::SecondaryHeaderNotBuilt),
         }
     }
 
@@ -117,8 +110,8 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonOperationResult {
         if let None = self.header {
             self.header = match self.build_header() {
-                Some(header) => Some(header),
-                None => return LeptonOperationResult::Failure(ErrMsg::BuildSecondaryHeaderFail),
+                Ok(header) => Some(header),
+                Err(e) => return LeptonOperationResult::Failure(e),
             };
         }
         if let Some(ref header) = self.header {
@@ -143,11 +136,11 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
                 LeptonOperationResult::NeedsMoreOutput
             }
         } else {
-            LeptonOperationResult::Failure(ErrMsg::BuildSecondaryHeaderFail)
+            LeptonOperationResult::Failure(ErrMsg::SecondaryHeaderNotBuilt)
         }
     }
 
-    fn build_header(&self) -> Option<SecondaryHeader> {
+    fn build_header(&self) -> Result<SecondaryHeader, ErrMsg> {
         let mut header = SecondaryHeader {
             hdr: Vec::new(),
             pge: Vec::new(),
@@ -155,72 +148,71 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
         };
         let data = self.data.slice();
         let mut ptr: usize = 0;
-        if !data[..MARKER_SIZE].eq(Marker::HDR.value()) {
-            return None;
-        }
         match read_sized_section(data, &mut ptr) {
-            Some((Marker::HDR, body)) => header.hdr.extend_from_slice(body),
-            _ => return None,
+            Ok((Marker::HDR, body)) => header.hdr.extend_from_slice(body),
+            Ok(_) => return Err(ErrMsg::HDRMissing),
+            Err(e) => return Err(e),
         }
         match read_pad(data, &mut ptr) {
-            Some((marker, pad)) => header.optional.insert(marker, pad.to_vec()),
-            None => return None,
+            Ok((marker, pad)) => header.optional.insert(marker, pad.to_vec()),
+            Err(e) => return Err(e),
         };
         while ptr < data.len() {
             match read_sized_section(data, &mut ptr) {
                 // FIXME: May need different treatment for PGE and PGR
-                Some((Marker::PGE, body)) | Some((Marker::PGR, body)) => {
+                Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => {
                     header.pge.extend_from_slice(body)
                 }
-                Some((marker, body)) => {
+                Ok((marker, body)) => {
                     header.optional.insert(marker, body.to_vec());
                 }
-                None => return None,
+                Err(e) => return Err(e),
             };
         }
-        Some(header)
+        Ok(header)
     }
 }
 
-fn read_pad<'a>(data: &'a [u8], offset: &mut usize) -> Option<(Marker, &'a [u8])> {
+fn read_pad<'a>(data: &'a [u8], offset: &mut usize) -> Result<(Marker, &'a [u8]), ErrMsg> {
     if data.len() < *offset + PAD_SECTION_SIZE {
-        return None;
+        return Err(ErrMsg::IncompleteSecondaryHeaderSection(0));
     }
     let marker = match Marker::from(&data[*offset..]) {
-        Some(Marker::P0D) => Marker::P0D,
-        Some(Marker::PAD) => Marker::PAD,
-        _ => return None,
+        Ok(Marker::P0D) => Marker::P0D,
+        Ok(Marker::PAD) => Marker::PAD,
+        Ok(_) => return Err(ErrMsg::PADMIssing),
+        Err(e) => return Err(e),
     };
     let section_end = *offset + PAD_SECTION_SIZE;
     let body = &data[(*offset + MARKER_SIZE)..section_end];
     *offset = section_end;
-    Some((marker, &body))
+    Ok((marker, &body))
 }
 
-fn read_sized_section<'a>(data: &'a [u8], offset: &mut usize) -> Option<(Marker, &'a [u8])> {
-    // if data.len() < *offset + MARKER_SIZE {
-    //     return None;
-    // }
+fn read_sized_section<'a>(
+    data: &'a [u8],
+    offset: &mut usize,
+) -> Result<(Marker, &'a [u8]), ErrMsg> {
     let marker = match Marker::from(&data[*offset..]) {
-        Some(marker) => marker,
-        None => return None,
+        Ok(marker) => marker,
+        Err(e) => return Err(e),
     };
     let section_hdr_size: usize = match marker {
         Marker::HHX => MARKER_SIZE,
         _ => SECTION_HDR_SIZE,
     };
     if data.len() < *offset + section_hdr_size {
-        return None;
+        return Err(ErrMsg::IncompleteSecondaryHeaderSection(1));
     }
     let section_len = match marker {
         Marker::HHX => (data[*offset + 2] as usize) * 16, // BYTES_PER_HANDOFF = 16
-        _ => u8_array_to_u32(data, &(*offset + MARKER_SIZE)) as usize,
+        _ => le_u8_array_to_u32(data, &(*offset + MARKER_SIZE)) as usize,
     };
     let section_end = *offset + section_hdr_size + section_len;
     if data.len() < section_end {
-        return None;
+        return Err(ErrMsg::IncompleteSecondaryHeaderSection(2));
     }
     let body = &data[(*offset + section_hdr_size)..section_end];
     *offset = section_end;
-    Some((marker, &body))
+    Ok((marker, &body))
 }

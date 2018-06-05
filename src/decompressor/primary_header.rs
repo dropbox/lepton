@@ -1,5 +1,5 @@
 use interface::{ErrMsg, LeptonOperationResult, HEADER_SIZE, MAGIC_NUMBER};
-use util::{mem_copy, u8_array_to_u32};
+use util::{mem_copy, le_u8_array_to_u32};
 
 #[derive(Clone, Copy)]
 pub struct PrimaryHeader {
@@ -16,10 +16,10 @@ impl PrimaryHeader {
         let mut header = PrimaryHeader {
             version: array[2],
             skip_hdr: if array[3] == 0 { false } else { true },
-            n_threads: u8_array_to_u32(array, &4),
+            n_threads: le_u8_array_to_u32(array, &4),
             git_hash: [0u8; 12],
-            raw_size: u8_array_to_u32(array, &20) as usize,
-            secondary_hdr_size: u8_array_to_u32(array, &24) as usize,
+            raw_size: le_u8_array_to_u32(array, &20) as usize,
+            secondary_hdr_size: le_u8_array_to_u32(array, &24) as usize,
         };
         header.git_hash.clone_from_slice(&array[8..20]);
         header
@@ -50,7 +50,7 @@ impl PrimaryHeaderParser {
 
     pub fn build_header(&self) -> Result<PrimaryHeader, ErrMsg> {
         if self.total_in < HEADER_SIZE {
-            Err(ErrMsg::IncompleteHeader)
+            Err(ErrMsg::IncompletePrimaryHeader)
         } else if !self.header[..2].eq(&MAGIC_NUMBER) {
             Err(ErrMsg::WrongMagicNumber)
         } else {
