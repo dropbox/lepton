@@ -6,6 +6,7 @@ mod compressor;
 mod decompressor;
 mod interface;
 mod resizable_buffer;
+mod secondary_header;
 mod util;
 
 pub use compressor::LeptonCompressor;

@@ -6,7 +6,6 @@ use brotli::HuffmanCode;
 use super::primary_header::{PrimaryHeader, PrimaryHeaderParser};
 use super::secondary_header::{SecondaryHeader, SecondaryHeaderParser};
 use interface::{Decompressor, ErrMsg, LeptonOperationResult};
-use resizable_buffer::ResizableByteBuffer;
 
 pub struct LeptonDecompressor<
     AllocU8: Allocator<u8>,
@@ -14,8 +13,8 @@ pub struct LeptonDecompressor<
     AllocHC: Allocator<HuffmanCode>,
 > {
     decompressor: InternalDecompressor<AllocU8, AllocU32, AllocHC>,
-    header: Option<PrimaryHeader>,
-    suffix: ResizableByteBuffer<u8, AllocU8>,
+    primary_header: Option<PrimaryHeader>,
+    secondary_header: Option<SecondaryHeader>,
     alloc_u8: Option<AllocU8>,
     alloc_u32: Option<AllocU32>,
     alloc_huffman_code: Option<AllocHC>,
@@ -28,8 +27,8 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
     pub fn new(alloc_u8: AllocU8, alloc_u32: AllocU32, alloc_huffman_code: AllocHC) -> Self {
         LeptonDecompressor {
             decompressor: InternalDecompressor::PrimaryHeader(PrimaryHeaderParser::new()),
-            header: None,
-            suffix: ResizableByteBuffer::<u8, AllocU8>::new(),
+            primary_header: None,
+            secondary_header: None,
             alloc_u8: Some(alloc_u8),
             alloc_u32: Some(alloc_u32),
             alloc_huffman_code: Some(alloc_huffman_code),
@@ -54,7 +53,7 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
                     Some(alloc_huffman_code) => alloc_huffman_code,
                     None => return None,
                 };
-                let primary_header = match self.header {
+                let primary_header = match self.primary_header {
                     Some(header) => header,
                     None => return None,
                 };
@@ -83,43 +82,63 @@ impl<AllocU8: Allocator<u8>, AllocU32: Allocator<u32>, AllocHC: Allocator<Huffma
         output: &mut [u8],
         output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        let mut result = LeptonOperationResult::Success;
         while *input_offset < input.len() && *output_offset < output.len() {
-            if let Some(header) = self.header {
-                if self.total_out >= header.raw_size {
-                    // TODO: remove extra output
+            if let Some(primary_header) = self.primary_header {
+                if self.total_out >= primary_header.raw_size {
+                    *output_offset -= self.total_out - primary_header.raw_size;
                     return LeptonOperationResult::Success;
                 }
             }
-            // TODO: Update total_out
+            self.total_out -= *output_offset;
+            // self.total_out += *output_offset; must be called exactly once
+            // before returning or comparing to raw_size
             match self.decompressor {
                 InternalDecompressor::PrimaryHeader(ref mut parser) => {
                     match parser.parse(input, input_offset) {
                         LeptonOperationResult::Success => {
-                            self.header = match parser.build_header() {
+                            self.primary_header = match parser.build_header() {
                                 Ok(header) => Some(header),
                                 Err(msg) => return LeptonOperationResult::Failure(msg),
                             }
                         }
-                        other => return other,
+                        other => {
+                            self.total_out += *output_offset;
+                            return other;
+                        }
                     }
                 }
                 InternalDecompressor::SecondaryHeader(ref mut parser) => {
                     match parser.decode(input, input_offset, output, output_offset) {
                         LeptonOperationResult::Success => {
-                            // TODO: get out suffix data
+                            self.secondary_header = parser.extract_header();
+                            // TODO: parse the simantics of secondary header
                         }
-                        other => return other,
+                        other => {
+                            self.total_out += *output_offset;
+                            return other;
+                        }
                     }
                 }
-                InternalDecompressor::JPEG => return LeptonOperationResult::Success,
+                // TODO: Connect JPEG decompressor
+                InternalDecompressor::JPEG => {
+                    self.total_out += *output_offset;
+                    return LeptonOperationResult::Success;
+                }
             }
             self.decompressor = match self.next_internal_decompressor() {
                 Some(internal_decompressor) => internal_decompressor,
                 None => {
-                    return LeptonOperationResult::Failure(ErrMsg::InternalDecompressorSwitchFail)
+                    self.total_out += *output_offset;
+                    return LeptonOperationResult::Failure(ErrMsg::InternalDecompressorSwitchFail);
                 }
             };
+            self.total_out += *output_offset;
+        }
+        if let Some(primary_header) = self.primary_header {
+            if self.total_out >= primary_header.raw_size {
+                *output_offset -= self.total_out - primary_header.raw_size;
+                return LeptonOperationResult::Success;
+            }
         }
         if *output_offset < output.len() && *input_offset == input.len() {
             LeptonOperationResult::NeedsMoreInput

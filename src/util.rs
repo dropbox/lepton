@@ -17,6 +17,7 @@ pub fn mem_copy<T: Clone>(
     *src_offset += copy_len;
 }
 
+// TODO: change to little endian
 pub fn u32_to_u8_array(num: &u32) -> [u8; 4] {
     let tmp = *num;
     [
@@ -27,8 +28,9 @@ pub fn u32_to_u8_array(num: &u32) -> [u8; 4] {
     ]
 }
 
+// TODO: change function name
 pub fn u8_array_to_u32(slice: &[u8], index: &usize) -> u32 {
     let index = *index;
-    ((slice[index] as u32) << 24) + ((slice[index + 1] as u32) << 16)
-        + ((slice[index + 2] as u32) << 8) + (slice[index + 3] as u32)
+    ((slice[index + 3] as u32) << 24) + ((slice[index + 2] as u32) << 16)
+         + ((slice[index + 1] as u32) << 8) + (slice[index] as u32)
 }

@@ -10,6 +10,7 @@ pub enum ErrMsg {
     BrotliDecompressStreamFail,
     BrotliEncodeNeedsOutputWithoutFlush,
     BrotliFlushNeedsInput,
+    BuildSecondaryHeaderFail,
     IncompleteHeader,
     InternalDecompressorSwitchFail,
     WrongMagicNumber,
