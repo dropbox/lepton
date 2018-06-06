@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{self, Read, Result, Write};
 use std::path::Path;
 
-use lepton::{Compressor, Decompressor, ErrMsg, LeptonCompressor, LeptonDecompressor,
+use lepton::{Compressor, Decompressor, ErrMsg, LeptonPermissiveCompressor, LeptonDecompressor,
              LeptonFlushResult, LeptonOperationResult};
 
 #[derive(Copy, Clone, Debug)]
@@ -90,7 +90,7 @@ fn compress<Reader: Read, Writer: Write>(
     w: &mut Writer,
     buffer_size: &mut usize,
 ) -> Result<()> {
-    let mut compressor = LeptonCompressor::new();
+    let mut compressor = LeptonPermissiveCompressor::new();
     let ret = compress_internal(r, w, buffer_size, &mut compressor);
     // compressor.free();
     ret
@@ -110,6 +110,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
     let size_checker = |size: usize| Ok(size);
     let mut done = false;
     while !done {
+        //FIXME: Maker sure input is exhausted before exiting
         match read_to_buffer(r, &mut input_buffer[..], &mut input_end, &size_checker) {
             Ok(size) => {
                 if size == 0 {

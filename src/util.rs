@@ -1,5 +1,10 @@
 use core::cmp::min;
 
+use alloc::Allocator;
+
+use interface::LeptonFlushResult;
+use resizable_buffer::ResizableByteBuffer;
+
 pub fn mem_copy<T: Clone>(
     dest: &mut [T],
     dest_offset: &mut usize,
@@ -31,4 +36,17 @@ pub fn le_u8_array_to_u32(slice: &[u8], index: &usize) -> u32 {
     let index = *index;
     ((slice[index + 3] as u32) << 24) + ((slice[index + 2] as u32) << 16)
          + ((slice[index + 1] as u32) << 8) + (slice[index] as u32)
+}
+
+pub fn flush_resizable_buffer<T: Clone + Default, AllocT: Allocator<T>>(
+    dest: &mut [T],
+    dest_offset: &mut usize,
+    src: &ResizableByteBuffer<T, AllocT>,
+    src_offset: &mut usize,
+) -> LeptonFlushResult {
+    mem_copy(dest, dest_offset, src.slice(), src_offset);
+    if *src_offset == src.len() {
+        return LeptonFlushResult::Success;
+    }
+    LeptonFlushResult::NeedsMoreOutput
 }

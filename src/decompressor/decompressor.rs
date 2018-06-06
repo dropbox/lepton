@@ -1,6 +1,8 @@
-use super::primary_header::{PrimaryHeader, PrimaryHeaderParser};
-use super::secondary_header::{SecondaryHeader, SecondaryHeaderParser};
+use super::primary_header_parser::PrimaryHeaderParser;
+use super::secondary_header_parser::SecondaryHeaderParser;
 use interface::{Decompressor, ErrMsg, LeptonOperationResult};
+use primary_header::PrimaryHeader;
+use secondary_header::SecondaryHeader;
 
 pub struct LeptonDecompressor {
     decompressor: InternalDecompressor,
@@ -45,72 +47,54 @@ impl Decompressor for LeptonDecompressor {
         output: &mut [u8],
         output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        while *input_offset < input.len() && *output_offset < output.len() {
+        let old_output_offset = *output_offset;
+        loop {
+            let result = match self.decompressor {
+                InternalDecompressor::PrimaryHeader(ref mut parser) => {
+                    match parser.parse(input, input_offset) {
+                        LeptonOperationResult::Success => match parser.build_header() {
+                            Ok(header) => {
+                                self.primary_header = Some(header);
+                                LeptonOperationResult::Success
+                            }
+                            Err(e) => LeptonOperationResult::Failure(e),
+                        },
+                        other => other,
+                    }
+                }
+                InternalDecompressor::SecondaryHeader(ref mut parser) => {
+                    match parser.decode(input, input_offset, output, output_offset) {
+                        LeptonOperationResult::Success => {
+                            match parser.extract_header() {
+                                Ok(secondary_header) => {
+                                    self.secondary_header = Some(secondary_header);
+                                    // TODO: parse the simantics of secondary header
+                                    // May not need to keep the whole header
+                                    LeptonOperationResult::Success
+                                }
+                                Err(e) => LeptonOperationResult::Failure(e),
+                            }
+                        }
+                        other => other,
+                    }
+                }
+                // TODO: Connect JPEG decompressor
+                InternalDecompressor::JPEG => LeptonOperationResult::Success,
+            };
+            self.total_out += *output_offset - old_output_offset;
             if let Some(primary_header) = self.primary_header {
                 if self.total_out >= primary_header.raw_size {
                     *output_offset -= self.total_out - primary_header.raw_size;
                     return LeptonOperationResult::Success;
                 }
             }
-            self.total_out -= *output_offset;
-            // self.total_out += *output_offset; must be called exactly once
-            // before returning or comparing to raw_size
-            match self.decompressor {
-                InternalDecompressor::PrimaryHeader(ref mut parser) => {
-                    match parser.parse(input, input_offset) {
-                        LeptonOperationResult::Success => {
-                            self.primary_header = match parser.build_header() {
-                                Ok(header) => Some(header),
-                                Err(e) => return LeptonOperationResult::Failure(e),
-                            }
-                        }
-                        other => {
-                            self.total_out += *output_offset;
-                            return other;
-                        }
-                    }
-                }
-                InternalDecompressor::SecondaryHeader(ref mut parser) => {
-                    match parser.decode(input, input_offset, output, output_offset) {
-                        LeptonOperationResult::Success => {
-                            self.secondary_header = match parser.extract_header() {
-                                Ok(secondary_header) => Some(secondary_header),
-                                Err(e) => return LeptonOperationResult::Failure(e),
-                            };
-                            // TODO: parse the simantics of secondary header
-                            // May not need to keep the whole header
-                        }
-                        other => {
-                            self.total_out += *output_offset;
-                            return other;
-                        }
-                    }
-                }
-                // TODO: Connect JPEG decompressor
-                InternalDecompressor::JPEG => {
-                    self.total_out += *output_offset;
-                    return LeptonOperationResult::Success;
-                }
+            match result {
+                LeptonOperationResult::Success => match self.next_internal_decompressor() {
+                    Ok(()) => (),
+                    Err(e) => return LeptonOperationResult::Failure(e),
+                },
+                other => return other,
             }
-            match self.next_internal_decompressor() {
-                Ok(()) => (),
-                Err(e) => {
-                    self.total_out += *output_offset;
-                    return LeptonOperationResult::Failure(e);
-                }
-            };
-            self.total_out += *output_offset;
-        }
-        if let Some(primary_header) = self.primary_header {
-            if self.total_out >= primary_header.raw_size {
-                *output_offset -= self.total_out - primary_header.raw_size;
-                return LeptonOperationResult::Success;
-            }
-        }
-        if *output_offset < output.len() && *input_offset == input.len() {
-            LeptonOperationResult::NeedsMoreInput
-        } else {
-            LeptonOperationResult::NeedsMoreOutput
         }
     }
 }

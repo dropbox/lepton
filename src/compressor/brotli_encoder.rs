@@ -1,4 +1,3 @@
-use super::flush_resizable_buffer;
 use alloc::HeapAlloc;
 use brotli;
 use brotli::enc::cluster::HistogramPair;
@@ -13,6 +12,7 @@ use brotli::enc::vectorization::Mem256f;
 use brotli::enc::ZopfliNode;
 use interface::{Compressor, ErrMsg, LeptonFlushResult, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;
+use util::flush_resizable_buffer;
 
 pub struct BrotliEncoder {
     encoder: BrotliEncoderStateStruct<
@@ -40,15 +40,15 @@ impl BrotliEncoder {
     pub fn new() -> Self {
         BrotliEncoder {
             encoder: BrotliEncoderCreateInstance(
-                HeapAlloc::<u8>::new(0),
-                HeapAlloc::<u16>::new(0),
-                HeapAlloc::<i32>::new(0),
-                HeapAlloc::<u32>::new(0),
-                HeapAlloc::<Command>::new(Command::default()),
+                HeapAlloc::new(0),
+                HeapAlloc::new(0),
+                HeapAlloc::new(0),
+                HeapAlloc::new(0),
+                HeapAlloc::new(Command::default()),
             ),
             data: ResizableByteBuffer::<u8, HeapAlloc<u8>>::new(),
             written_end: 0,
-            alloc_u64: HeapAlloc::<u64>::new(0),
+            alloc_u64: HeapAlloc::new(0),
             alloc_f64: HeapAlloc::new(floatX::default()),
             alloc_float_vec: HeapAlloc::new(Mem256f::default()),
             alloc_hist_cmd: HeapAlloc::new(HistogramCommand::default()),
@@ -61,8 +61,36 @@ impl BrotliEncoder {
         }
     }
 
-    pub fn size(&self) -> usize {
-        self.data.len()
+    pub fn finish(&mut self) -> Result<usize, ErrMsg> {
+        loop {
+            match self.encode_internal(
+                BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
+                &[],
+                &mut 0usize,
+                true,
+            ) {
+                LeptonOperationResult::Failure(msg) => return Err(msg),
+                LeptonOperationResult::Success => return Ok(self.data.len()),
+                LeptonOperationResult::NeedsMoreOutput => (),
+                LeptonOperationResult::NeedsMoreInput => return Err(ErrMsg::BrotliFlushNeedsInput),
+            }
+        }
+    }
+
+    pub fn encode_all(
+        &mut self,
+        input: &[u8],
+        input_offset: &mut usize,
+        output: &mut [u8],
+        output_offset: &mut usize,
+    ) -> LeptonOperationResult {
+        while *input_offset < input.len() {
+            match self.encode(input, input_offset, output, output_offset) {
+                LeptonOperationResult::Failure(msg) => return LeptonOperationResult::Failure(msg),
+                _ => (),
+            }
+        }
+        LeptonOperationResult::NeedsMoreInput
     }
 
     fn encode_internal(
@@ -153,21 +181,6 @@ impl Compressor for BrotliEncoder {
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
-        loop {
-            match self.encode_internal(
-                BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
-                &[],
-                &mut 0usize,
-                true,
-            ) {
-                LeptonOperationResult::Failure(m) => return LeptonFlushResult::Failure(m),
-                LeptonOperationResult::Success => break,
-                LeptonOperationResult::NeedsMoreOutput => (),
-                LeptonOperationResult::NeedsMoreInput => {
-                    return LeptonFlushResult::Failure(ErrMsg::BrotliFlushNeedsInput)
-                }
-            }
-        }
         flush_resizable_buffer(output, output_offset, &mut self.data, &mut self.written_end)
     }
 }

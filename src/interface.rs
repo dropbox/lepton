@@ -1,9 +1,5 @@
 use brotli::BrotliResult;
 
-pub const LEPTON_VERSION: u8 = 3;
-pub const HEADER_SIZE: usize = 28;
-pub const MAGIC_NUMBER: [u8; 2] = [0xcf, 0x84];
-
 #[derive(Copy, Clone, Debug)]
 pub enum ErrMsg {
     BrotliCompressStreamFail,

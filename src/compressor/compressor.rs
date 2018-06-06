@@ -1,7 +1,6 @@
 use super::brotli_encoder::BrotliEncoder;
-use interface::{Compressor, LeptonFlushResult, LeptonOperationResult, HEADER_SIZE, LEPTON_VERSION,
-                MAGIC_NUMBER};
-use util::u32_to_le_u8_array;
+use interface::{Compressor, LeptonFlushResult, LeptonOperationResult};
+use primary_header::{serialize_header, HEADER_SIZE};
 
 enum EncoderType {
     Brotli,
@@ -50,17 +49,16 @@ impl Compressor for LeptonCompressor {
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
-        if let None = self.header {
-            self.header = Some(make_header(
-                &LEPTON_VERSION,
-                &0,
-                &1,
-                &[0u8; 12],
-                &self.total_in,
-                &self.brotli_encoder.size(),
-            ));
-            self.active_encoder = EncoderType::Brotli;
-        }
+        // if let None = self.header {
+        //     self.header = Some(serialize_header(
+        //         &0,
+        //         &1,
+        //         &[0u8; 12],
+        //         &self.total_in,
+        //         &self.brotli_encoder.finish(),
+        //     ));
+        //     self.active_encoder = EncoderType::Brotli;
+        // }
         // if self.header_written < HEADER_SIZE {
         //     // TODO: write out header
         //     LeptonFlushResult::NeedsMoreOutput
@@ -87,23 +85,4 @@ impl Compressor for LeptonCompressor {
             EncoderType::Lepton => LeptonFlushResult::Success,
         }
     }
-}
-
-fn make_header(
-    version: &u8,
-    skip_serial_hdr: &u8,
-    n_threads: &u32,
-    git_hash: &[u8; 12],
-    raw_size: &usize,
-    secondary_hdr_size: &usize,
-) -> [u8; HEADER_SIZE] {
-    let mut header = [0u8; HEADER_SIZE];
-    header[..MAGIC_NUMBER.len()].clone_from_slice(&MAGIC_NUMBER);
-    header[2] = *version;
-    header[3] = *skip_serial_hdr;
-    header[4..8].clone_from_slice(&u32_to_le_u8_array(n_threads));
-    header[8..20].clone_from_slice(git_hash);
-    header[20..24].clone_from_slice(&u32_to_le_u8_array(&(*raw_size as u32)));
-    header[24..].clone_from_slice(&u32_to_le_u8_array(&(*secondary_hdr_size as u32)));
-    header
 }
