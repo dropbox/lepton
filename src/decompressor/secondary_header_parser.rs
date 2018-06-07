@@ -1,7 +1,6 @@
-use core::mem;
-
 use alloc::HeapAlloc;
 use brotli::{BrotliDecompressStream, BrotliResult, BrotliState, HuffmanCode};
+use core::mem;
 
 use interface::{ErrMsg, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;

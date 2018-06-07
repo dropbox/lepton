@@ -8,6 +8,7 @@ mod interface;
 mod primary_header;
 mod resizable_buffer;
 mod secondary_header;
+mod thread_handoff;
 mod util;
 
 pub use compressor::{LeptonCompressor, LeptonPermissiveCompressor};

@@ -4,24 +4,28 @@ use primary_header::{serialize_header, HEADER_SIZE};
 use secondary_header::{default_serialized_header, MARKER_SIZE, SECTION_HDR_SIZE};
 use util::{mem_copy, u32_to_le_u8_array};
 
+static BASIC_CMP: [u8; 6] = [b'C', b'M', b'P', 0xff, 0xfe, 0xff];
+
 pub struct LeptonPermissiveCompressor {
     encoder: BrotliEncoder,
     header: Option<[u8; HEADER_SIZE]>,
     header_written: usize,
     data: Vec<u8>,
-    first_call: bool,
+    first_encode: bool,
+    cmp_written: usize,
 }
 
 impl LeptonPermissiveCompressor {
     pub fn new() -> Self {
         let mut data = Vec::with_capacity(1024); // FIXME: Better initial capacity?
-        data.extend(&[b'P', b'G', b'E', 0, 0, 0, 0]);
+        data.extend([b'P', b'G', b'E', 0, 0, 0, 0].iter());
         LeptonPermissiveCompressor {
             encoder: BrotliEncoder::new(),
             header: None,
             header_written: 0,
             data,
-            first_call: true,
+            first_encode: true,
+            cmp_written: 0,
         }
     }
 }
@@ -34,7 +38,7 @@ impl Compressor for LeptonPermissiveCompressor {
         output: &mut [u8],
         output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        if self.first_call {
+        if self.first_encode {
             let mut basic_header_offset = 0usize;
             if let LeptonOperationResult::Failure(msg) = self.encoder.encode_all(
                 &default_serialized_header(),
@@ -44,9 +48,9 @@ impl Compressor for LeptonPermissiveCompressor {
             ) {
                 return LeptonOperationResult::Failure(msg);
             }
-            self.first_call = false;
+            self.first_encode = false;
         }
-        self.data.extend(&input[*input_offset..]);
+        self.data.extend(input[*input_offset..].iter());
         *input_offset = input.len();
         LeptonOperationResult::NeedsMoreInput
     }
@@ -84,8 +88,16 @@ impl Compressor for LeptonPermissiveCompressor {
                     } else {
                         match self.encoder.flush(output, output_offset) {
                             LeptonFlushResult::Success => {
-                                // FIXME: Write CMP
-                                return LeptonFlushResult::Success;
+                                if self.cmp_written < BASIC_CMP.len() {
+                                    mem_copy(output, output_offset, &BASIC_CMP, &mut self.cmp_written);
+                                    if self.cmp_written == BASIC_CMP.len() {
+                                        return LeptonFlushResult::Success
+                                    } else {
+                                        return LeptonFlushResult::NeedsMoreOutput;
+                                    }
+                                } else {
+                                    return LeptonFlushResult::Success;
+                                }
                             }
                             other => return other,
                         }

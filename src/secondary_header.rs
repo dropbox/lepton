@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use interface::ErrMsg;
+use thread_handoff::{serialize, ThreadHandoff};
 use util::{le_u8_array_to_u32, u32_to_le_u8_array};
 
 pub const MARKER_SIZE: usize = 3;
@@ -65,7 +66,8 @@ impl Marker {
             Marker::HDR => b"HDR",
             Marker::P0D => b"P0D",
             Marker::PAD => b"PAD",
-            Marker::HHX => b"HHX", // During compression this should be dealt with care
+            // During compression only the first 2 bytes of HHX should be used
+            Marker::HHX => b"HHX",
             Marker::CRS => b"CRS",
             Marker::FRS => b"FRS",
             Marker::PGE => b"PGE",
@@ -87,12 +89,15 @@ pub struct SecondaryHeader {
 
 pub fn default_serialized_header() -> Vec<u8> {
     let mut result = Vec::with_capacity(256); // Returned len is 167
-    result.extend(b"HDR");
-    result.extend(&u32_to_le_u8_array(BASIC_HEADER.len() as u32));
-    result.extend_from_slice(&BASIC_HEADER);
-    result.extend(b"P0D");
-    result.extend(&[1]);
-    // FIXME: Add HHX
+    result.extend(Marker::HDR.value());
+    result.extend(u32_to_le_u8_array(BASIC_HEADER.len() as u32).iter());
+    result.extend(BASIC_HEADER.iter());
+    result.extend(Marker::P0D.value());
+    result.push(1);
+    result.extend(Marker::HHX.value()[..2].iter());
+    result.extend(serialize(vec![ThreadHandoff::default(); 1]));
+    result.extend(Marker::GRB.value());
+    result.extend([0, 0, 0, 0].iter());
     result
 }
 

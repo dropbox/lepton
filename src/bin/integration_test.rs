@@ -1,5 +1,4 @@
 #![cfg(test)]
-extern crate core;
 use core::cmp;
 
 use super::{Read, Result, Write};
