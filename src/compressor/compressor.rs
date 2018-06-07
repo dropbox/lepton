@@ -35,7 +35,7 @@ impl Compressor for LeptonCompressor {
         output: &mut [u8],
         output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        self.total_in -= *input_offset;
+        let old_input_offset = *input_offset;
         let result = match self.active_encoder {
             // TODO: check for start of JPEG data
             EncoderType::Brotli => {
@@ -44,7 +44,7 @@ impl Compressor for LeptonCompressor {
             }
             EncoderType::Lepton => LeptonOperationResult::Success,
         };
-        self.total_in += *input_offset;
+        self.total_in += *input_offset - old_input_offset;
         result
     }
 

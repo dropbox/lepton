@@ -15,7 +15,7 @@ pub struct LeptonPermissiveCompressor {
 impl LeptonPermissiveCompressor {
     pub fn new() -> Self {
         let mut data = Vec::with_capacity(1024); // FIXME: Better initial capacity?
-        data.extend_from_slice(&[b'P', b'G', b'E', 0, 0, 0, 0]);
+        data.extend(&[b'P', b'G', b'E', 0, 0, 0, 0]);
         LeptonPermissiveCompressor {
             encoder: BrotliEncoder::new(),
             header: None,
@@ -46,44 +46,50 @@ impl Compressor for LeptonPermissiveCompressor {
             }
             self.first_call = false;
         }
-        self.data.extend_from_slice(&input[*input_offset..]);
+        self.data.extend(&input[*input_offset..]);
         *input_offset = input.len();
         LeptonOperationResult::NeedsMoreInput
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
-        match self.header {
-            None => {
-                let pge_len = self.data.len() - SECTION_HDR_SIZE;
-                let pge_len_array = u32_to_le_u8_array(&(pge_len as u32));
-                self.data[MARKER_SIZE..SECTION_HDR_SIZE].clone_from_slice(&pge_len_array);
-                let mut input_offset = 0;
-                if let LeptonOperationResult::Failure(msg) = self.encoder.encode_all(
-                    self.data.as_slice(),
-                    &mut input_offset,
-                    output,
-                    output_offset,
-                ) {
-                    return LeptonFlushResult::Failure(msg);
-                }
-                match self.encoder.finish() {
-                    Ok(size) => {
-                        self.header =
-                            Some(serialize_header(&b'Y', &1u32, &[0u8; 12], &pge_len, &size));
-                        LeptonFlushResult::NeedsMoreOutput
+        loop {
+            match self.header {
+                None => {
+                    let pge_len = self.data.len() - SECTION_HDR_SIZE;
+                    let pge_len_array = u32_to_le_u8_array(pge_len as u32);
+                    self.data[MARKER_SIZE..SECTION_HDR_SIZE].clone_from_slice(&pge_len_array);
+                    let mut input_offset = 0usize;
+                    if let LeptonOperationResult::Failure(msg) = self.encoder.encode_all(
+                        self.data.as_slice(),
+                        &mut input_offset,
+                        output,
+                        output_offset,
+                    ) {
+                        return LeptonFlushResult::Failure(msg);
                     }
-                    Err(e) => LeptonFlushResult::Failure(e),
+                    match self.encoder.finish_encode() {
+                        Ok(size) => {
+                            self.header =
+                                Some(serialize_header(b'Y', 1u32, &[0u8; 12], pge_len, size));
+                        }
+                        Err(e) => return LeptonFlushResult::Failure(e),
+                    }
                 }
-            }
-            Some(header) => {
-                if self.header_written < HEADER_SIZE {
-                    mem_copy(output, output_offset, &header, &mut self.header_written);
-                }
-                if self.header_written == HEADER_SIZE {
-                    self.encoder.flush(output, output_offset)
-                // TODO: Write CMP after encoder is done flushing
-                } else {
-                    LeptonFlushResult::NeedsMoreOutput
+                Some(header) => {
+                    if self.header_written < HEADER_SIZE {
+                        mem_copy(output, output_offset, &header, &mut self.header_written);
+                        if *output_offset == output.len() {
+                            return LeptonFlushResult::NeedsMoreOutput;
+                        }
+                    } else {
+                        match self.encoder.flush(output, output_offset) {
+                            LeptonFlushResult::Success => {
+                                // FIXME: Write CMP
+                                return LeptonFlushResult::Success;
+                            }
+                            other => return other,
+                        }
+                    }
                 }
             }
         }

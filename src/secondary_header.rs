@@ -60,12 +60,12 @@ impl Marker {
         }
     }
 
-    pub fn value(&self) -> &[u8] {
+    pub fn value(&self) -> &[u8; 3] {
         match *self {
             Marker::HDR => b"HDR",
             Marker::P0D => b"P0D",
             Marker::PAD => b"PAD",
-            Marker::HHX => b"HH",
+            Marker::HHX => b"HHX", // During compression this should be dealt with care
             Marker::CRS => b"CRS",
             Marker::FRS => b"FRS",
             Marker::PGE => b"PGE",
@@ -86,12 +86,13 @@ pub struct SecondaryHeader {
 }
 
 pub fn default_serialized_header() -> Vec<u8> {
-    let mut result = Vec::with_capacity(11);
-    result.extend_from_slice(b"HDR");
-    result.extend_from_slice(&u32_to_le_u8_array(&(BASIC_HEADER.len() as u32)));
+    let mut result = Vec::with_capacity(256); // Returned len is 167
+    result.extend(b"HDR");
+    result.extend(&u32_to_le_u8_array(BASIC_HEADER.len() as u32));
     result.extend_from_slice(&BASIC_HEADER);
-    result.extend_from_slice(b"P0D");
-    result.extend_from_slice(&[1]);
+    result.extend(b"P0D");
+    result.extend(&[1]);
+    // FIXME: Add HHX
     result
 }
 
@@ -101,9 +102,9 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
         pge: Vec::new(),
         optional: HashMap::new(),
     };
-    let mut ptr: usize = 0;
+    let mut ptr = 0usize;
     match read_sized_section(data, &mut ptr) {
-        Ok((Marker::HDR, body)) => header.hdr.extend_from_slice(body),
+        Ok((Marker::HDR, body)) => header.hdr.extend(body),
         Ok(_) => return Err(ErrMsg::HDRMissing),
         Err(e) => return Err(e),
     }
@@ -113,7 +114,7 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
     };
     while ptr < data.len() {
         match read_sized_section(data, &mut ptr) {
-            Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => header.pge.extend_from_slice(body),
+            Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => header.pge.extend(body),
             Ok((marker, body)) => {
                 header.optional.insert(marker, body.to_vec());
             }
@@ -125,7 +126,7 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
 
 fn read_pad<'a>(data: &'a [u8], offset: &mut usize) -> Result<(Marker, &'a [u8]), ErrMsg> {
     if data.len() < *offset + PAD_SECTION_SIZE {
-        return Err(ErrMsg::IncompleteSecondaryHeaderSection(0));
+        return Err(incomplete_secondary_header_section(Marker::P0D, 0));
     }
     let marker = match Marker::from(&data[*offset..]) {
         Ok(Marker::P0D) => Marker::P0D,
@@ -152,17 +153,21 @@ fn read_sized_section<'a>(
         _ => SECTION_HDR_SIZE,
     };
     if data.len() < *offset + section_hdr_size {
-        return Err(ErrMsg::IncompleteSecondaryHeaderSection(1));
+        return Err(incomplete_secondary_header_section(marker, 1));
     }
     let section_len = match marker {
         Marker::HHX => (data[*offset + 2] as usize) * 16, // BYTES_PER_HANDOFF = 16
-        _ => le_u8_array_to_u32(data, &(*offset + MARKER_SIZE)) as usize,
+        _ => le_u8_array_to_u32(data, *offset + MARKER_SIZE) as usize,
     };
     let section_end = *offset + section_hdr_size + section_len;
     if data.len() < section_end {
-        return Err(ErrMsg::IncompleteSecondaryHeaderSection(2));
+        return Err(incomplete_secondary_header_section(marker, 2));
     }
     let body = &data[(*offset + section_hdr_size)..section_end];
     *offset = section_end;
     Ok((marker, &body))
+}
+
+fn incomplete_secondary_header_section(marker: Marker, code: u8) -> ErrMsg {
+    ErrMsg::IncompleteSecondaryHeaderSection(code, *marker.value())
 }

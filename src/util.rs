@@ -22,18 +22,16 @@ pub fn mem_copy<T: Clone>(
     *src_offset += copy_len;
 }
 
-pub fn u32_to_le_u8_array(num: &u32) -> [u8; 4] {
-    let tmp = *num;
+pub fn u32_to_le_u8_array(num: u32) -> [u8; 4] {
     [
-        tmp as u8,
-        (tmp >> 8) as u8,
-        (tmp >> 16) as u8,
-        (tmp >> 24) as u8,
+        num as u8,
+        (num >> 8) as u8,
+        (num >> 16) as u8,
+        (num >> 24) as u8,
     ]
 }
 
-pub fn le_u8_array_to_u32(slice: &[u8], index: &usize) -> u32 {
-    let index = *index;
+pub fn le_u8_array_to_u32(slice: &[u8], index: usize) -> u32 {
     ((slice[index + 3] as u32) << 24) + ((slice[index + 2] as u32) << 16)
          + ((slice[index + 1] as u32) << 8) + (slice[index] as u32)
 }

@@ -9,7 +9,7 @@ pub enum ErrMsg {
     HDRMissing,
     IncompletePrimaryHeader,
     IncompleteSecondaryHeaderMarker,
-    IncompleteSecondaryHeaderSection(u8),
+    IncompleteSecondaryHeaderSection(u8, [u8; 3]),
     InternalDecompressorExhausted,
     InvalidSecondaryHeaderMarker(u8, u8, u8),
     PADMIssing,

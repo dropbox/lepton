@@ -8,8 +8,10 @@ use std::fs::File;
 use std::io::{self, Read, Result, Write};
 use std::path::Path;
 
-use lepton::{Compressor, Decompressor, ErrMsg, LeptonPermissiveCompressor, LeptonDecompressor,
-             LeptonFlushResult, LeptonOperationResult};
+use lepton::{Compressor, Decompressor, ErrMsg, LeptonDecompressor, LeptonFlushResult,
+             LeptonOperationResult, LeptonPermissiveCompressor};
+
+mod integration_test;
 
 #[derive(Copy, Clone, Debug)]
 pub struct LeptonErrMsg(pub ErrMsg);
@@ -54,11 +56,11 @@ fn read_to_buffer<Reader: Read>(
 fn write_from_buffer<Writer: Write>(
     w: &mut Writer,
     buffer: &mut [u8],
-    content_end: &usize,
+    content_end: usize,
 ) -> Result<()> {
-    let mut output_written = 0;
-    while output_written < *content_end {
-        match w.write(&buffer[output_written..*content_end]) {
+    let mut output_written = 0usize;
+    while output_written < content_end {
+        match w.write(&buffer[output_written..content_end]) {
             Ok(size) => {
                 output_written += size;
             }
@@ -88,7 +90,7 @@ fn renew_buffer(buffer: &mut [u8], content_used: &mut usize, content_end: &mut u
 fn compress<Reader: Read, Writer: Write>(
     r: &mut Reader,
     w: &mut Writer,
-    buffer_size: &mut usize,
+    buffer_size: usize,
 ) -> Result<()> {
     let mut compressor = LeptonPermissiveCompressor::new();
     let ret = compress_internal(r, w, buffer_size, &mut compressor);
@@ -99,18 +101,18 @@ fn compress<Reader: Read, Writer: Write>(
 fn compress_internal<Reader: Read, Writer: Write>(
     r: &mut Reader,
     w: &mut Writer,
-    buffer_size: &mut usize,
+    buffer_size: usize,
     compressor: &mut Compressor,
 ) -> Result<()> {
-    let mut input_buffer = vec![0u8; *buffer_size];
+    let mut input_buffer = vec![0u8; buffer_size];
     let mut input_offset = 0usize;
     let mut input_end = 0usize;
-    let mut output_buffer = vec![0u8; *buffer_size];
+    let mut output_buffer = vec![0u8; buffer_size];
     let mut output_offset = 0usize;
     let size_checker = |size: usize| Ok(size);
     let mut done = false;
     while !done {
-        //FIXME: Maker sure input is exhausted before exiting
+        // FIXME: Maker sure input is exhausted before exiting
         match read_to_buffer(r, &mut input_buffer[..], &mut input_end, &size_checker) {
             Ok(size) => {
                 if size == 0 {
@@ -130,9 +132,10 @@ fn compress_internal<Reader: Read, Writer: Write>(
             }
             _ => (),
         }
+        // if done && 
         renew_buffer(&mut input_buffer, &mut input_offset, &mut input_end);
         if output_offset > 0 {
-            match write_from_buffer(w, &mut output_buffer[..], &mut output_offset) {
+            match write_from_buffer(w, &mut output_buffer[..], output_offset) {
                 Ok(()) => output_offset = 0,
                 Err(e) => return Err(e),
             }
@@ -147,7 +150,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
             }
             LeptonFlushResult::NeedsMoreOutput => (),
         }
-        match write_from_buffer(w, &mut output_buffer[..], &output_offset) {
+        match write_from_buffer(w, &mut output_buffer[..], output_offset) {
             Ok(()) => output_offset = 0,
             Err(e) => return Err(e),
         }
@@ -158,7 +161,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
 fn decompress<Reader: Read, Writer: Write>(
     r: &mut Reader,
     w: &mut Writer,
-    buffer_size: &mut usize,
+    buffer_size: usize,
 ) -> Result<()> {
     let mut decompressor = LeptonDecompressor::new();
     let ret = decompress_internal(r, w, buffer_size, &mut decompressor);
@@ -169,13 +172,13 @@ fn decompress<Reader: Read, Writer: Write>(
 fn decompress_internal<Reader: Read, Writer: Write>(
     r: &mut Reader,
     w: &mut Writer,
-    buffer_size: &mut usize,
+    buffer_size: usize,
     decompressor: &mut Decompressor,
 ) -> Result<()> {
-    let mut input_buffer = vec![0u8; *buffer_size];
+    let mut input_buffer = vec![0u8; buffer_size];
     let mut input_offset = 0usize;
     let mut input_end = 0usize;
-    let mut output_buffer = vec![0u8; *buffer_size];
+    let mut output_buffer = vec![0u8; buffer_size];
     let mut output_offset = 0usize;
     let size_checker = |size: usize| {
         if size == 0 {
@@ -203,7 +206,7 @@ fn decompress_internal<Reader: Read, Writer: Write>(
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, LeptonErrMsg(m)));
             }
             LeptonOperationResult::NeedsMoreOutput => {
-                match write_from_buffer(w, &mut output_buffer[..], &output_offset) {
+                match write_from_buffer(w, &mut output_buffer[..], output_offset) {
                     Ok(()) => output_offset = 0,
                     Err(e) => return Err(e),
                 }
@@ -217,7 +220,7 @@ fn decompress_internal<Reader: Read, Writer: Write>(
             }
         }
     }
-    write_from_buffer(w, &mut output_buffer[..], &output_offset)
+    write_from_buffer(w, &mut output_buffer[..], output_offset)
 }
 
 fn main() {
@@ -258,12 +261,12 @@ fn main() {
                 Ok(file) => file,
             };
             if do_compress {
-                match compress(&mut input, &mut output, &mut buffer_size) {
+                match compress(&mut input, &mut output, buffer_size) {
                     Ok(_) => return,
                     Err(e) => panic!("Error {:?}", e),
                 }
             } else {
-                match decompress(&mut input, &mut output, &mut buffer_size) {
+                match decompress(&mut input, &mut output, buffer_size) {
                     Ok(_) => return,
                     Err(e) => panic!("Error {:?}", e),
                 }

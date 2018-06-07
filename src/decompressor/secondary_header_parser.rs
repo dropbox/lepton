@@ -1,7 +1,7 @@
 use core::mem;
 
 use alloc::HeapAlloc;
-use brotli::{BrotliDecompressStream, BrotliState, HuffmanCode};
+use brotli::{BrotliDecompressStream, BrotliResult, BrotliState, HuffmanCode};
 
 use interface::{ErrMsg, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;
@@ -75,29 +75,32 @@ impl SecondaryHeaderParser {
     }
 
     fn parse(&mut self, input: &[u8], input_offset: &mut usize) -> LeptonOperationResult {
-        let mut available_out;
-        let mut output_offset;
-        let result;
-        {
-            let output = self.data
-                .checkout_next_buffer(&mut self.decoder.alloc_u8, Some(256));
-            output_offset = 0;
-            let mut available_in = input.len() - *input_offset;
-            available_out = output.len();
-            result = LeptonOperationResult::from(BrotliDecompressStream(
-                &mut available_in,
-                input_offset,
-                input,
-                &mut available_out,
-                &mut output_offset,
-                output,
-                &mut self.total_out,
-                &mut self.decoder,
-            ));
+        let mut available_in = input.len() - *input_offset;
+        let mut output_offset: usize;
+        let mut result: BrotliResult;
+        loop {
+            {
+                let output = self.data
+                    .checkout_next_buffer(&mut self.decoder.alloc_u8, Some(256));
+                let mut available_out = output.len();
+                output_offset = 0;
+                result = BrotliDecompressStream(
+                    &mut available_in,
+                    input_offset,
+                    input,
+                    &mut available_out,
+                    &mut output_offset,
+                    output,
+                    &mut self.total_out,
+                    &mut self.decoder,
+                );
+            }
+            self.data.commit_next_buffer(output_offset);
+            match result {
+                BrotliResult::NeedsMoreOutput => (),
+                other => return LeptonOperationResult::from(other),
+            }
         }
-        // TODO: May need to add additional checks here
-        self.data.commit_next_buffer(output_offset);
-        result
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonOperationResult {

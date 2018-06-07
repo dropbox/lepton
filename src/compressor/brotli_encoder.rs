@@ -22,18 +22,9 @@ pub struct BrotliEncoder {
         HeapAlloc<i32>,
         HeapAlloc<Command>,
     >,
-    data: ResizableByteBuffer<u8, HeapAlloc<u8>>,
-    written_end: usize,
-    alloc_u64: HeapAlloc<u64>,
-    alloc_f64: HeapAlloc<floatX>,
-    alloc_float_vec: HeapAlloc<Mem256f>,
-    alloc_hist_cmd: HeapAlloc<HistogramCommand>,
-    alloc_hist_dist: HeapAlloc<HistogramDistance>,
-    alloc_hist_literal: HeapAlloc<HistogramLiteral>,
-    alloc_hist_pair: HeapAlloc<HistogramPair>,
-    alloc_context_type: HeapAlloc<ContextType>,
-    alloc_huffman_tree: HeapAlloc<HuffmanTree>,
-    alloc_zopfli_node: HeapAlloc<ZopfliNode>,
+    encoded_data: ResizableByteBuffer<u8, HeapAlloc<u8>>,
+    encoded_data_written: usize,
+    done: bool,
 }
 
 impl BrotliEncoder {
@@ -46,22 +37,16 @@ impl BrotliEncoder {
                 HeapAlloc::new(0),
                 HeapAlloc::new(Command::default()),
             ),
-            data: ResizableByteBuffer::<u8, HeapAlloc<u8>>::new(),
-            written_end: 0,
-            alloc_u64: HeapAlloc::new(0),
-            alloc_f64: HeapAlloc::new(floatX::default()),
-            alloc_float_vec: HeapAlloc::new(Mem256f::default()),
-            alloc_hist_cmd: HeapAlloc::new(HistogramCommand::default()),
-            alloc_hist_dist: HeapAlloc::new(HistogramDistance::default()),
-            alloc_hist_literal: HeapAlloc::new(HistogramLiteral::default()),
-            alloc_hist_pair: HeapAlloc::new(HistogramPair::default()),
-            alloc_context_type: HeapAlloc::new(ContextType::default()),
-            alloc_huffman_tree: HeapAlloc::new(HuffmanTree::default()),
-            alloc_zopfli_node: HeapAlloc::new(ZopfliNode::default()),
+            encoded_data: ResizableByteBuffer::<u8, HeapAlloc<u8>>::new(),
+            encoded_data_written: 0,
+            done: false,
         }
     }
 
-    pub fn finish(&mut self) -> Result<usize, ErrMsg> {
+    pub fn finish_encode(&mut self) -> Result<usize, ErrMsg> {
+        if self.done {
+            return Ok(self.encoded_data.len());
+        }
         loop {
             match self.encode_internal(
                 BrotliEncoderOperation::BROTLI_OPERATION_FINISH,
@@ -70,7 +55,10 @@ impl BrotliEncoder {
                 true,
             ) {
                 LeptonOperationResult::Failure(msg) => return Err(msg),
-                LeptonOperationResult::Success => return Ok(self.data.len()),
+                LeptonOperationResult::Success => {
+                    self.done = true;
+                    return Ok(self.encoded_data.len());
+                }
                 LeptonOperationResult::NeedsMoreOutput => (),
                 LeptonOperationResult::NeedsMoreInput => return Err(ErrMsg::BrotliFlushNeedsInput),
             }
@@ -108,23 +96,23 @@ impl BrotliEncoder {
         let mut available_out;
         let mut brotli_out_offset = 0usize;
         {
-            let brotli_buffer = self.data
+            let brotli_buffer = self.encoded_data
                 .checkout_next_buffer(&mut self.encoder.m8, Some(256));
             available_out = brotli_buffer.len();
             let mut nop_callback =
                 |_data: &[brotli::interface::Command<brotli::InputReference>]| ();
             if BrotliEncoderCompressStream(
                 &mut self.encoder,
-                &mut self.alloc_u64,
-                &mut self.alloc_f64,
-                &mut self.alloc_float_vec,
-                &mut self.alloc_hist_literal,
-                &mut self.alloc_hist_cmd,
-                &mut self.alloc_hist_dist,
-                &mut self.alloc_hist_pair,
-                &mut self.alloc_context_type,
-                &mut self.alloc_huffman_tree,
-                &mut self.alloc_zopfli_node,
+                &mut HeapAlloc::new(0),
+                &mut HeapAlloc::new(floatX::default()),
+                &mut HeapAlloc::new(Mem256f::default()),
+                &mut HeapAlloc::new(HistogramLiteral::default()),
+                &mut HeapAlloc::new(HistogramCommand::default()),
+                &mut HeapAlloc::new(HistogramDistance::default()),
+                &mut HeapAlloc::new(HistogramPair::default()),
+                &mut HeapAlloc::new(ContextType::default()),
+                &mut HeapAlloc::new(HuffmanTree::default()),
+                &mut HeapAlloc::new(ZopfliNode::default()),
                 op,
                 &mut available_in,
                 input,
@@ -139,7 +127,7 @@ impl BrotliEncoder {
                 return LeptonOperationResult::Failure(ErrMsg::BrotliCompressStreamFail);
             }
         }
-        self.data.commit_next_buffer(brotli_out_offset);
+        self.encoded_data.commit_next_buffer(brotli_out_offset);
         if is_end {
             if BrotliEncoderIsFinished(&mut self.encoder) == 0 {
                 if available_out != 0 && available_in == 0 {
@@ -181,6 +169,18 @@ impl Compressor for BrotliEncoder {
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
-        flush_resizable_buffer(output, output_offset, &mut self.data, &mut self.written_end)
+        match self.finish_encode() {
+            Ok(_) => (),
+            Err(e) => return LeptonFlushResult::Failure(e),
+        }
+        if self.encoded_data_written == self.encoded_data.len() {
+            return LeptonFlushResult::Success;
+        }
+        flush_resizable_buffer(
+            output,
+            output_offset,
+            &mut self.encoded_data,
+            &mut self.encoded_data_written,
+        )
     }
 }
