@@ -26,8 +26,8 @@ ls -l "$E".lep || exit 1
 ls -l "$F".lep || exit 1
 export tmp=`mktemp`
 export tmp2=`mktemp`
-./lepton "$C".lep "$tmp"
-./lepton "$D".lep "$tmp2"
+./lepton -clobber "$C".lep "$tmp"
+./lepton -clobber "$D".lep "$tmp2"
 diff "$C" "$tmp" || exit 1
 diff "$D" "$tmp2" || exit 1
 for i in "$A" "$D" "$E"; do
