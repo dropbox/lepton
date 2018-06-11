@@ -26,6 +26,7 @@ extern bool g_use_seccomp;
     CB(THREADING_PARTIAL_MCU,12)                \
     CB(VERSION_UNSUPPORTED,13)                  \
     CB(ONLY_GARBAGE_NO_JPEG,14)                 \
+    CB(FILE_ALREADY_EXISTS,17)                  \
     CB(OS_ERROR,33)                             \
     CB(HEADER_TOO_LARGE,34)                     \
     CB(DIMENSIONS_TOO_LARGE,35)                 \

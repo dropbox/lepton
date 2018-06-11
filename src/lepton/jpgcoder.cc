@@ -1481,7 +1481,7 @@ int open_fdout(const char *ifilename,
         }
     }
     do {
-        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT|O_TRUNC
+        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT|O_EXCL|O_TRUNC
 #ifdef _WIN32
             | O_BINARY
 #endif
@@ -1498,6 +1498,7 @@ int open_fdout(const char *ifilename,
         while(write(2, errormessage, strlen(errormessage)) == -1 && errno == EINTR) {}
         while(write(2, ofilename.c_str(), ofilename.length()) == -1 && errno == EINTR) {}
         while(write(2, "\n", 1) == -1 && errno == EINTR) {}
+        if (errno == EEXIST) { custom_exit(ExitCode::FILE_ALREADY_EXISTS);  }
         custom_exit(ExitCode::FILE_NOT_FOUND);
     }
     return retval;
