@@ -528,6 +528,7 @@ int  verbosity  = 0;        // level of verbosity
 bool overwrite  = false;    // overwrite files yes / no
 int  err_tresh  = 1;        // error threshold ( proceed on warnings yes (2) / no (1) )
 bool disc_meta  = false;    // discard meta-info yes / no
+bool clobber    = false;    // clobber files yes / no ( same as "overwrite"? )
 
 bool developer  = false;    // allow developers functions yes/no
 ACTION action   = comp;        // what to do with JPEG/UJG files
@@ -1144,6 +1145,9 @@ int initialize_options( int argc, const char*const * argv )
         else if ( strcmp((*argv), "-d" ) == 0 ) {
             disc_meta = true;
         }
+        else if ( strcmp((*argv), "-clobber" ) == 0 ) {
+            clobber = true;
+        }
         else if ( strcmp((*argv), "-dev") == 0 ) {
             developer = true;
         } else if ( ( strcmp((*argv), "-ujg") == 0 ) ||
@@ -1481,7 +1485,7 @@ int open_fdout(const char *ifilename,
         }
     }
     do {
-        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT|O_EXCL|O_TRUNC
+        retval = open(ofilename.c_str(), O_WRONLY|O_CREAT| (clobber ? 0 : O_EXCL) |O_TRUNC
 #ifdef _WIN32
             | O_BINARY
 #endif
