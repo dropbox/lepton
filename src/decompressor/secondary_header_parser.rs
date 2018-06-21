@@ -110,14 +110,14 @@ impl SecondaryHeaderParser {
                         mem_copy(
                             output,
                             output_offset,
-                            &header.pge[..],
+                            header.pge.as_slice(),
                             &mut self.pge_written,
                         )
                     } else if self.hdr_written < header.hdr.len() {
                         mem_copy(
                             output,
                             output_offset,
-                            &header.hdr[..],
+                            header.hdr.as_slice(),
                             &mut self.hdr_written,
                         )
                     }

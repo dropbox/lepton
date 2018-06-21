@@ -2,14 +2,13 @@
 name = "lepton"
 version = "0.0.1"
 authors = ["Daniel Reiter Horn <danielrh@dropbox.com>", "The Lepton Authors"]
-description = "A brotli compressor and decompressor that with an interface avoiding the rust stdlib. This makes it suitable for embedded devices and kernels. It is designed with a pluggable allocator so that the standard lib's allocator may be employed. The default build also includes a stdlib allocator and stream interface. Disable this with --features=no-stdlib. All included code is safe."
+description = "All included code is safe."
 license = "BSD-3-Clause/MIT"
-documentation = "https://github.com/dropbox/rust-brotli/blob/master/README.md"
-homepage = "https://github.com/dropbox/rust-brotli"
-repository = "https://github.com/dropbox/rust-brotli"
-keywords = ["brotli", "decompression", "lz77", "huffman", "nostd"]
+documentation = "https://github.com/dropbox/lepton/blob/master/README.md"
+homepage = "https://github.com/dropbox/lepton"
+repository = "https://github.com/dropbox/lepton"
+keywords = ["lepton"]
 readme = "README.md"
-exclude = ["src/bin/testdata/*"]
 autobins = false
 
 [[bin]]
@@ -17,6 +16,7 @@ doc = false
 name = "lepton"
 
 [dependencies]
-"brotli" = "~2.2"
 "alloc-no-stdlib" = "~1.3"
+"brotli" = "~2.5"
 "brotli-decompressor" = "~1.3"
+"mux" = { path = "../mux" }

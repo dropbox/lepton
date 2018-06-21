@@ -1,6 +1,7 @@
 extern crate alloc_no_stdlib as alloc;
 extern crate brotli;
 extern crate core;
+extern crate mux;
 
 mod compressor;
 mod decompressor;

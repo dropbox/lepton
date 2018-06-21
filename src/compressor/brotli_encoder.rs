@@ -7,9 +7,13 @@ use brotli::enc::encode::{BrotliEncoderCompressStream, BrotliEncoderCreateInstan
                           BrotliEncoderStateStruct};
 use brotli::enc::entropy_encode::HuffmanTree;
 use brotli::enc::histogram::{ContextType, HistogramCommand, HistogramDistance, HistogramLiteral};
+use brotli::enc::pdf::PDF;
 use brotli::enc::util::floatX;
 use brotli::enc::vectorization::Mem256f;
+use brotli::enc::StaticCommand;
 use brotli::enc::ZopfliNode;
+use brotli::interface::PredictionModeContextMap;
+use brotli::{InputReferenceMut, SliceOffset};
 use interface::{Compressor, ErrMsg, LeptonFlushResult, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;
 use util::flush_resizable_buffer;
@@ -100,12 +104,19 @@ impl BrotliEncoder {
                 .checkout_next_buffer(&mut self.encoder.m8, Some(256));
             available_out = brotli_buffer.len();
             let mut nop_callback =
-                |_data: &[brotli::interface::Command<brotli::InputReference>]| ();
+                |_pm: &mut PredictionModeContextMap<InputReferenceMut>,
+                 _command: &mut [brotli::interface::Command<SliceOffset>],
+                 _input_pair: brotli::InputPair,
+                 _alloc_float_vec: &mut HeapAlloc<Mem256f>,
+                 _alloc_pdf: &mut HeapAlloc<PDF>,
+                 _alloc_static_command: &mut HeapAlloc<StaticCommand>| ();
             if BrotliEncoderCompressStream(
                 &mut self.encoder,
                 &mut HeapAlloc::new(0),
                 &mut HeapAlloc::new(floatX::default()),
                 &mut HeapAlloc::new(Mem256f::default()),
+                &mut HeapAlloc::new(PDF::default()),
+                &mut HeapAlloc::new(StaticCommand::default()),
                 &mut HeapAlloc::new(HistogramLiteral::default()),
                 &mut HeapAlloc::new(HistogramCommand::default()),
                 &mut HeapAlloc::new(HistogramDistance::default()),
