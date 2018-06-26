@@ -2,7 +2,9 @@
 #include <time.h>
 #include <stdio.h>
 #include <iostream>
-
+#ifdef _WIN32
+#include <stdint.h>
+#endif
 #include "uncompressed_components.hh"
 #include "recoder.hh"
 #include "bitops.hh"
@@ -25,7 +27,7 @@ extern Sirikata::Array1d<componentInfo, 4> cmpnfo;
 
 extern bool embedded_jpeg;
 extern int grbs;   // size of garbage
-extern int            hdrs;   // size of header
+extern uint32_t            hdrs;   // size of header
 extern Sirikata::Array1d<Sirikata::Array1d<unsigned short, 64>, 4> qtables; // quantization tables
 extern Sirikata::Array1d<Sirikata::Array1d<huffCodes, 4>, 2> hcodes; // huffman codes
 extern Sirikata::Array1d<Sirikata::Array1d<huffTree, 4>, 2> htrees; // huffman decoding trees

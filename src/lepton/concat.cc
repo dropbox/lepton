@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include "../vp8/util/memory.hh"
 #include "../io/BrotliCompression.hh"
 #include "../io/ioutil.hh"

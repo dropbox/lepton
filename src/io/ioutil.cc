@@ -198,7 +198,7 @@ Sirikata::Array1d<uint8_t, 16> send_and_md5_result(const uint8_t *data,
     MD5_Final(&retval[0], &context);
     return retval;
 }
-void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context, size_t *input_size, size_t start_byte, size_t end_byte, bool close_input, bool is_socket) {
+void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context, size_t *input_size, size_t start_byte, size_t end_byte, bool close_input, bool is_socket, std::vector<uint8_t>*byte_return) {
     unsigned char buffer[65536];
     while (true) {
         size_t max_to_read = sizeof(buffer);
@@ -220,10 +220,16 @@ void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context,
             if (*input_size + del > start_byte) {
                 if (*input_size >= start_byte) {
                     MD5_Update(context, &buffer[0], del);
+					if (byte_return) {
+						byte_return->insert(byte_return->end(), &buffer[0], &buffer[0] + del);
+					}
                 } else {
                     size_t offset = (start_byte - *input_size);
                     MD5_Update(context, &buffer[offset], del - offset);
-                }
+					if (byte_return) {
+						byte_return->insert(byte_return->end(), &buffer[offset], &buffer[offset] + (del-offset));
+					}
+				}
             }
             { // write all to the subprocess
                 size_t cursor = 0;
@@ -242,8 +248,14 @@ void md5_and_copy_to_tee(int copy_to_input_tee, int input_tee, MD5_CTX *context,
                         fflush(stdout);
                         fflush(stderr);
                         del = 0;
+						if (byte_return) {
+							break;
+						}
                         custom_exit(ExitCode::SHORT_READ);
                     } else {
+						if (byte_return) {
+							break;
+						}
                         custom_exit(ExitCode::SHORT_READ);
                     }
                 }
@@ -309,7 +321,7 @@ Sirikata::Array1d<uint8_t, 16> transfer_and_md5(Sirikata::Array1d<uint8_t, 2> he
     uint8_t buffer[65536] = { 0 };
 #ifdef _WIN32
     std::thread worker(std::bind(&md5_and_copy_to_tee,
-        copy_to_input_tee, input_tee, &context, input_size, start_byte, end_byte, close_input, is_socket));
+        copy_to_input_tee, input_tee, &context, input_size, start_byte, end_byte, close_input, is_socket, byte_return));
 #if 1
     while(!failed) {
         auto old_size = storage->size();

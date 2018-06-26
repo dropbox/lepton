@@ -34,7 +34,8 @@
 
 static inline uint64_t Rans64MulHi(uint64_t a, uint64_t b)
 {
-    return __umulh(a, b);
+//    return __umulh(a, b);
+	abort();
 }
 
 #elif defined(__GNUC__)
