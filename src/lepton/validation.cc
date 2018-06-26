@@ -46,8 +46,9 @@ ValidationContinuation validateAndCompress(int *reader,
             && strstr(argv[i], "-verif") != argv[i]
             && strstr(argv[i], "-socket") != argv[i]
             && strstr(argv[i], "-fork") != argv[i]
-            && strstr(argv[i], "-listen") != argv[i]
-            && strstr(argv[i], "-roundtrip") != argv[i]) {
+			&& strstr(argv[i], "-listen") != argv[i]
+			&& strstr(argv[i], "-permissive") != argv[i]
+			&& strstr(argv[i], "-roundtrip") != argv[i]) {
             args.push_back(argv[i]);
         }
     }

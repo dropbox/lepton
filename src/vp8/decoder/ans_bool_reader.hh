@@ -79,7 +79,7 @@ public:
         r0 = r1;
         uint32_t cumulative_freq = Rans64DecGet(&local_state, 8);
         uint32_t prob = branch.prob();
-        bool retval = cumulative_freq >= prob;
+        uint32_t retval = (uint32_t)(cumulative_freq >= prob);
         uint32_t start = prob & (-(int32_t)retval);
         uint32_t freq = (prob ^ -retval) + (retval | (retval << 8));
         //uint32_t freq = retval ? 256 - prob: prob;
