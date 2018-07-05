@@ -417,7 +417,7 @@ unsigned int handle_initial_segments( bounded_iostream * const str_out )
 
     while ( true ) {
         /* step 1: have we exhausted the headers without reaching the scan? */
-        if ( static_cast<int>( byte_position + 3 ) >= hdrs ) {
+        if ( static_cast<uint32_t>( byte_position + 3 ) >= hdrs ) {
             std::cerr << "overran headers\n";
             return -1;
         }
