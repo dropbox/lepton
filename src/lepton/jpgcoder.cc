@@ -281,7 +281,7 @@ bool is_jpeg_header(Sirikata::Array1d<uint8_t, 2> header) {
 
 // baseline single threaded decoding need only two rows of the image in memory
 bool setup_imginfo_jpg(bool only_allocate_two_image_rows);
-bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
+bool parse_jfif_jpg( unsigned char type, unsigned int len, uint32_t alloc_len, unsigned char* segment );
 bool rebuild_header_jpg( void );
 
 int decode_block_seq( abitreader* huffr, huffTree* dctree, huffTree* actree, short* block );
@@ -310,7 +310,7 @@ int next_mcupos( int* mcu, int* cmp, int* csc, int* sub, int* dpos, int* rstw, i
 int next_mcuposn( int* cmp, int* dpos, int* rstw );
 int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun );
 
-bool build_huffcodes( unsigned char *clen, unsigned char *cval,
+bool build_huffcodes( unsigned char *clen, uint32_t clenlen,  unsigned char *cval, uint32_t cvallen,
                 huffCodes *hc, huffTree *ht );
 
 
@@ -2847,7 +2847,7 @@ bool decode_jpeg(const std::vector<std::pair<uint32_t, uint32_t> > & huff_input_
                 } else {
                     hdr_seg_data = &( hdrdata[ hpos ] );
                 }
-                if ( !parse_jfif_jpg( type, len, hdr_seg_data ) ) {
+                if ( !parse_jfif_jpg( type, len, len, hdr_seg_data ) ) {
                     delete huffr;
                     return false;
                 }
@@ -3350,10 +3350,10 @@ bool recode_jpeg( void )
         // seek till start-of-scan, parse only DHT, DRI and SOS
         for ( type = 0x00; type != 0xDA; ) {
             if ( hpos >= hdrs ) break;
-            type = hdrdata[ hpos + 1 ];
-            len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
+            type = hpos + 1 < hdrs ? hdrdata[ hpos + 1 ] : 0;
+            len = 2 + B_SHORT( hpos + 2 < hdrs ? hdrdata[ hpos + 2 ]:0, hpos + 3 < hdrs ? hdrdata[ hpos + 3 ] :0);
             if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
-                if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) ) {
+                if ( !parse_jfif_jpg( type, len, len > hdrs - hpos ? hdrs - hpos : len, &( hdrdata[ hpos ] ) ) ) {
                     delete huffw;
                     delete storw;
                     return false;
@@ -4454,11 +4454,11 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
 
     // header parser loop
     while ( hpos < hdrs ) {
-        type = hdrdata[ hpos + 1 ];
-        len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
+        type = hpos + 1 < hdrs ? hdrdata[ hpos + 1 ] : 0;
+        len = 2 + B_SHORT( hpos + 2 < hdrs ? hdrdata[ hpos + 2 ] : 0, hpos + 3 < hdrs ? hdrdata[ hpos + 3 ] : 0);
         // do not parse DHT & DRI
         if ( ( type != 0xDA ) && ( type != 0xC4 ) && ( type != 0xDD ) ) {
-            if ( !parse_jfif_jpg( type, len, &( hdrdata[ hpos ] ) ) )
+            if ( !parse_jfif_jpg( type, len, hdrs-hpos, &( hdrdata[ hpos ] ) ) )
                 return false;
         }
         hpos += len;
@@ -4539,7 +4539,7 @@ bool setup_imginfo_jpg(bool only_allocate_two_image_rows)
 /* -----------------------------------------------
     Parse routines for JFIF segments
     ----------------------------------------------- */
-bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment )
+bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned int alloc_len, unsigned char* segment )
 {
     unsigned int hpos = 4; // current position in segment, start after segment header
     int lval, rval; // temporary variables
@@ -4553,14 +4553,15 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
         case 0xC4: // DHT segment
             // build huffman trees & codes
             while ( hpos < len ) {
-                lval = LBITS( segment[ hpos ], 4 );
-                rval = RBITS( segment[ hpos ], 4 );
+                lval = LBITS( hpos < alloc_len ? segment[ hpos ] : 0, 4 );
+                rval = RBITS( hpos < alloc_len ? segment[ hpos ]: 0, 4 );
                 if ( ((lval < 0) || (lval >= 2)) || ((rval < 0) || (rval >= 4)) )
                     break;
 
                 hpos++;
                 // build huffman codes & trees
-                if (!build_huffcodes( &(segment[ hpos + 0 ]), &(segment[ hpos + 16 ]),
+                if (!build_huffcodes( &(segment[ hpos + 0 ]), alloc_len > hpos ? alloc_len - hpos : 0,
+                                      &(segment[ hpos + 16 ]),  alloc_len > hpos + 16 ? alloc_len - hpos - 16 : 0,
                                       &(hcodes[ lval ][ rval ]), &(htrees[ lval ][ rval ]) )) {
                     errorlevel.store(2);
                     return false;
@@ -4569,7 +4570,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 
                 skip = 16;
                 for ( i = 0; i < 16; i++ )
-                    skip += ( int ) segment[ hpos + i ];
+                    skip += ( int ) (hpos + i < alloc_len ? segment[ hpos + i ] : 0);
                 hpos += skip;
             }
 
@@ -4584,14 +4585,14 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
         case 0xDB: // DQT segment
             // copy quantization tables to internal memory
             while ( hpos < len ) {
-                lval = LBITS( segment[ hpos ], 4 );
-                rval = RBITS( segment[ hpos ], 4 );
+                lval = LBITS( hpos < alloc_len ? segment[ hpos ] :  0, 4 );
+                rval = RBITS( hpos < alloc_len ? segment[ hpos ] : 0, 4 );
                 if ( (lval < 0) || (lval >= 2) ) break;
                 if ( (rval < 0) || (rval >= 4) ) break;
                 hpos++;
                 if ( lval == 0 ) { // 8 bit precision
                     for ( i = 0; i < 64; i++ ) {
-                        qtables[ rval ][ i ] = ( unsigned short ) segment[ hpos + i ];
+                        qtables[ rval ][ i ] = ( unsigned short ) (hpos + i < alloc_len ? segment[ hpos + i ] : 0);
                         if ( qtables[ rval ][ i ] == 0 ) break;
                     }
                     hpos += 64;
@@ -4599,7 +4600,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                 else { // 16 bit precision
                     for ( i = 0; i < 64; i++ ) {
                         qtables[ rval ][ i ] =
-                            B_SHORT( segment[ hpos + (2*i) ], segment[ hpos + (2*i) + 1 ] );
+                            B_SHORT( (hpos + (2*i)< alloc_len ? segment[ hpos + (2*i) ] : 0), (hpos + 2*i+1 < alloc_len?segment[ hpos + (2*i) + 1 ]:0) );
                         if ( qtables[ rval ][ i ] == 0 ) break;
                     }
                     hpos += 128;
@@ -4616,12 +4617,12 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
 
         case 0xDD: // DRI segment
             // define restart interval
-            rsti = B_SHORT( segment[ hpos ], segment[ hpos + 1 ] );
+          rsti = B_SHORT( hpos < alloc_len ? segment[ hpos ]:0, hpos +1 < alloc_len ?segment[ hpos + 1 ]:0 );
             return true;
 
         case 0xDA: // SOS segment
             // prepare next scan
-            cs_cmpc = segment[ hpos ];
+            cs_cmpc = hpos < alloc_len ? segment[ hpos ] : 0;
             if ( cs_cmpc > cmpc ) {
                 fprintf( stderr, "%i components in scan, only %i are allowed",
                             cs_cmpc, cmpc );
@@ -4630,15 +4631,15 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
             }
             hpos++;
             for ( i = 0; i < cs_cmpc; i++ ) {
-                for ( cmp = 0; ( segment[ hpos ] != cmpnfo[ cmp ].jid ) && ( cmp < cmpc ); cmp++ );
+                for ( cmp = 0; ( (hpos < alloc_len ? segment[ hpos ]:0) != cmpnfo[ cmp ].jid ) && ( cmp < cmpc ); cmp++ );
                 if ( cmp == cmpc ) {
                     fprintf( stderr, "component id mismatch in start-of-scan" );
                     errorlevel.store(2);
                     return false;
                 }
                 cs_cmp[ i ] = cmp;
-                cmpnfo[ cmp ].huffdc = LBITS( segment[ hpos + 1 ], 4 );
-                cmpnfo[ cmp ].huffac = RBITS( segment[ hpos + 1 ], 4 );
+                cmpnfo[ cmp ].huffdc = LBITS( hpos + 1< alloc_len ? segment[ hpos + 1 ]:0, 4 );
+                cmpnfo[ cmp ].huffac = RBITS( hpos + 1 < alloc_len ? segment[ hpos + 1 ]:0, 4 );
                 if ( ( cmpnfo[ cmp ].huffdc < 0 ) || ( cmpnfo[ cmp ].huffdc >= 4 ) ||
                      ( cmpnfo[ cmp ].huffac < 0 ) || ( cmpnfo[ cmp ].huffac >= 4 ) ) {
                     fprintf( stderr, "huffman table number mismatch" );
@@ -4647,10 +4648,10 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                 }
                 hpos += 2;
             }
-            cs_from = segment[ hpos + 0 ];
-            cs_to   = segment[ hpos + 1 ];
-            cs_sah  = LBITS( segment[ hpos + 2 ], 4 );
-            cs_sal  = RBITS( segment[ hpos + 2 ], 4 );
+            cs_from = hpos < alloc_len ? segment[ hpos + 0 ]:0;
+            cs_to   = hpos + 1 < alloc_len ? segment[ hpos + 1 ]:0;
+            cs_sah  = LBITS( hpos + 2 < alloc_len ? segment[ hpos + 2 ]:0, 4 );
+            cs_sal  = RBITS( hpos +2  <  alloc_len ? segment[ hpos + 2 ]:0, 4 );
             // check for errors
             if ( ( cs_from > cs_to ) || ( cs_from > 63 ) || ( cs_to > 63 ) ) {
                 fprintf( stderr, "spectral selection parameter out of range" );
@@ -4680,7 +4681,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                 jpegtype = 1;
 
             // check data precision, only 8 bit is allowed
-            lval = segment[ hpos ];
+            lval = hpos < alloc_len ? segment[ hpos ]:0;
             if ( lval != 8 ) {
                 fprintf( stderr, "%i bit data precision is not supported", lval );
                 errorlevel.store(2);
@@ -4688,9 +4689,9 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
             }
 
             // image size, height & component count
-            imgheight = B_SHORT( segment[ hpos + 1 ], segment[ hpos + 2 ] );
-            imgwidth  = B_SHORT( segment[ hpos + 3 ], segment[ hpos + 4 ] );
-            cmpc      = segment[ hpos + 5 ];
+            imgheight = B_SHORT( hpos +  1  < alloc_len ? segment[ hpos + 1 ]:0, hpos +  2 < alloc_len ?segment[ hpos + 2 ] :0);
+            imgwidth  = B_SHORT( hpos + 3 < alloc_len ?segment[ hpos + 3 ]:0, hpos + 4 < alloc_len ?segment[ hpos + 4 ]:0 );
+            cmpc      = hpos + 5 < alloc_len ?  segment[ hpos + 5 ]:0;
             if ( cmpc > 4 ) {
                 cmpc = 4;
                 fprintf( stderr, "image has %i components, max 4 are supported", cmpc );
@@ -4700,9 +4701,9 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
             hpos += 6;
             // components contained in image
             for ( cmp = 0; cmp < cmpc; cmp++ ) {
-                cmpnfo[ cmp ].jid = segment[ hpos ];
-                cmpnfo[ cmp ].sfv = LBITS( segment[ hpos + 1 ], 4 );
-                cmpnfo[ cmp ].sfh = RBITS( segment[ hpos + 1 ], 4 );
+                cmpnfo[ cmp ].jid = hpos < alloc_len ? segment[ hpos ]:0;
+                cmpnfo[ cmp ].sfv = LBITS( hpos + 1 < alloc_len ? segment[ hpos + 1 ]:0, 4 );
+                cmpnfo[ cmp ].sfh = RBITS( hpos + 1 < alloc_len ? segment[ hpos + 1 ]:0, 4 );
                 if (cmpnfo[ cmp ].sfv > 4
                     || cmpnfo[ cmp ].sfh > 4) {
                     custom_exit(ExitCode::SAMPLING_BEYOND_FOUR_UNSUPPORTED);
@@ -4713,7 +4714,7 @@ bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segmen
                     custom_exit(ExitCode::SAMPLING_BEYOND_TWO_UNSUPPORTED);
                 }
 #endif
-                uint32_t quantization_table_value = segment[ hpos + 2 ];
+                uint32_t quantization_table_value = hpos + 2 < alloc_len ? segment[ hpos + 2 ]:0;
                 if (quantization_table_value >= qtables.size()) {
                     errorlevel.store(2);
                     return false;
@@ -4855,13 +4856,20 @@ bool rebuild_header_jpg( void )
 
     // header parser loop
     while ( hpos < hdrs ) {
-        type = hdrdata[ hpos + 1 ];
-        len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
+        type = hpos + 1 < hdrs ?  hdrdata[ hpos + 1 ] : 0;
+        len = 2 + B_SHORT( hpos + 2 < hdrs ? hdrdata[ hpos + 2 ]:0, hpos + 3 < hdrs ? hdrdata[ hpos + 3 ] :0);
         // discard any unneeded meta info
         if ( ( type == 0xDA ) || ( type == 0xC4 ) || ( type == 0xDB ) ||
              ( type == 0xC0 ) || ( type == 0xC1 ) || ( type == 0xC2 ) ||
              ( type == 0xDD ) ) {
-            hdrw->write_n( &(hdrdata[ hpos ]), len );
+            uint32_t to_copy = hpos + len < hdrs ? len : hdrs - hpos;
+            hdrw->write_n( &(hdrdata[ hpos ]), to_copy);
+            if (to_copy <  len) {
+                for (uint32_t i = 0;i <to_copy -len;++i) {
+                    uint8_t zero = 0;
+                    hdrw->write_n(&zero, 1);
+                }
+            }
         }
         hpos += len;
     }
@@ -5493,7 +5501,7 @@ int skip_eobrun( int* cmp, int* dpos, int* rstw, unsigned int* eobrun )
 /* -----------------------------------------------
     creates huffman-codes & -trees from dht-data
     ----------------------------------------------- */
-bool build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc, huffTree *ht )
+bool build_huffcodes( unsigned char *clen, uint32_t clenlen, unsigned char *cval, uint32_t cvallen, huffCodes *hc, huffTree *ht )
 {
     int nextfree;
     int code;
@@ -5515,9 +5523,12 @@ bool build_huffcodes( unsigned char *clen, unsigned char *cval,    huffCodes *hc
 
     // symbol-value of code is its position in the table
     for( i = 0; i < 16; i++ ) {
-        for( j = 0; j < (int) clen[i & 0xff]; j++ ) {
-            hc->clen[ (int) cval[k&0xff]&0xff] = 1 + i;
-            hc->cval[ (int) cval[k&0xff]&0xff] = code;
+        uint32_t clen_index = i & 0xff;
+        for( j = 0; j < (int) (clen_index < clenlen ? clen[clen_index] : 0); j++ ) {
+            uint32_t cval_index = k&0xff;
+            uint8_t cval_val= cval_index < cvallen ? cval[cval_index] : 0;
+            hc->clen[ (int) cval_val&0xff] = 1 + i;
+            hc->cval[ (int) cval_val&0xff] = code;
 
             k++;
             code++;

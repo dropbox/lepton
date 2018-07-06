@@ -49,7 +49,7 @@ static void nop(){}
 
 void check_decompression_memory_bound_ok();
 
-bool parse_jfif_jpg( unsigned char type, unsigned int len, unsigned char* segment );
+bool parse_jfif_jpg( unsigned char type, unsigned int len, uint32_t alloc_len, unsigned char* segment );
 #define B_SHORT(v1,v2)    ( ( ((int) v1) << 8 ) + ((int) v2) )
 
 int find_aligned_end_64_scalar(const int16_t *block) {
@@ -436,7 +436,7 @@ unsigned int handle_initial_segments( bounded_iostream * const str_out )
         /* step 4: if it's a DHT (0xC4), DRI (0xDD), or SOS (0xDA), parse to mutable globals */
         if ( type == 0xC4 || type == 0xDD || type == 0xDA ) {
             /* XXX make sure parse_jfif_jpg can't overrun hdrdata */
-            if ( !parse_jfif_jpg( type, len, hdrdata + byte_position ) ) { return -1; }
+            if ( !parse_jfif_jpg( type, len, hdrs - byte_position > len ? len : hdrs - byte_position, hdrdata + byte_position ) ) { return -1; }
         }
 
         /* step 5: we parsed the header -- accumulate byte position */

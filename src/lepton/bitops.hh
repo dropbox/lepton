@@ -31,22 +31,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <assert.h>
 #include <cstring>
-#define RBITS( c, n )		( c & ( 0xFF >> (8 - n) ) )
-#define LBITS( c, n )		( c >> (8 - n) )
-#define MBITS( c, l, r )	( RBITS( c,l ) >> r )
-#define RBITS16( c, n )		( c & ( 0xFFFFFFFF >> (16 - n) ) )
-#define LBITS16( c, n )		( c >> (16 - n) )
+#define RBITS( c, n )		( (c) & ( 0xFF >> (8 - (n)) ) )
+#define LBITS( c, n )		( (c) >> (8 - (n)) )
+#define MBITS( c, l, r )	( RBITS( c,l ) >> (r) )
+#define RBITS16( c, n )		( (c) & ( 0xFFFFFFFF >> (16 - (n)) ) )
+#define LBITS16( c, n )		( (c) >> (16 - (n)) )
 #define MBITS16( c, l, r )	( RBITS16( c,l ) >> r )
-#define RBITS32( c, n )		( c & ( 0xFFFFFFFF >> (32 - n) ) )
-#define LBITS32( c, n )		( c >> (32 - n) )
-#define MBITS32( c, l, r )	( RBITS32( c,l ) >> r )
+#define RBITS32( c, n )		( (c) & ( 0xFFFFFFFF >> (32 - (n)) ) )
+#define LBITS32( c, n )		( (c) >> (32 - (n)) )
+#define MBITS32( c, l, r )	( RBITS32( c,l ) >> (r) )
 
-#define RBITS64( c, n )		(n == 0 ? 0ULL : ( (c) & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - (n)) ) ))
-#define LBITS64( c, n )		( c >> (64 - n) )
+#define RBITS64( c, n )		((n) == 0 ? 0ULL : ( (c) & ( 0xFFFFFFFFFFFFFFFFULL >> (64 - (n)) ) ))
+#define LBITS64( c, n )		( (c) >> (64 - (n)) )
 #define MBITS64( c, l, r )	(((r) >= 64) ? 0 : ( RBITS64( c,l ) >> (r) ))
 
-#define BITN( c, n )		( (c >> n) & 0x1 )
-#define FDIV2( v, p )		( ( v < 0 ) ? -( (-v) >> p ) : ( v >> p ) )
+#define BITN( c, n )		( ((c) >> (n)) & 0x1 )
+#define FDIV2( v, p )		( ( (v) < 0 ) ? -( (-v) >> (p) ) : ( (v) >> (p) ) )
 
 #define BTST_BUFF			1024 * 1024
 
