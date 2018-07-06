@@ -3835,6 +3835,7 @@ bool write_ujpg(std::vector<ThreadHandoff> row_thread_handoffs,
                             jpeg_file_raw_bytes->size() - start_byte));
         } else {
             prefix_grbgdata = aligned_alloc(1); // so it's nonnull
+            prefix_grbgdata[0] = 0;
         }
     }
     Sirikata::MemReadWriter mrw((Sirikata::JpegAllocator<uint8_t>()));
@@ -4193,6 +4194,7 @@ bool read_ujpg( void )
         ReadFull(header_reader, ujpg_mrk, 4 );
         hdrs = LEtoUint32(ujpg_mrk);
         hdrdata = (unsigned char*) aligned_alloc(hdrs);
+        memset(hdrdata, 0, hdrs);
         if ( hdrdata == NULL ) {
             fprintf( stderr, MEM_ERRMSG );
             errorlevel.store(2);
@@ -4275,6 +4277,7 @@ bool read_ujpg( void )
             ReadFull(header_reader, ujpg_mrk, 4);
             grbs = LEtoUint32(ujpg_mrk);
             grbgdata = aligned_alloc(grbs);
+            memset(grbgdata, 0, sizeof(grbs));
             if ( grbgdata == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
@@ -4292,6 +4295,7 @@ bool read_ujpg( void )
             ReadFull(header_reader, ujpg_mrk, 4);
             prefix_grbs = LEtoUint32(ujpg_mrk);
             prefix_grbgdata = aligned_alloc(prefix_grbs);
+            memset(prefix_grbgdata, 0, sizeof(prefix_grbs));
             if ( prefix_grbgdata == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
