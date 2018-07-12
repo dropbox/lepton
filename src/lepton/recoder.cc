@@ -631,8 +631,10 @@ void recode_physical_thread(BoundedWriter *stream_out,
             if (thread_handoffs[logical_thread_id+1].luma_y_start !=
                 thread_handoffs[logical_thread_id+1].luma_y_end || ujgversion ==1 ) {
             // make sure we computed the same item that was stored
-                always_assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
-                always_assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
+                if (g_threaded) {
+                    always_assert(outth.num_overhang_bits ==  thread_handoffs[logical_thread_id + 1].num_overhang_bits);
+                    always_assert(outth.overhang_byte ==  thread_handoffs[logical_thread_id + 1].overhang_byte);
+                }
                 always_assert(memcmp(outth.last_dc.begin(), thread_handoffs[logical_thread_id + 1].last_dc.begin(), sizeof(outth.last_dc)) == 0);
             }
             if (physical_thread_id > 0 && stream_out->bytes_written()) { // if 0 are written the bound is not tight
