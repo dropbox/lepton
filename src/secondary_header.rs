@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
-use thread_handoff::{serialize, ThreadHandoff};
+use thread_handoff::ThreadHandoff;
 
 pub const MARKER_SIZE: usize = 3;
 pub const SECTION_HDR_SIZE: usize = 7;
@@ -95,7 +95,7 @@ pub fn default_serialized_header() -> Vec<u8> {
     result.extend(Marker::P0D.value());
     result.push(1);
     result.extend(Marker::HHX.value()[..2].iter());
-    result.extend(serialize(vec![ThreadHandoff::default(); 1]));
+    result.extend(ThreadHandoff::serialize(vec![ThreadHandoff::default(); 1]));
     result.extend(Marker::GRB.value());
     result.extend([0, 0, 0, 0].iter());
     result

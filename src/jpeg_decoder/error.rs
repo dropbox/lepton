@@ -1,8 +1,4 @@
-use std::any::Any;
-use std::error::Error as StdError;
-use std::fmt;
 use std::io::Error as IoError;
-use std::sync::mpsc::{RecvError, SendError};
 
 use iostream::InputError;
 
@@ -37,50 +33,20 @@ pub enum UnsupportedFeature {
 pub enum JpegError {
     /// The image is not formatted properly. The string contains detailed information about the
     /// error.
-    Malformatted(&'static str),
+    Malformatted(String),
     /// The image makes use of a JPEG feature not (currently) supported by this library.
     Unsupported(UnsupportedFeature),
     /// An I/O error occurred while decoding the image.
     Io(IoError),
-    // /// An internal error occurred while decoding the image.
-    // Internal(Box<StdError>),
+    /// EOF is encountered when trying to read data. This may or may not be an error.
+    EOF,
 }
 
 impl From<InputError> for JpegError {
-    fn from(err: InputError) -> JpegError {
-        JpegError::Malformatted("unexpected EOF")
+    fn from(_err: InputError) -> JpegError {
+        JpegError::EOF
     }
 }
-
-// impl fmt::Display for JpegError {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match *self {
-//             JpegError::Format(ref description)      => write!(f, "invalid JPEG format: {}", description),
-//             JpegError::Unsupported(ref feature) => write!(f, "unsupported JPEG feature: {:?}", feature),
-//             JpegError::Io(ref err)           => err.fmt(f),
-//             JpegError::Internal(ref err)     => err.fmt(f),
-//         }
-//     }
-// }
-
-// impl StdError for JpegError {
-//     fn description(&self) -> &str {
-//         match *self {
-//             JpegError::Format(_)         => "invalid JPEG format",
-//             JpegError::Unsupported(_)    => "unsupported JPEG feature",
-//             JpegError::Io(ref err)       => err.description(),
-//             JpegError::Internal(ref err) => err.description(),
-//         }
-//     }
-
-//     fn cause(&self) -> Option<&StdError> {
-//         match *self {
-//             JpegError::Io(ref err) => Some(err),
-//             JpegError::Internal(ref err) => Some(&**err),
-//             _ => None,
-//         }
-//     }
-// }
 
 impl From<IoError> for JpegError {
     fn from(err: IoError) -> JpegError {
@@ -88,14 +54,30 @@ impl From<IoError> for JpegError {
     }
 }
 
-// impl From<RecvError> for JpegError {
-//     fn from(err: RecvError) -> JpegError {
-//         JpegError::Internal(Box::new(err))
-//     }
-// }
+impl From<HuffmanError> for JpegError {
+    fn from(err: HuffmanError) -> JpegError {
+        use self::HuffmanError::*;
+        match err {
+            BadCode => JpegError::Malformatted("failed to decode huffman code".to_owned()),
+            BadTable => JpegError::Malformatted("bad huffman code length".to_owned()),
+            UnexpectedMarker(marker) => {
+                JpegError::Malformatted(format!("unexpected marker {:02X?} in scan", marker))
+            }
+            EOF => JpegError::EOF,
+        }
+    }
+}
 
-// impl<T: Any + Send> From<SendError<T>> for JpegError {
-//     fn from(err: SendError<T>) -> JpegError {
-//         JpegError::Internal(Box::new(err))
-//     }
-// }
+#[derive(Debug)]
+pub enum HuffmanError {
+    BadCode,
+    BadTable,
+    UnexpectedMarker(u8),
+    EOF,
+}
+
+impl From<InputError> for HuffmanError {
+    fn from(_err: InputError) -> HuffmanError {
+        HuffmanError::EOF
+    }
+}

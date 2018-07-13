@@ -1,52 +1,62 @@
 use std::thread;
 
-use super::decoder::JpegDecoder;
+use super::decoder::{DecodeResult, JpegDecoder};
 use super::error::JpegResult;
-use super::jpeg::FrequencyImage;
 use iostream::{iostream, OutputStream};
 
+const PRE_LOAD_LEN: usize = 4 * 1024;
+
 pub struct JpegStreamDecoder {
-    decoder_handle: thread::JoinHandle<JpegResult<FrequencyImage>>,
+    decoder_handle: Option<thread::JoinHandle<DecodeResult>>,
     ostream: OutputStream,
+    result: Option<DecodeResult>,
 }
 
 impl JpegStreamDecoder {
-    pub fn new() -> JpegResult<Self> {
-        let (istream, ostream) = iostream();
+    pub fn new(start_byte: usize) -> JpegResult<Self> {
+        let (istream, ostream) = iostream(PRE_LOAD_LEN);
         let decoder_handle = thread::Builder::new()
             .name("decoder thread".to_owned())
-            .spawn(move || JpegDecoder::new(istream).decode())?;
+            .spawn(move || JpegDecoder::new(istream, start_byte, false).decode())?;
         Ok(JpegStreamDecoder {
-            decoder_handle,
+            decoder_handle: Some(decoder_handle),
             ostream,
+            result: None,
         })
     }
 
-    pub fn decode(&self, input: &[u8], input_offset: &mut usize) -> JpegResult<()> {
-        match self.ostream.write(&input[*input_offset..]) {
+    pub fn decode(&mut self, input: &[u8], input_offset: &mut usize) -> JpegDecodeResult {
+        match self.ostream.write(input) {
             Ok(_) => {
                 *input_offset = input.len();
-                Ok(())
+                JpegDecodeResult::NeedsMoreInput
             }
             Err(_) => self.finish(),
         }
     }
 
-    pub fn flush(&self) -> JpegResult<()> {
-        self.ostream.write_eof();
+    pub fn flush(&mut self) -> JpegDecodeResult {
+        let _ = self.ostream.write_eof();
         self.finish()
     }
 
-    pub fn get_result() -> Option<()> {
-        // TODO: Return FrequencyImage
-        // TODO: Parse unread_data
-        Some(())
-    }
-
-    fn finish(&self) -> JpegResult<()> {
-        match self.decoder_handle.join().unwrap() {
-            Ok(_) => Ok(()), // TODO: Save FrequencyImage
-            Err(e) => Err(e),
+    pub fn take_result(self) -> Result<DecodeResult, Self> {
+        if let Some(result) = self.result {
+            Ok(result)
+        } else {
+            Err(self)
         }
     }
+
+    fn finish(&mut self) -> JpegDecodeResult {
+        if self.decoder_handle.is_some() {
+            self.result = Some(self.decoder_handle.take().unwrap().join().unwrap());
+        }
+        JpegDecodeResult::Finish
+    }
+}
+
+pub enum JpegDecodeResult {
+    Finish,
+    NeedsMoreInput,
 }
