@@ -1,8 +1,9 @@
 use super::brotli_encoder::BrotliEncoder;
+use byte_converter::{ByteConverter, LittleEndian};
 use interface::{Compressor, LeptonFlushResult, LeptonOperationResult};
 use primary_header::{serialize_header, HEADER_SIZE};
 use secondary_header::{default_serialized_header, MARKER_SIZE, SECTION_HDR_SIZE};
-use util::{mem_copy, u32_to_le_u8_array};
+use util::mem_copy;
 
 static BASIC_CMP: [u8; 6] = [b'C', b'M', b'P', 0xff, 0xfe, 0xff];
 
@@ -60,7 +61,7 @@ impl Compressor for LeptonPermissiveCompressor {
             match self.header {
                 None => {
                     let pge_len = self.data.len() - SECTION_HDR_SIZE;
-                    let pge_len_array = u32_to_le_u8_array(pge_len as u32);
+                    let pge_len_array = LittleEndian::u32_to_array(pge_len as u32);
                     self.data[MARKER_SIZE..SECTION_HDR_SIZE].clone_from_slice(&pge_len_array);
                     let mut input_offset = 0usize;
                     if let LeptonOperationResult::Failure(msg) = self.encoder.encode_all(

@@ -1,5 +1,5 @@
+use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
-use util::{le_u8_array_to_u32, u32_to_le_u8_array};
 
 pub const LEPTON_VERSION: u8 = 2;
 pub const HEADER_SIZE: usize = 28;
@@ -26,10 +26,10 @@ pub fn serialize_header(
     header[..MAGIC_NUMBER.len()].clone_from_slice(&MAGIC_NUMBER);
     header[2] = LEPTON_VERSION;
     header[3] = skip_serial_hdr;
-    header[4..8].clone_from_slice(&u32_to_le_u8_array(n_threads));
+    header[4..8].clone_from_slice(&LittleEndian::u32_to_array(n_threads));
     header[8..20].clone_from_slice(git_hash);
-    header[20..24].clone_from_slice(&u32_to_le_u8_array(raw_size as u32));
-    header[24..].clone_from_slice(&u32_to_le_u8_array(secondary_hdr_size as u32));
+    header[20..24].clone_from_slice(&LittleEndian::u32_to_array(raw_size as u32));
+    header[24..].clone_from_slice(&LittleEndian::u32_to_array(secondary_hdr_size as u32));
     header
 }
 
@@ -42,10 +42,10 @@ pub fn deserialize_header(data: &[u8]) -> Result<PrimaryHeader, ErrMsg> {
         let mut header = PrimaryHeader {
             version: data[2],
             skip_hdr: if data[3] == 0 { false } else { true },
-            n_threads: le_u8_array_to_u32(data, 4),
+            n_threads: LittleEndian::slice_to_u32(&data[4..]),
             git_hash: [0u8; 12],
-            raw_size: le_u8_array_to_u32(data, 20) as usize,
-            secondary_hdr_size: le_u8_array_to_u32(data, 24) as usize,
+            raw_size: LittleEndian::slice_to_u32(&data[20..]) as usize,
+            secondary_hdr_size: LittleEndian::slice_to_u32(&data[24..]) as usize,
         };
         header.git_hash.clone_from_slice(&data[8..20]);
         Ok(header)

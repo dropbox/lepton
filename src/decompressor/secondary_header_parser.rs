@@ -67,7 +67,7 @@ impl SecondaryHeaderParser {
 
     // This function will change the parser's own copy of header to `None`.
     pub fn extract_header(&mut self) -> Result<SecondaryHeader, ErrMsg> {
-        match mem::replace(&mut self.header, None) {
+        match self.header.take() {
             Some(header) => Ok(header),
             None => Err(ErrMsg::SecondaryHeaderNotBuilt),
         }

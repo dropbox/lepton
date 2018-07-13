@@ -21,20 +21,6 @@ pub fn mem_copy<T: Clone>(
     *src_offset += copy_len;
 }
 
-pub fn u32_to_le_u8_array(num: u32) -> [u8; 4] {
-    [
-        num as u8,
-        (num >> 8) as u8,
-        (num >> 16) as u8,
-        (num >> 24) as u8,
-    ]
-}
-
-pub fn le_u8_array_to_u32(slice: &[u8], index: usize) -> u32 {
-    ((slice[index + 3] as u32) << 24) + ((slice[index + 2] as u32) << 16)
-        + ((slice[index + 1] as u32) << 8) + (slice[index] as u32)
-}
-
 pub fn flush_resizable_buffer<T: Clone + Default, AllocT: Allocator<T>>(
     dest: &mut [T],
     dest_offset: &mut usize,

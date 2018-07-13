@@ -1,4 +1,4 @@
-use util::u32_to_le_u8_array;
+use byte_converter::{ByteConverter, LittleEndian};
 
 pub const MAX_N_CHANNEL: usize = 4;
 pub const BYTES_PER_HANDOFF: usize = 16;
@@ -18,7 +18,7 @@ pub fn serialize(data: Vec<ThreadHandoff>) -> Vec<u8> {
     for handoff in data.iter() {
         result.push(handoff.luma_y_start as u8);
         result.push((handoff.luma_y_start >> 8) as u8);
-        result.extend(u32_to_le_u8_array(handoff.segment_size).iter());
+        result.extend(LittleEndian::u32_to_array(handoff.segment_size).iter());
         result.push(handoff.overhang_byte);
         result.push(handoff.n_overhang_bits);
         for last_dc in handoff.last_dc.iter() {

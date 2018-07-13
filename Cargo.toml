@@ -19,4 +19,4 @@ name = "lepton"
 "alloc-no-stdlib" = "~1.3"
 "brotli" = "~2.5"
 "brotli-decompressor" = "~1.3"
-"mux" = { path = "../mux" }
+"lepton-mux" = "~0.0.1"

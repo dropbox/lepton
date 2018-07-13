@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
 use thread_handoff::{serialize, ThreadHandoff};
-use util::{le_u8_array_to_u32, u32_to_le_u8_array};
 
 pub const MARKER_SIZE: usize = 3;
 pub const SECTION_HDR_SIZE: usize = 7;
@@ -90,7 +90,7 @@ pub struct SecondaryHeader {
 pub fn default_serialized_header() -> Vec<u8> {
     let mut result = Vec::with_capacity(256); // Returned len is 167
     result.extend(Marker::HDR.value());
-    result.extend(u32_to_le_u8_array(BASIC_HEADER.len() as u32).iter());
+    result.extend(LittleEndian::u32_to_array(BASIC_HEADER.len() as u32).iter());
     result.extend(BASIC_HEADER.iter());
     result.extend(Marker::P0D.value());
     result.push(1);
@@ -162,7 +162,7 @@ fn read_sized_section<'a>(
     }
     let section_len = match marker {
         Marker::HHX => (data[*offset + 2] as usize) * 16, // BYTES_PER_HANDOFF = 16
-        _ => le_u8_array_to_u32(data, *offset + MARKER_SIZE) as usize,
+        _ => LittleEndian::slice_to_u32(&data[(*offset + MARKER_SIZE)..]) as usize,
     };
     let section_end = *offset + section_hdr_size + section_len;
     if data.len() < section_end {
