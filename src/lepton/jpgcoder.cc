@@ -190,13 +190,6 @@ enum ACTION {
     lepton_concatenate = 5
 };
 
-enum F_TYPE {
-    JPEG = 0,
-    UJG = 1,
-    LEPTON=2,
-    UNK = 3
-};
-
 
 namespace {
 uint32_t LEtoUint32(const uint8_t*buffer) {

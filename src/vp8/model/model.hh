@@ -18,6 +18,14 @@
 #include "../util/mm_mullo_epi32.hh"
 #endif
 
+enum F_TYPE {
+    JPEG = 0,
+    UJG = 1,
+    LEPTON=2,
+    UNK = 3
+};
+
+extern F_TYPE filetype;
 
 constexpr bool advanced_dc_prediction = true;
 enum TableParams : unsigned int {
@@ -242,10 +250,10 @@ public:
                 icos_idct_edge_8192_dequantized_x((int)color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][i * 8 + pixel_row];
                 icos_idct_edge_8192_dequantized_y((int)color)[pixel_row * 8 + i] = icos_base_8192_scaled[i * 8] * quantization_table_[(int)color][pixel_row * 8 + i];
             }
-            if (icos_idct_edge_8192_dequantized_x((int)color)[pixel_row * 8] == 0) {
+            if (filetype != LEPTON && icos_idct_edge_8192_dequantized_x((int)color)[pixel_row * 8] == 0) {
                 custom_exit(ExitCode::UNSUPPORTED_JPEG_WITH_ZERO_IDCT_0);
             }
-            if (icos_idct_edge_8192_dequantized_y((int)color)[pixel_row * 8] == 0) {
+            if (filetype != LEPTON && icos_idct_edge_8192_dequantized_y((int)color)[pixel_row * 8] == 0) {
                 custom_exit(ExitCode::UNSUPPORTED_JPEG_WITH_ZERO_IDCT_0);
             }
         }
