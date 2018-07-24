@@ -288,14 +288,12 @@ impl InputStream {
             self.retained_buffer.resize(old_retained_len + len, 0);
             let result = self.istream
                 .read(&mut self.retained_buffer[old_retained_len..], len);
-            match result {
-                Ok(len) => self.processed_len += len,
-                Err(_) => self.retained_buffer.truncate(old_retained_len),
+            if result.is_err() {
+                self.retained_buffer.truncate(old_retained_len);
             }
             result
         } else {
             let len = self.istream.consume(len)?;
-            self.processed_len += len;
             Ok(len)
         }
     }

@@ -168,7 +168,7 @@ impl HuffmanDecoder {
         count: u8,
         zero_fill: bool,
     ) -> HuffmanResult<u16> {
-        debug_assert!(count <= 16);
+        assert!(count <= 16);
         if self.n_bit < count {
             if let Err(e) = self.read_bits(input, count) {
                 if !zero_fill || self.n_bit == 0 {
@@ -181,7 +181,8 @@ impl HuffmanDecoder {
 
     #[inline]
     fn consume_bits(&mut self, count: u8) {
-        debug_assert!(count <= self.n_bit);
+        // FIXME: return error instead of panicking
+        assert!(count <= self.n_bit);
         self.bit_start += count;
         self.n_bit -= count;
         while self.bit_start >= 8 {
@@ -191,14 +192,14 @@ impl HuffmanDecoder {
     }
 
     fn read_bits(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<()> {
-        debug_assert!(count <= 57); // FIXME: count <= 49?
+        assert!(count <= 57); // FIXME: count <= 49?
         while self.n_bit < count {
             let byte = input.peek_byte()?;
             if byte == 0xFF {
                 let mut buf = [0u8; 2];
                 input.peek(&mut buf)?;
                 if buf[1] != 0x00 {
-                    return Err(HuffmanError::UnexpectedMarker(buf[1]));
+                    return Err(HuffmanError::UnexpectedMarker(Marker::from_u8(buf[1]).unwrap()));
                 }
                 self.read_byte(input)?;
             }

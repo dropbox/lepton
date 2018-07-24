@@ -1,3 +1,4 @@
+use super::marker::Marker;
 use iostream::InputError;
 
 pub type JpegResult<T> = Result<T, JpegError>;
@@ -62,7 +63,7 @@ impl From<HuffmanError> for JpegError {
 pub enum HuffmanError {
     BadCode,
     BadTable,
-    UnexpectedMarker(u8),
+    UnexpectedMarker(Marker),
     EOF,
 }
 

@@ -594,7 +594,7 @@ fn decode_block(
     non_zero_coefficients: &mut BitVec,
     block_offset: usize,
 ) -> JpegResult<()> {
-    debug_assert_eq!(coefficients.len(), 64);
+    assert_eq!(coefficients.len(), 64);
     if spectral_selection.start == 0 {
         // Section F.2.2.1
         // Figure F.12
@@ -693,7 +693,7 @@ fn decode_block_successive_approximation(
     block_offset: usize,
 ) -> JpegResult<()> {
     // FIXME: Use 1 bit per coefficient
-    debug_assert_eq!(coefficients.len(), 64);
+    assert_eq!(coefficients.len(), 64);
     if spectral_selection.start == 0 {
         // Section G.1.2.1
         coefficients[0] = huffman.get_bits(input, 1)? as i16;
@@ -713,7 +713,7 @@ fn decode_block_successive_approximation(
             )?;
             return Ok(());
         }
-        let mut index = spectral_selection.start;
+        let mut index = max(spectral_selection.start, 1);
         while index < spectral_selection.end {
             let byte = huffman.decode(input, ac_table)?;
             let r = byte >> 4;
@@ -777,7 +777,7 @@ fn decode_zero_run(
     non_zero_coefficients: &mut BitVec,
     block_offset: usize,
 ) -> JpegResult<u8> {
-    debug_assert_eq!(coefficients.len(), 64);
+    assert_eq!(coefficients.len(), 64);
     let last = range.end - 1;
     for i in range {
         let index = UNZIGZAG[i as usize];
