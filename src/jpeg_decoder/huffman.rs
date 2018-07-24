@@ -17,7 +17,6 @@ pub struct HuffmanDecoder {
     n_bit: u8,
     buffer: Vec<u8>,
     is_eof: bool,
-    n_fill_byte: u8,
     start_byte: usize,
     pge: Vec<u8>,
 }
@@ -30,7 +29,6 @@ impl HuffmanDecoder {
             n_bit: 0,
             buffer: vec![],
             is_eof: false,
-            n_fill_byte: 0,
             start_byte,
             pge: vec![],
         }
@@ -182,11 +180,11 @@ impl HuffmanDecoder {
     fn consume_bits(&mut self, count: u8) {
         debug_assert!(count <= self.n_bit);
         self.bit_start += count;
+        self.n_bit -= count;
         while self.bit_start >= 8 {
             self.bit_start -= 8;
             self.bits <<= 8;
         }
-        self.n_bit -= count;
     }
 
     fn read_bits(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<()> {
@@ -250,11 +248,10 @@ pub struct HuffmanTable {
 
 impl HuffmanTable {
     pub fn new(
-        bits: &[u8],
+        bits: &[u8; 16],
         values: &[u8],
         class: HuffmanTableClass,
     ) -> HuffmanResult<HuffmanTable> {
-        assert!(bits.len() == 16);
         let (huffcode, huffsize) = derive_huffman_codes(bits)?;
         // Section F.2.2.3
         // Figure F.15
@@ -296,7 +293,6 @@ impl HuffmanTable {
                             >> (LUT_BITS - magnitude_category))
                             as u16;
                         let ac_value = extend(unextended_ac_value, magnitude_category);
-
                         table[i] = (ac_value, (run_length << 4) | (size + magnitude_category));
                     }
                 }

@@ -573,7 +573,9 @@ fn pop_handoff_and_verify_non_empty(format: &mut FormatInfo) -> JpegResult<()> {
 
 fn update_padding(format: &mut FormatInfo, huffman: &HuffmanDecoder) -> JpegResult<()> {
     let (pad_byte, pad_start_bit) = huffman.handover_byte();
-    if (((format.pad_byte ^ pad_byte) as u16) << max(format.pad_start_bit, pad_start_bit)) & 0xFF != 0 {
+    if (((format.pad_byte ^ pad_byte) as u16) << max(format.pad_start_bit, pad_start_bit)) & 0xFF
+        != 0
+    {
         return Err(JpegError::Malformatted("inconsistent padding".to_owned()));
     }
     if pad_start_bit < format.pad_start_bit {
@@ -625,7 +627,7 @@ fn decode_block(
             return Ok(());
         }
         // Section F.1.2.2.1
-        let mut index = spectral_selection.start;
+        let mut index = max(spectral_selection.start, 1);
         while index < spectral_selection.end {
             match huffman.decode_fast_ac(input, ac_table)? {
                 Some((value, run)) => {
@@ -640,7 +642,6 @@ fn decode_block(
                         non_zero_coefficients,
                         block_offset,
                     );
-                    index += 1;
                 }
                 None => {
                     let byte = huffman.decode(input, ac_table)?;

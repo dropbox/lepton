@@ -169,17 +169,16 @@ impl InputStream {
             self.preload_buffer.write_offset,
         );
         let old_retained_len = self.retained_buffer.len();
-        if keep {
-            if preload_available > 0 {
-                self.retained_buffer
-                    .extend(self.preload_buffer.data_slice(
-                        if preloaded_len == preload_available {
+        if keep && preload_available > 0 {
+            self.retained_buffer
+                .extend(
+                    self.preload_buffer
+                        .data_slice(if preloaded_len == preload_available {
                             None
                         } else {
                             Some(preloaded_len)
-                        },
-                    ));
-            }
+                        }),
+                );
         }
         self.preload_buffer.consume(preloaded_len);
         if len > preload_available {
@@ -418,7 +417,7 @@ impl IoStream {
 
     fn lock_for_read(&self) -> InputResult<MutexGuard<StreamBuffer>> {
         let stream_buf = self.data.lock().unwrap();
-        stream_buf.validate_for_read(false)?;
+        stream_buf.validate_for_read(1)?;
         Ok(stream_buf)
     }
 
@@ -428,15 +427,16 @@ impl IoStream {
         target_len: usize,
         cv: &Condvar,
     ) -> InputResult<MutexGuard<'a, StreamBuffer>> {
-        if stream_buf.data.len() < target_len {
+        stream_buf.validate_for_read(min_len)?;
+        if stream_buf.data.len() < target_len && stream_buf.is_open() {
             loop {
-                stream_buf.validate_for_read(true)?;
                 stream_buf.target_len = target_len;
                 stream_buf = cv.wait(stream_buf).unwrap();
                 stream_buf.target_len = 0;
                 if stream_buf.data.len() >= min_len {
                     break;
                 }
+                stream_buf.validate_for_read(min_len)?;
             }
         }
         Ok(stream_buf)
@@ -504,9 +504,17 @@ impl StreamBuffer {
         }
     }
 
-    fn validate_for_read(&self, require_active: bool) -> InputResult<()> {
+    fn is_open(&self) -> bool {
+        !(self.eof_written || self.aborted)
+    }
+
+    fn is_eof(&self) -> bool {
+        self.data.is_empty() && self.eof_written
+    }
+
+    fn validate_for_read(&self, min_len: usize) -> InputResult<()> {
         use self::InputError::*;
-        if self.data.is_empty() || require_active {
+        if self.data.len() < min_len {
             if self.aborted {
                 return Err(UnexpectedSigAbort(self.data.len()));
             } else if self.eof_written {
@@ -525,10 +533,6 @@ impl StreamBuffer {
         } else {
             Ok(())
         }
-    }
-
-    fn is_eof(&self) -> bool {
-        self.data.is_empty() && self.eof_written
     }
 }
 

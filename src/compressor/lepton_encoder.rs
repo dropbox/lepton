@@ -85,8 +85,10 @@ impl LeptonEncoder {
                 let mut cmp = vec![b'C', b'M', b'P'];
                 for mut scan in jpeg.scans {
                     secondary_header.append(&mut scan.raw_header);
-                    for mut component in scan.coefficients.unwrap() {
-                        cmp.extend(component.drain(..).map(|x| x as u8)); // FIXME: Use arithmetic encoding
+                    if let Some(coefficients) = scan.coefficients {
+                        for mut component in coefficients {
+                            cmp.extend(component.drain(..).map(|x| x as u8)); // FIXME: Use arithmetic encoding
+                        }
                     }
                 }
                 secondary_header.extend(Marker::P0D.value());
@@ -102,7 +104,6 @@ impl LeptonEncoder {
                 secondary_header.extend(Marker::GRB.value());
                 secondary_header.extend(LittleEndian::u32_to_array(format.grb.len() as u32).iter());
                 secondary_header.append(&mut format.grb);
-                println!("{:02X?}", secondary_header);
                 Ok(LeptonData {
                     secondary_header,
                     cmp,

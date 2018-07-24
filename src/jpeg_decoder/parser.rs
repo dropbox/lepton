@@ -205,8 +205,6 @@ pub fn parse_sos(input: &mut InputStream, frame: &FrameInfo) -> JpegResult<ScanI
         };
         // Each of the scan's components must be unique.
         if component_indices.contains(&component_index) {
-            println!("{:02X?}", input.view_retained_data());
-            println!("{:X?}", component_indices);
             return Err(JpegError::Malformatted(format!(
                 "duplicate scan component identifier {}",
                 identifier
