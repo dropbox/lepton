@@ -16,6 +16,8 @@ mod secondary_header;
 mod thread_handoff;
 mod util;
 
+mod test_iostream;
+
 pub use compressor::*;
 pub use decompressor::*;
 pub use interface::*;
