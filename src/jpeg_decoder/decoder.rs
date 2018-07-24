@@ -501,12 +501,8 @@ impl JpegDecoder {
                 &mut self.input,
                 coefficients,
                 huffman,
-                self.dc_huffman_tables[scan_info.dc_table_indices[scan_component_index]]
-                    .as_ref()
-                    .unwrap(),
-                self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]]
-                    .as_ref()
-                    .unwrap(),
+                self.dc_huffman_tables[scan_info.dc_table_indices[scan_component_index]].as_ref(),
+                self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]].as_ref(),
                 scan_info.spectral_selection.clone(),
                 scan_info.successive_approximation_low,
                 eob_run,
@@ -589,8 +585,8 @@ fn decode_block(
     input: &mut InputStream,
     coefficients: &mut [i16],
     huffman: &mut HuffmanDecoder,
-    dc_table: &HuffmanTable,
-    ac_table: &HuffmanTable,
+    dc_table: Option<&HuffmanTable>,
+    ac_table: Option<&HuffmanTable>,
     spectral_selection: Range<u8>,
     successive_approximation_low: u8,
     eob_run: &mut u16,
@@ -602,7 +598,7 @@ fn decode_block(
     if spectral_selection.start == 0 {
         // Section F.2.2.1
         // Figure F.12
-        let value = huffman.decode(input, dc_table)?;
+        let value = huffman.decode(input, dc_table.unwrap())?;
         let diff = match value {
             0 => 0,
             _ => {
@@ -628,6 +624,7 @@ fn decode_block(
         }
         // Section F.1.2.2.1
         let mut index = max(spectral_selection.start, 1);
+        let ac_table = ac_table.unwrap();
         while index < spectral_selection.end {
             match huffman.decode_fast_ac(input, ac_table)? {
                 Some((value, run)) => {
