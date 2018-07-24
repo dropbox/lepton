@@ -257,7 +257,7 @@ impl InputStream {
 
     #[inline(always)]
     pub fn is_eof(&self) -> bool {
-        self.istream.is_eof()
+        self.preload_buffer.data_len() == 0 && self.istream.is_eof()
     }
 
     #[inline(always)]
@@ -428,11 +428,16 @@ impl IoStream {
         target_len: usize,
         cv: &Condvar,
     ) -> InputResult<MutexGuard<'a, StreamBuffer>> {
-        while stream_buf.data.len() < min_len {
-            stream_buf.validate_for_read(true)?;
-            stream_buf.target_len = target_len;
-            stream_buf = cv.wait(stream_buf).unwrap();
-            stream_buf.target_len = 0;
+        if stream_buf.data.len() < target_len {
+            loop {
+                stream_buf.validate_for_read(true)?;
+                stream_buf.target_len = target_len;
+                stream_buf = cv.wait(stream_buf).unwrap();
+                stream_buf.target_len = 0;
+                if stream_buf.data.len() >= min_len {
+                    break;
+                }
+            }
         }
         Ok(stream_buf)
     }
@@ -477,7 +482,7 @@ impl StreamBuffer {
         let data_slices = self.data.as_slices();
         let first_slice_len = data_slices.0.len();
         if read_len <= first_slice_len {
-            buf.clone_from_slice(&data_slices.0[..read_len]);
+            buf[..read_len].clone_from_slice(&data_slices.0[..read_len]);
         } else {
             buf[..first_slice_len].clone_from_slice(data_slices.0);
             buf[first_slice_len..read_len]

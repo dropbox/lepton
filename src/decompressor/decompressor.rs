@@ -28,9 +28,9 @@ impl LeptonDecompressor {
                     Some(header) => header,
                     None => return Err(ErrMsg::PrimaryHeaderNotBuilt),
                 };
-                InternalDecompressor::SecondaryHeader(SecondaryHeaderParser::new(
+                InternalDecompressor::SecondaryHeader(Some(SecondaryHeaderParser::new(
                     primary_header.secondary_hdr_size,
-                ))
+                )))
             }
             InternalDecompressor::SecondaryHeader(_) => InternalDecompressor::JPEG,
             InternalDecompressor::JPEG => return Err(ErrMsg::InternalDecompressorExhausted),
@@ -63,20 +63,11 @@ impl Decompressor for LeptonDecompressor {
                     }
                 }
                 InternalDecompressor::SecondaryHeader(ref mut parser) => {
-                    match parser.decode(input, input_offset, output, output_offset) {
-                        LeptonOperationResult::Success => {
-                            match parser.extract_header() {
-                                Ok(secondary_header) => {
-                                    self.secondary_header = Some(secondary_header);
-                                    // TODO: parse the simantics of secondary header
-                                    // May not need to keep the whole header
-                                    LeptonOperationResult::Success
-                                }
-                                Err(e) => LeptonOperationResult::Failure(e),
-                            }
-                        }
-                        other => other,
+                    let result = parser.as_mut().unwrap().decode(input, input_offset, output, output_offset);
+                    if result == LeptonOperationResult::Success {
+                        self.secondary_header = Some(parser.take().unwrap().take_header());
                     }
+                    result
                 }
                 // TODO: Connect JPEG decompressor
                 InternalDecompressor::JPEG => LeptonOperationResult::Success,
@@ -101,6 +92,6 @@ impl Decompressor for LeptonDecompressor {
 
 enum InternalDecompressor {
     PrimaryHeader(PrimaryHeaderParser),
-    SecondaryHeader(SecondaryHeaderParser),
+    SecondaryHeader(Option<SecondaryHeaderParser>),
     JPEG,
 }

@@ -1,8 +1,7 @@
 use alloc::HeapAlloc;
 use brotli::{BrotliDecompressStream, BrotliResult, BrotliState, HuffmanCode};
-use core::mem;
 
-use interface::{ErrMsg, LeptonOperationResult};
+use interface::LeptonOperationResult;
 use resizable_buffer::ResizableByteBuffer;
 use secondary_header::{deserialize_header, SecondaryHeader};
 use util::mem_copy;
@@ -65,11 +64,10 @@ impl SecondaryHeaderParser {
         }
     }
 
-    // This function will change the parser's own copy of header to `None`.
-    pub fn extract_header(&mut self) -> Result<SecondaryHeader, ErrMsg> {
-        match self.header.take() {
-            Some(header) => Ok(header),
-            None => Err(ErrMsg::SecondaryHeaderNotBuilt),
+    pub fn take_header(self) -> SecondaryHeader {
+        match self.header {
+            Some(header) => header,
+            None => panic!("header has not been built"),
         }
     }
 

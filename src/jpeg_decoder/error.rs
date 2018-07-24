@@ -1,13 +1,11 @@
-use std::io::Error as IoError;
-
 use iostream::InputError;
 
-pub type JpegResult<T> = ::std::result::Result<T, JpegError>;
+pub type JpegResult<T> = Result<T, JpegError>;
 
 /// An enumeration over JPEG features (currently) unsupported by this library.
 ///
 /// Support for features listed here may be included in future versions of this library.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum UnsupportedFeature {
     /// Hierarchical JPEG.
     Hierarchical,
@@ -29,15 +27,13 @@ pub enum UnsupportedFeature {
 }
 
 /// Errors that can occur while decoding a JPEG image.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum JpegError {
     /// The image is not formatted properly. The string contains detailed information about the
     /// error.
     Malformatted(String),
     /// The image makes use of a JPEG feature not (currently) supported by this library.
     Unsupported(UnsupportedFeature),
-    /// An I/O error occurred while decoding the image.
-    Io(IoError),
     /// EOF is encountered when trying to read data. This may or may not be an error.
     EOF,
 }
@@ -45,12 +41,6 @@ pub enum JpegError {
 impl From<InputError> for JpegError {
     fn from(_err: InputError) -> JpegError {
         JpegError::EOF
-    }
-}
-
-impl From<IoError> for JpegError {
-    fn from(err: IoError) -> JpegError {
-        JpegError::Io(err)
     }
 }
 

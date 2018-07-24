@@ -18,6 +18,6 @@ mod util;
 
 pub use compressor::*;
 pub use decompressor::*;
-pub use iostream::*;
 pub use interface::*;
+pub use iostream::*;
 pub use resizable_buffer::*;

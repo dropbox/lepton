@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
-use thread_handoff::ThreadHandoff;
+use thread_handoff::{ThreadHandoff, BYTES_PER_HANDOFF};
 
 pub const MARKER_SIZE: usize = 3;
 pub const SECTION_HDR_SIZE: usize = 7;
@@ -20,11 +20,12 @@ static BASIC_HEADER: [u8; 156] = [
     0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0x54, 0xdd,
 ];
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Marker {
     HDR,
     P0D,
     PAD,
+    THX,
     HHX,
     CRS,
     FRS,
@@ -39,6 +40,9 @@ impl Marker {
     pub fn from(input: &[u8]) -> Result<Self, ErrMsg> {
         if input.len() < 3 {
             return Err(ErrMsg::IncompleteSecondaryHeaderMarker);
+        }
+        if input[..2].eq(b"TH") {
+            return Ok(Marker::THX);
         }
         if input[..2].eq(b"HH") {
             return Ok(Marker::HHX);
@@ -61,13 +65,13 @@ impl Marker {
         }
     }
 
-    pub fn value(&self) -> &[u8; 3] {
+    pub fn value(&self) -> &[u8] {
         match *self {
             Marker::HDR => b"HDR",
             Marker::P0D => b"P0D",
             Marker::PAD => b"PAD",
-            // During compression only the first 2 bytes of HHX should be used
-            Marker::HHX => b"HHX",
+            Marker::THX => b"TH",
+            Marker::HHX => b"HH",
             Marker::CRS => b"CRS",
             Marker::FRS => b"FRS",
             Marker::PGE => b"PGE",
@@ -94,8 +98,8 @@ pub fn default_serialized_header() -> Vec<u8> {
     result.extend(BASIC_HEADER.iter());
     result.extend(Marker::P0D.value());
     result.push(1);
-    result.extend(Marker::HHX.value()[..2].iter());
-    result.extend(ThreadHandoff::serialize(vec![ThreadHandoff::default(); 1]));
+    result.extend(Marker::HHX.value());
+    result.extend(ThreadHandoff::serialize(&[ThreadHandoff::default(); 1]));
     result.extend(Marker::GRB.value());
     result.extend([0, 0, 0, 0].iter());
     result
@@ -103,8 +107,8 @@ pub fn default_serialized_header() -> Vec<u8> {
 
 pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
     let mut header = SecondaryHeader {
-        hdr: Vec::new(),
-        pge: Vec::new(),
+        hdr: vec![],
+        pge: vec![],
         optional: HashMap::new(),
     };
     let mut ptr = 0usize;
@@ -161,7 +165,7 @@ fn read_sized_section<'a>(
         return Err(incomplete_secondary_header_section(marker, 1));
     }
     let section_len = match marker {
-        Marker::HHX => (data[*offset + 2] as usize) * 16, // BYTES_PER_HANDOFF = 16
+        Marker::HHX => (data[*offset + 2] as usize) * BYTES_PER_HANDOFF,
         _ => LittleEndian::slice_to_u32(&data[(*offset + MARKER_SIZE)..]) as usize,
     };
     let section_end = *offset + section_hdr_size + section_len;
@@ -174,5 +178,5 @@ fn read_sized_section<'a>(
 }
 
 fn incomplete_secondary_header_section(marker: Marker, code: u8) -> ErrMsg {
-    ErrMsg::IncompleteSecondaryHeaderSection(code, *marker.value())
+    ErrMsg::IncompleteSecondaryHeaderSection(code, marker)
 }

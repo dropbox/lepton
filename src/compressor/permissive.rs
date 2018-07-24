@@ -1,9 +1,9 @@
 use super::brotli_encoder::BrotliEncoder;
+use super::util::flush_lepton_data;
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::{Compressor, LeptonFlushResult, LeptonOperationResult};
 use primary_header::{serialize_header, HEADER_SIZE};
 use secondary_header::{default_serialized_header, MARKER_SIZE, SECTION_HDR_SIZE};
-use util::mem_copy;
 
 static BASIC_CMP: [u8; 6] = [b'C', b'M', b'P', 0xff, 0xfe, 0xff];
 
@@ -13,6 +13,7 @@ pub struct LeptonPermissiveCompressor {
     header_written: usize,
     data: Vec<u8>,
     first_encode: bool,
+    brotli_done: bool,
     cmp_written: usize,
 }
 
@@ -26,6 +27,7 @@ impl LeptonPermissiveCompressor {
             header_written: 0,
             data,
             first_encode: true,
+            brotli_done: false,
             cmp_written: 0,
         }
     }
@@ -57,7 +59,7 @@ impl Compressor for LeptonPermissiveCompressor {
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
-        loop {
+        while *output_offset < output.len() {
             match self.header {
                 None => {
                     let pge_len = self.data.len() - SECTION_HDR_SIZE;
@@ -74,37 +76,27 @@ impl Compressor for LeptonPermissiveCompressor {
                     }
                     match self.encoder.finish_encode() {
                         Ok(size) => {
-                            self.header =
-                                Some(serialize_header(b'Y', 1u32, &[0u8; 12], pge_len, size));
+                            self.header = Some(serialize_header(b'Y', 1, &[0; 12], pge_len, size));
                         }
                         Err(e) => return LeptonFlushResult::Failure(e),
                     }
                 }
                 Some(header) => {
-                    if self.header_written < HEADER_SIZE {
-                        mem_copy(output, output_offset, &header, &mut self.header_written);
-                        if *output_offset == output.len() {
-                            return LeptonFlushResult::NeedsMoreOutput;
-                        }
-                    } else {
-                        match self.encoder.flush(output, output_offset) {
-                            LeptonFlushResult::Success => {
-                                if self.cmp_written < BASIC_CMP.len() {
-                                    mem_copy(output, output_offset, &BASIC_CMP, &mut self.cmp_written);
-                                    if self.cmp_written == BASIC_CMP.len() {
-                                        return LeptonFlushResult::Success
-                                    } else {
-                                        return LeptonFlushResult::NeedsMoreOutput;
-                                    }
-                                } else {
-                                    return LeptonFlushResult::Success;
-                                }
-                            }
-                            other => return other,
-                        }
+                    if let Some(result) = flush_lepton_data(
+                        output,
+                        output_offset,
+                        &header,
+                        &mut self.encoder,
+                        &BASIC_CMP,
+                        &mut self.header_written,
+                        &mut self.brotli_done,
+                        &mut self.cmp_written,
+                    ) {
+                        return result;
                     }
                 }
             }
         }
+        LeptonFlushResult::NeedsMoreOutput
     }
 }

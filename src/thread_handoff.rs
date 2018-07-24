@@ -14,10 +14,10 @@ pub struct ThreadHandoff {
 }
 
 impl ThreadHandoff {
-    pub fn serialize(data: Vec<ThreadHandoff>) -> Vec<u8> {
+    pub fn serialize(data: &[ThreadHandoff]) -> Vec<u8> {
         let mut result = Vec::<u8>::with_capacity(BYTES_PER_HANDOFF * data.len() + 1);
         result.push(data.len() as u8);
-        for handoff in data.iter() {
+        for handoff in data {
             result.extend(LittleEndian::u16_to_array(handoff.luma_y_start).iter());
             result.extend(LittleEndian::u32_to_array(handoff.segment_size).iter());
             result.push(handoff.overhang_byte);
@@ -42,10 +42,10 @@ pub struct ThreadHandoffExt {
 }
 
 impl ThreadHandoffExt {
-    pub fn serialize(data: Vec<ThreadHandoffExt>) -> Vec<u8> {
+    pub fn serialize(data: &[ThreadHandoffExt]) -> Vec<u8> {
         let mut result = Vec::<u8>::with_capacity(BYTES_PER_HANDOFF_EXT * data.len() + 1);
         result.push(data.len() as u8);
-        for handoff in data.iter() {
+        for handoff in data {
             result.extend(LittleEndian::u16_to_array(handoff.start_scan).iter());
             result.extend(LittleEndian::u16_to_array(handoff.end_scan).iter());
             result.extend(LittleEndian::u16_to_array(handoff.mcu_y_start).iter());

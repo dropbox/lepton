@@ -9,11 +9,11 @@ use std::io::{self, Read, Result, Write};
 use std::path::Path;
 
 use lepton::{Compressor, Decompressor, ErrMsg, LeptonDecompressor, LeptonFlushResult,
-             LeptonOperationResult, LeptonPermissiveCompressor};
+             LeptonOperationResult, LeptonCompressor};
 
 mod integration_test;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct LeptonErrMsg(pub ErrMsg);
 
 impl core::fmt::Display for LeptonErrMsg {
@@ -92,7 +92,7 @@ fn compress<Reader: Read, Writer: Write>(
     w: &mut Writer,
     buffer_size: usize,
 ) -> Result<()> {
-    let mut compressor = LeptonPermissiveCompressor::new();
+    let mut compressor = LeptonCompressor::new(0, 0); // FIXME: use actual input
     let ret = compress_internal(r, w, buffer_size, &mut compressor);
     // compressor.free();
     ret

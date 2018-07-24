@@ -1,6 +1,8 @@
 use brotli::BrotliResult;
+use jpeg_decoder::JpegError;
+use secondary_header::Marker;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ErrMsg {
     BrotliCompressStreamFail,
     BrotliDecompressStreamFail,
@@ -9,15 +11,17 @@ pub enum ErrMsg {
     HDRMissing,
     IncompletePrimaryHeader,
     IncompleteSecondaryHeaderMarker,
-    IncompleteSecondaryHeaderSection(u8, [u8; 3]),
+    IncompleteSecondaryHeaderSection(u8, Marker),
     InternalDecompressorExhausted,
     InvalidSecondaryHeaderMarker(u8, u8, u8),
+    JpegDecodeFail(JpegError),
     PADMIssing,
     PrimaryHeaderNotBuilt,
     SecondaryHeaderNotBuilt,
     WrongMagicNumber,
 }
 
+#[derive(PartialEq)]
 pub enum LeptonOperationResult {
     Failure(ErrMsg),
     Success,
@@ -42,6 +46,12 @@ pub enum LeptonFlushResult {
     Failure(ErrMsg),
     Success,
     NeedsMoreOutput,
+}
+
+#[derive(PartialEq)]
+pub enum CumulativeOperationResult {
+    Finish,
+    NeedsMoreInput,
 }
 
 pub trait Compressor {

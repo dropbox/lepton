@@ -85,13 +85,26 @@ pub enum EntropyCoding {
     Arithmetic,
 }
 
-#[derive(Default)]
 pub struct FormatInfo {
+    pub len: usize, // This is a rough estimate of the end of entropy-encoded data
     pub pad_byte: u8,
     pub pad_start_bit: u8,
     pub handoff: Vec<ThreadHandoffExt>,
     pub pge: Vec<u8>,
     pub grb: Vec<u8>,
+}
+
+impl Default for FormatInfo {
+    fn default() -> Self {
+        FormatInfo {
+            len: 0,
+            pad_byte: 0,
+            pad_start_bit: 8,
+            handoff: vec![],
+            pge: vec![],
+            grb: vec![],
+        }
+    }
 }
 
 pub struct ScanTruncation {

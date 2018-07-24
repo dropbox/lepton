@@ -194,9 +194,9 @@ pub fn parse_sos(input: &mut InputStream, frame: &FrameInfo) -> JpegResult<ScanI
     if length != 4 + 2 * component_count {
         return Err(JpegError::Malformatted("invalid length in SOS".to_owned()));
     }
-    let mut component_indices = vec![0usize; component_count];
-    let mut dc_table_indices = vec![0usize; component_count];
-    let mut ac_table_indices = vec![0usize; component_count];
+    let mut component_indices = Vec::with_capacity(component_count as usize);;
+    let mut dc_table_indices = Vec::with_capacity(component_count as usize);;
+    let mut ac_table_indices = Vec::with_capacity(component_count as usize);;
     for _ in 0..component_count {
         let identifier = input.read_byte(true)?;
         let component_index = match frame.components.iter().position(|c| c.identifier == identifier) {
@@ -205,6 +205,8 @@ pub fn parse_sos(input: &mut InputStream, frame: &FrameInfo) -> JpegResult<ScanI
         };
         // Each of the scan's components must be unique.
         if component_indices.contains(&component_index) {
+            println!("{:02X?}", input.view_retained_data());
+            println!("{:X?}", component_indices);
             return Err(JpegError::Malformatted(format!(
                 "duplicate scan component identifier {}",
                 identifier
