@@ -2,7 +2,7 @@
 extern crate std;
 
 use super::byte_converter::{BigEndian, ByteConverter};
-use super::iostream::{InputStream, iostream, OutputStream};
+use super::iostream::{InputStream, iostream};
 
 #[test]
 fn ostream_test() {

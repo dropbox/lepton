@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
+use iostream::InputStream;
+use jpeg_decoder::{Jpeg, JpegDecoder};
 use thread_handoff::{ThreadHandoff, BYTES_PER_HANDOFF, BYTES_PER_HANDOFF_EXT};
 
 pub const MARKER_SIZE: usize = 3;
@@ -86,7 +88,8 @@ impl Marker {
 pub struct SecondaryHeader {
     // TODO: May need to differentiate PGE and PGR
     // TODO: Extract GRB?
-    pub hdr: Vec<u8>,
+    pub hdr: Jpeg,
+    pub pad: u8,
     pub pge: Vec<u8>,
     pub grb: Vec<u8>,
     pub optional: HashMap<Marker, Vec<u8>>,
@@ -107,36 +110,44 @@ pub fn default_serialized_header() -> Vec<u8> {
 }
 
 pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
-    let mut header = SecondaryHeader {
-        hdr: vec![],
-        pge: vec![],
-        grb: vec![],
-        optional: HashMap::new(),
-    };
     let mut ptr = 0usize;
-    match read_sized_section(data, &mut ptr) {
-        Ok((Marker::HDR, body)) => header.hdr.extend(body),
+    let hdr = match read_sized_section(data, &mut ptr) {
+        Ok((Marker::HDR, body)) => {
+            match JpegDecoder::new(InputStream::preload(body.to_vec()), 0, true).decode() {
+                Ok(jpeg) => jpeg,
+                Err(e) => return Err(ErrMsg::JpegDecodeFail(e)),
+            }
+        }
         Ok(_) => return Err(ErrMsg::HDRMissing),
         Err(e) => return Err(e),
-    }
-    match read_pad(data, &mut ptr) {
-        Ok((marker, pad)) => header.optional.insert(marker, pad.to_vec()),
+    };
+    let pad = match read_pad(data, &mut ptr) {
+        Ok((_marker, pad)) => pad,
         Err(e) => return Err(e),
     };
+    let mut pge = vec![];
+    let mut grb = vec![];
+    let mut optional = HashMap::<Marker, Vec<u8>>::new();
     while ptr < data.len() {
         match read_sized_section(data, &mut ptr) {
-            Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => header.pge.extend(body),
-            Ok((Marker::GRB, body)) => header.grb.extend(body),
+            Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => pge.extend(body),
+            Ok((Marker::GRB, body)) => grb.extend(body),
             Ok((marker, body)) => {
-                header.optional.insert(marker, body.to_vec());
+                optional.insert(marker, body.to_vec());
             }
             Err(e) => return Err(e),
         };
     }
-    Ok(header)
+    Ok(SecondaryHeader {
+        hdr,
+        pad,
+        pge,
+        grb,
+        optional,
+    })
 }
 
-fn read_pad<'a>(data: &'a [u8], offset: &mut usize) -> Result<(Marker, &'a [u8]), ErrMsg> {
+fn read_pad<'a>(data: &'a [u8], offset: &mut usize) -> Result<(Marker, u8), ErrMsg> {
     if data.len() < *offset + PAD_SECTION_SIZE {
         return Err(incomplete_secondary_header_section(Marker::P0D, 0));
     }
@@ -149,7 +160,7 @@ fn read_pad<'a>(data: &'a [u8], offset: &mut usize) -> Result<(Marker, &'a [u8])
     let section_end = *offset + PAD_SECTION_SIZE;
     let body = &data[(*offset + MARKER_SIZE)..section_end];
     *offset = section_end;
-    Ok((marker, &body))
+    Ok((marker, body[0]))
 }
 
 fn read_sized_section<'a>(

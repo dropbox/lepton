@@ -104,17 +104,17 @@ impl SecondaryHeaderParser {
         loop {
             match self.header {
                 Some(ref mut header) => {
+                    let hdr = &header.hdr.scans[0].raw_header;
                     if self.pge_written < header.pge.len() {
                         mem_copy(output, output_offset, &header.pge, &mut self.pge_written);
                         if self.pge_written == header.pge.len() {
                             header.pge.clear();
                         }
-                    } else if self.output_jpeg_hdr && self.hdr_written < header.hdr.len() {
-                        // FIXME: defer writing out hdr to lepton_decoder
-                        mem_copy(output, output_offset, &header.hdr, &mut self.hdr_written);
+                    } else if self.output_jpeg_hdr && self.hdr_written < hdr.len() {
+                        mem_copy(output, output_offset, hdr, &mut self.hdr_written);
                     }
                     if self.pge_written >= header.pge.len()
-                        && (!self.output_jpeg_hdr || self.hdr_written == header.hdr.len())
+                        && (!self.output_jpeg_hdr || self.hdr_written == hdr.len())
                     {
                         return LeptonOperationResult::Success;
                     } else if *output_offset == output.len() {
