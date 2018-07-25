@@ -16,8 +16,6 @@ pub enum ErrMsg {
     InvalidSecondaryHeaderMarker(u8, u8, u8),
     JpegDecodeFail(JpegError),
     PADMIssing,
-    PrimaryHeaderNotBuilt,
-    SecondaryHeaderNotBuilt,
     WrongMagicNumber,
 }
 

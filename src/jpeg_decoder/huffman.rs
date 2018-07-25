@@ -192,7 +192,7 @@ impl HuffmanDecoder {
     }
 
     fn read_bits(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<()> {
-        assert!(count <= 57); // FIXME: count <= 49?
+        assert!(count <= 57);
         while self.n_bit < count {
             let byte = input.peek_byte()?;
             if byte == 0xFF {

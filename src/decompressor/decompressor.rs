@@ -1,3 +1,4 @@
+use super::lepton_decoder::LeptonDecoder;
 use super::primary_header_parser::PrimaryHeaderParser;
 use super::secondary_header_parser::SecondaryHeaderParser;
 use interface::{Decompressor, ErrMsg, LeptonOperationResult};
@@ -24,16 +25,19 @@ impl LeptonDecompressor {
     fn next_internal_decompressor(&mut self) -> Result<(), ErrMsg> {
         self.decompressor = match self.decompressor {
             InternalDecompressor::PrimaryHeader(_) => {
-                let primary_header = match self.primary_header {
-                    Some(header) => header,
-                    None => return Err(ErrMsg::PrimaryHeaderNotBuilt),
-                };
+                let primary_header = self.primary_header.as_ref().unwrap();
                 InternalDecompressor::SecondaryHeader(Some(SecondaryHeaderParser::new(
                     primary_header.secondary_hdr_size,
+                    !primary_header.skip_hdr,
                 )))
             }
-            InternalDecompressor::SecondaryHeader(_) => InternalDecompressor::JPEG,
-            InternalDecompressor::JPEG => return Err(ErrMsg::InternalDecompressorExhausted),
+            InternalDecompressor::SecondaryHeader(_) => {
+                InternalDecompressor::CMP(LeptonDecoder::new(
+                    self.secondary_header.take().unwrap(),
+                    self.primary_header.as_ref().unwrap().raw_size - self.total_out,
+                ))
+            }
+            InternalDecompressor::CMP(_) => return Err(ErrMsg::InternalDecompressorExhausted),
         };
         Ok(())
     }
@@ -63,14 +67,19 @@ impl Decompressor for LeptonDecompressor {
                     }
                 }
                 InternalDecompressor::SecondaryHeader(ref mut parser) => {
-                    let result = parser.as_mut().unwrap().decode(input, input_offset, output, output_offset);
+                    let result =
+                        parser
+                            .as_mut()
+                            .unwrap()
+                            .decode(input, input_offset, output, output_offset);
                     if result == LeptonOperationResult::Success {
                         self.secondary_header = Some(parser.take().unwrap().take_header());
                     }
                     result
                 }
-                // TODO: Connect JPEG decompressor
-                InternalDecompressor::JPEG => LeptonOperationResult::Success,
+                InternalDecompressor::CMP(ref mut decoder) => {
+                    decoder.decode(input, input_offset, output, output_offset)
+                }
             };
             self.total_out += *output_offset - old_output_offset;
             if let Some(primary_header) = self.primary_header {
@@ -93,5 +102,5 @@ impl Decompressor for LeptonDecompressor {
 enum InternalDecompressor {
     PrimaryHeader(PrimaryHeaderParser),
     SecondaryHeader(Option<SecondaryHeaderParser>),
-    JPEG,
+    CMP(LeptonDecoder),
 }

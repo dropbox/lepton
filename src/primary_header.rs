@@ -41,7 +41,7 @@ pub fn deserialize_header(data: &[u8]) -> Result<PrimaryHeader, ErrMsg> {
     } else {
         let mut header = PrimaryHeader {
             version: data[2],
-            skip_hdr: if data[3] == 0 { false } else { true },
+            skip_hdr: if data[3] == b'Y' { true } else { false },
             n_threads: LittleEndian::slice_to_u32(&data[4..]),
             git_hash: [0u8; 12],
             raw_size: LittleEndian::slice_to_u32(&data[20..]) as usize,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
-use thread_handoff::{ThreadHandoff, BYTES_PER_HANDOFF};
+use thread_handoff::{ThreadHandoff, BYTES_PER_HANDOFF, BYTES_PER_HANDOFF_EXT};
 
 pub const MARKER_SIZE: usize = 3;
 pub const SECTION_HDR_SIZE: usize = 7;
@@ -88,6 +88,7 @@ pub struct SecondaryHeader {
     // TODO: Extract GRB?
     pub hdr: Vec<u8>,
     pub pge: Vec<u8>,
+    pub grb: Vec<u8>,
     pub optional: HashMap<Marker, Vec<u8>>,
 }
 
@@ -109,6 +110,7 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
     let mut header = SecondaryHeader {
         hdr: vec![],
         pge: vec![],
+        grb: vec![],
         optional: HashMap::new(),
     };
     let mut ptr = 0usize;
@@ -124,6 +126,7 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
     while ptr < data.len() {
         match read_sized_section(data, &mut ptr) {
             Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => header.pge.extend(body),
+            Ok((Marker::GRB, body)) => header.grb.extend(body),
             Ok((marker, body)) => {
                 header.optional.insert(marker, body.to_vec());
             }
@@ -158,13 +161,14 @@ fn read_sized_section<'a>(
         Err(e) => return Err(e),
     };
     let section_hdr_size: usize = match marker {
-        Marker::HHX => MARKER_SIZE,
+        Marker::THX | Marker::HHX => MARKER_SIZE,
         _ => SECTION_HDR_SIZE,
     };
     if data.len() < *offset + section_hdr_size {
         return Err(incomplete_secondary_header_section(marker, 1));
     }
     let section_len = match marker {
+        Marker::THX => (data[*offset + 2] as usize) * BYTES_PER_HANDOFF_EXT,
         Marker::HHX => (data[*offset + 2] as usize) * BYTES_PER_HANDOFF,
         _ => LittleEndian::slice_to_u32(&data[(*offset + MARKER_SIZE)..]) as usize,
     };

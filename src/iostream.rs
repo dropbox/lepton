@@ -46,6 +46,17 @@ impl InputStream {
         }
     }
 
+    pub fn preload(data: Vec<u8>) -> Self {
+        let istream = IoStream::default();
+        istream.write_eof().unwrap();
+        InputStream {
+            istream: Arc::new(istream),
+            preload_buffer: Buffer::with_content(data),
+            retained_buffer: vec![],
+            processed_len: 0,
+        }
+    }
+
     #[inline(always)]
     pub fn peek_byte(&mut self) -> InputResult<u8> {
         let mut byte = [0u8];
@@ -546,6 +557,14 @@ impl Buffer {
             data: vec![0u8; size],
             write_offset: 0,
             read_offset: 0,
+        }
+    }
+
+    fn with_content(data: Vec<u8>) -> Self {
+        Buffer {
+            write_offset: data.len(),
+            read_offset: 0,
+            data,
         }
     }
 
