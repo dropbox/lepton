@@ -397,7 +397,9 @@ impl IoStream {
             );
         }
         let mut stream_buf = self.lock_for_read()?;
-        stream_buf = Self::wait_for_read(stream_buf, min_len, buf.len(), &self.cv)?;
+        if stream_buf.data.len() < min_len {
+            stream_buf = Self::wait_for_read(stream_buf, min_len, min_len, &self.cv)?;
+        }
         let read_len = stream_buf.read(buf);
         if consume {
             stream_buf.consume(read_len);

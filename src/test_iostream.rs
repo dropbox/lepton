@@ -1,6 +1,8 @@
 #![cfg(test)]
 extern crate std;
 
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
 use super::byte_converter::{BigEndian, ByteConverter};
 use super::iostream::{InputStream, iostream};
 
@@ -92,5 +94,84 @@ fn istream_preload_test() {
             },
             _ => {},
         }
+    }
+}
+
+#[test]
+fn blocking_read_test() {
+    let (mut istream, ostream) = iostream(1024);
+    let pair = Arc::new((Mutex::<bool>::new(false), Condvar::new()));
+    let pair_child = pair.clone();
+
+    const BUFFER_SIZE: usize = 10;
+    let child = thread::spawn(move || {
+        // Notify the main thread that this thread has started.
+        let mut buffer = [0u8; BUFFER_SIZE];
+        let &(ref lock, ref cv) = &*pair_child;
+        {
+            let mut started = lock.lock().unwrap();
+            *started = true;
+            cv.notify_one();
+        }
+
+        // Read from istream and check that we get 0, 1, 2, ...
+        assert_eq!(istream.read(&mut buffer, true, true).unwrap(), BUFFER_SIZE);
+        for i in 0..BUFFER_SIZE {
+            assert_eq!(buffer[i], i as u8);
+        }
+    });
+
+    // Wait for the thread to start up.
+    let &(ref lock, ref cv) = &*pair;
+    let mut started = lock.lock().unwrap();
+    while !*started {
+        started = cv.wait(started).unwrap();
+    }
+
+    // Write to ostream 0, 1, 2, ...
+    let mut buffer = [0u8; BUFFER_SIZE];
+    for i in 0..buffer.len() {
+        buffer[i] = i as u8;
+    }
+    assert_eq!(ostream.write(&buffer).unwrap(), buffer.len());
+    ostream.write_eof().unwrap();
+    child.join().unwrap();
+}
+
+#[test]
+fn intertwined_read_test() {
+    let (mut istream1, ostream1) = iostream(1024);
+    let (mut istream2, ostream2) = iostream(1024);
+    assert_eq!(ostream1.write(&[0u8]).unwrap(), 1);
+
+    const NUM_ITERATIONS: usize = 10;
+    let thread1 = thread::spawn(move || {  // read from istream1 and write to ostream2
+        let mut data_read_by_thread1: Vec<u8> = Vec::new();
+        for _ in 0..NUM_ITERATIONS {
+            let b_in = istream1.read_byte(false).unwrap();
+            data_read_by_thread1.push(b_in);
+            let b_out = [b_in + 1u8];
+            assert_eq!(ostream2.write(&b_out).unwrap(), 1);
+        }
+        data_read_by_thread1
+    });
+    let thread2 = thread::spawn(move || {  // read from istream2 and write to ostream1
+        let mut data_read_by_thread2: Vec<u8> = Vec::new();
+        for _ in 0..NUM_ITERATIONS {
+            let b_in = istream2.read_byte(false).unwrap();
+            data_read_by_thread2.push(b_in);
+            let b_out = [b_in + 2u8];
+            assert_eq!(ostream1.write(&b_out).unwrap(), 1);
+        }
+        data_read_by_thread2
+    });
+
+    let data_read_by_thread1 = thread1.join().unwrap();
+    let data_read_by_thread2 = thread2.join().unwrap();
+    assert_eq!(data_read_by_thread1.len(), NUM_ITERATIONS);
+    assert_eq!(data_read_by_thread2.len(), NUM_ITERATIONS);
+    for i in 0..data_read_by_thread1.len() {
+        assert_eq!(data_read_by_thread1[i], if i > 0 { data_read_by_thread2[i-1] + 2 } else { 0 });
+        assert_eq!(data_read_by_thread2[i], data_read_by_thread1[i] + 1);
     }
 }
