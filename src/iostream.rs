@@ -250,11 +250,11 @@ impl InputStream {
         } else if bytes_to_read > 0 {
             // Populate the preload_buffer and read from it.
             // Q: if this encounters an error, does preload_buffer get corrupted?
-            let len = self.istream
+            let _len = self.istream
                 .read(self.preload_buffer.slice_mut(), bytes_to_read)?;
-            self.preload_buffer.write_offset = len;
+            self.preload_buffer.write_offset = _len;
             self.preload_buffer.read_offset = 0;
-            let size_to_fill = min(len - read_len, len);
+            let size_to_fill = min(len - read_len, _len);
             if let Some(ref mut buf) = buf {
                 buf[read_len..(read_len + size_to_fill)]
                     .copy_from_slice(&self.preload_buffer.slice()[..size_to_fill]);
