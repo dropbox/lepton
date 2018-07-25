@@ -115,114 +115,71 @@ impl InputStream {
         Ok(buf_len)
     }
 
+    /// Reads the given number of bytes and returns the number of bytes read.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The destination buffer for storing the bytes read.
+    /// * `fill` - if true, will block for additional bytes beyond the preloaded data if needed.
+    /// * `keep` - if true, bytes read are retained and can be accessed by `view_retained_data`.
+    ///
+    /// NOTE: even if `fill` is set to false, the method will block if the preloaded data is empty.
     pub fn read(&mut self, buf: &mut [u8], fill: bool, keep: bool) -> InputResult<usize> {
         if buf.len() == 0 {
             return Ok(0);
         }
-        let preload_available = self.preload_buffer.data_len();
-        let (old_preload_start, old_preload_end) = (
-            self.preload_buffer.read_offset,
-            self.preload_buffer.write_offset,
-        );
         let mut read_len = 0;
+
+        // Read from preloaded data if possible.
+        let mut preload_used: usize = 0;
+        let preload_available = self.preload_buffer.data_len();
         if preload_available > 0 {
             read_len = min(buf.len(), preload_available);
             buf[..read_len].copy_from_slice(self.preload_buffer.data_slice(Some(read_len)));
-            self.preload_buffer.consume(read_len);
+            preload_used = read_len;
         }
-        if preload_available == 0 || (fill && preload_available < buf.len()) {
-            let buf_available = buf.len() - preload_available;
-            match if buf_available >= self.preload_buffer.capacity() / 2 {
-                self.istream.read(
-                    &mut buf[preload_available..],
-                    if fill { buf_available } else { 1 },
-                )
-            } else {
-                match self.istream.read(
-                    self.preload_buffer.slice_mut(),
-                    if fill { buf_available } else { 1 },
-                ) {
-                    Ok(len) => {
-                        self.preload_buffer.write_offset = len;
-                        self.preload_buffer.read_offset = 0;
-                        let size_to_fill = min(buf_available, len);
-                        buf[preload_available..(preload_available + size_to_fill)]
-                            .copy_from_slice(&self.preload_buffer.slice()[..size_to_fill]);
-                        self.preload_buffer.consume(size_to_fill);
-                        Ok(size_to_fill)
-                    }
-                    Err(e) => Err(e),
-                }
-            } {
-                Ok(len) => read_len += len,
-                Err(e) => {
-                    self.preload_buffer.write_offset = old_preload_end;
-                    self.preload_buffer.read_offset = old_preload_start;
-                    return Err(e);
-                }
-            }
+
+        // Read additional data if necessary.
+        assert!(read_len <= buf.len());
+        let bytes_to_read = if fill { buf.len() - read_len } else {
+            if preload_used == 0 { 1 } else { 0 }
+        };
+        assert!(bytes_to_read <= buf.len() - read_len);
+        if bytes_to_read >= self.preload_buffer.capacity() / 2 {
+            // Skip preload_buffer and directly populate into the buffer.
+            read_len += self.istream.read(&mut buf[preload_available..], bytes_to_read)?;
+        } else if bytes_to_read > 0 {
+            // Populate the preload_buffer and read from it.
+            // Q: if this encounters an error, does preload_buffer get corrupted?
+            let len = self.istream.read(self.preload_buffer.slice_mut(), bytes_to_read)?;
+            self.preload_buffer.write_offset = len;
+            self.preload_buffer.read_offset = 0;
+            let size_to_fill = min(bytes_to_read, len);
+            buf[read_len..(read_len + size_to_fill)]
+                .copy_from_slice(&self.preload_buffer.slice()[..size_to_fill]);
+            preload_used = size_to_fill;
+            read_len += size_to_fill;
         }
-        self.processed_len += read_len;
+
+        // Mark (some) preloaded data as having been consumed.
+        if preload_used > 0 {
+            self.preload_buffer.consume(preload_used);
+        }
+
+        // Retain the bytes read if requested.
         if keep {
             self.retained_buffer.extend(&buf[..read_len]);
         }
+
+        self.processed_len += read_len;
         Ok(read_len)
     }
 
+    /// Reads the given number of bytes and discards them.
+    /// Returns the number of bytes actually read.
     pub fn consume(&mut self, len: usize, keep: bool) -> InputResult<usize> {
-        if len == 0 {
-            return Ok(0);
-        }
-        let preload_available = self.preload_buffer.data_len();
-        let preloaded_len = min(preload_available, len);
-        let (old_preload_start, old_preload_end) = (
-            self.preload_buffer.read_offset,
-            self.preload_buffer.write_offset,
-        );
-        let old_retained_len = self.retained_buffer.len();
-        if keep && preload_available > 0 {
-            self.retained_buffer
-                .extend(
-                    self.preload_buffer
-                        .data_slice(if preloaded_len == preload_available {
-                            None
-                        } else {
-                            Some(preloaded_len)
-                        }),
-                );
-        }
-        self.preload_buffer.consume(preloaded_len);
-        if len > preload_available {
-            let size_to_consume = len - preload_available;
-            if let Err(e) = if size_to_consume >= self.preload_buffer.capacity() / 2 {
-                self.direct_consume(size_to_consume, keep)
-            } else {
-                match self.istream
-                    .read(self.preload_buffer.slice_mut(), size_to_consume)
-                {
-                    Ok(len) => {
-                        self.preload_buffer.write_offset = len;
-                        self.preload_buffer.read_offset = 0;
-                        if keep {
-                            self.retained_buffer
-                                .extend(&self.preload_buffer.slice()[..size_to_consume]);
-                        }
-                        self.preload_buffer.consume(size_to_consume);
-                        Ok(size_to_consume)
-                    }
-                    Err(e) => Err(e),
-                }
-            } {
-                if keep {
-                    self.preload_buffer.write_offset = old_preload_end;
-                    self.preload_buffer.read_offset = old_preload_start;
-                    self.retained_buffer.truncate(old_retained_len);
-                }
-                return Err(e);
-            }
-        }
-        self.processed_len += len;
-        Ok(len)
+        let mut dummy = vec![0u8; len];
+        self.read(&mut dummy, true, keep)
     }
 
     #[inline(always)]

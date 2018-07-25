@@ -2,7 +2,7 @@
 extern crate std;
 
 use super::byte_converter::{BigEndian, ByteConverter};
-use super::iostream::iostream;
+use super::iostream::{InputStream, iostream, OutputStream};
 
 #[test]
 fn ostream_test() {
@@ -71,6 +71,26 @@ fn iostream_read16_and_read32_and_retrained_data_test() {
 }
 
 #[test]
-fn blocking_read_test() {
-    // TODO(jongmin)
+fn istream_preload_test() {
+    for i in 0..2  {
+        let data: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6, 7];
+        let mut istream = InputStream::preload(data.to_vec());
+        let mut buffer = [0u8; 4];
+        assert_eq!(istream.peek_byte().unwrap(), data[0]);
+        assert_eq!(istream.consume(1, false).unwrap(), 1); // 0
+        assert_eq!(istream.read_byte(false).unwrap(), data[1]); // 1
+        assert_eq!(istream.read_byte(false).unwrap(), data[2]); // 2
+        assert_eq!(istream.consume(2, false).unwrap(), 2); // 3, 4
+        assert_eq!(istream.read_byte(false).unwrap(), data[5]); // 5
+
+        match i {
+            0 => {  // Test read(...) with some preloaded data left but not enough.
+                assert_eq!(istream.read(&mut buffer, false, false).unwrap(), 2); // 6, 7
+            },
+            1 => {  // Test consume(...) with some preloaded data left but not enough.
+                assert!(istream.consume(4, false).is_err()); // 6, 7
+            },
+            _ => {},
+        }
+    }
 }
