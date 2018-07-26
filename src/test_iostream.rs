@@ -4,7 +4,7 @@ extern crate std;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use super::byte_converter::{BigEndian, ByteConverter};
-use super::iostream::{InputStream, iostream};
+use super::iostream::{InputResult, InputStream, iostream};
 
 #[test]
 fn ostream_test() {
@@ -97,16 +97,21 @@ fn istream_preload_test() {
     }
 }
 
-#[test]
-fn blocking_read_test() {
-    let (mut istream, ostream) = iostream(1024);
+
+/// Creates IoStream of the given preload length, feeds the given data to the output stream
+/// and attempts to read asynchronously the given length from the inptu stream.
+fn _create_and_read_istream(len: usize,
+                            fill: bool,
+                            data_to_write: &[u8],
+                            preload_len: usize) -> InputResult<usize> {
+    let (mut istream, ostream) = iostream(preload_len);
     let pair = Arc::new((Mutex::<bool>::new(false), Condvar::new()));
     let pair_child = pair.clone();
 
-    const BUFFER_SIZE: usize = 10;
+    let mut data_read: Vec<u8> = vec![0u8; len];
+    let data_to_write_local = data_to_write.to_vec();
     let child = thread::spawn(move || {
         // Notify the main thread that this thread has started.
-        let mut buffer = [0u8; BUFFER_SIZE];
         let &(ref lock, ref cv) = &*pair_child;
         {
             let mut started = lock.lock().unwrap();
@@ -114,11 +119,15 @@ fn blocking_read_test() {
             cv.notify_one();
         }
 
-        // Read from istream and check that we get 0, 1, 2, ...
-        assert_eq!(istream.read(&mut buffer, true, true).unwrap(), BUFFER_SIZE);
-        for i in 0..BUFFER_SIZE {
-            assert_eq!(buffer[i], i as u8);
+        let result = istream.read(&mut data_read, fill, true);
+        // Check that if we read anything, it matches what we feed in.
+        if let Ok(bytes_read) = result {
+            assert!(bytes_read <= data_to_write_local.len());
+            for i in 0..bytes_read {
+                assert_eq!(data_read[i], data_to_write_local[i]);
+            }
         }
+        result
     });
 
     // Wait for the thread to start up.
@@ -128,14 +137,32 @@ fn blocking_read_test() {
         started = cv.wait(started).unwrap();
     }
 
-    // Write to ostream 0, 1, 2, ...
-    let mut buffer = [0u8; BUFFER_SIZE];
-    for i in 0..buffer.len() {
-        buffer[i] = i as u8;
-    }
-    assert_eq!(ostream.write(&buffer).unwrap(), buffer.len());
+    // Write to ostream and wait for the child thread.
+    assert_eq!(ostream.write(data_to_write).unwrap(), data_to_write.len());
     ostream.write_eof().unwrap();
-    child.join().unwrap();
+    child.join().expect("Spawned child thread failed")
+}
+
+#[test]
+fn blocking_read_test() {
+    // Prepare the data to write (0, 1, 2, ...)
+    let data = [0u8, 1u8, 2u8, 3u8];
+    for fill in [true, false].iter() {
+        // Try reading in as much as we write.
+        let result = _create_and_read_istream(data.len(), *fill, &data, 1024);
+        assert_eq!(result.unwrap(), data.len());
+
+        // Try reading in less than what we write.
+        let result = _create_and_read_istream(data.len() - 1, *fill, &data, 1024);
+        assert_eq!(result.unwrap(), data.len() - 1);
+
+        // Try reading in more than what we write.
+        let result = _create_and_read_istream(100, *fill, &data, 1024);
+        match fill {
+            true => assert!(result.is_err()),
+            false => assert_eq!(result.unwrap(), data.len()),
+        };
+    }
 }
 
 #[test]
