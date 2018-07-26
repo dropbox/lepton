@@ -1,10 +1,9 @@
 use std::thread;
 
 use super::decoder::{DecodeResult, JpegDecoder};
+use constants::INPUT_STREAM_PRELOAD_LEN;
 use interface::CumulativeOperationResult;
 use iostream::{iostream, OutputStream};
-
-const PRE_LOAD_LEN: usize = 4 * 1024;
 
 pub struct JpegStreamDecoder {
     decoder_handle: Option<thread::JoinHandle<DecodeResult>>,
@@ -14,13 +13,15 @@ pub struct JpegStreamDecoder {
 
 impl JpegStreamDecoder {
     pub fn new(start_byte: usize) -> Self {
-        let (istream, ostream) = iostream(PRE_LOAD_LEN);
-        let decoder_handle = thread::Builder::new()
-            .name("decoder thread".to_owned())
-            .spawn(move || JpegDecoder::new(istream, start_byte, false).decode())
-            .unwrap();
+        let (istream, ostream) = iostream(INPUT_STREAM_PRELOAD_LEN);
+        let decoder_handle = Some(
+            thread::Builder::new()
+                .name("decoder thread".to_owned())
+                .spawn(move || JpegDecoder::new(istream, start_byte, false).decode())
+                .unwrap(),
+        );
         JpegStreamDecoder {
-            decoder_handle: Some(decoder_handle),
+            decoder_handle,
             ostream,
             result: None,
         }

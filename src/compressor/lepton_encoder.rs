@@ -2,7 +2,7 @@ use byte_converter::{ByteConverter, LittleEndian};
 use interface::CumulativeOperationResult;
 use jpeg_decoder::{JpegResult, JpegStreamDecoder, Scan};
 use secondary_header::{Marker, MARKER_SIZE, PAD_SECTION_SIZE, SECTION_HDR_SIZE};
-use thread_handoff::{ThreadHandoffExt, BYTES_PER_HANDOFF_EXT};
+use thread_handoff::{ThreadHandoff, ThreadHandoffExt};
 
 pub struct LeptonData {
     // TODO: Maybe add # RST markers and # blocks per channel
@@ -69,13 +69,13 @@ impl LeptonEncoder {
                         accumulator + element.raw_header.len()
                     });
                 // FIXME: Select handoffs
-                let mut thread_handoff = vec![];
+                let thread_handoff = format.handoff.split_at(1).0;
                 let mut secondary_header = Vec::with_capacity(
                     SECTION_HDR_SIZE * 3
                         + PAD_SECTION_SIZE
                         + MARKER_SIZE
                         + jpeg_header_len
-                        + format.handoff.len() * BYTES_PER_HANDOFF_EXT
+                        + format.handoff.len() * ThreadHandoffExt::BYTES_PER_HANDOFF
                         + self.pge.len()
                         + format.pge.len()
                         + format.grb.len(),
@@ -94,7 +94,7 @@ impl LeptonEncoder {
                 secondary_header.extend(Marker::P0D.value());
                 secondary_header.push(format.pad_byte);
                 secondary_header.extend(Marker::THX.value());
-                secondary_header.append(&mut ThreadHandoffExt::serialize(&thread_handoff));
+                secondary_header.append(&mut ThreadHandoffExt::serialize(thread_handoff));
                 secondary_header.extend(Marker::PGE.value());
                 secondary_header.extend(
                     LittleEndian::u32_to_array((self.pge.len() + format.pge.len()) as u32).iter(),

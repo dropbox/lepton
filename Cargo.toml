@@ -1,7 +1,7 @@
 [package]
 name = "lepton"
 version = "0.0.1"
-authors = ["Daniel Reiter Horn <danielrh@dropbox.com>", "The Lepton Authors"]
+authors = ["Daniel Reiter Horn <danielrh@dropbox.com>", "Mike Liu <zliu@dropbox.com>", "The Lepton Authors"]
 description = "All included code is safe."
 license = "BSD-3-Clause/MIT"
 documentation = "https://github.com/dropbox/lepton/blob/master/README.md"

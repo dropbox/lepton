@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::cmp::max;
 use std::mem::replace;
 use std::ops::Range;
@@ -11,6 +12,7 @@ use super::jpeg::{
 };
 use super::marker::Marker;
 use super::parser::{parse_app, parse_com, parse_dht, parse_dqt, parse_dri, parse_sof, parse_sos};
+use super::util::process_scan;
 use super::MAX_COMPONENTS;
 use iostream::InputStream;
 use thread_handoff::ThreadHandoffExt;
@@ -96,7 +98,6 @@ impl JpegDecoder {
         Ok(Jpeg {
             frame: frame.unwrap(),
             scans,
-            restart_interval: self.restart_interval,
             format,
         })
     }
@@ -180,7 +181,11 @@ impl JpegDecoder {
                             })
                             .collect();
                     }
-                    scans.push(Scan::new(self.input.view_retained_data(), scan_info));
+                    scans.push(Scan::new(
+                        self.input.view_retained_data(),
+                        scan_info,
+                        self.restart_interval,
+                    ));
                     if self.in_pge() {
                         format.as_mut().unwrap().pge.extend(
                             &self.input.view_retained_data()[max(
@@ -361,120 +366,112 @@ impl JpegDecoder {
             }
             subsequent_successive_approximation = scan_info.successive_approximation_high > 0;
         }
-        let is_interleaved = components.len() > 1;
-        let &size_in_mcu = if is_interleaved {
-            &frame.size_in_mcu
-        } else {
-            &components[0].size_in_block
+        let huffman = RefCell::new(HuffmanDecoder::new(self.start_byte));
+        let self_cell = RefCell::new(self);
+        let format = RefCell::new(format);
+        let dc_predictors = RefCell::new([0i16; MAX_COMPONENTS]);
+        let eob_run = RefCell::new(0);
+        let reset_dc = RefCell::new(false);
+        let result = {
+            let mut mcu_row_callback = |mcu_y: usize| {
+                let mut slf = self_cell.borrow_mut();
+                let mut format = format.borrow_mut();
+                let huffman = &mut huffman.borrow_mut();
+                if !subsequent_successive_approximation || mcu_y == 0 {
+                    // Finish PGE
+                    if slf.in_pge() {
+                        slf.start_byte = 0;
+                        huffman.end_pge();
+                        format.pge.extend(huffman.get_pge());
+                    }
+                    // Add thread handoff for each MCU row
+                    if slf.start_byte == 0 {
+                        let (overhang_byte, n_overhang_bit) = huffman.handover_byte();
+                        format.handoff.push(ThreadHandoffExt {
+                            start_scan: slf.n_scan_processed as u16,
+                            end_scan: slf.n_scan_processed as u16,
+                            mcu_y_start: mcu_y as u16,
+                            segment_size: slf.input.processed_len() as u32,
+                            overhang_byte,
+                            n_overhang_bit,
+                            last_dc: dc_predictors.borrow().clone(),
+                        })
+                    }
+                }
+                Ok(())
+            };
+            let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| {
+                if reset_dc.replace(false) {
+                    dc_predictors.replace([0i16; MAX_COMPONENTS]);
+                }
+                Ok(())
+            };
+            let mut block_callback = |block_y: usize,
+                                      block_x: usize,
+                                      component_index_in_scan: usize,
+                                      component: &Component,
+                                      scan: &mut Scan| {
+                self_cell.borrow_mut().decode_block(
+                    block_y,
+                    block_x,
+                    component_index_in_scan,
+                    component,
+                    scan,
+                    &mut huffman.borrow_mut(),
+                    &mut eob_run.borrow_mut(),
+                    &mut dc_predictors.borrow_mut()[component_index_in_scan],
+                    &mut format.borrow_mut(),
+                )
+            };
+            let mut rst_callback = |expected_rst: u8| {
+                let mut format = format.borrow_mut();
+                let huffman = &mut huffman.borrow_mut();
+                update_padding(&mut format, huffman)?;
+                if !subsequent_successive_approximation {
+                    huffman.clear_buffer();
+                }
+                match huffman.read_rst(&mut self_cell.borrow_mut().input, expected_rst) {
+                    Ok(_) => {
+                        huffman.reset();
+                        // Section F.2.1.3.1
+                        reset_dc.replace(true);
+                        // Section G.1.2.2
+                        eob_run.replace(0);
+                        Ok(())
+                    }
+                    Err(JpegError::EOF) => {
+                        format.grb.extend(huffman.view_buffer());
+                        Err(JpegError::EOF)
+                    }
+                    Err(e) => Err(e),
+                }
+            };
+            process_scan(
+                scan,
+                &components,
+                &frame.size_in_mcu,
+                &mut mcu_row_callback,
+                &mut mcu_callback,
+                &mut block_callback,
+                &mut rst_callback,
+            )
         };
-        let mut huffman = HuffmanDecoder::new(self.start_byte);
-        let mut dc_predictors = [0i16; MAX_COMPONENTS];
-        let mut n_mcu_left_until_restart = self.restart_interval;
-        let mut expected_rst_num: u8 = 0;
-        let mut eob_run: u16 = 0;
-        let mut reset_dc = false;
-        for mcu_y in 0..size_in_mcu.height as usize {
-            if !subsequent_successive_approximation || mcu_y == 0 {
-                // Finish PGE
-                if self.in_pge() {
-                    self.start_byte = 0;
-                    huffman.end_pge();
-                    format.pge.extend(huffman.get_pge());
-                }
-                // Add thread handoff for each MCU row
-                if self.start_byte == 0 {
-                    let (overhang_byte, n_overhang_bit) = huffman.handover_byte();
-                    format.handoff.push(ThreadHandoffExt {
-                        start_scan: self.n_scan_processed as u16,
-                        end_scan: self.n_scan_processed as u16,
-                        mcu_y_start: mcu_y as u16,
-                        segment_size: self.input.processed_len() as u32,
-                        overhang_byte,
-                        n_overhang_bit,
-                        last_dc: dc_predictors.clone(),
-                    })
-                }
+        let slf = self_cell.into_inner();
+        let format = format.into_inner();
+        let huffman = huffman.into_inner();
+        if result.is_ok() {
+            if slf.in_pge() {
+                format.pge.extend(huffman.get_pge());
             }
-            for mcu_x in 0..size_in_mcu.width as usize {
-                if reset_dc {
-                    dc_predictors = [0i16; MAX_COMPONENTS];
-                    reset_dc = false;
-                }
-                if is_interleaved {
-                    for (i, component) in components.iter().enumerate() {
-                        for block_y_offset in 0..component.vertical_sampling_factor as usize {
-                            for block_x_offset in 0..component.horizontal_sampling_factor as usize {
-                                let block_y = mcu_y * component.vertical_sampling_factor as usize
-                                    + block_y_offset;
-                                let block_x = mcu_x * component.horizontal_sampling_factor as usize
-                                    + block_x_offset;
-                                self.decode_block(
-                                    block_y,
-                                    block_x,
-                                    i,
-                                    component,
-                                    scan,
-                                    &mut huffman,
-                                    &mut eob_run,
-                                    &mut dc_predictors[i],
-                                    format,
-                                )?;
-                            }
-                        }
-                    }
-                } else {
-                    self.decode_block(
-                        mcu_y,
-                        mcu_x,
-                        0,
-                        &components[0],
-                        scan,
-                        &mut huffman,
-                        &mut eob_run,
-                        &mut dc_predictors[0],
-                        format,
-                    )?;
-                }
-                if self.restart_interval > 0 {
-                    n_mcu_left_until_restart -= 1;
-                    let is_last_mcu = mcu_x as u16 == frame.size_in_mcu.width - 1
-                        && mcu_y as u16 == frame.size_in_mcu.height - 1;
-                    if n_mcu_left_until_restart == 0 && !is_last_mcu {
-                        update_padding(format, &huffman)?;
-                        if !subsequent_successive_approximation {
-                            huffman.clear_buffer();
-                        }
-                        match huffman.read_rst(&mut self.input, expected_rst_num) {
-                            Ok(_) => {
-                                huffman.reset();
-                                // Section F.2.1.3.1
-                                reset_dc = true;
-                                // Section G.1.2.2
-                                eob_run = 0;
-                                expected_rst_num = (expected_rst_num + 1) % 8;
-                                n_mcu_left_until_restart = self.restart_interval;
-                            }
-                            Err(JpegError::EOF) => {
-                                format.grb.extend(huffman.view_buffer());
-                                return Err(JpegError::EOF);
-                            }
-                            Err(e) => return Err(e),
-                        }
-                    }
-                }
-            }
+            update_padding(format, &huffman)?;
+            // In case there are extraneous data between the end of the scan and next marker
+            let huffman_buffer = huffman.view_buffer();
+            let n_leftover_byte = huffman.n_available_bit() / 8;
+            slf.input.add_retained_data(
+                &huffman_buffer[(huffman_buffer.len() - n_leftover_byte as usize)..],
+            );
         }
-        if self.in_pge() {
-            format.pge.extend(huffman.get_pge());
-        }
-        update_padding(format, &huffman)?;
-        // In case there are extraneous data between the end of the scan and next marker
-        let huffman_buffer = huffman.view_buffer();
-        let n_leftover_byte = huffman.n_available_bit() / 8;
-        self.input.add_retained_data(
-            &huffman_buffer[(huffman_buffer.len() - n_leftover_byte as usize)..],
-        );
-        Ok(())
+        result
     }
 
     fn decode_block(

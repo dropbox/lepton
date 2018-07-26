@@ -2,6 +2,8 @@ use brotli::BrotliResult;
 use jpeg_decoder::JpegError;
 use secondary_header::Marker;
 
+pub type SimpleResult<T> = Result<(), T>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ErrMsg {
     BrotliCompressStreamFail,

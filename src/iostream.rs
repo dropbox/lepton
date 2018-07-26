@@ -29,6 +29,7 @@ pub fn iostream(preload_len: usize) -> (InputStream, OutputStream) {
     )
 }
 
+// TODO: Maybe make InputStream a trait to allow different impls, e.g. dummy impl
 pub struct InputStream {
     istream: Arc<IoStream>,
     preload_buffer: Buffer,

@@ -5,7 +5,6 @@ use thread_handoff::ThreadHandoffExt;
 pub struct Jpeg {
     pub frame: FrameInfo,
     pub scans: Vec<Scan>,
-    pub restart_interval: u16, // 0 indicates restart is not enabled
     pub format: Option<FormatInfo>,
 }
 
@@ -24,15 +23,17 @@ pub struct FrameInfo {
 pub struct Scan {
     pub raw_header: Vec<u8>, // Raw header bytes after previous SOS up to and including this SOS
     pub info: ScanInfo,
+    pub restart_interval: u16, // 0 indicates restart is not enabled
     pub coefficients: Option<Vec<Vec<i16>>>,
     pub truncation: Option<ScanTruncation>,
 }
 
 impl Scan {
-    pub fn new(raw_header: &[u8], info: ScanInfo) -> Self {
+    pub fn new(raw_header: &[u8], info: ScanInfo, restart_interval: u16) -> Self {
         Scan {
             raw_header: raw_header.to_vec(),
             info,
+            restart_interval,
             coefficients: None,
             truncation: None,
         }
@@ -40,7 +41,9 @@ impl Scan {
 
     pub fn is_empty(&self) -> bool {
         match self.truncation {
-            Some(ref trunc) => trunc.component_index_in_scan == 0 && trunc.block_y == 0 && trunc.block_x == 0,
+            Some(ref trunc) => {
+                trunc.component_index_in_scan == 0 && trunc.block_y == 0 && trunc.block_x == 0
+            }
             None => false,
         }
     }

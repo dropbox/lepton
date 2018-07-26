@@ -4,7 +4,10 @@ use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
 use iostream::InputStream;
 use jpeg_decoder::{Jpeg, JpegDecoder};
-use thread_handoff::{ThreadHandoff, BYTES_PER_HANDOFF, BYTES_PER_HANDOFF_EXT};
+use thread_handoff::{
+    deserialize_all as deserialize_all_thread_handoff, ThreadHandoff, ThreadHandoffExt,
+    ThreadHandoffOld,
+};
 
 pub const MARKER_SIZE: usize = 3;
 pub const SECTION_HDR_SIZE: usize = 7;
@@ -90,6 +93,7 @@ pub struct SecondaryHeader {
     // TODO: Extract GRB?
     pub hdr: Jpeg,
     pub pad: u8,
+    pub thx: Vec<ThreadHandoffExt>,
     pub pge: Vec<u8>,
     pub grb: Vec<u8>,
     pub optional: HashMap<Marker, Vec<u8>>,
@@ -103,7 +107,9 @@ pub fn default_serialized_header() -> Vec<u8> {
     result.extend(Marker::P0D.value());
     result.push(1);
     result.extend(Marker::HHX.value());
-    result.extend(ThreadHandoff::serialize(&[ThreadHandoff::default(); 1]));
+    result.extend(ThreadHandoffOld::serialize(
+        &[ThreadHandoffOld::default(); 1],
+    ));
     result.extend(Marker::GRB.value());
     result.extend([0, 0, 0, 0].iter());
     result
@@ -125,11 +131,21 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
         Ok((_marker, pad)) => pad,
         Err(e) => return Err(e),
     };
+    let mut thx = vec![];
     let mut pge = vec![];
     let mut grb = vec![];
     let mut optional = HashMap::<Marker, Vec<u8>>::new();
     while ptr < data.len() {
         match read_sized_section(data, &mut ptr) {
+            Ok((Marker::THX, body)) => {
+                thx = deserialize_all_thread_handoff(body);
+            }
+            Ok((Marker::HHX, body)) => {
+                thx = deserialize_all_thread_handoff::<ThreadHandoffOld>(body)
+                    .into_iter()
+                    .map(|handoff| ThreadHandoffExt::from(handoff))
+                    .collect();
+            }
             Ok((Marker::PGE, body)) | Ok((Marker::PGR, body)) => pge.extend(body),
             Ok((Marker::GRB, body)) => grb.extend(body),
             Ok((marker, body)) => {
@@ -141,6 +157,7 @@ pub fn deserialize_header(data: &[u8]) -> Result<SecondaryHeader, ErrMsg> {
     Ok(SecondaryHeader {
         hdr,
         pad,
+        thx,
         pge,
         grb,
         optional,
@@ -179,8 +196,8 @@ fn read_sized_section<'a>(
         return Err(incomplete_secondary_header_section(marker, 1));
     }
     let section_len = match marker {
-        Marker::THX => (data[*offset + 2] as usize) * BYTES_PER_HANDOFF_EXT,
-        Marker::HHX => (data[*offset + 2] as usize) * BYTES_PER_HANDOFF,
+        Marker::THX => (data[*offset + 2] as usize) * ThreadHandoffExt::BYTES_PER_HANDOFF,
+        Marker::HHX => (data[*offset + 2] as usize) * ThreadHandoffOld::BYTES_PER_HANDOFF,
         _ => LittleEndian::slice_to_u32(&data[(*offset + MARKER_SIZE)..]) as usize,
     };
     let section_end = *offset + section_hdr_size + section_len;
