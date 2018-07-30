@@ -9,10 +9,10 @@ pub type OutputResult<T> = Result<T, OutputError>;
 
 const CONVERTER_BUF_LEN: usize = 8;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum InputError {
-    UnexpectedSigAbort(usize),
-    UnexpectedEof(usize),
+    UnexpectedSigAbort,
+    UnexpectedEof,
 }
 
 #[derive(Debug)]
@@ -123,8 +123,6 @@ impl InputStream {
     /// * `buf` - The destination buffer for storing the bytes read.
     /// * `fill` - if true, will block for additional bytes beyond the preloaded data if needed.
     /// * `keep` - if true, bytes read are retained and can be accessed by `view_retained_data`.
-    ///
-    /// NOTE: even if `fill` is set to false, the method will block if the preloaded data is empty.
     pub fn read(&mut self, buf: &mut [u8], fill: bool, keep: bool) -> InputResult<usize> {
         let len = buf.len();
         self.read_internal(Some(buf), len, fill, keep)
@@ -230,15 +228,7 @@ impl InputStream {
 
         // Read additional data if necessary.
         assert!(read_len <= len);
-        let bytes_to_read = if fill {
-            len - read_len
-        } else {
-            if preload_used == 0 {
-                1
-            } else {
-                0
-            }
-        };
+        let bytes_to_read = if fill { len - read_len } else { 0 };
         assert!(bytes_to_read <= len - read_len);
         if bytes_to_read >= self.preload_buffer.capacity() / 2 {
             // Skip preload_buffer and directly populate into the buffer.
@@ -248,7 +238,7 @@ impl InputStream {
             } else {
                 self.istream.consume(len)?
             };
-        } else if bytes_to_read > 0 {
+        } else if bytes_to_read > 0 || read_len == 0 {
             // Populate the preload_buffer and read from it.
             // Q: if this encounters an error, does preload_buffer get corrupted?
             let _len = self.istream
@@ -305,6 +295,11 @@ impl OutputStream {
     #[inline(always)]
     pub fn write(&self, buf: &[u8]) -> OutputResult<usize> {
         self.ostream.write(buf)
+    }
+
+    #[inline(always)]
+    pub fn write_all(&self, bufs: &[&[u8]]) -> OutputResult<usize> {
+        self.ostream.write_all(bufs)
     }
 
     #[inline(always)]
@@ -375,7 +370,7 @@ impl IoStream {
 
     pub fn consume(&self, len: usize) -> InputResult<usize> {
         let mut stream_buf = self.lock_for_read()?;
-        stream_buf = Self::wait_for_read(stream_buf, len, len, &self.cv)?;
+        stream_buf = Self::wait_for_read(stream_buf, len, &self.cv)?;
         Ok(stream_buf.consume(len))
     }
 
@@ -399,7 +394,7 @@ impl IoStream {
         }
         let mut stream_buf = self.lock_for_read()?;
         if stream_buf.data.len() < min_len {
-            stream_buf = Self::wait_for_read(stream_buf, min_len, min_len, &self.cv)?;
+            stream_buf = Self::wait_for_read(stream_buf, min_len, &self.cv)?;
         }
         let read_len = stream_buf.read(buf);
         if consume {
@@ -417,20 +412,13 @@ impl IoStream {
     fn wait_for_read<'a>(
         mut stream_buf: MutexGuard<'a, StreamBuffer>,
         min_len: usize,
-        target_len: usize,
         cv: &Condvar,
     ) -> InputResult<MutexGuard<'a, StreamBuffer>> {
-        stream_buf.validate_for_read(min_len)?;
-        if stream_buf.data.len() < target_len && stream_buf.is_open() {
-            loop {
-                stream_buf.target_len = target_len;
-                stream_buf = cv.wait(stream_buf).unwrap();
-                stream_buf.target_len = 0;
-                if stream_buf.data.len() >= min_len {
-                    break;
-                }
-                stream_buf.validate_for_read(min_len)?;
-            }
+        while stream_buf.data.len() < min_len {
+            stream_buf.validate_for_read(min_len)?;
+            stream_buf.target_len = min_len;
+            stream_buf = cv.wait(stream_buf).unwrap();
+            stream_buf.target_len = 0;
         }
         Ok(stream_buf)
     }
@@ -439,12 +427,20 @@ impl IoStream {
 // Methods for OutputStream
 impl IoStream {
     pub fn write(&self, buf: &[u8]) -> OutputResult<usize> {
+        self.write_all(&[buf])
+    }
+
+    pub fn write_all(&self, bufs: &[&[u8]]) -> OutputResult<usize> {
         let mut stream_buf = self.lock_for_write()?;
-        stream_buf.data.extend(buf.iter());
+        let mut total_len = 0;
+        for buf in bufs.iter() {
+            stream_buf.data.extend(buf.iter());
+            total_len += buf.len()
+        }
         if stream_buf.data.len() >= stream_buf.target_len {
             self.cv.notify_one();
         }
-        Ok(buf.len())
+        Ok(total_len)
     }
 
     pub fn write_eof(&self) -> OutputResult<()> {
@@ -497,10 +493,6 @@ impl StreamBuffer {
         }
     }
 
-    fn is_open(&self) -> bool {
-        !(self.eof_written || self.aborted)
-    }
-
     fn is_eof(&self) -> bool {
         self.data.is_empty() && self.eof_written
     }
@@ -509,9 +501,9 @@ impl StreamBuffer {
         use self::InputError::*;
         if self.data.len() < min_len {
             if self.aborted {
-                return Err(UnexpectedSigAbort(self.data.len()));
+                return Err(UnexpectedSigAbort);
             } else if self.eof_written {
-                return Err(UnexpectedEof(self.data.len()));
+                return Err(UnexpectedEof);
             }
         }
         Ok(())

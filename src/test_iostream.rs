@@ -1,10 +1,10 @@
 #![cfg(test)]
 extern crate std;
 
+use super::byte_converter::{BigEndian, ByteConverter};
+use super::iostream::{iostream, InputError, InputResult, InputStream};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use super::byte_converter::{BigEndian, ByteConverter};
-use super::iostream::{InputResult, InputStream, iostream};
 
 #[test]
 fn ostream_test() {
@@ -48,11 +48,11 @@ fn iostream_peek_and_read_test() {
     assert_eq!(buffer, data[0..buffer.len()]);
 
     // test read_byte() and read()
-    for i in 0..data.len()-buffer.len() {
+    for i in 0..data.len() - buffer.len() {
         assert_eq!(istream.read_byte(false).unwrap(), data[i]);
     }
     assert_eq!(istream.read(&mut buffer, true, true).unwrap(), buffer.len());
-    assert_eq!(buffer, data[data.len()-buffer.len()..data.len()]);
+    assert_eq!(buffer, data[data.len() - buffer.len()..data.len()]);
     assert_eq!(istream.view_retained_data(), buffer);
 }
 
@@ -61,10 +61,22 @@ fn iostream_read16_and_read32_and_retrained_data_test() {
     let data = &[1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8];
     let (mut istream, ostream) = iostream(data.len());
     let _result = ostream.write(data);
-    assert_eq!(istream.read_u16::<BigEndian>(true).unwrap(), BigEndian::slice_to_u16(&data[0..2]));
-    assert_eq!(istream.read_u16::<BigEndian>(false).unwrap(), BigEndian::slice_to_u16(&data[2..4]));
-    assert_eq!(istream.read_u32::<BigEndian>(true).unwrap(), BigEndian::slice_to_u32(&data[4..8]));
-    assert_eq!(istream.read_u16::<BigEndian>(false).unwrap(), BigEndian::slice_to_u16(&data[8..10]));
+    assert_eq!(
+        istream.read_u16::<BigEndian>(true).unwrap(),
+        BigEndian::slice_to_u16(&data[0..2])
+    );
+    assert_eq!(
+        istream.read_u16::<BigEndian>(false).unwrap(),
+        BigEndian::slice_to_u16(&data[2..4])
+    );
+    assert_eq!(
+        istream.read_u32::<BigEndian>(true).unwrap(),
+        BigEndian::slice_to_u32(&data[4..8])
+    );
+    assert_eq!(
+        istream.read_u16::<BigEndian>(false).unwrap(),
+        BigEndian::slice_to_u16(&data[8..10])
+    );
 
     let retained = istream.view_retained_data();
     assert_eq!(retained.len(), 6);
@@ -74,7 +86,7 @@ fn iostream_read16_and_read32_and_retrained_data_test() {
 
 #[test]
 fn istream_preload_test() {
-    for i in 0..2  {
+    for i in 0..2 {
         let data: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6, 7];
         let mut istream = InputStream::preload(data.to_vec());
         let mut buffer = [0u8; 4];
@@ -86,26 +98,29 @@ fn istream_preload_test() {
         assert_eq!(istream.read_byte(false).unwrap(), data[5]); // 5
 
         match i {
-            0 => {  // Test read(...) with some preloaded data left but not enough.
+            0 => {
+                // Test read(...) with some preloaded data left but not enough.
                 assert_eq!(istream.read(&mut buffer, false, false).unwrap(), 2); // 6, 7
-            },
-            1 => {  // Test consume(...) with some preloaded data left but not enough.
+            }
+            1 => {
+                // Test consume(...) with some preloaded data left but not enough.
                 assert!(istream.consume(4, false).is_err()); // 6, 7
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 }
-
 
 /// Creates IoStream of the given preload length and runs a number of operations,
 /// with each operation being either feeding data into the output stream or reading data
 /// asynchronously from the input stream, of the designated length.
 /// Will return the total bytes read, or an error once it is encountered.
-fn _create_and_test_iostream(read_lens: &[usize],
-                             write_lens: &[usize],
-                             fill: bool,
-                             preload_len: usize) -> InputResult<usize> {
+fn _create_and_test_iostream(
+    read_lens: &[usize],
+    write_lens: &[usize],
+    fill: bool,
+    preload_len: usize,
+) -> InputResult<usize> {
     let (mut istream, ostream) = iostream(preload_len);
     let pair = Arc::new((Mutex::<bool>::new(false), Condvar::new()));
     let pair_child = pair.clone();
@@ -113,7 +128,7 @@ fn _create_and_test_iostream(read_lens: &[usize],
     let read_lens_local = read_lens.to_vec();
     let child = thread::spawn(move || {
         // Notify the main thread that this thread has started.
-        let &(ref lock, ref cv) = &*pair_child;
+        let (ref lock, ref cv) = *pair_child;
         {
             let mut started = lock.lock().unwrap();
             *started = true;
@@ -139,7 +154,7 @@ fn _create_and_test_iostream(read_lens: &[usize],
     });
 
     // Wait for the thread to start up.
-    let &(ref lock, ref cv) = &*pair;
+    let (ref lock, ref cv) = *pair;
     let mut started = lock.lock().unwrap();
     while !*started {
         started = cv.wait(started).unwrap();
@@ -160,55 +175,57 @@ fn _create_and_test_iostream(read_lens: &[usize],
 }
 
 #[test]
-fn blocking_read_test() {
+fn fill_read_test() {
     for &preload_len in [2, 3, 4, 5, 6, 1024].iter() {
         println!("Running with preload {}", preload_len);
-        for &fill in [true, false].iter() {
-            // Try reading in as much as we write.
-            let result = _create_and_test_iostream(&[4], &[4], fill, preload_len);
-            assert_eq!(result.unwrap(), 4);
+        // Try reading in as much as we write.
+        let bytes_read = _create_and_test_iostream(&[4], &[4], true, preload_len).unwrap();
+        assert_eq!(bytes_read, 4);
 
-            // Try reading in a few chunks.
-            let result = _create_and_test_iostream(&[2, 2], &[4], fill, preload_len);
-            assert_eq!(result.unwrap(), 4);
+        // Try reading in a few chunks.
+        let bytes_read = _create_and_test_iostream(&[2, 2], &[4], true, preload_len).unwrap();
+        assert_eq!(bytes_read, 4);
 
-            // Try writing in a few chunks.
-            let result = _create_and_test_iostream(&[4], &[3, 6], fill, preload_len);
-            let bytes_read = result.unwrap();
-            match fill {
-                true => assert_eq!(bytes_read, 4),
-                false => assert!(3 <= bytes_read && bytes_read <= 4), // non-determistic
-            };
+        // Try writing in a few chunks.
+        let bytes_read = _create_and_test_iostream(&[4], &[3, 6], true, preload_len).unwrap();
+        assert_eq!(bytes_read, 4);
 
-            // Try reading in less than what we write.
-            let result = _create_and_test_iostream(&[3], &[4], fill, preload_len);
-            assert_eq!(result.unwrap(), 3);
+        // Try reading in less than what we write.
+        let bytes_read = _create_and_test_iostream(&[3], &[4], true, preload_len).unwrap();
+        assert_eq!(bytes_read, 3);
 
-            // Try reading in less than what we write, in chunks.
-            let result = _create_and_test_iostream(&[2, 4, 6], &[20], fill, preload_len);
-            let bytes_read = result.unwrap();
-            match fill {
-                true => assert_eq!(bytes_read, 2 + 4 + 6),
-                false => assert!(8 <= bytes_read && bytes_read <= 12), // non-deterministic
-            };
+        // Try reading in less than what we write, in chunks.
+        let bytes_read = _create_and_test_iostream(&[2, 4, 6], &[20], true, preload_len).unwrap();
+        assert_eq!(bytes_read, 2 + 4 + 6);
 
-            // Try reading in more than what we write.
-            let result = _create_and_test_iostream(&[5], &[4], fill, preload_len);
-            match fill {
-                true => assert!(result.is_err()),
-                false => assert_eq!(result.unwrap(), 4),
-            };
+        // Try reading in more than what we write.
+        let result = _create_and_test_iostream(&[5], &[4], true, preload_len);
+        assert!(result.is_err());
 
-            // Try reading in more than what we write, in chunks..
-            let result = _create_and_test_iostream(&[9], &[2, 2, 4], fill, preload_len);
-            match fill {
-                true => assert!(result.is_err()),
-                false => {
-                    let bytes_read = result.unwrap();
-                    assert!(4 <= bytes_read && bytes_read <= 8) // non-deterministic
-                }
-            };
+        // Try reading in more than what we write, in chunks..
+        let result = _create_and_test_iostream(&[9], &[2, 2, 4], true, preload_len);
+        assert!(result.is_err());
+    }
+}
+
+#[test]
+fn unfill_read_test() {
+    for &preload_len in [2, 3, 4, 5, 6, 1024].iter() {
+        println!("Running with preload {}", preload_len);
+        // Try reading empty stream.
+        let (mut istream, ostream) = iostream(preload_len);
+        let content = [1, 2, 3];
+        let mut buf = vec![0; content.len()];
+        assert_eq!(istream.read(&mut buf, false, false), Ok(0));
+        ostream.write(&content).unwrap();
+        let mut read_len = 0;
+        while read_len < content.len() {
+            read_len += istream.read(&mut buf[read_len..], false, false).unwrap();
         }
+        assert_eq!(read_len, content.len());
+        assert_eq!(buf, content);
+        ostream.write_eof().unwrap();
+        assert_eq!(istream.read(&mut buf, false, false), Err(InputError::UnexpectedEof));
     }
 }
 
@@ -219,7 +236,8 @@ fn intertwined_read_test() {
     assert_eq!(ostream1.write(&[0u8]).unwrap(), 1);
 
     const NUM_ITERATIONS: usize = 10;
-    let thread1 = thread::spawn(move || {  // read from istream1 and write to ostream2
+    let thread1 = thread::spawn(move || {
+        // read from istream1 and write to ostream2
         let mut data_read_by_thread1: Vec<u8> = Vec::new();
         for _ in 0..NUM_ITERATIONS {
             let b_in = istream1.read_byte(false).unwrap();
@@ -229,7 +247,8 @@ fn intertwined_read_test() {
         }
         data_read_by_thread1
     });
-    let thread2 = thread::spawn(move || {  // read from istream2 and write to ostream1
+    let thread2 = thread::spawn(move || {
+        // read from istream2 and write to ostream1
         let mut data_read_by_thread2: Vec<u8> = Vec::new();
         for _ in 0..NUM_ITERATIONS {
             let b_in = istream2.read_byte(false).unwrap();
@@ -245,7 +264,14 @@ fn intertwined_read_test() {
     assert_eq!(data_read_by_thread1.len(), NUM_ITERATIONS);
     assert_eq!(data_read_by_thread2.len(), NUM_ITERATIONS);
     for i in 0..data_read_by_thread1.len() {
-        assert_eq!(data_read_by_thread1[i], if i > 0 { data_read_by_thread2[i-1] + 2 } else { 0 });
+        assert_eq!(
+            data_read_by_thread1[i],
+            if i > 0 {
+                data_read_by_thread2[i - 1] + 2
+            } else {
+                0
+            }
+        );
         assert_eq!(data_read_by_thread2[i], data_read_by_thread1[i] + 1);
     }
 }
