@@ -132,7 +132,6 @@ fn compress_internal<Reader: Read, Writer: Write>(
             }
             _ => (),
         }
-        // if done && 
         renew_buffer(&mut input_buffer, &mut input_offset, &mut input_end);
         if output_offset > 0 {
             match write_from_buffer(w, output_buffer.as_mut_slice(), output_offset) {
@@ -190,7 +189,7 @@ fn decompress_internal<Reader: Read, Writer: Write>(
             Ok(size)
         }
     };
-    match read_to_buffer(r, input_buffer.as_mut_slice(), &mut input_end, &size_checker) {
+    match read_to_buffer(r, &mut input_buffer, &mut input_end, &size_checker) {
         Ok(_) => (),
         Err(e) => return Err(e),
     }
@@ -198,7 +197,7 @@ fn decompress_internal<Reader: Read, Writer: Write>(
         match decompressor.decode(
             &input_buffer[..input_end],
             &mut input_offset,
-            output_buffer.as_mut_slice(),
+            &mut output_buffer,
             &mut output_offset,
         ) {
             LeptonOperationResult::Success => break,
@@ -206,21 +205,21 @@ fn decompress_internal<Reader: Read, Writer: Write>(
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, LeptonErrMsg(m)));
             }
             LeptonOperationResult::NeedsMoreOutput => {
-                match write_from_buffer(w, output_buffer.as_mut_slice(), output_offset) {
+                match write_from_buffer(w, &mut output_buffer, output_offset) {
                     Ok(()) => output_offset = 0,
                     Err(e) => return Err(e),
                 }
             }
             LeptonOperationResult::NeedsMoreInput => {
                 renew_buffer(&mut input_buffer, &mut input_offset, &mut input_end);
-                match read_to_buffer(r, input_buffer.as_mut_slice(), &mut input_end, &size_checker) {
+                match read_to_buffer(r, &mut input_buffer, &mut input_end, &size_checker) {
                     Ok(_) => (),
                     Err(e) => return Err(e),
                 }
             }
         }
     }
-    write_from_buffer(w, &mut output_buffer.as_mut_slice(), output_offset)
+    write_from_buffer(w, &mut output_buffer, output_offset)
 }
 
 fn main() {

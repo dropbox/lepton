@@ -5,6 +5,7 @@ use super::lepton_encoder::{LeptonData, LeptonEncoder};
 use super::util::flush_lepton_data;
 use interface::{
     Compressor, CumulativeOperationResult, ErrMsg, LeptonFlushResult, LeptonOperationResult,
+    SimpleResult,
 };
 use primary_header::{serialize_header, HEADER_SIZE as PRIMARY_HEADER_SIZE};
 
@@ -19,7 +20,7 @@ pub struct LeptonCompressor {
     primary_header: Option<[u8; PRIMARY_HEADER_SIZE]>,
     primary_header_written: usize,
     brotli_done: bool,
-    cmp_written: usize,
+    cmp_header_written: usize,
 }
 
 impl LeptonCompressor {
@@ -35,11 +36,11 @@ impl LeptonCompressor {
             primary_header: None,
             primary_header_written: 0,
             brotli_done: false,
-            cmp_written: 0,
+            cmp_header_written: 0,
         }
     }
 
-    fn finish_lepton_encode(&mut self) -> Result<(), ErrMsg> {
+    fn finish_lepton_encode(&mut self) -> SimpleResult<ErrMsg> {
         let result;
         self.result = Some(match self.lepton_encoder.take().unwrap().take_result() {
             Ok(data) => {
@@ -77,20 +78,29 @@ impl Compressor for LeptonCompressor {
         _output: &mut [u8],
         _output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        if let Some(ref result) = self.result {
+        // Lepton encoder has finished. Compress GRB with Brotli.
+        if let Some(ref mut result) = self.result {
             return match result {
                 Ok(_) => {
                     while *input_offset < input.len() {
-                        self.brotli_encoder
-                            .encode(input, input_offset, &mut [], &mut 0);
+                        if let LeptonOperationResult::Failure(msg) =
+                            self.brotli_encoder
+                                .encode(input, input_offset, &mut [], &mut 0)
+                        {
+                            *result = Err(msg.clone());
+                            return LeptonOperationResult::Failure(msg);
+                        }
                     }
                     LeptonOperationResult::NeedsMoreInput
                 }
                 Err(msg) => LeptonOperationResult::Failure(msg.clone()),
             };
         }
+
+        // Run Lepton encoder
         let mut result = LeptonOperationResult::NeedsMoreInput;
         while *input_offset < input.len() {
+            let mut lepton_finish = false;
             let old_input_offset = *input_offset;
             if self.total_in < self.embedding {
                 let dist_to_embedding = self.embedding - self.total_in;
@@ -117,9 +127,13 @@ impl Compressor for LeptonCompressor {
                     if let Err(msg) = self.finish_lepton_encode() {
                         result = LeptonOperationResult::Failure(msg);
                     }
+                    lepton_finish = true;
                 }
             };
             self.total_in += *input_offset - old_input_offset;
+            if lepton_finish {
+                break;
+            }
         }
         result
     }
@@ -152,7 +166,10 @@ impl Compressor for LeptonCompressor {
                             size,
                         ));
                     }
-                    Err(e) => return LeptonFlushResult::Failure(e),
+                    Err(msg) => {
+                        self.result = Some(Err(msg.clone()));
+                        return LeptonFlushResult::Failure(msg);
+                    }
                 },
                 Some(ref header) => {
                     if let Some(result) = flush_lepton_data(
@@ -160,11 +177,14 @@ impl Compressor for LeptonCompressor {
                         output_offset,
                         header,
                         &mut self.brotli_encoder,
-                        &self.result.as_ref().unwrap().as_ref().unwrap().cmp,
+                        &mut self.result.as_mut().unwrap().as_mut().unwrap().cmp,
                         &mut self.primary_header_written,
                         &mut self.brotli_done,
-                        &mut self.cmp_written,
+                        &mut self.cmp_header_written,
                     ) {
+                        if let LeptonFlushResult::Failure(ref msg) = result {
+                            self.result = Some(Err(msg.clone()));
+                        }
                         return result;
                     }
                 }

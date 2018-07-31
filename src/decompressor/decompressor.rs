@@ -1,7 +1,7 @@
 use super::lepton_decoder::LeptonDecoder;
 use super::primary_header_parser::PrimaryHeaderParser;
 use super::secondary_header_parser::SecondaryHeaderParser;
-use interface::{Decompressor, ErrMsg, LeptonOperationResult};
+use interface::{Decompressor, ErrMsg, LeptonOperationResult, SimpleResult};
 use primary_header::PrimaryHeader;
 use secondary_header::SecondaryHeader;
 
@@ -22,7 +22,7 @@ impl LeptonDecompressor {
         }
     }
 
-    fn next_internal_decompressor(&mut self) -> Result<(), ErrMsg> {
+    fn next_internal_decompressor(&mut self) -> SimpleResult<ErrMsg> {
         self.decompressor = match self.decompressor {
             InternalDecompressor::PrimaryHeader(_) => {
                 let primary_header = self.primary_header.as_ref().unwrap();

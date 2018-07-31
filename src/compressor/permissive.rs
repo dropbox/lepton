@@ -1,11 +1,12 @@
+use alloc::HeapAlloc;
+use mux::Mux;
+
 use super::brotli_encoder::BrotliEncoder;
 use super::util::flush_lepton_data;
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::{Compressor, LeptonFlushResult, LeptonOperationResult};
 use primary_header::{serialize_header, HEADER_SIZE};
 use secondary_header::{default_serialized_header, MARKER_SIZE, SECTION_HDR_SIZE};
-
-static BASIC_CMP: [u8; 6] = [b'C', b'M', b'P', 0xff, 0xfe, 0xff];
 
 pub struct LeptonPermissiveCompressor {
     encoder: BrotliEncoder,
@@ -14,7 +15,8 @@ pub struct LeptonPermissiveCompressor {
     data: Vec<u8>,
     first_encode: bool,
     brotli_done: bool,
-    cmp_written: usize,
+    cmp: Mux<HeapAlloc<u8>>,
+    cmp_header_written: usize,
 }
 
 impl LeptonPermissiveCompressor {
@@ -28,7 +30,8 @@ impl LeptonPermissiveCompressor {
             data,
             first_encode: true,
             brotli_done: false,
-            cmp_written: 0,
+            cmp: Mux::new(1),
+            cmp_header_written: 0,
         }
     }
 }
@@ -87,10 +90,10 @@ impl Compressor for LeptonPermissiveCompressor {
                         output_offset,
                         &header,
                         &mut self.encoder,
-                        &BASIC_CMP,
+                        &mut self.cmp,
                         &mut self.header_written,
                         &mut self.brotli_done,
-                        &mut self.cmp_written,
+                        &mut self.cmp_header_written,
                     ) {
                         return result;
                     }

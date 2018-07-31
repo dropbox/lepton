@@ -1,4 +1,9 @@
+use alloc::HeapAlloc;
+use mux::{Mux, StreamMuxer};
+
+use arithmetic_coder::ArithmeticDecoder;
 use byte_converter::{ByteConverter, LittleEndian};
+use codec::create_codecs;
 use interface::CumulativeOperationResult;
 use jpeg_decoder::{JpegResult, JpegStreamDecoder, Scan};
 use secondary_header::{Marker, MARKER_SIZE, PAD_SECTION_SIZE, SECTION_HDR_SIZE};
@@ -7,7 +12,7 @@ use thread_handoff::{ThreadHandoff, ThreadHandoffExt};
 pub struct LeptonData {
     // TODO: Maybe add # RST markers and # blocks per channel
     pub secondary_header: Vec<u8>,
-    pub cmp: Vec<u8>,
+    pub cmp: Mux<HeapAlloc<u8>>,
 }
 
 pub struct LeptonEncoder {
@@ -61,7 +66,7 @@ impl LeptonEncoder {
 
     fn finish(&mut self) {
         self.result = Some(match self.jpeg_decoder.take().unwrap().take_result() {
-            Ok(jpeg) => {
+            Ok(mut jpeg) => {
                 let mut format = jpeg.format.unwrap();
                 let jpeg_header_len = jpeg.scans
                     .iter()
@@ -69,32 +74,26 @@ impl LeptonEncoder {
                         accumulator + element.raw_header.len()
                     });
                 // FIXME: Select handoffs
-                let thread_handoff = format.handoff.split_at(1).0;
+                let thread_handoffs = format.handoff.split_at(1).0.to_vec();
                 let mut secondary_header = Vec::with_capacity(
                     SECTION_HDR_SIZE * 3
                         + PAD_SECTION_SIZE
                         + MARKER_SIZE
                         + jpeg_header_len
-                        + format.handoff.len() * ThreadHandoffExt::BYTES_PER_HANDOFF
+                        + thread_handoffs.len() * ThreadHandoffExt::BYTES_PER_HANDOFF
                         + self.pge.len()
                         + format.pge.len()
                         + format.grb.len(),
                 );
                 secondary_header.extend(Marker::HDR.value());
                 secondary_header.extend(LittleEndian::u32_to_array(jpeg_header_len as u32).iter());
-                let mut cmp = vec![b'C', b'M', b'P'];
-                for mut scan in jpeg.scans {
+                for mut scan in jpeg.scans.iter_mut() {
                     secondary_header.append(&mut scan.raw_header);
-                    if let Some(coefficients) = scan.coefficients {
-                        for mut component in coefficients {
-                            cmp.extend(component.drain(..).map(|x| x as u8)); // FIXME: Use arithmetic encoding
-                        }
-                    }
                 }
                 secondary_header.extend(Marker::P0D.value());
                 secondary_header.push(format.pad_byte);
                 secondary_header.extend(Marker::THX.value());
-                secondary_header.append(&mut ThreadHandoffExt::serialize(thread_handoff));
+                secondary_header.append(&mut ThreadHandoffExt::serialize(&thread_handoffs));
                 secondary_header.extend(Marker::PGE.value());
                 secondary_header.extend(
                     LittleEndian::u32_to_array((self.pge.len() + format.pge.len()) as u32).iter(),
@@ -104,9 +103,37 @@ impl LeptonEncoder {
                 secondary_header.extend(Marker::GRB.value());
                 secondary_header.extend(LittleEndian::u32_to_array(format.grb.len() as u32).iter());
                 secondary_header.append(&mut format.grb);
+                let mut mux = Mux::<HeapAlloc<u8>>::new(thread_handoffs.len());
+                let mut alloc_u8 = HeapAlloc::new(0);
+                let mut codecs = create_codecs(
+                    jpeg.frame.components,
+                    jpeg.frame.size_in_mcu,
+                    jpeg.scans,
+                    thread_handoffs,
+                    format.pad_byte,
+                    &|| ArithmeticDecoder {},
+                );
+                loop {
+                    let mut unfinished = codecs.len();
+                    for (i, codec) in codecs.iter_mut().enumerate() {
+                        if codec.finished() {
+                            unfinished -= 1;
+                        } else {
+                            let write_buf = mux.write_buffer(i as u8, &mut alloc_u8);
+                            let len = codec
+                                .read(&mut write_buf.data[*write_buf.write_offset..])
+                                .unwrap();
+                            *write_buf.write_offset += len;
+                        }
+                    }
+                    if unfinished == 0 {
+                        break;
+                    }
+                    // FIXME: Do we want to wait here?
+                }
                 Ok(LeptonData {
                     secondary_header,
-                    cmp,
+                    cmp: mux,
                 })
             }
             Err(e) => Err(e),

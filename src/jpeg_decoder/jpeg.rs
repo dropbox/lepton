@@ -20,6 +20,7 @@ pub struct FrameInfo {
     pub components: Vec<Component>,
 }
 
+#[derive(Clone)]
 pub struct Scan {
     pub raw_header: Vec<u8>, // Raw header bytes after previous SOS up to and including this SOS
     pub info: ScanInfo,
@@ -49,7 +50,7 @@ impl Scan {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ScanInfo {
     pub component_indices: Vec<usize>,
     pub dc_table_indices: Vec<usize>,
@@ -110,6 +111,7 @@ impl Default for FormatInfo {
     }
 }
 
+#[derive(Clone)]
 pub struct ScanTruncation {
     pub component_index_in_scan: usize,
     pub block_y: usize,
