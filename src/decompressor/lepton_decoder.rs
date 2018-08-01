@@ -4,7 +4,7 @@ use alloc::HeapAlloc;
 use mux::{Mux, StreamDemuxer};
 
 use arithmetic_coder::ArithmeticDecoder;
-use codec::{create_codecs, CodecError, LeptonCodec};
+use codec::{create_codecs, CodecError, DecoderCodec, DecoderStateFactory, LeptonCodec};
 use interface::{ErrMsg, LeptonOperationResult, SimpleResult};
 use secondary_header::{Marker, SecondaryHeader};
 use util::mem_copy;
@@ -24,13 +24,12 @@ pub struct LeptonDecoder {
 
 impl LeptonDecoder {
     pub fn new(header: SecondaryHeader, target_len: usize) -> Self {
-        let codecs = create_codecs(
+        let codecs = create_codecs::<ArithmeticDecoder, DecoderCodec, DecoderStateFactory>(
             header.hdr.frame.components,
             header.hdr.frame.size_in_mcu,
             header.hdr.scans,
             header.thx,
             header.pad,
-            &|| ArithmeticDecoder {},
         );
         Self {
             target_len,

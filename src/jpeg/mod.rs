@@ -1,5 +1,6 @@
 mod constants;
 mod decoder;
+mod encoder;
 mod error;
 mod huffman;
 mod jpeg;
@@ -10,6 +11,7 @@ mod util;
 
 pub use self::constants::*;
 pub use self::decoder::JpegDecoder;
+pub use self::encoder::*;
 pub use self::error::{JpegError, JpegResult, UnsupportedFeature};
 pub use self::jpeg::*;
 pub use self::stream_decoder::*;

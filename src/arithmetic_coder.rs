@@ -1,4 +1,4 @@
-pub trait ArithmeticCoder {
+pub trait ArithmeticCoder: Send {
     fn parse_bit(
         &mut self,
         input: u16,

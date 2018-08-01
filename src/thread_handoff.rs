@@ -1,5 +1,5 @@
 use byte_converter::{ByteConverter, LittleEndian};
-use jpeg_decoder::MAX_COMPONENTS;
+use jpeg::MAX_COMPONENTS;
 
 pub trait ThreadHandoff: Sized {
     const BYTES_PER_HANDOFF: usize;

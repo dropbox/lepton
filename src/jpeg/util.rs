@@ -1,5 +1,5 @@
 use interface::SimpleResult;
-use jpeg_decoder::{Component, Dimensions, Scan};
+use jpeg::{Component, Dimensions, Scan};
 
 pub fn process_scan<T>(
     scan: &mut Scan,

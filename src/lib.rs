@@ -17,7 +17,7 @@ mod decompressor;
 mod interface;
 mod io;
 mod iostream;
-mod jpeg_decoder;
+mod jpeg;
 mod primary_header;
 mod resizable_buffer;
 mod secondary_header;

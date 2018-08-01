@@ -3,9 +3,9 @@ use mux::{Mux, StreamMuxer};
 
 use arithmetic_coder::ArithmeticDecoder;
 use byte_converter::{ByteConverter, LittleEndian};
-use codec::create_codecs;
+use codec::{create_codecs, EncoderCodec, EncoderStateFactory};
 use interface::CumulativeOperationResult;
-use jpeg_decoder::{JpegResult, JpegStreamDecoder, Scan};
+use jpeg::{JpegResult, JpegStreamDecoder, Scan};
 use secondary_header::{Marker, MARKER_SIZE, PAD_SECTION_SIZE, SECTION_HDR_SIZE};
 use thread_handoff::{ThreadHandoff, ThreadHandoffExt};
 
@@ -105,14 +105,14 @@ impl LeptonEncoder {
                 secondary_header.append(&mut format.grb);
                 let mut mux = Mux::<HeapAlloc<u8>>::new(thread_handoffs.len());
                 let mut alloc_u8 = HeapAlloc::new(0);
-                let mut codecs = create_codecs(
-                    jpeg.frame.components,
-                    jpeg.frame.size_in_mcu,
-                    jpeg.scans,
-                    thread_handoffs,
-                    format.pad_byte,
-                    &|| ArithmeticDecoder {},
-                );
+                let mut codecs =
+                    create_codecs::<ArithmeticDecoder, EncoderCodec, EncoderStateFactory>(
+                        jpeg.frame.components,
+                        jpeg.frame.size_in_mcu,
+                        jpeg.scans,
+                        thread_handoffs,
+                        format.pad_byte,
+                    );
                 loop {
                     let mut unfinished = codecs.len();
                     for (i, codec) in codecs.iter_mut().enumerate() {

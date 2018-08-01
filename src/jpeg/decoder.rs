@@ -187,7 +187,9 @@ impl JpegDecoder {
                     }
                     self.input.clear_retained_data();
                     let current_scan = scans.last_mut().unwrap();
+                    self.verify_huffman_tables(current_scan)?;
                     if let Some(ref mut format) = format {
+                        // FIXME: We don't need non_zero_coefficient in sequential mode
                         // if frame_info.coding_process == CodingProcess::DctProgressive
                         //     && self.non_zero_coefficients.is_empty()
                         if self.non_zero_coefficients.is_empty() {
@@ -211,6 +213,7 @@ impl JpegDecoder {
                             .zip(self.ac_huffman_tables.iter())
                             .enumerate()
                         {
+                            // FIXME: Only clone the tables that we need
                             current_scan.dc_encode_table[i] = dc_table.clone_encode_table();
                             current_scan.ac_encode_table[i] = ac_table.clone_encode_table();
                         }
@@ -346,27 +349,6 @@ impl JpegDecoder {
             }) {
                 return Err(JpegError::Malformatted(
                     "use of unset quantization table".to_owned(),
-                ));
-            }
-            // Verify that all required huffman tables has been set.
-            if scan_info.spectral_selection.start == 0
-                && scan_info
-                    .dc_table_indices
-                    .iter()
-                    .any(|&i| self.dc_huffman_tables[i].is_empty())
-            {
-                return Err(JpegError::Malformatted(
-                    "scan makes use of unset dc huffman table".to_owned(),
-                ));
-            }
-            if scan_info.spectral_selection.end > 1
-                && scan_info
-                    .ac_table_indices
-                    .iter()
-                    .any(|&i| self.ac_huffman_tables[i].is_empty())
-            {
-                return Err(JpegError::Malformatted(
-                    "scan makes use of unset ac huffman table".to_owned(),
                 ));
             }
             subsequent_successive_approximation = scan_info.successive_approximation_high > 0;
@@ -550,6 +532,32 @@ impl JpegDecoder {
                 Err(JpegError::EOF)
             }
             Err(e) => Err(e),
+        }
+    }
+
+    fn verify_huffman_tables(&self, scan: &Scan) -> JpegResult<()> {
+        let scan_info = &scan.info;
+        if scan_info.spectral_selection.start == 0
+            && scan_info
+                .dc_table_indices
+                .iter()
+                .any(|&i| self.dc_huffman_tables[i].is_empty())
+        {
+            return Err(JpegError::Malformatted(
+                "scan makes use of unset dc huffman table".to_owned(),
+            ));
+        }
+        if scan_info.spectral_selection.end > 1
+            && scan_info
+                .ac_table_indices
+                .iter()
+                .any(|&i| self.ac_huffman_tables[i].is_empty())
+        {
+            Err(JpegError::Malformatted(
+                "scan makes use of unset ac huffman table".to_owned(),
+            ))
+        } else {
+            Ok(())
         }
     }
 

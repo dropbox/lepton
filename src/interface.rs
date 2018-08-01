@@ -1,5 +1,5 @@
 use brotli::BrotliResult;
-use jpeg_decoder::JpegError;
+use jpeg::JpegError;
 use secondary_header::Marker;
 
 pub type SimpleResult<T> = Result<(), T>;
@@ -10,6 +10,7 @@ pub enum ErrMsg {
     BrotliDecompressStreamFail,
     BrotliEncodeNeedsOutputWithoutFlush,
     BrotliFlushNeedsInput,
+    CodecKilled,
     HDRMissing,
     IncompletePrimaryHeader,
     IncompleteSecondaryHeaderMarker,

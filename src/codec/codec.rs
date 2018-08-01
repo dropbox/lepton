@@ -1,11 +1,13 @@
-use std::thread;
-
+use super::factory::StateFactory;
+use super::specialization::CodecSpecialization;
 use arithmetic_coder::ArithmeticCoder;
+use byte_converter::{BigEndian, ByteConverter};
 use constants::INPUT_STREAM_PRELOAD_LEN;
 use interface::{ErrMsg, SimpleResult};
 use io::{BufferedOutputStream, Write};
 use iostream::{iostream, InputStream, OutputError, OutputStream};
-use jpeg_decoder::{process_scan, Component, Dimensions, Scan};
+use jpeg::{process_scan, Component, Dimensions, Scan};
+use std::thread;
 use thread_handoff::ThreadHandoffExt;
 
 const OUTPUT_BUFFER_SIZE: usize = 4096;
@@ -18,13 +20,16 @@ pub enum CodecError {
     WriteAfterEOF,
 }
 
-pub fn create_codecs<ArithmeticEncoderOrDecoder: ArithmeticCoder + Send + 'static>(
+pub fn create_codecs<
+    Coder: ArithmeticCoder + 'static,
+    Specialization: CodecSpecialization + 'static,
+    Factory: StateFactory<Coder, Specialization>,
+>(
     components: Vec<Component>,
     size_in_mcu: Dimensions,
     scans: Vec<Scan>,
     mut thread_handoffs: Vec<ThreadHandoffExt>,
     pad: u8,
-    coder_factory: &Fn() -> ArithmeticEncoderOrDecoder,
 ) -> Vec<LeptonCodec> {
     let mut codecs = Vec::with_capacity(thread_handoffs.len());
     for _ in 0..thread_handoffs.len() {
@@ -33,8 +38,7 @@ pub fn create_codecs<ArithmeticEncoderOrDecoder: ArithmeticCoder + Send + 'stati
             .iter()
             .map(|scan| scan.clone())
             .collect();
-        codecs.push(LeptonCodec::new(
-            coder_factory(),
+        codecs.push(LeptonCodec::new::<Coder, Specialization, Factory>(
             components.clone(),
             size_in_mcu.clone(),
             codec_scans,
@@ -56,8 +60,11 @@ pub struct LeptonCodec {
 }
 
 impl LeptonCodec {
-    pub fn new<ArithmeticEncoderOrDecoder: ArithmeticCoder + Send + 'static>(
-        arithmetic_coder: ArithmeticEncoderOrDecoder,
+    pub fn new<
+        Coder: ArithmeticCoder + 'static,
+        Specialization: CodecSpecialization + 'static,
+        Factory: StateFactory<Coder, Specialization>,
+    >(
         components: Vec<Component>,
         size_in_mcu: Dimensions,
         scans: Vec<Scan>,
@@ -66,21 +73,19 @@ impl LeptonCodec {
     ) -> Self {
         let (codec_input, to_codec) = iostream(INPUT_STREAM_PRELOAD_LEN);
         let (from_codec, codec_output) = iostream(INPUT_STREAM_PRELOAD_LEN);
+        let codec = InternalCodec::new::<Factory>(
+            codec_input,
+            codec_output,
+            components,
+            size_in_mcu,
+            scans,
+            handoff,
+            pad,
+        );
         let codec_handle = Some(
             thread::Builder::new()
                 .name("codec thread".to_owned())
-                .spawn(move || {
-                    InternalCodec::new(
-                        arithmetic_coder,
-                        codec_input,
-                        codec_output,
-                        components,
-                        size_in_mcu,
-                        scans,
-                        handoff,
-                        pad,
-                    ).start()
-                })
+                .spawn(move || codec.start())
                 .unwrap(),
         );
         Self {
@@ -149,8 +154,8 @@ impl LeptonCodec {
         return Ok(len);
     }
 
-    pub fn kill(self) {
-        let _ = self.to_codec.write_eof();
+    pub fn kill(mut self) {
+        self.write_eof();
         let _ = self.from_codec.abort();
     }
 
@@ -162,10 +167,10 @@ impl LeptonCodec {
     }
 }
 
-struct InternalCodec<ArithmeticEncoderOrDecoder: ArithmeticCoder> {
-    arithmetic_coder: ArithmeticEncoderOrDecoder,
+struct InternalCodec<Coder: ArithmeticCoder, Specialization: CodecSpecialization> {
+    coder: Coder,
+    specialization: Specialization,
     input: InputStream,
-    output: BufferedOutputStream,
     components: Vec<Component>,
     size_in_mcu: Dimensions,
     scans: Vec<Scan>,
@@ -173,9 +178,10 @@ struct InternalCodec<ArithmeticEncoderOrDecoder: ArithmeticCoder> {
     pad: u8,
 }
 
-impl<ArithmeticEncoderOrDecoder: ArithmeticCoder> InternalCodec<ArithmeticEncoderOrDecoder> {
-    pub fn new(
-        arithmetic_coder: ArithmeticEncoderOrDecoder,
+impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
+    InternalCodec<Coder, Specialization>
+{
+    pub fn new<Factory: StateFactory<Coder, Specialization>>(
         input: InputStream,
         output: OutputStream,
         components: Vec<Component>,
@@ -184,10 +190,12 @@ impl<ArithmeticEncoderOrDecoder: ArithmeticCoder> InternalCodec<ArithmeticEncode
         handoff: ThreadHandoffExt,
         pad: u8,
     ) -> Self {
-        InternalCodec {
-            arithmetic_coder,
+        let (coder, specialization) =
+            Factory::build(BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE));
+        Self {
+            coder,
+            specialization,
             input,
-            output: BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE),
             components,
             size_in_mcu,
             scans,
@@ -199,17 +207,18 @@ impl<ArithmeticEncoderOrDecoder: ArithmeticCoder> InternalCodec<ArithmeticEncode
     pub fn start(mut self) -> SimpleResult<ErrMsg> {
         for i in 0..self.scans.len() {
             self.process_scan(i)?;
+            // TODO: Flush arithmetic coder
         }
-        self.output.flush().unwrap(); // FIXME
+        self.specialization.flush()?;
         self.input.abort();
-        self.output.ostream.write_eof().unwrap(); // FIXME
+        self.specialization.write_eof();
         Ok(())
     }
 
     fn process_scan(&mut self, scan_index: usize) -> SimpleResult<ErrMsg> {
         let scan = &mut self.scans[scan_index];
         let input = &mut self.input;
-        let output = &mut self.output;
+        let specialization = &mut self.specialization;
         let mut mcu_row_callback = |mcu_y: usize| Ok(());
         let mut mcu_callback = |mcu_y: usize, mcu_x: usize| Ok(());
         let mut block_callback = |block_y: usize,
@@ -217,9 +226,8 @@ impl<ArithmeticEncoderOrDecoder: ArithmeticCoder> InternalCodec<ArithmeticEncode
                                   component_index_in_scan: usize,
                                   component: &Component,
                                   scan: &mut Scan| {
-            process_block(
+            specialization.process_block(
                 input,
-                output,
                 block_y,
                 block_x,
                 component_index_in_scan,
@@ -251,25 +259,22 @@ fn process_block(
     component: &Component,
     scan: &mut Scan,
 ) -> SimpleResult<ErrMsg> {
-    let mut block = [0u8; 128];
-    // println!("process block {} {}", y, x);
-    match scan.coefficients {
+    let mut block_holder: [i16; 64];
+    let block = match scan.coefficients {
         Some(ref coefficients) => {
             let block_offset = (y * component.size_in_block.width as usize + x) * 64;
-            for (i, &coefficient) in coefficients[component_index_in_scan]
-                [block_offset..block_offset + 64]
-                .iter()
-                .enumerate()
-            {
-                block[2 * i] = (coefficient >> 8) as u8;
-                block[2 * i + 1] = coefficient as u8;
-            }
+            &coefficients[component_index_in_scan][block_offset..block_offset + 64]
         }
         None => {
-            // TODO: Maybe transform coefficients to i16 here
-            input.read(&mut block, true, false).unwrap(); // FIXME
+            let mut block_u8 = [0; 128];
+            block_holder = [0i16; 64];
+            input.read(&mut block_u8, true, false).unwrap(); // FIXME
+            for (i, coefficient) in block_holder.iter_mut().enumerate() {
+                *coefficient = BigEndian::slice_to_u16(&block_u8[(2 * i)..]) as i16;
+            }
+            &block_holder
         }
-    }
-    output.write(&block).unwrap(); // FIXME
+    };
+    // output.write(block).unwrap(); // FIXME
     Ok(())
 }

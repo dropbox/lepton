@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use byte_converter::{ByteConverter, LittleEndian};
 use interface::ErrMsg;
 use iostream::InputStream;
-use jpeg_decoder::{Jpeg, JpegDecoder};
+use jpeg::{Jpeg, JpegDecoder};
 use thread_handoff::{
     deserialize_all as deserialize_all_thread_handoff, ThreadHandoff, ThreadHandoffExt,
     ThreadHandoffOld,
