@@ -194,9 +194,9 @@ pub fn parse_sos(input: &mut InputStream, frame: &FrameInfo) -> JpegResult<ScanI
     if length != 4 + 2 * component_count {
         return Err(JpegError::Malformatted("invalid length in SOS".to_owned()));
     }
-    let mut component_indices = Vec::with_capacity(component_count as usize);;
-    let mut dc_table_indices = Vec::with_capacity(component_count as usize);;
-    let mut ac_table_indices = Vec::with_capacity(component_count as usize);;
+    let mut component_indices = Vec::with_capacity(component_count as usize);
+    let mut dc_table_indices = Vec::with_capacity(component_count as usize);
+    let mut ac_table_indices = Vec::with_capacity(component_count as usize);
     for _ in 0..component_count {
         let identifier = input.read_byte(true)?;
         let component_index = match frame.components.iter().position(|c| c.identifier == identifier) {
@@ -361,8 +361,9 @@ pub fn parse_dqt(input: &mut InputStream, tables: &mut [Option<[u16; 64]>; 4]) -
 pub fn parse_dht(
     input: &mut InputStream,
     is_baseline: Option<bool>,
-    dc_tables: &mut [Option<HuffmanTable>; 4],
-    ac_tables: &mut [Option<HuffmanTable>; 4],
+    dc_tables: &mut [HuffmanTable; 4],
+    ac_tables: &mut [HuffmanTable; 4],
+    encode: bool,
 ) -> JpegResult<()> {
     let mut length = read_length(input, DHT)?;
     let mut counts = [0u8; 16];
@@ -410,10 +411,12 @@ pub fn parse_dht(
         input.read(&mut values, true, true)?;
         match class {
             0 => {
-                dc_tables[index] = Some(HuffmanTable::new(&counts, &values, HuffmanTableClass::DC)?)
+                dc_tables[index] =
+                    HuffmanTable::new(&counts, &values, HuffmanTableClass::DC, encode)?
             }
             1 => {
-                ac_tables[index] = Some(HuffmanTable::new(&counts, &values, HuffmanTableClass::AC)?)
+                ac_tables[index] =
+                    HuffmanTable::new(&counts, &values, HuffmanTableClass::AC, encode)?
             }
             _ => unreachable!(),
         }

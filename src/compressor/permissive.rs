@@ -70,7 +70,7 @@ impl Compressor for LeptonPermissiveCompressor {
                     self.data[MARKER_SIZE..SECTION_HDR_SIZE].clone_from_slice(&pge_len_array);
                     let mut input_offset = 0usize;
                     if let LeptonOperationResult::Failure(msg) = self.encoder.encode_all(
-                        self.data.as_slice(),
+                        &self.data,
                         &mut input_offset,
                         output,
                         output_offset,

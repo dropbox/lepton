@@ -8,8 +8,10 @@ use std::fs::File;
 use std::io::{self, Read, Result, Write};
 use std::path::Path;
 
-use lepton::{Compressor, Decompressor, ErrMsg, LeptonDecompressor, LeptonFlushResult,
-             LeptonOperationResult, LeptonCompressor};
+use lepton::{
+    Compressor, Decompressor, ErrMsg, LeptonCompressor, LeptonDecompressor, LeptonFlushResult,
+    LeptonOperationResult,
+};
 
 mod integration_test;
 
@@ -79,7 +81,7 @@ fn renew_buffer(buffer: &mut [u8], content_used: &mut usize, content_end: &mut u
     if *content_used < *content_end {
         let content_left = *content_end - *content_used;
         let tmp = buffer[*content_used..*content_end].to_vec();
-        buffer[..content_left].clone_from_slice(tmp.as_slice());
+        buffer[..content_left].clone_from_slice(&tmp);
         *content_end = content_left;
     } else {
         *content_end = 0;
@@ -113,7 +115,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
     let mut done = false;
     while !done {
         // FIXME: Maker sure input is exhausted before exiting
-        match read_to_buffer(r, input_buffer.as_mut_slice(), &mut input_end, &size_checker) {
+        match read_to_buffer(r, &mut input_buffer, &mut input_end, &size_checker) {
             Ok(size) => {
                 if size == 0 {
                     done = true;
@@ -124,7 +126,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
         match compressor.encode(
             &input_buffer[..input_end],
             &mut input_offset,
-            output_buffer.as_mut_slice(),
+            &mut output_buffer,
             &mut output_offset,
         ) {
             LeptonOperationResult::Failure(m) => {
@@ -134,7 +136,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
         }
         renew_buffer(&mut input_buffer, &mut input_offset, &mut input_end);
         if output_offset > 0 {
-            match write_from_buffer(w, output_buffer.as_mut_slice(), output_offset) {
+            match write_from_buffer(w, &mut output_buffer, output_offset) {
                 Ok(()) => output_offset = 0,
                 Err(e) => return Err(e),
             }
@@ -149,7 +151,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
             }
             LeptonFlushResult::NeedsMoreOutput => (),
         }
-        match write_from_buffer(w, output_buffer.as_mut_slice(), output_offset) {
+        match write_from_buffer(w, &mut output_buffer, output_offset) {
             Ok(()) => output_offset = 0,
             Err(e) => return Err(e),
         }

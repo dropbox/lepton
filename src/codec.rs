@@ -3,7 +3,8 @@ use std::thread;
 use arithmetic_coder::ArithmeticCoder;
 use constants::INPUT_STREAM_PRELOAD_LEN;
 use interface::{ErrMsg, SimpleResult};
-use iostream::{iostream, InputStream, OutputError, OutputResult, OutputStream};
+use io::{BufferedOutputStream, Write};
+use iostream::{iostream, InputStream, OutputError, OutputStream};
 use jpeg_decoder::{process_scan, Component, Dimensions, Scan};
 use thread_handoff::ThreadHandoffExt;
 
@@ -251,6 +252,7 @@ fn process_block(
     scan: &mut Scan,
 ) -> SimpleResult<ErrMsg> {
     let mut block = [0u8; 128];
+    // println!("process block {} {}", y, x);
     match scan.coefficients {
         Some(ref coefficients) => {
             let block_offset = (y * component.size_in_block.width as usize + x) * 64;
@@ -264,42 +266,10 @@ fn process_block(
             }
         }
         None => {
+            // TODO: Maybe transform coefficients to i16 here
             input.read(&mut block, true, false).unwrap(); // FIXME
         }
     }
     output.write(&block).unwrap(); // FIXME
     Ok(())
-}
-
-struct BufferedOutputStream {
-    ostream: OutputStream,
-    buffer: Vec<u8>,
-}
-
-impl BufferedOutputStream {
-    fn new(ostream: OutputStream, buffer_len: usize) -> Self {
-        BufferedOutputStream {
-            ostream,
-            buffer: Vec::with_capacity(buffer_len),
-        }
-    }
-
-    fn write(&mut self, data: &[u8]) -> OutputResult<usize> {
-        Ok(if self.buffer.len() + data.len() >= self.buffer.capacity()
-            || data.len() >= self.buffer.capacity() / 2
-        {
-            let len = self.ostream.write_all(&[&self.buffer, data])?;
-            self.buffer.clear();
-            len
-        } else {
-            self.buffer.extend(data);
-            data.len()
-        })
-    }
-
-    fn flush(&mut self) -> OutputResult<usize> {
-        let len = self.ostream.write(&self.buffer)?;
-        self.buffer.clear();
-        Ok(len)
-    }
 }

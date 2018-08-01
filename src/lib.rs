@@ -4,13 +4,18 @@ extern crate brotli;
 extern crate core;
 extern crate lepton_mux as mux;
 
+#[macro_use]
+mod macros;
+
 mod arithmetic_coder;
+mod bit_writer;
 mod byte_converter;
 mod codec;
 mod compressor;
 mod constants;
 mod decompressor;
 mod interface;
+mod io;
 mod iostream;
 mod jpeg_decoder;
 mod primary_header;

@@ -27,6 +27,8 @@ pub struct Scan {
     pub restart_interval: u16, // 0 indicates restart is not enabled
     pub coefficients: Option<Vec<Vec<i16>>>,
     pub truncation: Option<ScanTruncation>,
+    pub dc_encode_table: [Option<[(u16, u8); 256]>; 4],
+    pub ac_encode_table: [Option<[(u16, u8); 256]>; 4],
 }
 
 impl Scan {
@@ -37,6 +39,8 @@ impl Scan {
             restart_interval,
             coefficients: None,
             truncation: None,
+            dc_encode_table: [None, None, None, None],
+            ac_encode_table: [None, None, None, None],
         }
     }
 

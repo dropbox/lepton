@@ -5,6 +5,7 @@ use std::ops::Range;
 
 use bit_vec::BitVec;
 
+use super::constants::{MAX_COMPONENTS, UNZIGZAG};
 use super::error::{JpegError, JpegResult, UnsupportedFeature};
 use super::huffman::{fill_default_mjpeg_tables, HuffmanDecoder, HuffmanTable};
 use super::jpeg::{
@@ -13,23 +14,16 @@ use super::jpeg::{
 use super::marker::Marker;
 use super::parser::{parse_app, parse_com, parse_dht, parse_dqt, parse_dri, parse_sof, parse_sos};
 use super::util::process_scan;
-use super::MAX_COMPONENTS;
 use iostream::InputStream;
 use thread_handoff::ThreadHandoffExt;
 
 pub type DecodeResult = JpegResult<Jpeg>;
 
-static UNZIGZAG: [usize; 64] = [
-    0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
-    13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59,
-    52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
-];
-
 /// JPEG decoder
 pub struct JpegDecoder {
     input: InputStream,
-    dc_huffman_tables: [Option<HuffmanTable>; 4],
-    ac_huffman_tables: [Option<HuffmanTable>; 4],
+    dc_huffman_tables: [HuffmanTable; 4],
+    ac_huffman_tables: [HuffmanTable; 4],
     quantization_tables: [Option<[u16; 64]>; 4],
     non_zero_coefficients: Vec<BitVec>, // This is really non-zero AC coefficients
     restart_interval: u16,
@@ -41,10 +35,11 @@ pub struct JpegDecoder {
 
 impl JpegDecoder {
     pub fn new(input: InputStream, start_byte: usize, header_only: bool) -> Self {
+        use self::HuffmanTable::Empty;
         JpegDecoder {
             input: input,
-            dc_huffman_tables: [None, None, None, None],
-            ac_huffman_tables: [None, None, None, None],
+            dc_huffman_tables: [Empty, Empty, Empty, Empty],
+            ac_huffman_tables: [Empty, Empty, Empty, Empty],
             quantization_tables: [None, None, None, None],
             non_zero_coefficients: vec![],
             restart_interval: 0,
@@ -168,18 +163,13 @@ impl JpegDecoder {
                     }
                     let frame_info = frame.as_ref().unwrap();
                     let scan_info = parse_sos(&mut self.input, frame_info)?;
-                    // if frame_info.coding_process == CodingProcess::DctProgressive
-                    //     && self.non_zero_coefficients.is_empty()
-                    if self.non_zero_coefficients.is_empty() {
-                        self.non_zero_coefficients = frame_info
-                            .components
-                            .iter()
-                            .map(|c| {
-                                let block_count = c.size_in_block.width as usize
-                                    * c.size_in_block.height as usize;
-                                BitVec::from_elem(block_count * 64, false)
-                            })
-                            .collect();
+                    if self.is_mjpeg {
+                        fill_default_mjpeg_tables(
+                            &scan_info,
+                            &mut self.dc_huffman_tables,
+                            &mut self.ac_huffman_tables,
+                            self.header_only,
+                        );
                     }
                     scans.push(Scan::new(
                         self.input.view_retained_data(),
@@ -196,13 +186,34 @@ impl JpegDecoder {
                         );
                     }
                     self.input.clear_retained_data();
+                    let current_scan = scans.last_mut().unwrap();
                     if let Some(ref mut format) = format {
-                        let current_scan = scans.last_mut().unwrap();
+                        // if frame_info.coding_process == CodingProcess::DctProgressive
+                        //     && self.non_zero_coefficients.is_empty()
+                        if self.non_zero_coefficients.is_empty() {
+                            self.non_zero_coefficients = frame_info
+                                .components
+                                .iter()
+                                .map(|c| {
+                                    let block_count = c.size_in_block.width as usize
+                                        * c.size_in_block.height as usize;
+                                    BitVec::from_elem(block_count * 64, false)
+                                })
+                                .collect();
+                        }
                         self.decode_scan(frame_info, current_scan, format)?;
                         if self.start_byte > 0 {
                             current_scan.coefficients = None;
                         }
                     } else {
+                        for (i, (dc_table, ac_table)) in self.dc_huffman_tables
+                            .iter()
+                            .zip(self.ac_huffman_tables.iter())
+                            .enumerate()
+                        {
+                            current_scan.dc_encode_table[i] = dc_table.clone_encode_table();
+                            current_scan.ac_encode_table[i] = ac_table.clone_encode_table();
+                        }
                         if self.input.is_eof() {
                             return Ok(());
                         }
@@ -223,6 +234,7 @@ impl JpegDecoder {
                         is_baseline,
                         &mut self.dc_huffman_tables,
                         &mut self.ac_huffman_tables,
+                        self.header_only,
                     )?;
                 }
                 // Arithmetic conditioning table-specification
@@ -336,19 +348,12 @@ impl JpegDecoder {
                     "use of unset quantization table".to_owned(),
                 ));
             }
-            if self.is_mjpeg {
-                fill_default_mjpeg_tables(
-                    scan_info,
-                    &mut self.dc_huffman_tables,
-                    &mut self.ac_huffman_tables,
-                );
-            }
             // Verify that all required huffman tables has been set.
             if scan_info.spectral_selection.start == 0
                 && scan_info
                     .dc_table_indices
                     .iter()
-                    .any(|&i| self.dc_huffman_tables[i].is_none())
+                    .any(|&i| self.dc_huffman_tables[i].is_empty())
             {
                 return Err(JpegError::Malformatted(
                     "scan makes use of unset dc huffman table".to_owned(),
@@ -358,7 +363,7 @@ impl JpegDecoder {
                 && scan_info
                     .ac_table_indices
                     .iter()
-                    .any(|&i| self.ac_huffman_tables[i].is_none())
+                    .any(|&i| self.ac_huffman_tables[i].is_empty())
             {
                 return Err(JpegError::Malformatted(
                     "scan makes use of unset ac huffman table".to_owned(),
@@ -498,8 +503,8 @@ impl JpegDecoder {
                 &mut self.input,
                 coefficients,
                 huffman,
-                self.dc_huffman_tables[scan_info.dc_table_indices[scan_component_index]].as_ref(),
-                self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]].as_ref(),
+                &self.dc_huffman_tables[scan_info.dc_table_indices[scan_component_index]],
+                &self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]],
                 scan_info.spectral_selection.clone(),
                 scan_info.successive_approximation_low,
                 eob_run,
@@ -512,9 +517,7 @@ impl JpegDecoder {
                 &mut self.input,
                 coefficients,
                 huffman,
-                self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]]
-                    .as_ref()
-                    .unwrap(),
+                &self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]],
                 scan_info.spectral_selection.clone(),
                 eob_run,
                 non_zero_coefficients,
@@ -582,8 +585,8 @@ fn decode_block(
     input: &mut InputStream,
     coefficients: &mut [i16],
     huffman: &mut HuffmanDecoder,
-    dc_table: Option<&HuffmanTable>,
-    ac_table: Option<&HuffmanTable>,
+    dc_table: &HuffmanTable,
+    ac_table: &HuffmanTable,
     spectral_selection: Range<u8>,
     successive_approximation_low: u8,
     eob_run: &mut u16,
@@ -595,7 +598,7 @@ fn decode_block(
     if spectral_selection.start == 0 {
         // Section F.2.2.1
         // Figure F.12
-        let value = huffman.decode(input, dc_table.unwrap())?;
+        let value = huffman.decode(input, dc_table.decode_table())?;
         let diff = match value {
             0 => 0,
             _ => {
@@ -621,7 +624,7 @@ fn decode_block(
         }
         // Section F.1.2.2.1
         let mut index = max(spectral_selection.start, 1);
-        let ac_table = ac_table.unwrap();
+        let ac_table = ac_table.decode_table();
         while index < spectral_selection.end {
             match huffman.decode_fast_ac(input, ac_table)? {
                 Some((value, run)) => {
@@ -712,7 +715,7 @@ fn decode_block_successive_approximation(
         }
         let mut index = max(spectral_selection.start, 1);
         while index < spectral_selection.end {
-            let byte = huffman.decode(input, ac_table)?;
+            let byte = huffman.decode(input, ac_table.decode_table())?;
             let r = byte >> 4;
             let s = byte & 0x0f;
             let mut zero_run_length = r;
