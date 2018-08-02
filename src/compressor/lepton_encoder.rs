@@ -11,6 +11,7 @@ use thread_handoff::{ThreadHandoff, ThreadHandoffExt};
 
 pub struct LeptonData {
     // TODO: Maybe add # RST markers and # blocks per channel
+    pub n_thread: u8,
     pub secondary_header: Vec<u8>,
     pub cmp: Mux<HeapAlloc<u8>>,
 }
@@ -74,7 +75,7 @@ impl LeptonEncoder {
                         accumulator + element.raw_header.len()
                     });
                 // FIXME: Select handoffs
-                let thread_handoffs = format.handoff.split_at(1).0.to_vec();
+                let thread_handoffs = format.handoff[..1].to_vec();
                 let mut secondary_header = Vec::with_capacity(
                     SECTION_HDR_SIZE * 3
                         + PAD_SECTION_SIZE
@@ -132,6 +133,7 @@ impl LeptonEncoder {
                     // FIXME: Do we want to wait here?
                 }
                 Ok(LeptonData {
+                    n_thread: codecs.len() as u8,
                     secondary_header,
                     cmp: mux,
                 })

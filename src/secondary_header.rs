@@ -89,8 +89,6 @@ impl Marker {
 }
 
 pub struct SecondaryHeader {
-    // TODO: May need to differentiate PGE and PGR
-    // TODO: Extract GRB?
     pub hdr: Jpeg,
     pub pad: u8,
     pub thx: Vec<ThreadHandoffExt>,

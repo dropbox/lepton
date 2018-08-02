@@ -17,6 +17,7 @@ pub struct LeptonCompressor {
     embedding: usize,
     total_in: usize,
     pge: Vec<u8>,
+    n_thread: u8,
     primary_header: Option<[u8; PRIMARY_HEADER_SIZE]>,
     primary_header_written: usize,
     brotli_done: bool,
@@ -33,6 +34,7 @@ impl LeptonCompressor {
             embedding,
             total_in: 0,
             pge: vec![],
+            n_thread: 0,
             primary_header: None,
             primary_header_written: 0,
             brotli_done: false,
@@ -44,6 +46,7 @@ impl LeptonCompressor {
         let result;
         self.result = Some(match self.lepton_encoder.take().unwrap().take_result() {
             Ok(data) => {
+                self.n_thread = data.n_thread;
                 let mut offset = 0;
                 match self.brotli_encoder.encode_all(
                     &data.secondary_header,
@@ -140,15 +143,14 @@ impl Compressor for LeptonCompressor {
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
         match self.result {
-            Some(ref result) => if let Err(ref msg) = result {
-                return LeptonFlushResult::Failure(msg.clone());
-            },
+            Some(Err(ref msg)) => return LeptonFlushResult::Failure(msg.clone()),
             None => {
                 self.lepton_encoder.as_mut().unwrap().flush();
                 if let Err(msg) = self.finish_lepton_encode() {
                     return LeptonFlushResult::Failure(msg);
                 }
             }
+            _ => (),
         }
         while *output_offset < output.len() {
             match self.primary_header {
@@ -160,7 +162,7 @@ impl Compressor for LeptonCompressor {
                             } else {
                                 b'Y'
                             },
-                            1, // TODO: Mutlithread
+                            self.n_thread,
                             &[0; 12],
                             self.total_in,
                             size,

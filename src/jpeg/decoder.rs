@@ -231,7 +231,6 @@ impl JpegDecoder {
                 // Huffman table-specification
                 Marker::DHT => {
                     let is_baseline = frame.as_ref().map(|frame| frame.is_baseline);
-                    // TODO: If header_only instead build huffman encode table
                     parse_dht(
                         &mut self.input,
                         is_baseline,

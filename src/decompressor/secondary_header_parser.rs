@@ -1,7 +1,7 @@
 use alloc::HeapAlloc;
 use brotli::{BrotliDecompressStream, BrotliResult, BrotliState, HuffmanCode};
 
-use interface::LeptonOperationResult;
+use interface::{ErrMsg, LeptonOperationResult};
 use resizable_buffer::ResizableByteBuffer;
 use secondary_header::{deserialize_header, SecondaryHeader};
 use util::mem_copy;
@@ -11,6 +11,7 @@ pub struct SecondaryHeaderParser {
     target_len: usize,
     total_in: usize,
     total_out: usize,
+    error: Option<ErrMsg>,
     data: ResizableByteBuffer<u8, HeapAlloc<u8>>,
     header: Option<SecondaryHeader>,
     output_jpeg_hdr: bool,
@@ -29,6 +30,7 @@ impl SecondaryHeaderParser {
             target_len,
             total_in: 0,
             total_out: 0,
+            error: None,
             data: ResizableByteBuffer::<u8, HeapAlloc<u8>>::new(),
             header: None,
             output_jpeg_hdr,
@@ -44,8 +46,7 @@ impl SecondaryHeaderParser {
         output: &mut [u8],
         output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        if self.total_in < self.target_len {
-            // TODO: Error if parse return success but target_len not reached
+        let result = if self.total_in < self.target_len {
             let old_input_offset = *input_offset;
             let remaining_in = self.target_len - self.total_in;
             let truncated_input = if remaining_in < input.len() - *input_offset {
@@ -58,10 +59,18 @@ impl SecondaryHeaderParser {
                 other => other,
             };
             self.total_in += *input_offset - old_input_offset;
-            result
+            if result == LeptonOperationResult::Success && self.total_in < self.target_len {
+                LeptonOperationResult::Failure(ErrMsg::PrematureSecondaryHeaderCompletion)
+            } else {
+                result
+            }
         } else {
             self.flush(output, output_offset)
+        };
+        if let LeptonOperationResult::Failure(ref msg) = result {
+            self.error = Some(msg.clone());
         }
+        result
     }
 
     pub fn take_header(self) -> SecondaryHeader {

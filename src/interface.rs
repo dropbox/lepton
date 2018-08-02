@@ -21,6 +21,7 @@ pub enum ErrMsg {
     JpegDecodeFail(JpegError),
     PADMIssing,
     PrematureDecodeCompletion,
+    PrematureSecondaryHeaderCompletion,
     UnreachableRawSize,
     WrongMagicNumber,
 }

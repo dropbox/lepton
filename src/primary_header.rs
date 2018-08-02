@@ -17,7 +17,7 @@ pub struct PrimaryHeader {
 
 pub fn serialize_header(
     skip_serial_hdr: u8,
-    n_threads: u32,
+    n_thread: u8,
     git_hash: &[u8; 12],
     raw_size: usize,
     secondary_hdr_size: usize,
@@ -26,7 +26,7 @@ pub fn serialize_header(
     header[..MAGIC_NUMBER.len()].clone_from_slice(&MAGIC_NUMBER);
     header[2] = LEPTON_VERSION;
     header[3] = skip_serial_hdr;
-    header[4..8].clone_from_slice(&LittleEndian::u32_to_array(n_threads));
+    header[4..8].clone_from_slice(&LittleEndian::u32_to_array(n_thread as u32));
     header[8..20].clone_from_slice(git_hash);
     header[20..24].clone_from_slice(&LittleEndian::u32_to_array(raw_size as u32));
     header[24..].clone_from_slice(&LittleEndian::u32_to_array(secondary_hdr_size as u32));
