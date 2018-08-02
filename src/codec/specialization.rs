@@ -21,6 +21,7 @@ pub trait CodecSpecialization: Send {
         component: &Component,
         scan: &mut Scan,
     ) -> SimpleResult<ErrMsg>;
+    fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg>;
     fn flush(&mut self) -> SimpleResult<ErrMsg>;
     fn write_eof(&mut self);
 }
@@ -57,7 +58,13 @@ impl CodecSpecialization for DecoderCodec {
         scan: &mut Scan,
         scan_index_in_thread: usize,
     ) -> SimpleResult<ErrMsg> {
-        if scan_index_in_thread > 1 || (self.mcu_y_start == 0 && self.first_scan > 0) {
+        println!(
+            "prepare scan {} {} {}",
+            scan_index_in_thread, self.mcu_y_start, self.first_scan
+        );
+        if scan_index_in_thread > 0 || (self.mcu_y_start == 0 && self.first_scan > 0) {
+            println!("write header {}", scan_index_in_thread);
+            self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
             self.jpeg_encoder.bit_writer.writer.write(&scan.raw_header)?;
             scan.raw_header.clear();
             scan.raw_header.shrink_to_fit();
@@ -90,6 +97,16 @@ impl CodecSpecialization for DecoderCodec {
             scan.dc_encode_table[scan.info.dc_table_indices[component_index_in_scan]].as_ref(),
             scan.ac_encode_table[scan.info.ac_table_indices[component_index_in_scan]].as_ref(),
         )?;
+        Ok(())
+    }
+
+    fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg> {
+        self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
+        self.jpeg_encoder
+            .bit_writer
+            .writer
+            .write(&[0xFF, 0xD0 + expected_rst])?;
+        self.jpeg_encoder.reset();
         Ok(())
     }
 
@@ -140,6 +157,10 @@ impl CodecSpecialization for EncoderCodec {
         for &coefficient in block.iter() {
             self.bit_writer.write_bits(coefficient as u16, 16)?;
         }
+        Ok(())
+    }
+
+    fn process_rst(&mut self, _expected_rst: u8) -> SimpleResult<ErrMsg> {
         Ok(())
     }
 

@@ -18,11 +18,14 @@ impl<Writer: Write> BitWriter<Writer> {
         }
     }
 
-    pub fn write_bits(&mut self, bits: u16, size: u8) -> OutputResult<()> {
+    pub fn write_bits(&mut self, mut bits: u16, size: u8) -> OutputResult<()> {
         if size == 0 {
             return Ok(());
         }
         assert!(size <= 16);
+        if size < 16 {
+            bits &= (1 << size) - 1;
+        }
         self.bits |= u32::from(bits) << (32 - (self.n_bit + size)) as usize;
         self.n_bit += size;
         while self.n_bit >= 8 {

@@ -57,6 +57,10 @@ impl JpegEncoder {
         Ok(())
     }
 
+    pub fn reset(&mut self) {
+        self.dc_predictors = [0; MAX_COMPONENTS];
+    }
+
     fn huffman_encode(&mut self, val: u8, table: &[(u16, u8)]) -> OutputResult<()> {
         let (code, size) = table[val as usize];
         if size > 16 {

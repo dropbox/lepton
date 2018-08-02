@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use alloc::HeapAlloc;
 use mux::{Mux, StreamMuxer};
 
@@ -5,7 +7,7 @@ use arithmetic_coder::ArithmeticDecoder;
 use byte_converter::{ByteConverter, LittleEndian};
 use codec::{create_codecs, EncoderCodec, EncoderStateFactory};
 use interface::CumulativeOperationResult;
-use jpeg::{JpegResult, JpegStreamDecoder, Scan};
+use jpeg::{FormatInfo, JpegResult, JpegStreamDecoder, Scan};
 use secondary_header::{Marker, MARKER_SIZE, PAD_SECTION_SIZE, SECTION_HDR_SIZE};
 use thread_handoff::{ThreadHandoff, ThreadHandoffExt};
 
@@ -74,8 +76,8 @@ impl LeptonEncoder {
                     .fold(0, |accumulator: usize, element: &Scan| {
                         accumulator + element.raw_header.len()
                     });
-                // FIXME: Select handoffs
-                let thread_handoffs = format.handoff[..1].to_vec();
+                let thread_handoffs = select_handoffs(&format);
+                println!("n thread: {}", thread_handoffs.len());
                 let mut secondary_header = Vec::with_capacity(
                     SECTION_HDR_SIZE * 3
                         + PAD_SECTION_SIZE
@@ -141,4 +143,47 @@ impl LeptonEncoder {
             Err(e) => Err(e),
         });
     }
+}
+
+fn select_handoffs(format: &FormatInfo) -> Vec<ThreadHandoffExt> {
+    // let handoffs = &format.handoff;
+    // let entropy_data_start = handoffs[0].segment_size as usize;
+    // let entropy_data_len = format.len - entropy_data_start;
+    // let mut n_thread = if entropy_data_len < 125000 {
+    //     1
+    // } else if entropy_data_len < 250000 {
+    //     2
+    // } else if entropy_data_len < 500000 {
+    //     4
+    // } else {
+    //     8
+    // };
+    // let n_candidate = handoffs.len();
+    // if n_candidate / 2 < n_thread {
+    //     n_thread = max(n_candidate / 2, 1);
+    // }
+    // let mut selected_indices = vec![0; n_thread];
+    // for i in 1..n_thread {
+    //     let desired_segment_start = entropy_data_start + entropy_data_len * i / n_thread;
+    //     selected_indices[i] = select_handoff(
+    //         &handoffs,
+    //         selected_indices[i - 1] + 1,
+    //         desired_segment_start,
+    //     );
+    // }
+    // selected_indices
+    //     .into_iter()
+    //     .take_while(|i: &usize| *i < handoffs.len())
+    //     .map(|i: usize| handoffs[i].clone())
+    //     .collect()
+    format.handoff[..1].to_vec()
+}
+
+fn select_handoff(handoffs: &[ThreadHandoffExt], cursor: usize, desired_start: usize) -> usize {
+    for i in cursor..handoffs.len() {
+        if handoffs[i].segment_size > desired_start as u32 {
+            return if i == cursor { i } else { i - 1 };
+        }
+    }
+    handoffs.len()
 }

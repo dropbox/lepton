@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use super::factory::StateFactory;
 use super::specialization::CodecSpecialization;
 use arithmetic_coder::ArithmeticCoder;
@@ -222,6 +224,8 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         let scan = &mut self.scans[scan_index];
         let input = &mut self.input;
         let specialization = &mut self.specialization;
+        specialization.prepare_scan(scan, scan_index)?;
+        let specialization = RefCell::new(specialization);
         let mut mcu_row_callback = |_mcu_y: usize| Ok(());
         let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| Ok(());
         let mut block_callback = |block_y: usize,
@@ -229,7 +233,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                                   component_index_in_scan: usize,
                                   component: &Component,
                                   scan: &mut Scan| {
-            specialization.process_block(
+            specialization.borrow_mut().process_block(
                 input,
                 block_y,
                 block_x,
@@ -238,7 +242,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                 scan,
             )
         };
-        let mut rst_callback = |_exptected_rst: u8| Ok(());
+        let mut rst_callback = |exptected_rst: u8| specialization.borrow_mut().process_rst(exptected_rst);
         process_scan(
             scan,
             &self.components,

@@ -82,9 +82,9 @@ impl JpegDecoder {
         }
         self.input.abort();
         if let Some(ref mut format) = format {
-            format.len = self.input.processed_len();
             format.grb.extend(self.input.view_retained_data());
             let old_grb_len = format.grb.len();
+            format.len = self.input.processed_len() - old_grb_len;
             format.grb.resize(old_grb_len + self.input.len(), 0);
             self.input
                 .read(&mut format.grb[old_grb_len..], true, false)

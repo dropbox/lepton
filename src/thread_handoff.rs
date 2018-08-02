@@ -63,6 +63,7 @@ pub struct ThreadHandoffExt {
     pub start_scan: u16,
     pub end_scan: u16,
     pub mcu_y_start: u16,
+    // FIXME: What is segment_size?
     pub segment_size: u32, // Size of segment in end_scan
     pub overhang_byte: u8, // No guarantee on value when n_overhang_bit = 0
     pub n_overhang_bit: u8,
