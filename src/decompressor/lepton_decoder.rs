@@ -28,7 +28,7 @@ impl LeptonDecoder {
             header.hdr.frame.components,
             header.hdr.frame.size_in_mcu,
             header.hdr.scans,
-            header.thx,
+            &header.thx,
             header.pad,
         );
         Self {
@@ -75,11 +75,10 @@ impl LeptonDecoder {
                 }
 
                 let old_output_offset = *output_offset;
-                let output_needed = self.target_len - self.grb.len() - self.total_out;
                 let is_eof = self.mux.encountered_eof();
-                if output_needed > 0 {
+                if self.total_out + self.grb.len() < self.target_len {
                     if self.current_stream >= self.codecs.len() as u8 {
-                        let msg = ErrMsg::InsufficientCMP;
+                        let msg = ErrMsg::UnreachableRawSize;
                         self.error = Some(msg.clone());
                         return LeptonOperationResult::Failure(msg);
                     }

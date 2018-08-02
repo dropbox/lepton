@@ -577,6 +577,9 @@ fn pop_handoff_and_verify_non_empty(format: &mut FormatInfo) -> JpegResult<()> {
 
 fn update_padding(format: &mut FormatInfo, huffman: &HuffmanDecoder) -> JpegResult<()> {
     let (pad_byte, pad_start_bit) = huffman.handover_byte();
+    if pad_start_bit == 0 {
+        return Ok(());
+    }
     if (((format.pad_byte ^ pad_byte) as u16) << max(format.pad_start_bit, pad_start_bit)) & 0xFF
         != 0
     {
@@ -700,7 +703,6 @@ fn decode_block_successive_approximation(
     non_zero_coefficients: &mut BitVec,
     block_offset: usize,
 ) -> JpegResult<()> {
-    // FIXME: Use 1 bit per coefficient
     assert_eq!(coefficients.len(), 64);
     if spectral_selection.start == 0 {
         // Section G.1.2.1
@@ -795,7 +797,6 @@ fn decode_zero_run(
             }
             zero_run_length -= 1;
         } else {
-            // FIXME: Need to extend the bitvec if we want sign of coefficients with non-zero history
             coefficients[index] = 1 << 2 | (huffman.get_bits(input, 1)? << 1) as i16;
         }
     }

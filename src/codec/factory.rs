@@ -3,9 +3,7 @@ use arithmetic_coder::{ArithmeticCoder, ArithmeticDecoder};
 use io::BufferedOutputStream;
 use thread_handoff::ThreadHandoffExt;
 
-pub trait StateFactory<Coder: ArithmeticCoder, Specialization: CodecSpecialization>:
-    Clone + Send
-{
+pub trait StateFactory<Coder: ArithmeticCoder, Specialization: CodecSpecialization>: Send {
     fn build(
         output: BufferedOutputStream,
         thread_handoff: &ThreadHandoffExt,
@@ -13,7 +11,6 @@ pub trait StateFactory<Coder: ArithmeticCoder, Specialization: CodecSpecializati
     ) -> (Coder, Specialization);
 }
 
-#[derive(Clone)]
 pub struct EncoderStateFactory {}
 
 impl StateFactory<ArithmeticDecoder, EncoderCodec> for EncoderStateFactory {
@@ -26,7 +23,6 @@ impl StateFactory<ArithmeticDecoder, EncoderCodec> for EncoderStateFactory {
     }
 }
 
-#[derive(Clone)]
 pub struct DecoderStateFactory {}
 
 impl StateFactory<ArithmeticDecoder, DecoderCodec> for DecoderStateFactory {

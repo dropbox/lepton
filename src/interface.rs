@@ -15,12 +15,13 @@ pub enum ErrMsg {
     IncompletePrimaryHeader,
     IncompleteSecondaryHeaderMarker,
     IncompleteSecondaryHeaderSection(u8, Marker),
-    InsufficientCMP,
+    IncompleteThreadSegment,
     InternalDecompressorExhausted,
     InvalidSecondaryHeaderMarker(u8, u8, u8),
     JpegDecodeFail(JpegError),
     PADMIssing,
     PrematureDecodeCompletion,
+    UnreachableRawSize,
     WrongMagicNumber,
 }
 

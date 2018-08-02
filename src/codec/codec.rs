@@ -26,12 +26,12 @@ pub fn create_codecs<
     components: Vec<Component>,
     size_in_mcu: Dimensions,
     scans: Vec<Scan>,
-    mut thread_handoffs: Vec<ThreadHandoffExt>,
+    thread_handoffs: &[ThreadHandoffExt],
     pad: u8,
 ) -> Vec<LeptonCodec> {
     let mut codecs = Vec::with_capacity(thread_handoffs.len());
-    for _ in 0..thread_handoffs.len() {
-        let handoff = thread_handoffs.pop().unwrap();
+    for handoff in thread_handoffs.iter() {
+        // FIXME: Minimize cloning scans
         let codec_scans = scans[(handoff.start_scan as usize)..=(handoff.end_scan as usize)]
             .iter()
             .map(|scan| scan.clone())
@@ -44,7 +44,6 @@ pub fn create_codecs<
             pad,
         ));
     }
-    codecs.reverse();
     codecs
 }
 
@@ -66,7 +65,7 @@ impl LeptonCodec {
         components: Vec<Component>,
         size_in_mcu: Dimensions,
         scans: Vec<Scan>,
-        handoff: ThreadHandoffExt,
+        handoff: &ThreadHandoffExt,
         pad: u8,
     ) -> Self {
         let (codec_input, to_codec) = iostream(INPUT_STREAM_PRELOAD_LEN);
@@ -127,28 +126,19 @@ impl LeptonCodec {
         if self.finished {
             return Err(CodecError::ReadAfterFinish);
         }
-        // FIXME: Combine checking eof and read
         if self.from_codec.eof_written() {
-            if self.codec_handle.is_some() {
-                match self.codec_handle.take().unwrap().join().unwrap() {
-                    Ok(()) => self.consumed_all_input = true,
-                    Err(msg) => {
-                        let err = CodecError::CodingFailure(msg);
-                        self.error = Some(err.clone());
-                        return Err(err);
-                    }
-                }
-            }
+            self.join_codec()?;
         }
         let len = match self.from_codec.read(buf, false, false) {
             Ok(len) => len,
             Err(InputError::UnexpectedEof) => {
+                self.join_codec()?;
                 self.finished = true;
                 0
             }
             _ => unreachable!(),
         };
-        if !self.finished && self.from_codec.is_eof() {
+        if self.from_codec.is_eof() {
             self.finished = true;
         }
         return Ok(len);
@@ -164,6 +154,20 @@ impl LeptonCodec {
             Some(ref err) => Err(err.clone()),
             None => Ok(()),
         }
+    }
+
+    fn join_codec(&mut self) -> SimpleResult<CodecError> {
+        if self.codec_handle.is_some() {
+            match self.codec_handle.take().unwrap().join().unwrap() {
+                Ok(()) => self.consumed_all_input = true,
+                Err(msg) => {
+                    let err = CodecError::CodingFailure(msg);
+                    self.error = Some(err.clone());
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -185,11 +189,14 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         components: Vec<Component>,
         size_in_mcu: Dimensions,
         scans: Vec<Scan>,
-        handoff: ThreadHandoffExt,
+        handoff: &ThreadHandoffExt,
         pad: u8,
     ) -> Self {
-        let (coder, specialization) =
-            Factory::build(BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE), &handoff, pad);
+        let (coder, specialization) = Factory::build(
+            BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE),
+            handoff,
+            pad,
+        );
         Self {
             coder,
             specialization,

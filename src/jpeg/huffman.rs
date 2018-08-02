@@ -151,11 +151,10 @@ impl HuffmanDecoder {
         &self.buffer
     }
 
+    /// Returns the overhanging byte and the bit position where the
+    /// overhang ends.
     pub fn handover_byte(&self) -> (u8, u8) {
-        (
-            (self.bits >> 56) as u8,
-            if self.n_bit == 0 { 8 } else { self.bit_start },
-        )
+        ((self.bits >> 56) as u8, self.bit_start)
     }
 
     pub fn end_pge(&mut self) {

@@ -110,7 +110,7 @@ impl LeptonEncoder {
                         jpeg.frame.components,
                         jpeg.frame.size_in_mcu,
                         jpeg.scans,
-                        thread_handoffs,
+                        &thread_handoffs,
                         format.pad_byte,
                     );
                 loop {
