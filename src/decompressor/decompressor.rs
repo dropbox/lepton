@@ -51,8 +51,8 @@ impl Decompressor for LeptonDecompressor {
         output: &mut [u8],
         output_offset: &mut usize,
     ) -> LeptonOperationResult {
-        let old_output_offset = *output_offset;
         loop {
+            let old_output_offset = *output_offset;
             let result = match self.decompressor {
                 InternalDecompressor::PrimaryHeader(ref mut parser) => {
                     match parser.parse(input, input_offset) {

@@ -100,7 +100,7 @@ impl LeptonDecoder {
                 } else {
                     // Output GRB
                     if !self.grb.is_empty() {
-                        let mut grb_written = self.total_out - self.target_len + self.grb.len();
+                        let mut grb_written = self.total_out + self.grb.len() - self.target_len;
                         mem_copy(output, output_offset, &self.grb, &mut grb_written);
                     }
                 };

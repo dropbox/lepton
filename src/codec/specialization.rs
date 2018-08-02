@@ -5,6 +5,7 @@ use interface::{ErrMsg, SimpleResult};
 use io::{BufferedOutputStream, Write};
 use iostream::InputStream;
 use jpeg::{Component, JpegEncoder, Scan};
+use thread_handoff::ThreadHandoffExt;
 
 pub trait CodecSpecialization: Send {
     fn process_block(
@@ -22,12 +23,14 @@ pub trait CodecSpecialization: Send {
 
 pub struct DecoderCodec {
     jpeg_encoder: JpegEncoder,
+    pad: u8,
 }
 
 impl DecoderCodec {
-    pub fn new(output: BufferedOutputStream) -> Self {
+    pub fn new(output: BufferedOutputStream, _thread_handoff: &ThreadHandoffExt, pad: u8) -> Self {
         Self {
             jpeg_encoder: JpegEncoder::new(output),
+            pad,
         }
     }
 }
@@ -60,7 +63,8 @@ impl CodecSpecialization for DecoderCodec {
     }
 
     fn flush(&mut self) -> SimpleResult<CodecError> {
-        // FIXME: self.bit_writer.pad_byte(pad_byte);
+        // FIXME: Handle error
+        self.jpeg_encoder.bit_writer.pad_byte(self.pad).unwrap();
         self.jpeg_encoder.bit_writer.writer.flush().unwrap();
         Ok(())
     }

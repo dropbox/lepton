@@ -174,8 +174,6 @@ struct InternalCodec<Coder: ArithmeticCoder, Specialization: CodecSpecialization
     components: Vec<Component>,
     size_in_mcu: Dimensions,
     scans: Vec<Scan>,
-    handoff: ThreadHandoffExt,
-    pad: u8,
 }
 
 impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
@@ -191,7 +189,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         pad: u8,
     ) -> Self {
         let (coder, specialization) =
-            Factory::build(BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE));
+            Factory::build(BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE), &handoff, pad);
         Self {
             coder,
             specialization,
@@ -199,8 +197,6 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
             components,
             size_in_mcu,
             scans,
-            handoff,
-            pad,
         }
     }
 
