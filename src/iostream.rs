@@ -18,7 +18,6 @@ pub enum InputError {
 #[derive(Debug)]
 pub enum OutputError {
     ReaderAborted,
-    EofWritten,
 }
 
 pub fn iostream(preload_len: usize) -> (InputStream, OutputStream) {
@@ -510,11 +509,10 @@ impl StreamBuffer {
     }
 
     fn validate_for_write(&self) -> OutputResult<()> {
-        use self::OutputError::*;
-        if self.aborted {
-            Err(ReaderAborted)
-        } else if self.eof_written {
-            Err(EofWritten)
+        if self.eof_written {
+            panic!("attempt to write after writing EOF");
+        } else if self.aborted {
+            Err(OutputError::ReaderAborted)
         } else {
             Ok(())
         }

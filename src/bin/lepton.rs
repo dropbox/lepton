@@ -94,7 +94,7 @@ fn compress<Reader: Read, Writer: Write>(
     w: &mut Writer,
     buffer_size: usize,
 ) -> Result<()> {
-    let mut compressor = LeptonCompressor::new(0, 0); // FIXME: use actual input
+    let mut compressor = LeptonCompressor::new(0, 0); // FIXME: Use actual input
     let ret = compress_internal(r, w, buffer_size, &mut compressor);
     // compressor.free();
     ret

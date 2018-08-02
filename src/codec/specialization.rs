@@ -44,7 +44,7 @@ impl CodecSpecialization for DecoderCodec {
     ) -> SimpleResult<ErrMsg> {
         let mut block_u8 = [0; 128];
         let mut block = [0i16; 64];
-        input.read(&mut block_u8, true, false).unwrap(); // FIXME
+        input.read(&mut block_u8, true, false).unwrap(); // FIXME: Handle error
         for (i, coefficient) in block.iter_mut().enumerate() {
             *coefficient = BigEndian::slice_to_u16(&block_u8[(2 * i)..]) as i16;
         }
@@ -60,6 +60,7 @@ impl CodecSpecialization for DecoderCodec {
     }
 
     fn flush(&mut self) -> SimpleResult<CodecError> {
+        // FIXME: self.bit_writer.pad_byte(pad_byte);
         self.jpeg_encoder.bit_writer.writer.flush().unwrap();
         Ok(())
     }

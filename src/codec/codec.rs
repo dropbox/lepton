@@ -1,11 +1,10 @@
 use super::factory::StateFactory;
 use super::specialization::CodecSpecialization;
 use arithmetic_coder::ArithmeticCoder;
-use byte_converter::{BigEndian, ByteConverter};
 use constants::INPUT_STREAM_PRELOAD_LEN;
 use interface::{ErrMsg, SimpleResult};
-use io::{BufferedOutputStream, Write};
-use iostream::{iostream, InputStream, OutputError, OutputStream};
+use io::BufferedOutputStream;
+use iostream::{iostream, InputError, InputStream, OutputError, OutputStream};
 use jpeg::{process_scan, Component, Dimensions, Scan};
 use std::thread;
 use thread_handoff::ThreadHandoffExt;
@@ -17,7 +16,6 @@ pub enum CodecError {
     CodingFailure(ErrMsg),
     ReadAfterFinish,
     TooMuchInput,
-    WriteAfterEOF,
 }
 
 pub fn create_codecs<
@@ -109,19 +107,13 @@ impl LeptonCodec {
         if self.consumed_all_input {
             return Err(CodecError::TooMuchInput);
         }
-        if let Err(e) = self.to_codec.write(data) {
-            use self::OutputError::*;
-            match e {
-                EofWritten => return Err(CodecError::WriteAfterEOF),
-                ReaderAborted => {
-                    let err = match self.codec_handle.take().unwrap().join().unwrap() {
-                        Ok(()) => CodecError::TooMuchInput,
-                        Err(msg) => CodecError::CodingFailure(msg),
-                    };
-                    self.error = Some(err.clone());
-                    return Err(err);
-                }
-            }
+        if let Err(OutputError::ReaderAborted) = self.to_codec.write(data) {
+            let err = match self.codec_handle.take().unwrap().join().unwrap() {
+                Ok(()) => CodecError::TooMuchInput,
+                Err(msg) => CodecError::CodingFailure(msg),
+            };
+            self.error = Some(err.clone());
+            return Err(err);
         }
         Ok(())
     }
@@ -135,6 +127,7 @@ impl LeptonCodec {
         if self.finished {
             return Err(CodecError::ReadAfterFinish);
         }
+        // FIXME: Combine checking eof and read
         if self.from_codec.eof_written() {
             if self.codec_handle.is_some() {
                 match self.codec_handle.take().unwrap().join().unwrap() {
@@ -147,8 +140,15 @@ impl LeptonCodec {
                 }
             }
         }
-        let len = self.from_codec.read(buf, false, false).unwrap();
-        if self.from_codec.is_eof() {
+        let len = match self.from_codec.read(buf, false, false) {
+            Ok(len) => len,
+            Err(InputError::UnexpectedEof) => {
+                self.finished = true;
+                0
+            }
+            _ => unreachable!(),
+        };
+        if !self.finished && self.from_codec.is_eof() {
             self.finished = true;
         }
         return Ok(len);
@@ -219,8 +219,8 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         let scan = &mut self.scans[scan_index];
         let input = &mut self.input;
         let specialization = &mut self.specialization;
-        let mut mcu_row_callback = |mcu_y: usize| Ok(());
-        let mut mcu_callback = |mcu_y: usize, mcu_x: usize| Ok(());
+        let mut mcu_row_callback = |_mcu_y: usize| Ok(());
+        let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| Ok(());
         let mut block_callback = |block_y: usize,
                                   block_x: usize,
                                   component_index_in_scan: usize,
@@ -235,7 +235,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                 scan,
             )
         };
-        let mut rst_callback = |exptected_rst: u8| Ok(());
+        let mut rst_callback = |_exptected_rst: u8| Ok(());
         process_scan(
             scan,
             &self.components,
@@ -248,33 +248,4 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         scan.coefficients = None;
         Ok(())
     }
-}
-
-fn process_block(
-    input: &mut InputStream,
-    output: &mut BufferedOutputStream,
-    y: usize,
-    x: usize,
-    component_index_in_scan: usize,
-    component: &Component,
-    scan: &mut Scan,
-) -> SimpleResult<ErrMsg> {
-    let mut block_holder: [i16; 64];
-    let block = match scan.coefficients {
-        Some(ref coefficients) => {
-            let block_offset = (y * component.size_in_block.width as usize + x) * 64;
-            &coefficients[component_index_in_scan][block_offset..block_offset + 64]
-        }
-        None => {
-            let mut block_u8 = [0; 128];
-            block_holder = [0i16; 64];
-            input.read(&mut block_u8, true, false).unwrap(); // FIXME
-            for (i, coefficient) in block_holder.iter_mut().enumerate() {
-                *coefficient = BigEndian::slice_to_u16(&block_u8[(2 * i)..]) as i16;
-            }
-            &block_holder
-        }
-    };
-    // output.write(block).unwrap(); // FIXME
-    Ok(())
 }

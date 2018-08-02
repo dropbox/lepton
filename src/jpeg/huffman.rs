@@ -186,7 +186,7 @@ impl HuffmanDecoder {
 
     #[inline]
     fn consume_bits(&mut self, count: u8) {
-        // FIXME: return error instead of panicking
+        // FIXME: Return error instead of panicking
         assert!(count <= self.n_bit);
         self.bit_start += count;
         self.n_bit -= count;

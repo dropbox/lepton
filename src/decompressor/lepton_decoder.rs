@@ -152,12 +152,10 @@ impl LeptonDecoder {
 
 impl From<CodecError> for ErrMsg {
     fn from(err: CodecError) -> Self {
-        use self::CodecError::*;
         match err {
-            CodingFailure(msg) => return msg,
-            ReadAfterFinish => panic!("read from codec after it has finished"),
-            WriteAfterEOF => panic!("write to codec after EOF"),
-            TooMuchInput => return ErrMsg::PrematureDecodeCompletion,
+            CodecError::CodingFailure(msg) => return msg,
+            CodecError::ReadAfterFinish => panic!("read from codec after it has finished"),
+            CodecError::TooMuchInput => return ErrMsg::PrematureDecodeCompletion,
         }
     }
 }
