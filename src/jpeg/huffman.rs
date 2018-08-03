@@ -417,7 +417,7 @@ fn derive_huffman_codes(bits: &[u8]) -> HuffmanResult<(Vec<u16>, Vec<u8>)> {
     // Figure C.1
     let huffsize = bits.iter()
         .enumerate()
-        .fold(Vec::new(), |mut acc, (i, &value)| {
+        .fold(vec![], |mut acc, (i, &value)| {
             acc.extend(repeat((i + 1) as u8).take(value as usize));
             acc
         });

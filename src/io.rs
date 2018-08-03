@@ -28,7 +28,7 @@ impl Write for BufferedOutputStream {
             || data.len() >= self.buffer.capacity() / 2
         {
             let len = self.ostream.write_all(&[&self.buffer, data])?;
-            self.total_out += len;
+            self.total_out += data.len();
             self.buffer.clear();
             len
         } else {

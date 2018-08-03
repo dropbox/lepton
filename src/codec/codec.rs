@@ -7,7 +7,7 @@ use constants::INPUT_STREAM_PRELOAD_LEN;
 use interface::{ErrMsg, SimpleResult};
 use io::BufferedOutputStream;
 use iostream::{iostream, InputError, InputStream, OutputError, OutputStream};
-use jpeg::{process_scan, Component, Dimensions, Scan};
+use jpeg::{process_scan, split_scan, Component, Dimensions, Scan};
 use std::thread;
 use thread_handoff::ThreadHandoffExt;
 
@@ -27,22 +27,43 @@ pub fn create_codecs<
 >(
     components: Vec<Component>,
     size_in_mcu: Dimensions,
-    scans: Vec<Scan>,
+    mut scans: Vec<Scan>,
     thread_handoffs: &[ThreadHandoffExt],
     pad: u8,
 ) -> Vec<LeptonCodec> {
     let mut codecs = Vec::with_capacity(thread_handoffs.len());
-    for handoff in thread_handoffs.iter() {
+    for (i, handoff) in thread_handoffs.iter().enumerate() {
         // FIXME: Minimize cloning scans and pass only necessary coefficients
         let codec_scans = scans[(handoff.start_scan as usize)..=(handoff.end_scan as usize)]
-            .iter()
-            .map(|scan| scan.clone())
+            .iter_mut()
+            .enumerate()
+            .map(|(j, scan)| {
+                let mcu_y_end = if j != (handoff.end_scan - handoff.start_scan) as usize
+                    || i == thread_handoffs.len() - 1
+                    || handoff.end_scan < thread_handoffs[i + 1].start_scan
+                {
+                    None
+                } else {
+                    Some(thread_handoffs[i + 1].mcu_y_start)
+                };
+                split_scan(
+                    scan,
+                    &components,
+                    if j == 0 { handoff.mcu_y_start } else { 0 },
+                    mcu_y_end,
+                )
+            })
             .collect();
         codecs.push(LeptonCodec::new::<Coder, Specialization, Factory>(
             components.clone(),
             size_in_mcu.clone(),
             codec_scans,
             handoff,
+            if i == thread_handoffs.len() - 1 {
+                None
+            } else {
+                Some(thread_handoffs[i + 1].mcu_y_start)
+            },
             pad,
         ));
     }
@@ -68,6 +89,7 @@ impl LeptonCodec {
         size_in_mcu: Dimensions,
         scans: Vec<Scan>,
         handoff: &ThreadHandoffExt,
+        mcu_y_end: Option<u16>,
         pad: u8,
     ) -> Self {
         let (codec_input, to_codec) = iostream(INPUT_STREAM_PRELOAD_LEN);
@@ -79,6 +101,7 @@ impl LeptonCodec {
             size_in_mcu,
             scans,
             handoff,
+            mcu_y_end,
             pad,
         );
         let codec_handle = Some(
@@ -193,11 +216,13 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         size_in_mcu: Dimensions,
         scans: Vec<Scan>,
         handoff: &ThreadHandoffExt,
+        mcu_y_end: Option<u16>,
         pad: u8,
     ) -> Self {
         let (coder, specialization) = Factory::build(
             BufferedOutputStream::new(output, OUTPUT_BUFFER_SIZE),
             handoff,
+            mcu_y_end,
             pad,
         );
         Self {
@@ -228,7 +253,8 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         let specialization = &mut self.specialization;
         specialization.prepare_scan(scan, scan_index)?;
         let specialization = RefCell::new(specialization);
-        let mut mcu_row_callback = |_mcu_y: usize| Ok(());
+        let mut mcu_row_callback =
+            |mcu_y: usize| specialization.borrow_mut().prepare_mcu_row(mcu_y);
         let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| Ok(());
         let mut block_callback = |block_y: usize,
                                   block_x: usize,
@@ -249,7 +275,11 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         process_scan(
             scan,
             &self.components,
-            if scan_index == 0 { self.mcu_y_start } else { 0 },
+            if scan_index == 0 {
+                self.mcu_y_start as usize
+            } else {
+                0
+            },
             &self.size_in_mcu,
             &mut mcu_row_callback,
             &mut mcu_callback,

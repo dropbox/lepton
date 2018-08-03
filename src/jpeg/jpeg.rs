@@ -94,7 +94,7 @@ pub enum EntropyCoding {
 }
 
 pub struct FormatInfo {
-    pub entropy_data_end: usize, 
+    pub entropy_data_end: usize,
     pub pad_byte: u8,
     pub pad_start_bit: u8,
     pub handoff: Vec<ThreadHandoffExt>,
@@ -129,5 +129,17 @@ impl ScanTruncation {
             block_y,
             block_x,
         }
+    }
+
+    pub fn is_end(&self, component_index_in_scan: usize, block_y: usize, block_x: usize) -> bool {
+        for (v1, v2) in [component_index_in_scan, block_y, block_x]
+            .iter()
+            .zip([self.component_index_in_scan, self.block_y, self.block_x].iter())
+        {
+            if v1 != v2 {
+                return v1 > v2;
+            }
+        }
+        true
     }
 }

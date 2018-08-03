@@ -3,7 +3,7 @@ use byte_converter::{BigEndian, ByteConverter};
 use interface::{ErrMsg, SimpleResult};
 use io::{BufferedOutputStream, Write};
 use iostream::{InputError, InputStream, OutputError};
-use jpeg::{Component, JpegEncoder, Scan};
+use jpeg::{mcu_row_offset, Component, JpegEncoder, Scan};
 use thread_handoff::ThreadHandoffExt;
 
 pub trait CodecSpecialization: Send {
@@ -12,6 +12,7 @@ pub trait CodecSpecialization: Send {
         scan: &mut Scan,
         scan_index_in_thread: usize,
     ) -> SimpleResult<ErrMsg>;
+    fn prepare_mcu_row(&mut self, mcu_y: usize) -> Result<bool, ErrMsg>;
     fn process_block(
         &mut self,
         input: &mut InputStream,
@@ -60,18 +61,21 @@ impl CodecSpecialization for DecoderCodec {
         scan: &mut Scan,
         scan_index_in_thread: usize,
     ) -> SimpleResult<ErrMsg> {
-        println!(
-            "prepare scan {} {} {}",
-            scan_index_in_thread, self.mcu_y_start, self.first_scan
-        );
         if scan_index_in_thread > 0 || (self.mcu_y_start == 0 && self.first_scan > 0) {
-            println!("write header {}", scan_index_in_thread);
             self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
             self.jpeg_encoder.bit_writer.writer.write(&scan.raw_header)?;
             scan.raw_header.clear();
             scan.raw_header.shrink_to_fit();
         }
         Ok(())
+    }
+
+    fn prepare_mcu_row(&mut self, _mcu_y: usize) -> Result<bool, ErrMsg> {
+        let mut total_out = self.jpeg_encoder.bit_writer.writer.written_len();
+        if self.jpeg_encoder.bit_writer.n_buffered_bit() > 0 {
+            total_out += 1;
+        }
+        Ok(total_out >= self.segment_size)
     }
 
     fn process_block(
@@ -99,11 +103,7 @@ impl CodecSpecialization for DecoderCodec {
             scan.dc_encode_table[scan.info.dc_table_indices[component_index_in_scan]].as_ref(),
             scan.ac_encode_table[scan.info.ac_table_indices[component_index_in_scan]].as_ref(),
         )?;
-        let mut total_out = self.jpeg_encoder.bit_writer.writer.written_len();
-        if self.jpeg_encoder.bit_writer.n_buffered_bit() > 0 {
-            total_out += 1;
-        }
-        Ok(total_out >= self.segment_size)
+        Ok(false)
     }
 
     fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg> {
@@ -129,12 +129,24 @@ impl CodecSpecialization for DecoderCodec {
 
 pub struct EncoderCodec {
     bit_writer: BitWriter<BufferedOutputStream>,
+    last_scan: u16,
+    mcu_y_start: u16,
+    mcu_y_end: Option<u16>,
+    scan_index_in_thread: u16,
 }
 
 impl EncoderCodec {
-    pub fn new(output: BufferedOutputStream) -> Self {
+    pub fn new(
+        output: BufferedOutputStream,
+        thread_handoff: &ThreadHandoffExt,
+        mcu_y_end: Option<u16>,
+    ) -> Self {
         Self {
             bit_writer: BitWriter::new(output, false),
+            last_scan: thread_handoff.end_scan - thread_handoff.start_scan,
+            mcu_y_start: thread_handoff.mcu_y_start,
+            mcu_y_end,
+            scan_index_in_thread: 0,
         }
     }
 }
@@ -143,9 +155,20 @@ impl CodecSpecialization for EncoderCodec {
     fn prepare_scan(
         &mut self,
         _scan: &mut Scan,
-        _scan_index_in_thread: usize,
+        scan_index_in_thread: usize,
     ) -> SimpleResult<ErrMsg> {
+        self.scan_index_in_thread = scan_index_in_thread as u16;
         Ok(())
+    }
+
+    fn prepare_mcu_row(&mut self, mcu_y: usize) -> Result<bool, ErrMsg> {
+        Ok(match self.mcu_y_end {
+            Some(mcu_y_end) => {
+                self.scan_index_in_thread > self.last_scan
+                    || self.scan_index_in_thread == self.last_scan && mcu_y as u16 >= mcu_y_end
+            }
+            None => false,
+        })
     }
 
     fn process_block(
@@ -157,13 +180,24 @@ impl CodecSpecialization for EncoderCodec {
         component: &Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
-        let block_offset = (y * component.size_in_block.width as usize + x) * 64;
+        if let Some(ref truncation) = scan.truncation {
+            if truncation.is_end(component_index_in_scan, y, x) {
+                return Ok(true);
+            }
+        }
+        let mut block_offset = (y * component.size_in_block.width as usize + x) * 64;
+        if self.scan_index_in_thread == 0 {
+            block_offset -= mcu_row_offset(
+                scan.info.component_indices.len(),
+                component,
+                self.mcu_y_start,
+            );
+        }
         let block = &scan.coefficients.as_ref().unwrap()[component_index_in_scan]
             [block_offset..block_offset + 64];
         for &coefficient in block.iter() {
             self.bit_writer.write_bits(coefficient as u16, 16)?;
         }
-        // FIXME: Return correct value
         Ok(false)
     }
 

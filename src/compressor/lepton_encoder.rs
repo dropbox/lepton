@@ -71,11 +71,10 @@ impl LeptonEncoder {
         self.result = Some(match self.jpeg_decoder.take().unwrap().take_result() {
             Ok(mut jpeg) => {
                 let mut format = jpeg.format.unwrap();
-                let jpeg_header_len = jpeg.scans
+                let jpeg_header_len: usize = jpeg.scans
                     .iter()
-                    .fold(0, |accumulator: usize, element: &Scan| {
-                        accumulator + element.raw_header.len()
-                    });
+                    .map(|element: &Scan| element.raw_header.len())
+                    .sum();
                 let thread_handoffs = select_handoffs(&format, &jpeg.scans);
                 println!("n thread: {}", thread_handoffs.len());
                 let mut secondary_header = Vec::with_capacity(

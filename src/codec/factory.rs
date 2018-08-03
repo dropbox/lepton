@@ -7,6 +7,7 @@ pub trait StateFactory<Coder: ArithmeticCoder, Specialization: CodecSpecializati
     fn build(
         output: BufferedOutputStream,
         thread_handoff: &ThreadHandoffExt,
+        mcu_y_end: Option<u16>,
         pad: u8,
     ) -> (Coder, Specialization);
 }
@@ -16,10 +17,14 @@ pub struct EncoderStateFactory {}
 impl StateFactory<ArithmeticDecoder, EncoderCodec> for EncoderStateFactory {
     fn build(
         output: BufferedOutputStream,
-        _thread_handoff: &ThreadHandoffExt,
+        thread_handoff: &ThreadHandoffExt,
+        mcu_y_end: Option<u16>,
         _pad: u8,
     ) -> (ArithmeticDecoder, EncoderCodec) {
-        (ArithmeticDecoder {}, EncoderCodec::new(output))
+        (
+            ArithmeticDecoder {},
+            EncoderCodec::new(output, thread_handoff, mcu_y_end),
+        )
     }
 }
 
@@ -29,6 +34,7 @@ impl StateFactory<ArithmeticDecoder, DecoderCodec> for DecoderStateFactory {
     fn build(
         output: BufferedOutputStream,
         thread_handoff: &ThreadHandoffExt,
+        _mcu_y_end: Option<u16>,
         pad: u8,
     ) -> (ArithmeticDecoder, DecoderCodec) {
         (

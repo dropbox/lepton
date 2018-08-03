@@ -384,7 +384,7 @@ impl JpegDecoder {
                         })
                     }
                 }
-                Ok(())
+                Ok(false)
             };
             let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| {
                 if reset_dc.replace(false) {

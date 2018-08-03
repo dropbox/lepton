@@ -1,12 +1,15 @@
+use std::fmt::Debug;
+use std::mem;
+
 use interface::SimpleResult;
 use jpeg::{Component, Dimensions, Scan};
 
-pub fn process_scan<T>(
+pub fn process_scan<T: Debug>(
     scan: &mut Scan,
     components: &Vec<Component>, // Components in the scan
-    mcu_y_start: u16,
+    mcu_y_start: usize,
     size_in_mcu: &Dimensions,
-    mcu_row_callback: &mut FnMut(usize) -> SimpleResult<T>, // Args: (mcu_y)
+    mcu_row_callback: &mut FnMut(usize) -> Result<bool, T>, // Args: (mcu_y)
     mcu_callback: &mut FnMut(usize, usize) -> SimpleResult<T>, // Args: (mcu_y, mcu_x)
     block_callback: &mut FnMut(usize, usize, usize, &Component, &mut Scan) -> Result<bool, T>, // Args: (block_y, block_x, component_index_in_scan, component, Scan)
     rst_callback: &mut FnMut(u8) -> SimpleResult<T>, // Args: (expected_rst)
@@ -17,11 +20,22 @@ pub fn process_scan<T>(
     } else {
         &components[0].size_in_block
     };
-    let mut n_mcu_left_until_restart = scan.restart_interval;
-    let mut expected_rst: u8 = 0;
-    for mcu_y_u16 in mcu_y_start..size_in_mcu.height {
-        let mcu_y = mcu_y_u16 as usize;
-        mcu_row_callback(mcu_y)?;
+    let (mut n_mcu_left_until_restart, mut expected_rst) =
+        if mcu_y_start > 0 && scan.restart_interval > 0 {
+            let mcu_skipped = mcu_y_start * size_in_mcu.width as usize;
+            let restart_interval = scan.restart_interval as usize;
+            let rst_skipped = mcu_skipped / restart_interval;
+            (
+                (restart_interval - mcu_skipped % restart_interval) as u16,
+                (rst_skipped % 8) as u8,
+            )
+        } else {
+            (scan.restart_interval, 0)
+        };
+    for mcu_y in mcu_y_start..size_in_mcu.height as usize {
+        if mcu_row_callback(mcu_y)? {
+            break;
+        }
         for mcu_x in 0..size_in_mcu.width as usize {
             mcu_callback(mcu_y, mcu_x)?;
             if is_interleaved {
@@ -37,9 +51,7 @@ pub fn process_scan<T>(
                     }
                 }
             } else {
-                if block_callback(mcu_y, mcu_x, 0, &components[0], scan)? {
-                    return Ok(());
-                }
+                block_callback(mcu_y, mcu_x, 0, &components[0], scan)?;
             }
             if scan.restart_interval > 0 {
                 n_mcu_left_until_restart -= 1;
@@ -54,4 +66,51 @@ pub fn process_scan<T>(
         }
     }
     Ok(())
+}
+
+pub fn split_scan(
+    scan: &mut Scan,
+    components: &[Component],
+    mcu_y_start: u16,
+    mcu_y_end: Option<u16>,
+) -> Scan {
+    let component_indices = &scan.info.component_indices;
+    let splits = scan.coefficients.as_mut().map(|coefficients| {
+        component_indices.iter().enumerate().fold(
+            Vec::with_capacity(component_indices.len()),
+            |mut acc, (i, &component_index)| {
+                let component = &components[component_index];
+                let coefficients = &mut coefficients[i];
+                let split = coefficients
+                    .iter()
+                    .take(mcu_y_end.map_or(coefficients.len(), |mcu_row| {
+                        mcu_row_offset(coefficients.len(), component, mcu_row)
+                    }))
+                    .skip(mcu_row_offset(coefficients.len(), component, mcu_y_start))
+                    .cloned()
+                    .collect();
+                acc.push(split);
+                acc
+            },
+        )
+    });
+    let new_scan = Scan {
+        raw_header: mem::replace(&mut scan.raw_header, vec![]),
+        info: scan.info.clone(),
+        restart_interval: scan.restart_interval,
+        coefficients: splits,
+        truncation: scan.truncation.clone(),
+        dc_encode_table: scan.dc_encode_table.clone(),
+        ac_encode_table: scan.ac_encode_table.clone(),
+    };
+    new_scan
+}
+
+pub fn mcu_row_offset(n_component: usize, component: &Component, mcu_row: u16) -> usize {
+    let vertical_sampling_factor = if n_component == 1 {
+        1
+    } else {
+        component.vertical_sampling_factor as usize
+    };
+    mcu_row as usize * vertical_sampling_factor * component.size_in_block.width as usize * 64
 }

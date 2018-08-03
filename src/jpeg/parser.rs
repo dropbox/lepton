@@ -235,13 +235,13 @@ pub fn parse_sos(input: &mut InputStream, frame: &FrameInfo) -> JpegResult<ScanI
         dc_table_indices.push(dc_table_index as usize);
         ac_table_indices.push(ac_table_index as usize);
     }
-    let blocks_per_mcu = component_indices
+    let blocks_per_mcu: u32 = component_indices
         .iter()
         .map(|&i| {
             frame.components[i].horizontal_sampling_factor as u32
                 * frame.components[i].vertical_sampling_factor as u32
         })
-        .fold(0, ::std::ops::Add::add);
+        .sum();
     if component_count > 1 && blocks_per_mcu > 10 {
         return Err(JpegError::Malformatted(
             "scan with more than one component and more than 10 blocks per MCU".to_owned(),
@@ -391,10 +391,7 @@ pub fn parse_dht(
             )));
         }
         input.read(&mut counts, true, true)?;
-        let size = counts
-            .iter()
-            .map(|&val| val as usize)
-            .fold(0, ::std::ops::Add::add);
+        let size = counts.iter().map(|&val| val as usize).sum();
 
         if size == 0 {
             return Err(JpegError::Malformatted(
