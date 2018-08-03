@@ -33,7 +33,7 @@ pub fn create_codecs<
 ) -> Vec<LeptonCodec> {
     let mut codecs = Vec::with_capacity(thread_handoffs.len());
     for handoff in thread_handoffs.iter() {
-        // FIXME: Minimize cloning scans
+        // FIXME: Minimize cloning scans and pass only necessary coefficients
         let codec_scans = scans[(handoff.start_scan as usize)..=(handoff.end_scan as usize)]
             .iter()
             .map(|scan| scan.clone())
@@ -180,6 +180,7 @@ struct InternalCodec<Coder: ArithmeticCoder, Specialization: CodecSpecialization
     components: Vec<Component>,
     size_in_mcu: Dimensions,
     scans: Vec<Scan>,
+    mcu_y_start: u16,
 }
 
 impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
@@ -206,6 +207,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
             components,
             size_in_mcu,
             scans,
+            mcu_y_start: handoff.mcu_y_start,
         }
     }
 
@@ -242,10 +244,12 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                 scan,
             )
         };
-        let mut rst_callback = |exptected_rst: u8| specialization.borrow_mut().process_rst(exptected_rst);
+        let mut rst_callback =
+            |exptected_rst: u8| specialization.borrow_mut().process_rst(exptected_rst);
         process_scan(
             scan,
             &self.components,
+            if scan_index == 0 { self.mcu_y_start } else { 0 },
             &self.size_in_mcu,
             &mut mcu_row_callback,
             &mut mcu_callback,

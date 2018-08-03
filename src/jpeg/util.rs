@@ -4,10 +4,11 @@ use jpeg::{Component, Dimensions, Scan};
 pub fn process_scan<T>(
     scan: &mut Scan,
     components: &Vec<Component>, // Components in the scan
+    mcu_y_start: u16,
     size_in_mcu: &Dimensions,
     mcu_row_callback: &mut FnMut(usize) -> SimpleResult<T>, // Args: (mcu_y)
     mcu_callback: &mut FnMut(usize, usize) -> SimpleResult<T>, // Args: (mcu_y, mcu_x)
-    block_callback: &mut FnMut(usize, usize, usize, &Component, &mut Scan) -> SimpleResult<T>, // Args: (block_y, block_x, component_index_in_scan, component, Scan)
+    block_callback: &mut FnMut(usize, usize, usize, &Component, &mut Scan) -> Result<bool, T>, // Args: (block_y, block_x, component_index_in_scan, component, Scan)
     rst_callback: &mut FnMut(u8) -> SimpleResult<T>, // Args: (expected_rst)
 ) -> SimpleResult<T> {
     let is_interleaved = components.len() > 1;
@@ -18,7 +19,8 @@ pub fn process_scan<T>(
     };
     let mut n_mcu_left_until_restart = scan.restart_interval;
     let mut expected_rst: u8 = 0;
-    for mcu_y in 0..size_in_mcu.height as usize {
+    for mcu_y_u16 in mcu_y_start..size_in_mcu.height {
+        let mcu_y = mcu_y_u16 as usize;
         mcu_row_callback(mcu_y)?;
         for mcu_x in 0..size_in_mcu.width as usize {
             mcu_callback(mcu_y, mcu_x)?;
@@ -35,7 +37,9 @@ pub fn process_scan<T>(
                     }
                 }
             } else {
-                block_callback(mcu_y, mcu_x, 0, &components[0], scan)?;
+                if block_callback(mcu_y, mcu_x, 0, &components[0], scan)? {
+                    return Ok(());
+                }
             }
             if scan.restart_interval > 0 {
                 n_mcu_left_until_restart -= 1;

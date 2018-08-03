@@ -94,7 +94,7 @@ pub enum EntropyCoding {
 }
 
 pub struct FormatInfo {
-    pub len: usize, // This is a rough estimate of the end of entropy-encoded data
+    pub entropy_data_end: usize, 
     pub pad_byte: u8,
     pub pad_start_bit: u8,
     pub handoff: Vec<ThreadHandoffExt>,
@@ -105,7 +105,7 @@ pub struct FormatInfo {
 impl Default for FormatInfo {
     fn default() -> Self {
         FormatInfo {
-            len: 0,
+            entropy_data_end: 0,
             pad_byte: 0,
             pad_start_bit: 8,
             handoff: vec![],

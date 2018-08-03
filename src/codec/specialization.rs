@@ -20,7 +20,7 @@ pub trait CodecSpecialization: Send {
         component_index_in_scan: usize,
         component: &Component,
         scan: &mut Scan,
-    ) -> SimpleResult<ErrMsg>;
+    ) -> Result<bool, ErrMsg>;
     fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg>;
     fn flush(&mut self) -> SimpleResult<ErrMsg>;
     fn write_eof(&mut self);
@@ -31,6 +31,7 @@ pub struct DecoderCodec {
     pad: u8,
     first_scan: u16,
     mcu_y_start: u16,
+    segment_size: usize,
 }
 
 impl DecoderCodec {
@@ -48,6 +49,7 @@ impl DecoderCodec {
             pad,
             first_scan: thread_handoff.start_scan,
             mcu_y_start: thread_handoff.mcu_y_start,
+            segment_size: thread_handoff.segment_size as usize,
         }
     }
 }
@@ -80,7 +82,7 @@ impl CodecSpecialization for DecoderCodec {
         component_index_in_scan: usize,
         _component: &Component,
         scan: &mut Scan,
-    ) -> SimpleResult<ErrMsg> {
+    ) -> Result<bool, ErrMsg> {
         let mut block_u8 = [0; 128];
         let mut block = [0i16; 64];
         match input.read(&mut block_u8, true, false) {
@@ -97,7 +99,11 @@ impl CodecSpecialization for DecoderCodec {
             scan.dc_encode_table[scan.info.dc_table_indices[component_index_in_scan]].as_ref(),
             scan.ac_encode_table[scan.info.ac_table_indices[component_index_in_scan]].as_ref(),
         )?;
-        Ok(())
+        let mut total_out = self.jpeg_encoder.bit_writer.writer.written_len();
+        if self.jpeg_encoder.bit_writer.n_buffered_bit() > 0 {
+            total_out += 1;
+        }
+        Ok(total_out >= self.segment_size)
     }
 
     fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg> {
@@ -150,14 +156,15 @@ impl CodecSpecialization for EncoderCodec {
         component_index_in_scan: usize,
         component: &Component,
         scan: &mut Scan,
-    ) -> SimpleResult<ErrMsg> {
+    ) -> Result<bool, ErrMsg> {
         let block_offset = (y * component.size_in_block.width as usize + x) * 64;
         let block = &scan.coefficients.as_ref().unwrap()[component_index_in_scan]
             [block_offset..block_offset + 64];
         for &coefficient in block.iter() {
             self.bit_writer.write_bits(coefficient as u16, 16)?;
         }
-        Ok(())
+        // FIXME: Return correct value
+        Ok(false)
     }
 
     fn process_rst(&mut self, _expected_rst: u8) -> SimpleResult<ErrMsg> {

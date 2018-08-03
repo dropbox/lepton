@@ -84,7 +84,7 @@ impl JpegDecoder {
         if let Some(ref mut format) = format {
             format.grb.extend(self.input.view_retained_data());
             let old_grb_len = format.grb.len();
-            format.len = self.input.processed_len() - old_grb_len;
+            format.entropy_data_end = self.input.processed_len() - old_grb_len;
             format.grb.resize(old_grb_len + self.input.len(), 0);
             self.input
                 .read(&mut format.grb[old_grb_len..], true, false)
@@ -407,7 +407,8 @@ impl JpegDecoder {
                     &mut eob_run.borrow_mut(),
                     &mut dc_predictors.borrow_mut()[component_index_in_scan],
                     &mut format.borrow_mut(),
-                )
+                )?;
+                Ok(false)
             };
             let mut rst_callback = |expected_rst: u8| {
                 let mut format = format.borrow_mut();
@@ -435,6 +436,7 @@ impl JpegDecoder {
             process_scan(
                 scan,
                 &components,
+                0,
                 &frame.size_in_mcu,
                 &mut mcu_row_callback,
                 &mut mcu_callback,

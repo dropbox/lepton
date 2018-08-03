@@ -76,7 +76,7 @@ impl LeptonEncoder {
                     .fold(0, |accumulator: usize, element: &Scan| {
                         accumulator + element.raw_header.len()
                     });
-                let thread_handoffs = select_handoffs(&format);
+                let thread_handoffs = select_handoffs(&format, &jpeg.scans);
                 println!("n thread: {}", thread_handoffs.len());
                 let mut secondary_header = Vec::with_capacity(
                     SECTION_HDR_SIZE * 3
@@ -145,38 +145,50 @@ impl LeptonEncoder {
     }
 }
 
-fn select_handoffs(format: &FormatInfo) -> Vec<ThreadHandoffExt> {
-    // let handoffs = &format.handoff;
-    // let entropy_data_start = handoffs[0].segment_size as usize;
-    // let entropy_data_len = format.len - entropy_data_start;
-    // let mut n_thread = if entropy_data_len < 125000 {
-    //     1
-    // } else if entropy_data_len < 250000 {
-    //     2
-    // } else if entropy_data_len < 500000 {
-    //     4
-    // } else {
-    //     8
-    // };
-    // let n_candidate = handoffs.len();
-    // if n_candidate / 2 < n_thread {
-    //     n_thread = max(n_candidate / 2, 1);
-    // }
-    // let mut selected_indices = vec![0; n_thread];
-    // for i in 1..n_thread {
-    //     let desired_segment_start = entropy_data_start + entropy_data_len * i / n_thread;
-    //     selected_indices[i] = select_handoff(
-    //         &handoffs,
-    //         selected_indices[i - 1] + 1,
-    //         desired_segment_start,
-    //     );
-    // }
-    // selected_indices
-    //     .into_iter()
-    //     .take_while(|i: &usize| *i < handoffs.len())
-    //     .map(|i: usize| handoffs[i].clone())
-    //     .collect()
-    format.handoff[..1].to_vec()
+fn select_handoffs(format: &FormatInfo, scans: &[Scan]) -> Vec<ThreadHandoffExt> {
+    let handoffs = &format.handoff;
+    let entropy_data_start = handoffs[0].segment_size as usize;
+    let entropy_data_len = format.entropy_data_end - entropy_data_start;
+    let mut n_thread = if entropy_data_len < 125000 {
+        1
+    } else if entropy_data_len < 250000 {
+        2
+    } else if entropy_data_len < 500000 {
+        4
+    } else {
+        8
+    };
+    let n_candidate = handoffs.len();
+    if n_candidate / 2 < n_thread {
+        n_thread = max(n_candidate / 2, 1);
+    }
+    let mut selected_indices = vec![0; n_thread];
+    for i in 1..n_thread {
+        let desired_segment_start = entropy_data_start + entropy_data_len * i / n_thread;
+        selected_indices[i] = select_handoff(
+            &handoffs,
+            selected_indices[i - 1] + 1,
+            desired_segment_start,
+        );
+    }
+    let mut selected: Vec<ThreadHandoffExt> = selected_indices
+        .into_iter()
+        .take_while(|i: &usize| *i < handoffs.len())
+        .map(|i: usize| handoffs[i].clone())
+        .collect();
+    for i in 0..(selected.len() - 1) {
+        let mut segment_size = selected[i + 1].segment_size - selected[i].segment_size;
+        if selected[i + 1].mcu_y_start == 0 {
+            segment_size -= scans[selected[i + 1].start_scan as usize].raw_header.len() as u32;
+        }
+        selected[i].segment_size = segment_size;
+    }
+    {
+        let last_handoff = selected.last_mut().unwrap();
+        last_handoff.segment_size = format.entropy_data_end as u32 - last_handoff.segment_size;
+    }
+    selected
+    // format.handoff[..1].to_vec()
 }
 
 fn select_handoff(handoffs: &[ThreadHandoffExt], cursor: usize, desired_start: usize) -> usize {

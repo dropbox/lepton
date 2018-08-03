@@ -85,6 +85,7 @@ impl Decompressor for LeptonDecompressor {
             if let Some(primary_header) = self.primary_header {
                 if self.total_out >= primary_header.raw_size {
                     *output_offset -= self.total_out - primary_header.raw_size;
+                    self.total_out = primary_header.raw_size;
                     return LeptonOperationResult::Success;
                 }
             }

@@ -76,7 +76,9 @@ impl LeptonDecoder {
 
                 let old_output_offset = *output_offset;
                 let is_eof = self.mux.encountered_eof();
-                if self.total_out + self.grb.len() < self.target_len {
+                let cmp_end = self.target_len - self.grb.len();
+                let write_cmp = self.total_out < cmp_end;
+                if write_cmp {
                     if self.current_stream >= self.codecs.len() as u8 {
                         let msg = ErrMsg::UnreachableRawSize;
                         self.error = Some(msg.clone());
@@ -104,6 +106,10 @@ impl LeptonDecoder {
                     }
                 };
                 self.total_out += *output_offset - old_output_offset;
+                if write_cmp && self.total_out > cmp_end {
+                    *output_offset -= self.total_out - cmp_end;
+                    self.total_out = cmp_end;
+                }
                 if *output_offset == output.len() {
                     LeptonOperationResult::NeedsMoreOutput
                 } else {

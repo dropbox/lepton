@@ -48,4 +48,8 @@ impl<Writer: Write> BitWriter<Writer> {
             Ok(())
         }
     }
+
+    pub fn n_buffered_bit(&self) -> usize {
+        self.n_bit as usize
+    }
 }
