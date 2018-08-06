@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::mem;
 
-use jpeg::{Component, Dimensions, Scan};
+use jpeg::{Component, Dimensions, Scan, ScanInfo};
 
 pub fn process_scan<T: Debug>(
     scan: &mut Scan,
@@ -73,7 +73,9 @@ pub fn split_scan(
     mcu_y_start: u16,
     mcu_y_end: Option<u16>,
 ) -> Scan {
+    // FIXME: Can further reduce copying when the who scan is taken
     let component_indices = &scan.info.component_indices;
+    let scan_info = &scan.info;
     let splits = scan.coefficients.as_mut().map(|coefficients| {
         component_indices.iter().enumerate().fold(
             Vec::with_capacity(component_indices.len()),
@@ -83,9 +85,9 @@ pub fn split_scan(
                 let split = coefficients
                     .iter()
                     .take(mcu_y_end.map_or(coefficients.len(), |mcu_row| {
-                        mcu_row_offset(coefficients.len(), component, mcu_row)
+                        mcu_row_offset(scan_info, component, mcu_row)
                     }))
-                    .skip(mcu_row_offset(coefficients.len(), component, mcu_y_start))
+                    .skip(mcu_row_offset(scan_info, component, mcu_y_start))
                     .cloned()
                     .collect();
                 acc.push(split);
@@ -105,11 +107,15 @@ pub fn split_scan(
     new_scan
 }
 
-pub fn mcu_row_offset(n_component: usize, component: &Component, mcu_row: u16) -> usize {
-    let vertical_sampling_factor = if n_component == 1 {
+pub fn mcu_row_offset(scan: &ScanInfo, component: &Component, mcu_row: u16) -> usize {
+    let vertical_sampling_factor = if scan.component_indices.len() == 1 {
         1
     } else {
         component.vertical_sampling_factor as usize
     };
-    mcu_row as usize * vertical_sampling_factor * component.size_in_block.width as usize * 64
+    mcu_row as usize * vertical_sampling_factor * component.size_in_block.width as usize * n_coefficient_per_block(scan)
+}
+
+pub fn n_coefficient_per_block(_scan: &ScanInfo) -> usize {
+    65
 }

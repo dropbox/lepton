@@ -3,7 +3,7 @@ use byte_converter::{BigEndian, ByteConverter};
 use interface::{ErrMsg, SimpleResult};
 use io::{BufferedOutputStream, Write};
 use iostream::{InputError, InputStream, OutputError};
-use jpeg::{mcu_row_offset, Component, JpegEncoder, Scan};
+use jpeg::{mcu_row_offset, n_coefficient_per_block, Component, JpegEncoder, Scan};
 use thread_handoff::ThreadHandoffExt;
 
 pub trait CodecSpecialization: Send {
@@ -124,8 +124,9 @@ impl CodecSpecialization for DecoderCodec {
         _component: &Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
-        let mut block_u8 = [0; 128];
-        let mut block = [0i16; 64];
+        let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
+        let mut block_u8 = vec![0; n_coefficient_per_block * 2];
+        let mut block = vec![0i16; n_coefficient_per_block];
         match input.read(&mut block_u8, true, false) {
             Ok(_) => (),
             Err(InputError::UnexpectedEof) => return Err(ErrMsg::IncompleteThreadSegment),
@@ -136,6 +137,7 @@ impl CodecSpecialization for DecoderCodec {
         }
         self.jpeg_encoder.encode_block(
             &block,
+            &scan.info,
             component_index_in_scan,
             scan.dc_encode_table[scan.info.dc_table_indices[component_index_in_scan]].as_ref(),
             scan.ac_encode_table[scan.info.ac_table_indices[component_index_in_scan]].as_ref(),
@@ -221,16 +223,18 @@ impl CodecSpecialization for EncoderCodec {
                 return Ok(true);
             }
         }
-        let mut block_offset = (y * component.size_in_block.width as usize + x) * 64;
+        let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
+        let mut block_offset =
+            (y * component.size_in_block.width as usize + x) * n_coefficient_per_block;
         if self.scan_index_in_thread == 0 {
             block_offset -= mcu_row_offset(
-                scan.info.component_indices.len(),
+                &scan.info,
                 component,
                 self.mcu_y_start,
             );
         }
         let block = &scan.coefficients.as_ref().unwrap()[component_index_in_scan]
-            [block_offset..block_offset + 64];
+            [block_offset..(block_offset + n_coefficient_per_block)];
         for &coefficient in block.iter() {
             self.bit_writer.write_bits(coefficient as u16, 16)?;
         }
