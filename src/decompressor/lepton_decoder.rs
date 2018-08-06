@@ -15,6 +15,7 @@ pub struct LeptonDecoder {
     cmp_header_left: usize,
     mux: Mux<HeapAlloc<u8>>,
     alloc_u8: HeapAlloc<u8>,
+    codec_finish: Vec<bool>,
     codecs: Vec<LeptonCodec>,
     current_stream: u8,
     error: Option<ErrMsg>,
@@ -37,6 +38,7 @@ impl LeptonDecoder {
             cmp_header_left: 3,
             mux: Mux::new(codecs.len()),
             alloc_u8: HeapAlloc::new(0),
+            codec_finish: vec![false; codecs.len()],
             codecs,
             current_stream: 0,
             error: None,
@@ -70,7 +72,8 @@ impl LeptonDecoder {
 
                 // Demux CMP
                 if !self.mux.encountered_eof() {
-                    *input_offset += self.mux
+                    *input_offset += self
+                        .mux
                         .deserialize(&input[*input_offset..], &mut self.alloc_u8);
                 }
 
@@ -133,18 +136,23 @@ impl LeptonDecoder {
         is_eof: bool,
     ) -> SimpleResult<ErrMsg> {
         let codec = &mut self.codecs[stream_index as usize];
-        if self.mux.data_len(stream_index) > 0 {
-            if codec.finished() {
-                return Err(ErrMsg::PrematureDecodeCompletion);
-            } else {
-                let input = self.mux.read_buffer(stream_index);
-                codec.write(&input.data[*input.read_offset..])?;
-                *input.read_offset = input.data.len();
-                if is_eof {
-                    codec.write_eof();
+        // FIXME: May not need codec_finish
+        if !self.codec_finish[stream_index as usize] {
+            if self.mux.data_len(stream_index) > 0 {
+                if codec.finished() {
+                    return Err(ErrMsg::PrematureDecodeCompletion);
+                } else {
+                    let input = self.mux.read_buffer(stream_index);
+                    codec.write(&input.data[*input.read_offset..])?;
+                    *input.read_offset = input.data.len();
                 }
             }
+            if is_eof {
+                self.codec_finish[stream_index as usize] = true;
+                codec.write_eof();
+            }
         }
+
         if stream_index == self.current_stream {
             *output_offset += codec.read(&mut output[*output_offset..])?;
             if codec.finished() {

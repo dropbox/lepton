@@ -73,7 +73,7 @@ impl LeptonEncoder {
                 let mut format = jpeg.format.unwrap();
                 let jpeg_header_len: usize = jpeg.scans
                     .iter()
-                    .map(|element: &Scan| element.raw_header.len())
+                    .map(|element| element.raw_header.len())
                     .sum();
                 let thread_handoffs = select_handoffs(&format, &jpeg.scans);
                 println!("n thread: {}", thread_handoffs.len());
@@ -173,7 +173,7 @@ fn select_handoffs(format: &FormatInfo, scans: &[Scan]) -> Vec<ThreadHandoffExt>
     let mut selected: Vec<ThreadHandoffExt> = selected_indices
         .into_iter()
         .take_while(|i: &usize| *i < handoffs.len())
-        .map(|i: usize| handoffs[i].clone())
+        .map(|i| handoffs[i].clone())
         .collect();
     for i in 0..(selected.len() - 1) {
         let mut segment_size = selected[i + 1].segment_size - selected[i].segment_size;

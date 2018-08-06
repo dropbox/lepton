@@ -430,7 +430,7 @@ impl IoStream {
     }
 
     pub fn write_all(&self, bufs: &[&[u8]]) -> OutputResult<usize> {
-        let mut stream_buf = self.lock_for_write()?;
+        let mut stream_buf = self.lock_for_write(true)?;
         let mut total_len = 0;
         for buf in bufs.iter() {
             stream_buf.data.extend(buf.iter());
@@ -443,15 +443,15 @@ impl IoStream {
     }
 
     pub fn write_eof(&self) -> OutputResult<()> {
-        let mut stream_buf = self.lock_for_write()?;
+        let mut stream_buf = self.lock_for_write(false)?;
         stream_buf.eof_written = true;
         self.cv.notify_one();
         Ok(())
     }
 
-    fn lock_for_write(&self) -> OutputResult<MutexGuard<StreamBuffer>> {
+    fn lock_for_write(&self, check_eof: bool) -> OutputResult<MutexGuard<StreamBuffer>> {
         let stream_buf = self.data.lock().unwrap();
-        stream_buf.validate_for_write()?;
+        stream_buf.validate_for_write(check_eof)?;
         Ok(stream_buf)
     }
 }
@@ -508,8 +508,8 @@ impl StreamBuffer {
         Ok(())
     }
 
-    fn validate_for_write(&self) -> OutputResult<()> {
-        if self.eof_written {
+    fn validate_for_write(&self, check_eof: bool) -> OutputResult<()> {
+        if check_eof && self.eof_written {
             panic!("attempt to write after writing EOF");
         } else if self.aborted {
             Err(OutputError::ReaderAborted)

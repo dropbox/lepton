@@ -12,7 +12,16 @@ pub trait CodecSpecialization: Send {
         scan: &mut Scan,
         scan_index_in_thread: usize,
     ) -> SimpleResult<ErrMsg>;
-    fn prepare_mcu_row(&mut self, mcu_y: usize) -> Result<bool, ErrMsg>;
+    fn finish_scan(&mut self) -> SimpleResult<ErrMsg> {
+        Ok(())
+    }
+    fn prepare_mcu(
+        &mut self,
+        mcu_y: usize,
+        mcu_x: usize,
+        restart: bool,
+        expected_rst: u8,
+    ) -> Result<bool, ErrMsg>;
     fn process_block(
         &mut self,
         input: &mut InputStream,
@@ -22,13 +31,12 @@ pub trait CodecSpecialization: Send {
         component: &Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg>;
-    fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg>;
     fn flush(&mut self) -> SimpleResult<ErrMsg>;
     fn write_eof(&mut self);
 }
 
 pub struct DecoderCodec {
-    jpeg_encoder: JpegEncoder,
+    jpeg_encoder: JpegEncoder<BufferedOutputStream>,
     pad: u8,
     first_scan: u16,
     mcu_y_start: u16,
@@ -37,14 +45,16 @@ pub struct DecoderCodec {
 
 impl DecoderCodec {
     pub fn new(output: BufferedOutputStream, thread_handoff: &ThreadHandoffExt, pad: u8) -> Self {
-        let mut jpeg_encoder = JpegEncoder::new(output);
-        jpeg_encoder
-            .bit_writer
-            .write_bits(
-                thread_handoff.overhang_byte as u16,
-                thread_handoff.n_overhang_bit,
-            )
-            .unwrap();
+        let mut jpeg_encoder = JpegEncoder::new(output, &thread_handoff.last_dc);
+        if thread_handoff.n_overhang_bit > 0 {
+            jpeg_encoder
+                .bit_writer
+                .write_bits(
+                    (thread_handoff.overhang_byte >> (8 - thread_handoff.n_overhang_bit)) as u16,
+                    thread_handoff.n_overhang_bit,
+                )
+                .unwrap();
+        }
         Self {
             jpeg_encoder: jpeg_encoder,
             pad,
@@ -70,12 +80,39 @@ impl CodecSpecialization for DecoderCodec {
         Ok(())
     }
 
-    fn prepare_mcu_row(&mut self, _mcu_y: usize) -> Result<bool, ErrMsg> {
-        let mut total_out = self.jpeg_encoder.bit_writer.writer.written_len();
-        if self.jpeg_encoder.bit_writer.n_buffered_bit() > 0 {
-            total_out += 1;
+    fn finish_scan(&mut self) -> SimpleResult<ErrMsg> {
+        self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
+        Ok(())
+    }
+
+    fn prepare_mcu(
+        &mut self,
+        _mcu_y: usize,
+        mcu_x: usize,
+        restart: bool,
+        expected_rst: u8,
+    ) -> Result<bool, ErrMsg> {
+        if mcu_x == 0 {
+            // FIXME: There is a discrepancy here because JpegDecoder truncates
+            // image data on a block level but this function terminates decoding
+            // on a mcu row level. However, terminating on a block level requires
+            // flushing the arithmetic coder after each block, which may harm
+            // the compression ratio.
+            let bit_writer = &self.jpeg_encoder.bit_writer;
+            let total_out = bit_writer.writer.written_len() + (bit_writer.n_buffered_bit() + 7) / 8;
+            if total_out >= self.segment_size {
+                return Ok(true);
+            }
         }
-        Ok(total_out >= self.segment_size)
+        if restart {
+            {
+                let bit_writer = &mut self.jpeg_encoder.bit_writer;
+                bit_writer.pad_byte(self.pad)?;
+                bit_writer.writer.write(&[0xFF, 0xD0 + expected_rst])?;
+            }
+            self.jpeg_encoder.handle_rst();
+        }
+        Ok(false)
     }
 
     fn process_block(
@@ -106,18 +143,7 @@ impl CodecSpecialization for DecoderCodec {
         Ok(false)
     }
 
-    fn process_rst(&mut self, expected_rst: u8) -> SimpleResult<ErrMsg> {
-        self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
-        self.jpeg_encoder
-            .bit_writer
-            .writer
-            .write(&[0xFF, 0xD0 + expected_rst])?;
-        self.jpeg_encoder.reset();
-        Ok(())
-    }
-
     fn flush(&mut self) -> SimpleResult<ErrMsg> {
-        self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
         self.jpeg_encoder.bit_writer.writer.flush()?;
         Ok(())
     }
@@ -161,14 +187,24 @@ impl CodecSpecialization for EncoderCodec {
         Ok(())
     }
 
-    fn prepare_mcu_row(&mut self, mcu_y: usize) -> Result<bool, ErrMsg> {
-        Ok(match self.mcu_y_end {
-            Some(mcu_y_end) => {
-                self.scan_index_in_thread > self.last_scan
-                    || self.scan_index_in_thread == self.last_scan && mcu_y as u16 >= mcu_y_end
-            }
-            None => false,
-        })
+    fn prepare_mcu(
+        &mut self,
+        mcu_y: usize,
+        mcu_x: usize,
+        _restart: bool,
+        _expected_rst: u8,
+    ) -> Result<bool, ErrMsg> {
+        if mcu_x == 0 {
+            Ok(match self.mcu_y_end {
+                Some(mcu_y_end) => {
+                    self.scan_index_in_thread > self.last_scan
+                        || self.scan_index_in_thread == self.last_scan && mcu_y as u16 >= mcu_y_end
+                }
+                None => false,
+            })
+        } else {
+            Ok(false)
+        }
     }
 
     fn process_block(
@@ -199,10 +235,6 @@ impl CodecSpecialization for EncoderCodec {
             self.bit_writer.write_bits(coefficient as u16, 16)?;
         }
         Ok(false)
-    }
-
-    fn process_rst(&mut self, _expected_rst: u8) -> SimpleResult<ErrMsg> {
-        Ok(())
     }
 
     fn flush(&mut self) -> SimpleResult<ErrMsg> {

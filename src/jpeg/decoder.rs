@@ -208,7 +208,8 @@ impl JpegDecoder {
                             current_scan.coefficients = None;
                         }
                     } else {
-                        for (i, (dc_table, ac_table)) in self.dc_huffman_tables
+                        for (i, (dc_table, ac_table)) in self
+                            .dc_huffman_tables
                             .iter()
                             .zip(self.ac_huffman_tables.iter())
                             .enumerate()
@@ -353,51 +354,68 @@ impl JpegDecoder {
             subsequent_successive_approximation = scan_info.successive_approximation_high > 0;
         }
         let huffman = RefCell::new(HuffmanDecoder::new(self.start_byte));
-        let self_cell = RefCell::new(self);
+        let slf = RefCell::new(self);
         let format = RefCell::new(format);
         let dc_predictors = RefCell::new([0i16; MAX_COMPONENTS]);
         let eob_run = RefCell::new(0);
-        let reset_dc = RefCell::new(false);
         let result = {
-            let mut mcu_row_callback = |mcu_y: usize| {
-                let mut slf = self_cell.borrow_mut();
-                let mut format = format.borrow_mut();
-                let huffman = &mut huffman.borrow_mut();
-                if !subsequent_successive_approximation || mcu_y == 0 {
-                    // Finish PGE
-                    if slf.in_pge() {
-                        slf.start_byte = 0;
-                        huffman.end_pge();
-                        format.pge.extend(huffman.get_pge());
+            let mut mcu_callback = |mcu_y: usize, mcu_x: usize, restart: bool, expected_rst: u8| {
+                if mcu_x == 0 {
+                    let mut slf = slf.borrow_mut();
+                    let mut format = format.borrow_mut();
+                    let huffman = &mut huffman.borrow_mut();
+                    if !subsequent_successive_approximation || mcu_y == 0 {
+                        // Finish PGE
+                        if slf.in_pge() {
+                            slf.start_byte = 0;
+                            huffman.end_pge();
+                            format.pge.extend(huffman.get_pge());
+                        }
+                        // Add thread handoff for each MCU row
+                        if slf.start_byte == 0 {
+                            let (overhang_byte, n_overhang_bit) = huffman.handover_byte();
+                            format.handoff.push(ThreadHandoffExt {
+                                start_scan: slf.n_scan_processed as u16,
+                                end_scan: slf.n_scan_processed as u16,
+                                mcu_y_start: mcu_y as u16,
+                                segment_size: slf.input.processed_len() as u32,
+                                overhang_byte,
+                                n_overhang_bit,
+                                last_dc: dc_predictors.borrow().clone(),
+                            })
+                        }
                     }
-                    // Add thread handoff for each MCU row
-                    if slf.start_byte == 0 {
-                        let (overhang_byte, n_overhang_bit) = huffman.handover_byte();
-                        format.handoff.push(ThreadHandoffExt {
-                            start_scan: slf.n_scan_processed as u16,
-                            end_scan: slf.n_scan_processed as u16,
-                            mcu_y_start: mcu_y as u16,
-                            segment_size: slf.input.processed_len() as u32,
-                            overhang_byte,
-                            n_overhang_bit,
-                            last_dc: dc_predictors.borrow().clone(),
-                        })
+                }
+                if restart {
+                    let mut format = format.borrow_mut();
+                    let huffman = &mut huffman.borrow_mut();
+                    update_padding(&mut format, huffman)?;
+                    if !subsequent_successive_approximation {
+                        huffman.clear_buffer();
+                    }
+                    match huffman.read_rst(&mut slf.borrow_mut().input, expected_rst) {
+                        Ok(_) => {
+                            huffman.reset();
+                            // Section F.2.1.3.1
+                            dc_predictors.replace([0i16; MAX_COMPONENTS]);
+                            // Section G.1.2.2
+                            eob_run.replace(0);
+                        }
+                        Err(JpegError::EOF) => {
+                            format.grb.extend(huffman.view_buffer());
+                            return Err(JpegError::EOF);
+                        }
+                        Err(e) => return Err(e),
                     }
                 }
                 Ok(false)
-            };
-            let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| {
-                if reset_dc.replace(false) {
-                    dc_predictors.replace([0i16; MAX_COMPONENTS]);
-                }
-                Ok(())
             };
             let mut block_callback = |block_y: usize,
                                       block_x: usize,
                                       component_index_in_scan: usize,
                                       component: &Component,
                                       scan: &mut Scan| {
-                self_cell.borrow_mut().decode_block(
+                slf.borrow_mut().decode_block(
                     block_y,
                     block_x,
                     component_index_in_scan,
@@ -407,59 +425,38 @@ impl JpegDecoder {
                     &mut eob_run.borrow_mut(),
                     &mut dc_predictors.borrow_mut()[component_index_in_scan],
                     &mut format.borrow_mut(),
+                    subsequent_successive_approximation,
                 )?;
                 Ok(false)
-            };
-            let mut rst_callback = |expected_rst: u8| {
-                let mut format = format.borrow_mut();
-                let huffman = &mut huffman.borrow_mut();
-                update_padding(&mut format, huffman)?;
-                if !subsequent_successive_approximation {
-                    huffman.clear_buffer();
-                }
-                match huffman.read_rst(&mut self_cell.borrow_mut().input, expected_rst) {
-                    Ok(_) => {
-                        huffman.reset();
-                        // Section F.2.1.3.1
-                        reset_dc.replace(true);
-                        // Section G.1.2.2
-                        eob_run.replace(0);
-                        Ok(())
-                    }
-                    Err(JpegError::EOF) => {
-                        format.grb.extend(huffman.view_buffer());
-                        Err(JpegError::EOF)
-                    }
-                    Err(e) => Err(e),
-                }
             };
             process_scan(
                 scan,
                 &components,
                 0,
                 &frame.size_in_mcu,
-                &mut mcu_row_callback,
                 &mut mcu_callback,
                 &mut block_callback,
-                &mut rst_callback,
             )
         };
-        let slf = self_cell.into_inner();
+        let slf = slf.into_inner();
         let format = format.into_inner();
         let huffman = huffman.into_inner();
-        if result.is_ok() {
-            if slf.in_pge() {
-                format.pge.extend(huffman.get_pge());
+        match result {
+            Ok(_) => {
+                if slf.in_pge() {
+                    format.pge.extend(huffman.get_pge());
+                }
+                update_padding(format, &huffman)?;
+                // In case there are extraneous data between the end of the scan and next marker
+                let huffman_buffer = huffman.view_buffer();
+                let n_leftover_byte = huffman.n_available_bit() / 8;
+                slf.input.add_retained_data(
+                    &huffman_buffer[(huffman_buffer.len() - n_leftover_byte as usize)..],
+                );
+                Ok(())
             }
-            update_padding(format, &huffman)?;
-            // In case there are extraneous data between the end of the scan and next marker
-            let huffman_buffer = huffman.view_buffer();
-            let n_leftover_byte = huffman.n_available_bit() / 8;
-            slf.input.add_retained_data(
-                &huffman_buffer[(huffman_buffer.len() - n_leftover_byte as usize)..],
-            );
+            Err(e) => Err(e),
         }
-        result
     }
 
     fn decode_block(
@@ -473,15 +470,15 @@ impl JpegDecoder {
         eob_run: &mut u16,
         dc_predictor: &mut i16,
         format: &mut FormatInfo,
+        subsequent_successive_approximation: bool,
     ) -> JpegResult<()> {
         let scan_info = &scan.info;
         let block_offset = (y * component.size_in_block.width as usize + x) * 64;
         let coefficients = &mut scan.coefficients.as_mut().unwrap()[scan_component_index]
             [block_offset..block_offset + 64];
         let non_zero_coefficients =
-            &mut self.non_zero_coefficients[scan.info.component_indices[scan_component_index]];
-        match if scan_info.successive_approximation_high == 0 {
-            huffman.clear_buffer();
+            &mut self.non_zero_coefficients[scan_info.component_indices[scan_component_index]];
+        match if !subsequent_successive_approximation {
             decode_block(
                 &mut self.input,
                 coefficients,
@@ -507,7 +504,10 @@ impl JpegDecoder {
                 block_offset,
             )
         } {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                huffman.clear_buffer();
+                Ok(())
+            }
             Err(JpegError::EOF) => {
                 if self.input.processed_len() < self.start_byte {
                     return Err(JpegError::Malformatted(
@@ -515,17 +515,17 @@ impl JpegDecoder {
                     ));
                 }
                 if scan_component_index == 0 && x == 0 {
-                    // Leftmost column of the first index of the scan
+                    // Leftmost column of the first component in the scan
                     if y == 0 {
                         // First block of the scan
                         pop_handoff_and_verify_non_empty(format)?;
                         format.grb.extend(&scan.raw_header);
-                    } else if scan_info.component_indices.len() == 1
+                    } else if !subsequent_successive_approximation
+                        && scan_info.component_indices.len() == 1
                         || y % component.vertical_sampling_factor as usize == 0
                     {
                         // First block in the MCU row
                         pop_handoff_and_verify_non_empty(format)?;
-                        format.grb.extend(huffman.view_buffer());
                     }
                 }
                 format.grb.extend(huffman.view_buffer());

@@ -237,14 +237,18 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
     }
 
     pub fn start(mut self) -> SimpleResult<ErrMsg> {
+        let mut result = Ok(());
         for i in 0..self.scans.len() {
-            self.process_scan(i)?;
+            result = self.process_scan(i);
+            if result.is_err() {
+                break;
+            }
             // TODO: Flush arithmetic coder
         }
         self.specialization.flush()?;
         self.input.abort();
         self.specialization.write_eof();
-        Ok(())
+        result
     }
 
     fn process_scan(&mut self, scan_index: usize) -> SimpleResult<ErrMsg> {
@@ -253,9 +257,11 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         let specialization = &mut self.specialization;
         specialization.prepare_scan(scan, scan_index)?;
         let specialization = RefCell::new(specialization);
-        let mut mcu_row_callback =
-            |mcu_y: usize| specialization.borrow_mut().prepare_mcu_row(mcu_y);
-        let mut mcu_callback = |_mcu_y: usize, _mcu_x: usize| Ok(());
+        let mut mcu_callback = |mcu_y: usize, mcu_x: usize, restart: bool, expected_rst: u8| {
+            specialization
+                .borrow_mut()
+                .prepare_mcu(mcu_y, mcu_x, restart, expected_rst)
+        };
         let mut block_callback = |block_y: usize,
                                   block_x: usize,
                                   component_index_in_scan: usize,
@@ -270,9 +276,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                 scan,
             )
         };
-        let mut rst_callback =
-            |exptected_rst: u8| specialization.borrow_mut().process_rst(exptected_rst);
-        process_scan(
+        if process_scan(
             scan,
             &self.components,
             if scan_index == 0 {
@@ -281,11 +285,11 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                 0
             },
             &self.size_in_mcu,
-            &mut mcu_row_callback,
             &mut mcu_callback,
             &mut block_callback,
-            &mut rst_callback,
-        )?;
+        )? {
+            specialization.borrow_mut().finish_scan()?;
+        }
         scan.coefficients = None;
         Ok(())
     }

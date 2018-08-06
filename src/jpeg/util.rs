@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::mem;
 
-use interface::SimpleResult;
 use jpeg::{Component, Dimensions, Scan};
 
 pub fn process_scan<T: Debug>(
@@ -9,11 +8,9 @@ pub fn process_scan<T: Debug>(
     components: &Vec<Component>, // Components in the scan
     mcu_y_start: usize,
     size_in_mcu: &Dimensions,
-    mcu_row_callback: &mut FnMut(usize) -> Result<bool, T>, // Args: (mcu_y)
-    mcu_callback: &mut FnMut(usize, usize) -> SimpleResult<T>, // Args: (mcu_y, mcu_x)
+    mcu_callback: &mut FnMut(usize, usize, bool, u8) -> Result<bool, T>, // Args: (mcu_y, mcu_x, restart, expected rst)
     block_callback: &mut FnMut(usize, usize, usize, &Component, &mut Scan) -> Result<bool, T>, // Args: (block_y, block_x, component_index_in_scan, component, Scan)
-    rst_callback: &mut FnMut(u8) -> SimpleResult<T>, // Args: (expected_rst)
-) -> SimpleResult<T> {
+) -> Result<bool, T> {
     let is_interleaved = components.len() > 1;
     let &size_in_mcu = if is_interleaved {
         &size_in_mcu
@@ -24,20 +21,29 @@ pub fn process_scan<T: Debug>(
         if mcu_y_start > 0 && scan.restart_interval > 0 {
             let mcu_skipped = mcu_y_start * size_in_mcu.width as usize;
             let restart_interval = scan.restart_interval as usize;
-            let rst_skipped = mcu_skipped / restart_interval;
+            let mut rst_skipped = mcu_skipped / restart_interval;
+            let mut mcu_skipped_in_interval = mcu_skipped % restart_interval;
+            if mcu_skipped_in_interval == 0 {
+                mcu_skipped_in_interval = restart_interval;
+                rst_skipped -= 1;
+            }
             (
-                (restart_interval - mcu_skipped % restart_interval) as u16,
+                (restart_interval - mcu_skipped_in_interval) as u16,
                 (rst_skipped % 8) as u8,
             )
         } else {
             (scan.restart_interval, 0)
         };
     for mcu_y in mcu_y_start..size_in_mcu.height as usize {
-        if mcu_row_callback(mcu_y)? {
-            break;
-        }
         for mcu_x in 0..size_in_mcu.width as usize {
-            mcu_callback(mcu_y, mcu_x)?;
+            let restart = scan.restart_interval > 0 && n_mcu_left_until_restart == 0;
+            if mcu_callback(mcu_y, mcu_x, restart, expected_rst)? {
+                return Ok(false);
+            }
+            if restart {
+                expected_rst = (expected_rst + 1) % 8;
+                n_mcu_left_until_restart = scan.restart_interval;
+            }
             if is_interleaved {
                 for (i, component) in components.iter().enumerate() {
                     for block_y_offset in 0..component.vertical_sampling_factor as usize {
@@ -55,17 +61,10 @@ pub fn process_scan<T: Debug>(
             }
             if scan.restart_interval > 0 {
                 n_mcu_left_until_restart -= 1;
-                let is_last_mcu =
-                    mcu_x as u16 == size_in_mcu.width - 1 && mcu_y as u16 == size_in_mcu.height - 1;
-                if n_mcu_left_until_restart == 0 && !is_last_mcu {
-                    rst_callback(expected_rst)?;
-                    expected_rst = (expected_rst + 1) % 8;
-                    n_mcu_left_until_restart = scan.restart_interval;
-                }
             }
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 pub fn split_scan(

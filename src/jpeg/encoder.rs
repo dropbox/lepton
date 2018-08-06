@@ -1,31 +1,31 @@
 use super::constants::{MAX_COMPONENTS, UNZIGZAG};
 use bit_writer::BitWriter;
-use io::BufferedOutputStream;
+use io::Write;
 use iostream::OutputResult;
 
-pub struct JpegEncoder {
-    pub bit_writer: BitWriter<BufferedOutputStream>,
+pub struct JpegEncoder<Writer: Write> {
+    pub bit_writer: BitWriter<Writer>,
     dc_predictors: [i16; MAX_COMPONENTS],
 }
 
-impl JpegEncoder {
-    pub fn new(output: BufferedOutputStream) -> Self {
+impl<Writer: Write> JpegEncoder<Writer> {
+    pub fn new(output: Writer, dc_predictors: &[i16; MAX_COMPONENTS]) -> Self {
         Self {
             bit_writer: BitWriter::new(output, true),
-            dc_predictors: [0; MAX_COMPONENTS],
+            dc_predictors: dc_predictors.clone(),
         }
     }
 
     // FIXME: Handle progressive
     pub fn encode_block(
         &mut self,
-        block: &[i16],
+        coefficients: &[i16; 64],
         component_index_in_scan: usize,
         dc_huffman_table: Option<&[(u16, u8); 256]>,
         ac_huffman_table: Option<&[(u16, u8); 256]>,
     ) -> OutputResult<()> {
         // Differential DC encoding
-        let dc_value = block[0];
+        let dc_value = coefficients[0];
         let diff = dc_value.wrapping_sub(self.dc_predictors[component_index_in_scan]);
         self.dc_predictors[component_index_in_scan] = dc_value;
         let (size, value) = encode_coefficient(diff);
@@ -36,7 +36,7 @@ impl JpegEncoder {
         let mut index = 0usize;
         while index < 63 {
             index += 1;
-            if block[UNZIGZAG[index] as usize] == 0 {
+            if coefficients[UNZIGZAG[index]] == 0 {
                 if index == 63 {
                     self.huffman_encode(0x00, ac_huffman_table.clone().unwrap())?;
                     break;
@@ -47,7 +47,7 @@ impl JpegEncoder {
                     self.huffman_encode(0xF0, ac_huffman_table.clone().unwrap())?;
                     zero_run -= 16;
                 }
-                let (size, value) = encode_coefficient(block[UNZIGZAG[index] as usize]);
+                let (size, value) = encode_coefficient(coefficients[UNZIGZAG[index]]);
                 let symbol = (zero_run << 4) | size;
                 self.huffman_encode(symbol, ac_huffman_table.clone().unwrap())?;
                 self.bit_writer.write_bits(value, size)?;
@@ -57,7 +57,7 @@ impl JpegEncoder {
         Ok(())
     }
 
-    pub fn reset(&mut self) {
+    pub fn handle_rst(&mut self) {
         self.dc_predictors = [0; MAX_COMPONENTS];
     }
 
@@ -69,6 +69,8 @@ impl JpegEncoder {
         self.bit_writer.write_bits(code, size)
     }
 }
+
+// fn decode_block()
 
 fn encode_coefficient(coefficient: i16) -> (u8, u16) {
     let mut magnitude = coefficient.abs() as u16;

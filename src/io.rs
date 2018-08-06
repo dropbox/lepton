@@ -24,18 +24,16 @@ impl BufferedOutputStream {
 
 impl Write for BufferedOutputStream {
     fn write(&mut self, data: &[u8]) -> OutputResult<usize> {
-        Ok(if self.buffer.len() + data.len() >= self.buffer.capacity()
+        if self.buffer.len() + data.len() >= self.buffer.capacity()
             || data.len() >= self.buffer.capacity() / 2
         {
-            let len = self.ostream.write_all(&[&self.buffer, data])?;
-            self.total_out += data.len();
+            self.ostream.write_all(&[&self.buffer, data])?;
             self.buffer.clear();
-            len
         } else {
             self.buffer.extend(data);
-            self.total_out += data.len();
-            data.len()
-        })
+        }
+        self.total_out += data.len();
+        Ok(data.len())
     }
 
     fn flush(&mut self) -> OutputResult<usize> {
