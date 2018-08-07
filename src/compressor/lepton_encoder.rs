@@ -71,7 +71,8 @@ impl LeptonEncoder {
         self.result = Some(match self.jpeg_decoder.take().unwrap().take_result() {
             Ok(mut jpeg) => {
                 let mut format = jpeg.format.unwrap();
-                let jpeg_header_len: usize = jpeg.scans
+                let jpeg_header_len: usize = jpeg
+                    .scans
                     .iter()
                     .map(|element| element.raw_header.len())
                     .sum();
@@ -177,14 +178,18 @@ fn select_handoffs(format: &FormatInfo, scans: &[Scan]) -> Vec<ThreadHandoffExt>
         .collect();
     for i in 0..(selected.len() - 1) {
         let mut segment_size = selected[i + 1].segment_size - selected[i].segment_size;
+        let mut end_scan = selected[i + 1].start_scan;
         if selected[i + 1].mcu_y_start == 0 {
             segment_size -= scans[selected[i + 1].start_scan as usize].raw_header.len() as u32;
+            end_scan -= 1;
         }
         selected[i].segment_size = segment_size;
+        selected[i].end_scan = end_scan;
     }
     {
         let last_handoff = selected.last_mut().unwrap();
         last_handoff.segment_size = format.entropy_data_end as u32 - last_handoff.segment_size;
+        last_handoff.end_scan = handoffs.last().unwrap().end_scan;
     }
     selected
     // format.handoff[..1].to_vec()

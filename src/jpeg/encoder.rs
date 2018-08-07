@@ -31,23 +31,34 @@ impl<Writer: Write> JpegEncoder<Writer> {
         dc_huffman_table: Option<&[(u16, u8); 256]>,
         ac_huffman_table: Option<&[(u16, u8); 256]>,
     ) -> OutputResult<()> {
-        encode_block(
-            &mut self.bit_writer,
-            coefficients,
-            dc_huffman_table,
-            ac_huffman_table,
-            &scan.spectral_selection,
-            &mut self.eob_run,
-            &mut self.dc_predictors[component_index_in_scan],
-        )
+        if scan.successive_approximation_high == 0 {
+            encode_block(
+                &mut self.bit_writer,
+                coefficients,
+                dc_huffman_table,
+                ac_huffman_table,
+                &scan.spectral_selection,
+                &mut self.eob_run,
+                &mut self.dc_predictors[component_index_in_scan],
+            )
+        } else {
+            encode_block_successive_approximation(
+                &mut self.bit_writer,
+                coefficients,
+                ac_huffman_table,
+                &scan.spectral_selection,
+                &mut self.eob_run,
+            )
+        }
     }
 
-    pub fn handle_rst(&mut self) {
+    pub fn reset(&mut self) {
         self.dc_predictors = [0; MAX_COMPONENTS];
         self.eob_run = 0;
     }
 }
 
+// FIXME: Refactor encode_block and encode_block_successive_approximation
 fn encode_block<Writer: Write>(
     bit_writer: &mut BitWriter<Writer>,
     coefficients: &[i16],
@@ -58,8 +69,6 @@ fn encode_block<Writer: Write>(
     dc_predictor: &mut i16,
 ) -> OutputResult<()> {
     if spectral_selection.start == 0 {
-        // Section F.2.2.1
-        // Figure F.12
         let dc_value = coefficients[0];
         let diff = dc_value.wrapping_sub(*dc_predictor);
         *dc_predictor = dc_value;
@@ -72,22 +81,20 @@ fn encode_block<Writer: Write>(
             *eob_run -= 1;
             return Ok(());
         }
-        // Section F.1.2.2.1
         let mut zero_run = 0;
         let mut index = max(spectral_selection.start, 1);
         let ac_huffman_table = ac_huffman_table.unwrap();
         while index < spectral_selection.end {
             if coefficients[UNZIGZAG[index as usize]] == 0 {
-                // FIXME: Write EOB run
                 if index == spectral_selection.end - 1 {
                     *eob_run = coefficients[coefficients.len() - 1] as u16;
                     assert!(*eob_run > 0);
                     if *eob_run == 1 {
                         huffman_encode(0x00, ac_huffman_table, bit_writer)?;
                     } else {
-                        let r = 1u8 << (15 - eob_run.leading_zeros());
+                        let r = 15 - eob_run.leading_zeros() as u8;
                         huffman_encode(r << 4, ac_huffman_table, bit_writer)?;
-                        bit_writer.write_bits(*eob_run - 1 << r, r)?;
+                        bit_writer.write_bits(*eob_run - (1 << r), r)?;
                     }
                     *eob_run -= 1;
                     break;
@@ -110,14 +117,95 @@ fn encode_block<Writer: Write>(
     Ok(())
 }
 
+fn encode_block_successive_approximation<Writer: Write>(
+    bit_writer: &mut BitWriter<Writer>,
+    coefficients: &[i16],
+    ac_huffman_table: Option<&[(u16, u8); 256]>,
+    spectral_selection: &Range<u8>,
+    eob_run: &mut u16,
+) -> OutputResult<()> {
+    if spectral_selection.start == 0 {
+        bit_writer.write_bits(coefficients[0] as u16, 1)?;
+    }
+    if spectral_selection.end > 1 {
+        let mut index = max(spectral_selection.start, 1);
+        if *eob_run > 0 {
+            encode_zero_run(coefficients, index..spectral_selection.end, bit_writer)?;
+            *eob_run -= 1;
+            return Ok(());
+        }
+        let mut zero_run = 0;
+        let mut zero_run_start = index;
+        let ac_huffman_table = ac_huffman_table.unwrap();
+        while index < spectral_selection.end {
+            let coefficient = coefficients[UNZIGZAG[index as usize]];
+            if coefficient & 0x6 == 0x2 {
+                while zero_run >= 16 {
+                    huffman_encode(0xF0, ac_huffman_table, bit_writer)?;
+                    encode_zero_run(
+                        coefficients,
+                        zero_run_start..(zero_run_start + 16),
+                        bit_writer,
+                    )?;
+                    zero_run -= 16;
+                    zero_run_start += 16;
+                }
+                huffman_encode((zero_run << 4) | 0x1, ac_huffman_table, bit_writer)?;
+                bit_writer.write_bits(coefficient as u16, 1)?;
+                encode_zero_run(coefficients, zero_run_start..index, bit_writer)?;
+                zero_run = 0;
+                zero_run_start = index + 1;
+            } else {
+                if coefficient == 0 {
+                    zero_run += 1;
+                }
+                if index == spectral_selection.end - 1 {
+                    *eob_run = coefficients[coefficients.len() - 1] as u16;
+                    assert!(*eob_run > 0);
+                    if *eob_run == 1 {
+                        huffman_encode(0x00, ac_huffman_table, bit_writer)?;
+                    } else {
+                        let r = 15 - eob_run.leading_zeros() as u8;
+                        huffman_encode(r << 4, ac_huffman_table, bit_writer)?;
+                        bit_writer.write_bits(*eob_run - (1 << r), r)?;
+                    }
+                    *eob_run -= 1;
+                    encode_zero_run(
+                        coefficients,
+                        zero_run_start..spectral_selection.end,
+                        bit_writer,
+                    )?;
+                    break;
+                }
+            }
+            index += 1;
+        }
+    }
+    Ok(())
+}
+
 fn huffman_encode<Writer: Write>(
-    val: u8,
+    value: u8,
     table: &[(u16, u8)],
     bit_writer: &mut BitWriter<Writer>,
 ) -> OutputResult<()> {
-    let (code, size) = table[val as usize];
+    let (code, size) = table[value as usize];
     if size > 16 {
-        panic!("bad huffman value");
+        panic!("bad huffman value {:02X}", value);
     }
     bit_writer.write_bits(code, size)
+}
+
+fn encode_zero_run<Writer: Write>(
+    coefficients: &[i16],
+    range: Range<u8>,
+    bit_writer: &mut BitWriter<Writer>,
+) -> OutputResult<()> {
+    for i in range {
+        let coefficient = coefficients[UNZIGZAG[i as usize]];
+        if coefficient != 0 {
+            bit_writer.write_bits(coefficient as u16 >> 1, 1)?;
+        }
+    }
+    Ok(())
 }

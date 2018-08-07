@@ -7,7 +7,7 @@ use constants::INPUT_STREAM_PRELOAD_LEN;
 use interface::{ErrMsg, SimpleResult};
 use io::BufferedOutputStream;
 use iostream::{iostream, InputError, InputStream, OutputError, OutputStream};
-use jpeg::{process_scan, split_scan, Component, Dimensions, Scan};
+use jpeg::{get_components, process_scan, split_scan, Component, Dimensions, Scan};
 use std::thread;
 use thread_handoff::ThreadHandoffExt;
 
@@ -243,7 +243,6 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
             if result.is_err() {
                 break;
             }
-            // TODO: Flush arithmetic coder
         }
         self.specialization.flush()?;
         self.input.abort();
@@ -253,6 +252,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
 
     fn process_scan(&mut self, scan_index: usize) -> SimpleResult<ErrMsg> {
         let scan = &mut self.scans[scan_index];
+        let components = get_components(&scan.info.component_indices, &self.components);
         let input = &mut self.input;
         let specialization = &mut self.specialization;
         specialization.prepare_scan(scan, scan_index)?;
@@ -278,7 +278,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         };
         if process_scan(
             scan,
-            &self.components,
+            &components,
             if scan_index == 0 {
                 self.mcu_y_start as usize
             } else {

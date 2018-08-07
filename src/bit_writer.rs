@@ -29,8 +29,8 @@ impl<Writer: Write> BitWriter<Writer> {
         self.bits |= u32::from(bits) << (32 - (self.n_bit + size)) as usize;
         self.n_bit += size;
         while self.n_bit >= 8 {
-            let byte = (self.bits & (0u32.wrapping_sub(1) << 24)) >> 24;
-            self.writer.write(&[byte as u8])?;
+            let byte = (self.bits >> 24) as u8;
+            self.writer.write(&[byte])?;
             if byte == 0xFF && self.escape {
                 self.writer.write(&[0x00])?;
             }

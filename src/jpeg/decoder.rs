@@ -13,7 +13,7 @@ use super::jpeg::{
 };
 use super::marker::Marker;
 use super::parser::{parse_app, parse_com, parse_dht, parse_dqt, parse_dri, parse_sof, parse_sos};
-use super::util::{n_coefficient_per_block, process_scan};
+use super::util::{get_components, n_coefficient_per_block, process_scan};
 use iostream::InputStream;
 use thread_handoff::ThreadHandoffExt;
 
@@ -326,24 +326,18 @@ impl JpegDecoder {
         {
             let scan_info = &scan.info;
             assert!(scan_info.component_indices.len() <= MAX_COMPONENTS);
+            components = get_components(&scan_info.component_indices, &frame.components);
             // FIXME: Can use less coefficients for spectral selection
             scan.coefficients = Some(
-                scan.info
-                    .component_indices
+                components
                     .iter()
-                    .map(|&i| {
-                        let component = &frame.components[i];
+                    .map(|component| {
                         let block_count = component.size_in_block.width as usize
                             * component.size_in_block.height as usize;
                         vec![0; block_count * n_coefficient_per_block(scan_info)]
                     })
                     .collect(),
             );
-            components = scan_info
-                .component_indices
-                .iter()
-                .map(|&i| frame.components[i].clone())
-                .collect();
             // Verify that all required quantization tables has been set.
             if components.iter().any(|component| {
                 self.quantization_tables[component.quantization_table_index].is_none()
@@ -476,7 +470,7 @@ impl JpegDecoder {
         let block_index = y * component.size_in_block.width as usize + x;
         let block_offset = block_index * n_coefficient_per_block;
         let coefficients = &mut scan.coefficients.as_mut().unwrap()[scan_component_index]
-            [block_offset..block_offset + n_coefficient_per_block];
+            [block_offset..(block_offset + n_coefficient_per_block)];
         let non_zero_coefficients =
             &mut self.non_zero_coefficients[scan_info.component_indices[scan_component_index]];
         let subsequent_successive_approximation = scan_info.successive_approximation_high > 0;
@@ -629,7 +623,7 @@ fn decode_block(
         // Malicious JPEG files can cause this add to overflow, therefore we use wrapping_add.
         // One example of such a file is tests/crashtest/images/dc-predictor-overflow.jpg
         *dc_predictor = dc_predictor.wrapping_add(diff);
-        coefficients[0] = *dc_predictor << successive_approximation_low;
+        coefficients[0] = *dc_predictor /* << successive_approximation_low */;
     }
     if spectral_selection.end > 1 {
         if *eob_run > 0 {
@@ -690,8 +684,8 @@ fn decode_block(
 /// DC coefficient is coded in 1 bit.
 /// Each AC coefficient is coded in 3 bits. The first bit indicates whether the coefficient
 /// has become non-zero in previous approximations. The second bit indicates whether the
-/// coefficient needs an update in this approximation. If the coefficient does not have a
-/// non-zero history and needs and update, the third bit indicates the sign of the coefficient,
+/// coefficient needs an update in this scan. If the coefficient does not have a non-zero
+/// history and needs and update, the third bit indicates the sign of the coefficient,
 /// where 1 means positive.
 fn decode_block_successive_approximation(
     input: &mut InputStream,
@@ -782,11 +776,12 @@ fn process_eob_run(
     coefficients: &mut [i16],
     huffman: &mut HuffmanDecoder,
 ) -> JpegResult<()> {
-    *eob_run = (1 << r) - 1;
+    *eob_run = 1 << r;
     if r > 0 {
         *eob_run += huffman.get_bits(input, r)?;
     }
-    coefficients[coefficients.len() - 1] = *eob_run as i16 + 1;
+    coefficients[coefficients.len() - 1] = *eob_run as i16;
+    *eob_run -= 1;
     Ok(())
 }
 
@@ -809,7 +804,7 @@ fn decode_zero_run(
             }
             zero_run_length -= 1;
         } else {
-            coefficients[index] = 1 << 2 | (huffman.get_bits(input, 1)? << 1) as i16;
+            coefficients[index] = (1 << 2) | (huffman.get_bits(input, 1)? << 1) as i16;
         }
     }
     Ok(last)

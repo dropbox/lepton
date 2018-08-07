@@ -38,7 +38,7 @@ pub trait CodecSpecialization: Send {
 pub struct DecoderCodec {
     jpeg_encoder: JpegEncoder<BufferedOutputStream>,
     pad: u8,
-    first_scan: u16,
+    start_scan: u16,
     mcu_y_start: u16,
     segment_size: usize,
 }
@@ -58,7 +58,7 @@ impl DecoderCodec {
         Self {
             jpeg_encoder: jpeg_encoder,
             pad,
-            first_scan: thread_handoff.start_scan,
+            start_scan: thread_handoff.start_scan,
             mcu_y_start: thread_handoff.mcu_y_start,
             segment_size: thread_handoff.segment_size as usize,
         }
@@ -71,7 +71,11 @@ impl CodecSpecialization for DecoderCodec {
         scan: &mut Scan,
         scan_index_in_thread: usize,
     ) -> SimpleResult<ErrMsg> {
-        if scan_index_in_thread > 0 || (self.mcu_y_start == 0 && self.first_scan > 0) {
+        let first_scan = scan_index_in_thread == 0;
+        if !first_scan {
+            self.jpeg_encoder.reset();
+        }
+        if !first_scan || (self.mcu_y_start == 0 && self.start_scan > 0) {
             self.jpeg_encoder.bit_writer.pad_byte(self.pad)?;
             self.jpeg_encoder.bit_writer.writer.write(&scan.raw_header)?;
             scan.raw_header.clear();
@@ -110,7 +114,7 @@ impl CodecSpecialization for DecoderCodec {
                 bit_writer.pad_byte(self.pad)?;
                 bit_writer.writer.write(&[0xFF, 0xD0 + expected_rst])?;
             }
-            self.jpeg_encoder.handle_rst();
+            self.jpeg_encoder.reset();
         }
         Ok(false)
     }
@@ -227,11 +231,7 @@ impl CodecSpecialization for EncoderCodec {
         let mut block_offset =
             (y * component.size_in_block.width as usize + x) * n_coefficient_per_block;
         if self.scan_index_in_thread == 0 {
-            block_offset -= mcu_row_offset(
-                &scan.info,
-                component,
-                self.mcu_y_start,
-            );
+            block_offset -= mcu_row_offset(&scan.info, component, self.mcu_y_start);
         }
         let block = &scan.coefficients.as_ref().unwrap()[component_index_in_scan]
             [block_offset..(block_offset + n_coefficient_per_block)];

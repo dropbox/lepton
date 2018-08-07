@@ -67,6 +67,13 @@ pub fn process_scan<T: Debug>(
     Ok(true)
 }
 
+pub fn get_components(component_indices: &[usize], all_components: &[Component]) -> Vec<Component> {
+    component_indices
+        .iter()
+        .map(|&i| all_components[i].clone())
+        .collect()
+}
+
 pub fn split_scan(
     scan: &mut Scan,
     components: &[Component],
@@ -113,10 +120,18 @@ pub fn mcu_row_offset(scan: &ScanInfo, component: &Component, mcu_row: u16) -> u
     } else {
         component.vertical_sampling_factor as usize
     };
-    mcu_row as usize * vertical_sampling_factor * component.size_in_block.width as usize * n_coefficient_per_block(scan)
+    mcu_row as usize
+        * vertical_sampling_factor
+        * component.size_in_block.width as usize
+        * n_coefficient_per_block(scan)
 }
 
 pub fn n_coefficient_per_block(_scan: &ScanInfo) -> usize {
+    // if scan.successive_approximation_high > 0 {
+    //     17
+    // } else {
+    //     65
+    // }
     65
 }
 
