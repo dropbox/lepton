@@ -119,3 +119,30 @@ pub fn mcu_row_offset(scan: &ScanInfo, component: &Component, mcu_row: u16) -> u
 pub fn n_coefficient_per_block(_scan: &ScanInfo) -> usize {
     65
 }
+
+pub fn split_into_size_and_value(coefficient: i16) -> (u8, u16) {
+    let size = (16 - coefficient.abs().leading_zeros()) as u8;
+    let mask = (1i16 << size as usize).wrapping_sub(1);
+    let val = if coefficient < 0 {
+        coefficient.wrapping_sub(1) & mask
+    } else {
+        coefficient & mask
+    };
+    (size, val as u16)
+}
+
+// Section F.2.2.1
+// Figure F.12
+pub fn build_from_size_and_value(count: u8, value: u16) -> i16 {
+    assert!((1 << count) > value);
+    if count > 0 {
+        let vt = 1 << (count as u16 - 1);
+        if value < vt {
+            value as i16 + (-1 << count as i16) + 1
+        } else {
+            value as i16
+        }
+    } else {
+        0i16
+    }
+}

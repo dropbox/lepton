@@ -5,6 +5,7 @@ use std::iter::repeat;
 use super::error::{HuffmanError, JpegError, JpegResult};
 use super::jpeg::ScanInfo;
 use super::marker::Marker;
+use super::util::build_from_size_and_value;
 use iostream::{InputResult, InputStream};
 
 pub type HuffmanResult<T> = Result<T, HuffmanError>;
@@ -91,7 +92,7 @@ impl HuffmanDecoder {
     #[inline]
     pub fn receive_extend(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<i16> {
         let value = self.get_bits(input, count)?;
-        Ok(extend(value, count))
+        Ok(build_from_size_and_value(count, value))
     }
 
     pub fn read_rst(
@@ -227,17 +228,6 @@ impl HuffmanDecoder {
             }
             Err(e) => Err(e),
         }
-    }
-}
-
-// Section F.2.2.1
-// Figure F.12
-fn extend(value: u16, count: u8) -> i16 {
-    let vt = 1 << (count as u16 - 1);
-    if value < vt {
-        value as i16 + (-1 << count as i16) + 1
-    } else {
-        value as i16
     }
 }
 
@@ -386,7 +376,7 @@ impl HuffmanDecodeTable {
                         let unextended_ac_value = (((i << size) & ((1 << LUT_BITS) - 1))
                             >> (LUT_BITS - magnitude_category))
                             as u16;
-                        let ac_value = extend(unextended_ac_value, magnitude_category);
+                        let ac_value = build_from_size_and_value(magnitude_category, unextended_ac_value);
                         table[i] = (ac_value, (run_length << 4) | (size + magnitude_category));
                     }
                 }

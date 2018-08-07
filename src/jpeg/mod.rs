@@ -16,3 +16,5 @@ pub use self::error::{JpegError, JpegResult, UnsupportedFeature};
 pub use self::jpeg::*;
 pub use self::stream_decoder::*;
 pub use self::util::*;
+
+mod test_util;

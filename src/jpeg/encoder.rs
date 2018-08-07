@@ -2,6 +2,7 @@ use std::cmp::max;
 use std::ops::Range;
 
 use super::constants::{MAX_COMPONENTS, UNZIGZAG};
+use super::util::split_into_size_and_value;
 use bit_writer::BitWriter;
 use io::Write;
 use iostream::OutputResult;
@@ -62,7 +63,7 @@ fn encode_block<Writer: Write>(
         let dc_value = coefficients[0];
         let diff = dc_value.wrapping_sub(*dc_predictor);
         *dc_predictor = dc_value;
-        let (size, value) = encode_coefficient(diff);
+        let (size, value) = split_into_size_and_value(diff);
         huffman_encode(size, dc_huffman_table.unwrap(), bit_writer)?;
         bit_writer.write_bits(value, size)?;
     }
@@ -97,7 +98,7 @@ fn encode_block<Writer: Write>(
                     huffman_encode(0xF0, ac_huffman_table, bit_writer)?;
                     zero_run -= 16;
                 }
-                let (size, value) = encode_coefficient(coefficients[UNZIGZAG[index as usize]]);
+                let (size, value) = split_into_size_and_value(coefficients[UNZIGZAG[index as usize]]);
                 let symbol = (zero_run << 4) | size;
                 huffman_encode(symbol, ac_huffman_table, bit_writer)?;
                 bit_writer.write_bits(value, size)?;
@@ -119,15 +120,4 @@ fn huffman_encode<Writer: Write>(
         panic!("bad huffman value");
     }
     bit_writer.write_bits(code, size)
-}
-
-fn encode_coefficient(coefficient: i16) -> (u8, u16) {
-    let size = 16 - coefficient.abs().leading_zeros() as u8;
-    let mask = (1 << size as usize) - 1;
-    let val = if coefficient < 0 {
-        (coefficient - 1) & mask
-    } else {
-        coefficient & mask
-    };
-    (size, val as u16)
 }
