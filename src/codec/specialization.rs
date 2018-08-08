@@ -1,4 +1,4 @@
-use bit_writer::BitWriter;
+use bit_writer::{BitWriter, NoEscaping};
 use byte_converter::{BigEndian, ByteConverter};
 use interface::{ErrMsg, SimpleResult};
 use io::{BufferedOutputStream, Write};
@@ -162,7 +162,7 @@ impl CodecSpecialization for DecoderCodec {
 }
 
 pub struct EncoderCodec {
-    bit_writer: BitWriter<BufferedOutputStream>,
+    bit_writer: BitWriter<BufferedOutputStream, NoEscaping>,
     last_scan: u16,
     mcu_y_start: u16,
     mcu_y_end: Option<u16>,
@@ -176,7 +176,7 @@ impl EncoderCodec {
         mcu_y_end: Option<u16>,
     ) -> Self {
         Self {
-            bit_writer: BitWriter::new(output, false),
+            bit_writer: BitWriter::new(output),
             last_scan: thread_handoff.end_scan - thread_handoff.start_scan,
             mcu_y_start: thread_handoff.mcu_y_start,
             mcu_y_end,
