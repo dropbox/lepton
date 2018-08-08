@@ -34,6 +34,13 @@ pub fn create_codecs<
     let mut codecs = Vec::with_capacity(thread_handoffs.len());
     for (i, handoff) in thread_handoffs.iter().enumerate() {
         // FIXME: Minimize cloning scans and pass only necessary coefficients
+        let mcu_y_end = if i == thread_handoffs.len() - 1
+            || handoff.end_scan < thread_handoffs[i + 1].start_scan
+        {
+            None
+        } else {
+            Some(thread_handoffs[i + 1].mcu_y_start)
+        };
         let codec_scans = scans[(handoff.start_scan as usize)..=(handoff.end_scan as usize)]
             .iter_mut()
             .enumerate()
@@ -50,7 +57,11 @@ pub fn create_codecs<
                     scan,
                     &components,
                     if j == 0 { handoff.mcu_y_start } else { 0 },
-                    mcu_y_end,
+                    if j == (handoff.end_scan - handoff.start_scan) as usize {
+                        mcu_y_end
+                    } else {
+                        None
+                    },
                 )
             })
             .collect();
@@ -59,11 +70,7 @@ pub fn create_codecs<
             size_in_mcu.clone(),
             codec_scans,
             handoff,
-            if i == thread_handoffs.len() - 1 {
-                None
-            } else {
-                Some(thread_handoffs[i + 1].mcu_y_start)
-            },
+            mcu_y_end,
             pad,
         ));
     }

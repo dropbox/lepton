@@ -369,11 +369,14 @@ impl JpegDecoder {
                         // Add thread handoff for each MCU row
                         if slf.start_byte == 0 {
                             let (overhang_byte, n_overhang_bit) = huffman.handover_byte();
+                            let n_buffered_byte =
+                                (huffman.n_available_bit() + 7) / 8 + huffman.n_buffered_ff_byte();
                             format.handoff.push(ThreadHandoffExt {
                                 start_scan: slf.n_scan_processed as u16,
                                 end_scan: slf.n_scan_processed as u16,
                                 mcu_y_start: mcu_y as u16,
-                                segment_size: slf.input.processed_len() as u32,
+                                segment_size: slf.input.processed_len() as u32
+                                    - n_buffered_byte as u32,
                                 overhang_byte,
                                 n_overhang_bit,
                                 last_dc: dc_predictors.borrow().clone(),
@@ -482,7 +485,6 @@ impl JpegDecoder {
                 &self.dc_huffman_tables[scan_info.dc_table_indices[scan_component_index]],
                 &self.ac_huffman_tables[scan_info.ac_table_indices[scan_component_index]],
                 &scan_info.spectral_selection,
-                scan_info.successive_approximation_low,
                 eob_run,
                 dc_predictor,
                 non_zero_coefficients,
@@ -596,7 +598,6 @@ fn decode_block(
     dc_table: &HuffmanTable,
     ac_table: &HuffmanTable,
     spectral_selection: &Range<u8>,
-    successive_approximation_low: u8,
     eob_run: &mut u16,
     dc_predictor: &mut i16,
     non_zero_coefficients: &mut BitVec,
@@ -623,7 +624,7 @@ fn decode_block(
         // Malicious JPEG files can cause this add to overflow, therefore we use wrapping_add.
         // One example of such a file is tests/crashtest/images/dc-predictor-overflow.jpg
         *dc_predictor = dc_predictor.wrapping_add(diff);
-        coefficients[0] = *dc_predictor /* << successive_approximation_low */;
+        coefficients[0] = *dc_predictor;
     }
     if spectral_selection.end > 1 {
         if *eob_run > 0 {

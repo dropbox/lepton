@@ -73,6 +73,7 @@ impl LeptonCompressor {
     }
 }
 
+// FIXME!!!!!!!!!!!: Don't compress GRB until flush
 impl Compressor for LeptonCompressor {
     fn encode(
         &mut self,

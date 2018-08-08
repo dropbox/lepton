@@ -103,7 +103,7 @@ impl CodecSpecialization for DecoderCodec {
             // flushing the arithmetic coder after each block, which may harm
             // the compression ratio.
             let bit_writer = &self.jpeg_encoder.bit_writer;
-            let total_out = bit_writer.writer.written_len() + (bit_writer.n_buffered_bit() + 7) / 8;
+            let total_out = bit_writer.writer.written_len();
             if total_out >= self.segment_size {
                 return Ok(true);
             }
@@ -133,7 +133,9 @@ impl CodecSpecialization for DecoderCodec {
         let mut block = vec![0i16; n_coefficient_per_block];
         match input.read(&mut block_u8, true, false) {
             Ok(_) => (),
-            Err(InputError::UnexpectedEof) => return Err(ErrMsg::IncompleteThreadSegment),
+            Err(InputError::UnexpectedEof) => {
+                return Err(ErrMsg::IncompleteThreadSegment);
+            }
             Err(InputError::UnexpectedSigAbort) => unreachable!(),
         }
         for (i, coefficient) in block.iter_mut().enumerate() {

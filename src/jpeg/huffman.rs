@@ -138,6 +138,17 @@ impl HuffmanDecoder {
         self.n_bit
     }
 
+    pub fn n_buffered_ff_byte(&self) -> u8 {
+        let n_byte = (self.bit_start + self.n_bit) / 8;
+        let mut count = 0;
+        for i in 0..n_byte {
+            if self.bits >> (7 - i) * 8 == 0xFF {
+                count += 1;
+            }
+        }
+        count
+    }
+
     pub fn reset(&mut self) {
         self.bits = 0;
         self.bit_start = 0;
@@ -376,7 +387,8 @@ impl HuffmanDecodeTable {
                         let unextended_ac_value = (((i << size) & ((1 << LUT_BITS) - 1))
                             >> (LUT_BITS - magnitude_category))
                             as u16;
-                        let ac_value = build_from_size_and_value(magnitude_category, unextended_ac_value);
+                        let ac_value =
+                            build_from_size_and_value(magnitude_category, unextended_ac_value);
                         table[i] = (ac_value, (run_length << 4) | (size + magnitude_category));
                     }
                 }
@@ -405,7 +417,8 @@ fn huffman_encode_table(bits: &[u8; 16], values: &[u8]) -> HuffmanResult<[(u16, 
 // Section C.2
 fn derive_huffman_codes(bits: &[u8]) -> HuffmanResult<(Vec<u16>, Vec<u8>)> {
     // Figure C.1
-    let huffsize = bits.iter()
+    let huffsize = bits
+        .iter()
         .enumerate()
         .fold(vec![], |mut acc, (i, &value)| {
             acc.extend(repeat((i + 1) as u8).take(value as usize));
