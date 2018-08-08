@@ -43,37 +43,37 @@ impl Write for UnlimitedBuffer {
     }
 }
 
-fn round_trip(buffer_size: usize, data: &[u8]) {
+fn round_trip_permissive(buffer_size: usize, data: &[u8]) {
     let mut input = UnlimitedBuffer::new(Some(data));
     let mut compressed = UnlimitedBuffer::new(None);
     let mut decompressed = UnlimitedBuffer::new(None);
-    super::compress(&mut input, &mut compressed, buffer_size).unwrap();
+    super::compress(&mut input, &mut compressed, buffer_size, true).unwrap();
     super::decompress(&mut compressed, &mut decompressed, buffer_size).unwrap();
     assert_eq!(decompressed.data, input.data);
 }
 
 #[test]
 fn round_trip_empty() {
-    round_trip(65536, &[]);
+    round_trip_permissive(65536, &[]);
 }
 
 #[test]
 fn round_trip_ones() {
-    round_trip(65536, &[]);
+    round_trip_permissive(65536, &[1; 256]);
 }
 
 #[test]
 fn round_trip_empty_small_buffer() {
-    round_trip(1, &[]);
+    round_trip_permissive(1, &[]);
 }
 
 #[test]
 fn round_trip_ones_small_buffer() {
-    round_trip(1, &[1u8; 256]);
+    round_trip_permissive(1, &[1; 256]);
 }
 
 fn round_trip_alice(buffer_size: usize) {
-    round_trip(buffer_size, include_bytes!("../../testdata/alice29"));
+    round_trip_permissive(buffer_size, include_bytes!("../../testdata/alice29"));
 }
 
 #[test]

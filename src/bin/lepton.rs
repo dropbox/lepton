@@ -10,7 +10,7 @@ use std::path::Path;
 
 use lepton::{
     Compressor, Decompressor, ErrMsg, LeptonCompressor, LeptonDecompressor, LeptonFlushResult,
-    LeptonOperationResult,
+    LeptonOperationResult, LeptonPermissiveCompressor,
 };
 
 mod integration_test;
@@ -91,11 +91,13 @@ fn compress<Reader: Read, Writer: Write>(
     r: &mut Reader,
     w: &mut Writer,
     buffer_size: usize,
+    permissive: bool,
 ) -> Result<()> {
-    let mut compressor = LeptonCompressor::new(0, 0); // FIXME: Use actual input
-    let ret = compress_internal(r, w, buffer_size, &mut compressor);
-    // compressor.free();
-    ret
+    if permissive {
+        compress_internal(r, w, buffer_size, &mut LeptonPermissiveCompressor::new())
+    } else {
+        compress_internal(r, w, buffer_size, &mut LeptonCompressor::new(0, 0))
+    }
 }
 
 fn compress_internal<Reader: Read, Writer: Write>(
@@ -224,7 +226,8 @@ fn decompress_internal<Reader: Read, Writer: Write>(
 fn main() {
     let mut do_compress = true;
     let mut filenames = [std::string::String::new(), std::string::String::new()];
-    let mut buffer_size: usize = 65_536;
+    let mut buffer_size = 65_536;
+    let mut permissive = false;
     for argument in std::env::args().skip(1) {
         if argument == "-d" {
             do_compress = false;
@@ -236,6 +239,10 @@ fn main() {
                 .trim_matches('=')
                 .parse::<usize>()
                 .unwrap();
+            continue;
+        }
+        if argument.starts_with("-permissive") {
+            permissive = true;
             continue;
         }
         if filenames[0] == "" {
@@ -259,7 +266,7 @@ fn main() {
                 Ok(file) => file,
             };
             if do_compress {
-                match compress(&mut input, &mut output, buffer_size) {
+                match compress(&mut input, &mut output, buffer_size, permissive) {
                     Ok(_) => return,
                     Err(e) => panic!("Error {:?}", e),
                 }
