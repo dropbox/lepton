@@ -3,11 +3,13 @@ use std::cmp::{max, min};
 use super::brotli_encoder::BrotliEncoder;
 use super::lepton_encoder::{LeptonData, LeptonEncoder};
 use super::util::flush_lepton_data;
+use byte_converter::{ByteConverter, LittleEndian};
 use interface::{
     Compressor, CumulativeOperationResult, ErrMsg, LeptonFlushResult, LeptonOperationResult,
     SimpleResult,
 };
 use primary_header::{serialize_header, HEADER_SIZE as PRIMARY_HEADER_SIZE};
+use secondary_header::Marker;
 
 pub struct LeptonCompressor {
     brotli_encoder: BrotliEncoder,
@@ -45,12 +47,11 @@ impl LeptonCompressor {
     fn finish_lepton_encode(&mut self) -> SimpleResult<ErrMsg> {
         let result;
         self.result = Some(match self.lepton_encoder.take().unwrap().take_result() {
-            Ok(data) => {
+            Ok(mut data) => {
                 self.n_thread = data.n_thread;
-                let mut offset = 0;
                 match self.brotli_encoder.encode_all(
                     &data.secondary_header,
-                    &mut offset,
+                    &mut 0,
                     &mut [],
                     &mut 0,
                 ) {
@@ -59,6 +60,8 @@ impl LeptonCompressor {
                         Err(msg)
                     }
                     _ => {
+                        data.secondary_header.clear();
+                        data.secondary_header.shrink_to_fit();
                         result = Ok(());
                         Ok(data)
                     }
@@ -73,7 +76,6 @@ impl LeptonCompressor {
     }
 }
 
-// FIXME!!!!!!!!!!!: Don't compress GRB until flush
 impl Compressor for LeptonCompressor {
     fn encode(
         &mut self,
@@ -85,16 +87,9 @@ impl Compressor for LeptonCompressor {
         // Lepton encoder has finished. Compress GRB with Brotli.
         if let Some(ref mut result) = self.result {
             return match result {
-                Ok(_) => {
-                    while *input_offset < input.len() {
-                        if let LeptonOperationResult::Failure(msg) =
-                            self.brotli_encoder
-                                .encode(input, input_offset, &mut [], &mut 0)
-                        {
-                            *result = Err(msg.clone());
-                            return LeptonOperationResult::Failure(msg);
-                        }
-                    }
+                Ok(data) => {
+                    data.grb.extend(&input[*input_offset..]);
+                    *input_offset = input.len();
                     LeptonOperationResult::NeedsMoreInput
                 }
                 Err(msg) => LeptonOperationResult::Failure(msg.clone()),
@@ -121,8 +116,10 @@ impl Compressor for LeptonCompressor {
                 if !self.pge.is_empty() {
                     self.lepton_encoder.as_mut().unwrap().add_pge(&self.pge);
                     self.pge.clear();
+                    self.pge.shrink_to_fit();
                 }
-                if self.lepton_encoder
+                if self
+                    .lepton_encoder
                     .as_mut()
                     .unwrap()
                     .encode(input, input_offset)
@@ -143,15 +140,37 @@ impl Compressor for LeptonCompressor {
     }
 
     fn flush(&mut self, output: &mut [u8], output_offset: &mut usize) -> LeptonFlushResult {
+        let mut err_msg = None;
         match self.result {
+            Some(Ok(ref mut data)) => {
+                let grb_len = data.grb.len();
+                if grb_len > 0 {
+                    data.grb.resize(grb_len + 7, 0);
+                    data.grb.rotate_right(7);
+                    data.grb[..3].copy_from_slice(Marker::GRB.value());
+                    data.grb[3..7].copy_from_slice(&LittleEndian::u32_to_array(grb_len as u32));
+                    if let LeptonOperationResult::Failure(msg) =
+                        self.brotli_encoder
+                            .encode_all(&data.grb, &mut 0, &mut [], &mut 0)
+                    {
+                        err_msg = Some(msg);
+                    }
+                    data.grb.clear();
+                    data.grb.shrink_to_fit();
+                }
+            }
             Some(Err(ref msg)) => return LeptonFlushResult::Failure(msg.clone()),
             None => {
                 self.lepton_encoder.as_mut().unwrap().flush();
-                if let Err(msg) = self.finish_lepton_encode() {
-                    return LeptonFlushResult::Failure(msg);
-                }
+                return match self.finish_lepton_encode() {
+                    Ok(_) => LeptonFlushResult::NeedsMoreOutput,
+                    Err(msg) => LeptonFlushResult::Failure(msg),
+                };
             }
-            _ => (),
+        }
+        if let Some(msg) = err_msg {
+            self.result = Some(Err(msg.clone()));
+            return LeptonFlushResult::Failure(msg);
         }
         while *output_offset < output.len() {
             match self.primary_header {

@@ -79,10 +79,8 @@ fn write_from_buffer<Writer: Write>(
 
 fn renew_buffer(buffer: &mut [u8], content_used: &mut usize, content_end: &mut usize) {
     if *content_used < *content_end {
-        let content_left = *content_end - *content_used;
-        let tmp = buffer[*content_used..*content_end].to_vec();
-        buffer[..content_left].clone_from_slice(&tmp);
-        *content_end = content_left;
+        buffer.rotate_left(*content_used);
+        *content_end = *content_end - *content_used;
     } else {
         *content_end = 0;
     }
@@ -113,8 +111,7 @@ fn compress_internal<Reader: Read, Writer: Write>(
     let mut output_offset = 0usize;
     let size_checker = |size: usize| Ok(size);
     let mut done = false;
-    while !done {
-        // FIXME: Maker sure input is exhausted before exiting
+    while !done || input_offset < input_end {
         match read_to_buffer(r, &mut input_buffer, &mut input_end, &size_checker) {
             Ok(size) => {
                 if size == 0 {

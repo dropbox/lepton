@@ -2,9 +2,10 @@ use alloc::HeapAlloc;
 use brotli;
 use brotli::enc::cluster::HistogramPair;
 use brotli::enc::command::Command;
-use brotli::enc::encode::{BrotliEncoderCompressStream, BrotliEncoderCreateInstance,
-                          BrotliEncoderIsFinished, BrotliEncoderOperation,
-                          BrotliEncoderStateStruct};
+use brotli::enc::encode::{
+    BrotliEncoderCompressStream, BrotliEncoderCreateInstance, BrotliEncoderIsFinished,
+    BrotliEncoderOperation, BrotliEncoderStateStruct,
+};
 use brotli::enc::entropy_encode::HuffmanTree;
 use brotli::enc::histogram::{ContextType, HistogramCommand, HistogramDistance, HistogramLiteral};
 use brotli::enc::pdf::PDF;
@@ -92,7 +93,6 @@ impl BrotliEncoder {
         input_offset: &mut usize,
         is_end: bool,
     ) -> LeptonOperationResult {
-        let mut nothing: Option<usize> = None;
         let mut available_in = input.len() - *input_offset;
         if available_in == 0 && BrotliEncoderIsFinished(&mut self.encoder) != 0 {
             return LeptonOperationResult::Success;
@@ -100,7 +100,8 @@ impl BrotliEncoder {
         let mut available_out;
         let mut brotli_out_offset = 0usize;
         {
-            let brotli_buffer = self.encoded_data
+            let brotli_buffer = self
+                .encoded_data
                 .checkout_next_buffer(&mut self.encoder.m8, Some(256));
             available_out = brotli_buffer.len();
             let mut nop_callback =
@@ -131,7 +132,7 @@ impl BrotliEncoder {
                 &mut available_out,
                 brotli_buffer,
                 &mut brotli_out_offset,
-                &mut nothing,
+                &mut None,
                 &mut nop_callback,
             ) <= 0
             {

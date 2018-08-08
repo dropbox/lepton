@@ -170,7 +170,7 @@ impl InputStream {
 
     #[inline(always)]
     pub fn len(&self) -> usize {
-        self.istream.len()
+        self.preload_buffer.data_len() + self.istream.len()
     }
 
     #[inline(always)]
@@ -240,7 +240,8 @@ impl InputStream {
         } else if bytes_to_read > 0 || read_len == 0 {
             // Populate the preload_buffer and read from it.
             // Q: if this encounters an error, does preload_buffer get corrupted?
-            let _len = self.istream
+            let _len = self
+                .istream
                 .read(self.preload_buffer.slice_mut(), bytes_to_read)?;
             self.preload_buffer.write_offset = _len;
             self.preload_buffer.read_offset = 0;

@@ -15,6 +15,7 @@ pub struct LeptonData {
     // TODO: Maybe add # RST markers and # blocks per channel
     pub n_thread: u8,
     pub secondary_header: Vec<u8>,
+    pub grb: Vec<u8>,
     pub cmp: Mux<HeapAlloc<u8>>,
 }
 
@@ -103,9 +104,6 @@ impl LeptonEncoder {
                 );
                 secondary_header.append(&mut self.pge);
                 secondary_header.append(&mut format.pge);
-                secondary_header.extend(Marker::GRB.value());
-                secondary_header.extend(LittleEndian::u32_to_array(format.grb.len() as u32).iter());
-                secondary_header.append(&mut format.grb);
                 let mut mux = Mux::<HeapAlloc<u8>>::new(thread_handoffs.len());
                 let mut alloc_u8 = HeapAlloc::new(0);
                 let mut codecs =
@@ -137,6 +135,7 @@ impl LeptonEncoder {
                 Ok(LeptonData {
                     n_thread: codecs.len() as u8,
                     secondary_header,
+                    grb: format.grb,
                     cmp: mux,
                 })
             }
