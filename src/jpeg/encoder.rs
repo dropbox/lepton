@@ -3,13 +3,13 @@ use std::ops::Range;
 
 use super::constants::{MAX_COMPONENTS, UNZIGZAG};
 use super::util::split_into_size_and_value;
-use bit_writer::BitWriter;
+use bit_writer::{BitWriter, ShouldEscape};
 use io::Write;
 use iostream::OutputResult;
 use jpeg::ScanInfo;
 
 pub struct JpegEncoder<Writer: Write> {
-    pub bit_writer: BitWriter<Writer>,
+    pub bit_writer: BitWriter<Writer, ShouldEscape>,
     dc_predictors: [i16; MAX_COMPONENTS],
     eob_run: u16,
 }
@@ -17,7 +17,7 @@ pub struct JpegEncoder<Writer: Write> {
 impl<Writer: Write> JpegEncoder<Writer> {
     pub fn new(output: Writer, dc_predictors: &[i16; MAX_COMPONENTS]) -> Self {
         Self {
-            bit_writer: BitWriter::new(output, true),
+            bit_writer: BitWriter::new(output),
             dc_predictors: dc_predictors.clone(),
             eob_run: 0,
         }
@@ -61,7 +61,7 @@ impl<Writer: Write> JpegEncoder<Writer> {
 // TODO: Refactor encode_block and encode_block_successive_approximation
 // to reduce duplicated code
 fn encode_block<Writer: Write>(
-    bit_writer: &mut BitWriter<Writer>,
+    bit_writer: &mut BitWriter<Writer, ShouldEscape>,
     coefficients: &[i16],
     dc_huffman_table: Option<&[(u16, u8); 256]>,
     ac_huffman_table: Option<&[(u16, u8); 256]>,
@@ -120,7 +120,7 @@ fn encode_block<Writer: Write>(
 }
 
 fn encode_block_successive_approximation<Writer: Write>(
-    bit_writer: &mut BitWriter<Writer>,
+    bit_writer: &mut BitWriter<Writer, ShouldEscape>,
     coefficients: &[i16],
     ac_huffman_table: Option<&[(u16, u8); 256]>,
     spectral_selection: &Range<u8>,
@@ -186,7 +186,7 @@ fn encode_block_successive_approximation<Writer: Write>(
 fn huffman_encode<Writer: Write>(
     value: u8,
     table: &[(u16, u8)],
-    bit_writer: &mut BitWriter<Writer>,
+    bit_writer: &mut BitWriter<Writer, ShouldEscape>,
 ) -> OutputResult<()> {
     let (code, size) = table[value as usize];
     if size > 16 {
@@ -199,7 +199,7 @@ fn encode_zero_run<Writer: Write>(
     coefficients: &[i16],
     range: Range<u8>,
     mut zero_run_length: u8,
-    bit_writer: &mut BitWriter<Writer>,
+    bit_writer: &mut BitWriter<Writer, ShouldEscape>,
 ) -> OutputResult<u8> {
     let end = range.end;
     for i in range {

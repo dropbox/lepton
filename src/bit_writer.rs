@@ -1,20 +1,44 @@
 use io::Write;
 use iostream::OutputResult;
+use core::marker::PhantomData;
 
-pub struct BitWriter<Writer> {
+pub trait BoolValue {
+    #[inline(always)]
+    fn value() -> bool;
+}
+
+pub struct TrueValue {}
+pub struct FalseValue {}
+pub type ShouldEscape = TrueValue;
+pub type NoEscaping = FalseValue;
+impl BoolValue for TrueValue {
+    #[inline(always)]
+    fn value() -> bool {
+        true
+    }
+}
+impl BoolValue for FalseValue {
+    #[inline(always)]
+    fn value() -> bool {
+        false
+    }
+}
+pub struct BitWriter<Writer, Escape: BoolValue> {
     pub writer: Writer,
     bits: u32,
     n_bit: u8,
-    escape: bool,
+    escape: PhantomData<Escape>,
 }
 
-impl<Writer: Write> BitWriter<Writer> {
-    pub fn new(writer: Writer, escape: bool) -> Self {
+
+
+impl<Writer: Write, Escape: BoolValue> BitWriter<Writer, Escape> {
+    pub fn new(writer: Writer) -> Self {
         BitWriter {
             writer,
             bits: 0,
             n_bit: 0,
-            escape,
+            escape: PhantomData::default(),
         }
     }
 
@@ -31,7 +55,7 @@ impl<Writer: Write> BitWriter<Writer> {
         while self.n_bit >= 8 {
             let byte = (self.bits >> 24) as u8;
             self.writer.write(&[byte])?;
-            if byte == 0xFF && self.escape {
+            if byte == 0xFF && Escape::value() {
                 self.writer.write(&[0x00])?;
             }
             self.n_bit -= 8;
