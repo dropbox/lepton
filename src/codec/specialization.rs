@@ -32,7 +32,7 @@ pub trait CodecSpecialization: Send {
         component: &Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg>;
-    fn flush(&mut self) -> SimpleResult<ErrMsg>;
+    fn flush<Coder:ArithmeticCoder>(&mut self, coder: &mut Coder) -> SimpleResult<ErrMsg>;
     fn write_eof(&mut self);
 }
 
@@ -120,20 +120,14 @@ impl CodecSpecialization for DecoderCodec {
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
         let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
-        let mut block_u8 = vec![0; n_coefficient_per_block * 2];
         let mut block = vec![0i16; n_coefficient_per_block];
-        match input.read(&mut block_u8, true, false) {
-            Ok(_) => (),
-            Err(InputError::UnexpectedEof) => {
-                if input.is_eof() {
-                    return Ok(true)
-                }
-                return Err(ErrMsg::IncompleteThreadSegment);
+        for coef in &mut block[..].iter_mut() {
+            for bit_id in 0..16 {
+                let mut bit = 0u8;
+                let mut default_prior = 0x7f;
+                coder.parse_bit(input, &mut default_prior, &mut bit);
+                *coef |= i16::from(bit) << bit_id;
             }
-            Err(InputError::UnexpectedSigAbort) => unreachable!(),
-        }
-        for (i, coefficient) in block.iter_mut().enumerate() {
-            *coefficient = BigEndian::slice_to_u16(&block_u8[(2 * i)..]) as i16;
         }
         self.jpeg_encoder.encode_block(
             &block,
@@ -145,7 +139,7 @@ impl CodecSpecialization for DecoderCodec {
         Ok(false)
     }
 
-    fn flush(&mut self) -> SimpleResult<ErrMsg> {
+    fn flush<Coder:ArithmeticCoder>(&mut self, coder: &mut Coder) -> SimpleResult<ErrMsg> {
         self.jpeg_encoder.bit_writer.writer.flush()?;
         Ok(())
     }
@@ -233,13 +227,17 @@ impl CodecSpecialization for EncoderCodec {
         let block = &scan.coefficients.as_ref().unwrap()[component_index_in_scan]
             [block_offset..(block_offset + n_coefficient_per_block)];
         for &coefficient in block.iter() {
-            self.bit_writer.write_bits(coefficient as u16, 16)?;
+            for bit_id in 0..16 {
+                let mut bit = (coefficient >> bit_id) as u8 & 0x1;
+                let mut default_prior = 0x7f;
+                coder.parse_bit(input, &mut default_prior, &mut bit);
+            }
         }
         Ok(false)
     }
 
-    fn flush(&mut self) -> SimpleResult<ErrMsg> {
-        self.bit_writer.writer.flush()?;
+    fn flush<Coder:ArithmeticCoder>(&mut self, coder:&mut Coder) -> SimpleResult<ErrMsg> {
+        self.bit_writer.writer.write(coder.flush());
         Ok(())
     }
 

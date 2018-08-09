@@ -251,7 +251,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
                 break;
             }
         }
-        self.specialization.flush()?;
+        self.specialization.flush(&mut self.coder)?;
         self.input.abort();
         self.specialization.write_eof();
         result
