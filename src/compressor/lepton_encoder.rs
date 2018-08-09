@@ -3,7 +3,7 @@ use std::cmp::max;
 use alloc::HeapAlloc;
 use mux::{Mux, StreamMuxer};
 
-use arithmetic_coder::ArithmeticDecoder;
+use arithmetic_coder::ValidatingEncoder;
 use byte_converter::{ByteConverter, LittleEndian};
 use codec::{create_codecs, EncoderCodec, EncoderStateFactory};
 use interface::CumulativeOperationResult;
@@ -107,7 +107,7 @@ impl LeptonEncoder {
                 let mut mux = Mux::<HeapAlloc<u8>>::new(thread_handoffs.len());
                 let mut alloc_u8 = HeapAlloc::new(0);
                 let mut codecs =
-                    create_codecs::<ArithmeticDecoder, EncoderCodec, EncoderStateFactory>(
+                    create_codecs::<ValidatingEncoder, EncoderCodec, EncoderStateFactory>(
                         jpeg.frame.components,
                         jpeg.frame.size_in_mcu,
                         jpeg.scans,

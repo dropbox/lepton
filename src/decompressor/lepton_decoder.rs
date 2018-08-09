@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use alloc::HeapAlloc;
 use mux::{Mux, StreamDemuxer};
+use arithmetic_coder::ValidatingDecoder;
 
-use arithmetic_coder::ArithmeticDecoder;
 use codec::{create_codecs, CodecError, DecoderCodec, DecoderStateFactory, LeptonCodec};
 use interface::{ErrMsg, LeptonOperationResult, SimpleResult};
 use secondary_header::{Marker, SecondaryHeader};
@@ -25,7 +25,7 @@ pub struct LeptonDecoder {
 
 impl LeptonDecoder {
     pub fn new(header: SecondaryHeader, target_len: usize) -> Self {
-        let codecs = create_codecs::<ArithmeticDecoder, DecoderCodec, DecoderStateFactory>(
+        let codecs = create_codecs::<ValidatingDecoder, DecoderCodec, DecoderStateFactory>(
             header.hdr.frame.components,
             header.hdr.frame.size_in_mcu,
             header.hdr.scans,
