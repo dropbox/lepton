@@ -42,6 +42,7 @@ pub struct DecoderCodec {
     start_scan: u16,
     mcu_y_start: u16,
     first_mcu: bool,
+    first_block: bool,
 }
 
 impl DecoderCodec {
@@ -62,6 +63,7 @@ impl DecoderCodec {
             start_scan: thread_handoff.start_scan,
             mcu_y_start: thread_handoff.mcu_y_start,
             first_mcu: true,
+            first_block: true,
         }
     }
 }
@@ -119,6 +121,10 @@ impl CodecSpecialization for DecoderCodec {
         _component: &Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
+        if self.first_block {
+            self.first_block = false;
+            coder.warm(input);
+        }
         let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
         let mut block = vec![0i16; n_coefficient_per_block];
         for coef in &mut block[..].iter_mut() {

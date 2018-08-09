@@ -58,6 +58,13 @@ impl ArithmeticCoder for ValidatingDecoder {
                 self.input |= u16::from(byt) << 8;
             }
         }
+        if self.input_offset >= 8 {
+            self.input_offset -= 8;
+            self.input >>= 8;
+            if let Ok(byt) = input_stream.read_byte(false) {
+                self.input |= u16::from(byt) << 8;
+            }
+        }
     }
     fn flush(&mut self) -> &[u8] {
         &[]
