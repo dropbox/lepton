@@ -5,7 +5,7 @@ use io::{BufferedOutputStream, Write};
 use iostream::{InputError, InputStream, OutputError};
 use jpeg::{mcu_row_offset, n_coefficient_per_block, Component, JpegEncoder, Scan};
 use thread_handoff::ThreadHandoffExt;
-
+use arithmetic_coder::ArithmeticCoder;
 pub trait CodecSpecialization: Send {
     fn prepare_scan(
         &mut self,
@@ -22,9 +22,10 @@ pub trait CodecSpecialization: Send {
         restart: bool,
         expected_rst: u8,
     ) -> Result<bool, ErrMsg>;
-    fn process_block(
+    fn process_block<Coder:ArithmeticCoder>(
         &mut self,
         input: &mut InputStream,
+        coder: &mut Coder,
         y: usize,
         x: usize,
         component_index_in_scan: usize,
@@ -108,9 +109,10 @@ impl CodecSpecialization for DecoderCodec {
         Ok(false)
     }
 
-    fn process_block(
+    fn process_block<Coder:ArithmeticCoder>(
         &mut self,
         input: &mut InputStream,
+        coder: &mut Coder,
         _y: usize,
         _x: usize,
         component_index_in_scan: usize,
@@ -207,9 +209,10 @@ impl CodecSpecialization for EncoderCodec {
         }
     }
 
-    fn process_block(
+    fn process_block<Coder:ArithmeticCoder>(
         &mut self,
-        _input: &mut InputStream,
+        input: &mut InputStream,
+        coder: &mut Coder,
         y: usize,
         x: usize,
         component_index_in_scan: usize,
