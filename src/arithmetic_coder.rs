@@ -158,7 +158,22 @@ mod test {
         bit = 2;
         d.parse_bit(&mut io, &mut prior, &mut bit);
         assert_eq!(bit, 1);
-
-        
+    }
+    #[test]
+    #[should_panic]
+    fn test_arithmetic_validator_wrong_prob() {
+        let mut e = ValidatingEncoder::default();
+        let mut d = ValidatingDecoder::default();
+        let buf = Arc::new(IoStream::default());
+        let mut io = InputStream::new(buf.clone(), 1024);
+        e.warm(&mut io);
+        let mut prior = 128u8;
+        let mut bit = 1;
+        e.parse_bit(&mut io, &mut prior, &mut bit);
+        buf.write(e.flush());
+        d.warm(&mut io);
+        prior = 127u8;
+        bit = 2;
+        d.parse_bit(&mut io, &mut prior, &mut bit);
     }
 }
