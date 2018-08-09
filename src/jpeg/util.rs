@@ -52,12 +52,16 @@ pub fn process_scan<T: Debug>(
                                 + block_y_offset;
                             let block_x = mcu_x * component.horizontal_sampling_factor as usize
                                 + block_x_offset;
-                            block_callback(block_y, block_x, i, component, scan)?;
+                            if block_callback(block_y, block_x, i, component, scan)? {
+                                return Ok(false);
+                            }
                         }
                     }
                 }
             } else {
-                block_callback(mcu_y, mcu_x, 0, &components[0], scan)?;
+                if block_callback(mcu_y, mcu_x, 0, &components[0], scan)? {
+                    return Ok(false);
+                }
             }
             if scan.restart_interval > 0 {
                 n_mcu_left_until_restart -= 1;

@@ -40,7 +40,7 @@ pub struct DecoderCodec {
     pad: u8,
     start_scan: u16,
     mcu_y_start: u16,
-    segment_size: usize,
+    first_mcu: bool,
 }
 
 impl DecoderCodec {
@@ -60,7 +60,7 @@ impl DecoderCodec {
             pad,
             start_scan: thread_handoff.start_scan,
             mcu_y_start: thread_handoff.mcu_y_start,
-            segment_size: thread_handoff.segment_size as usize,
+            first_mcu: true,
         }
     }
 }
@@ -92,30 +92,19 @@ impl CodecSpecialization for DecoderCodec {
     fn prepare_mcu(
         &mut self,
         _mcu_y: usize,
-        mcu_x: usize,
+        _mcu_x: usize,
         restart: bool,
         expected_rst: u8,
     ) -> Result<bool, ErrMsg> {
-        if mcu_x == 0 {
-            // FIXME: There is a discrepancy here because JpegDecoder truncates
-            // image data on a block level but this function terminates decoding
-            // on a mcu row level. However, terminating on a block level requires
-            // flushing the arithmetic coder after each block, which may harm
-            // the compression ratio.
-            let bit_writer = &self.jpeg_encoder.bit_writer;
-            let total_out = bit_writer.writer.written_len();
-            if total_out >= self.segment_size {
-                return Ok(true);
-            }
-        }
         if restart {
-            {
+            if !self.first_mcu {
                 let bit_writer = &mut self.jpeg_encoder.bit_writer;
                 bit_writer.pad_byte(self.pad)?;
                 bit_writer.writer.write(&[0xFF, 0xD0 + expected_rst])?;
             }
             self.jpeg_encoder.reset();
         }
+        self.first_mcu = false;
         Ok(false)
     }
 
@@ -134,6 +123,9 @@ impl CodecSpecialization for DecoderCodec {
         match input.read(&mut block_u8, true, false) {
             Ok(_) => (),
             Err(InputError::UnexpectedEof) => {
+                if input.is_eof() {
+                    return Ok(true)
+                }
                 return Err(ErrMsg::IncompleteThreadSegment);
             }
             Err(InputError::UnexpectedSigAbort) => unreachable!(),

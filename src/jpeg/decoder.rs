@@ -355,6 +355,28 @@ impl JpegDecoder {
         let eob_run = RefCell::new(0);
         let result = {
             let mut mcu_callback = |mcu_y: usize, mcu_x: usize, restart: bool, expected_rst: u8| {
+                if restart {
+                    let mut format = format.borrow_mut();
+                    let huffman = &mut huffman.borrow_mut();
+                    update_padding(&mut format, huffman)?;
+                    if !subsequent_successive_approximation {
+                        huffman.clear_buffer();
+                    }
+                    match huffman.read_rst(&mut slf.borrow_mut().input, expected_rst) {
+                        Ok(_) => {
+                            huffman.reset();
+                            // Section F.2.1.3.1
+                            dc_predictors.replace([0i16; MAX_COMPONENTS]);
+                            // Section G.1.2.2
+                            eob_run.replace(0);
+                        }
+                        Err(JpegError::EOF) => {
+                            format.grb.extend(huffman.view_buffer());
+                            return Err(JpegError::EOF);
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
                 if mcu_x == 0 {
                     let mut slf = slf.borrow_mut();
                     let mut format = format.borrow_mut();
@@ -382,28 +404,6 @@ impl JpegDecoder {
                                 last_dc: dc_predictors.borrow().clone(),
                             })
                         }
-                    }
-                }
-                if restart {
-                    let mut format = format.borrow_mut();
-                    let huffman = &mut huffman.borrow_mut();
-                    update_padding(&mut format, huffman)?;
-                    if !subsequent_successive_approximation {
-                        huffman.clear_buffer();
-                    }
-                    match huffman.read_rst(&mut slf.borrow_mut().input, expected_rst) {
-                        Ok(_) => {
-                            huffman.reset();
-                            // Section F.2.1.3.1
-                            dc_predictors.replace([0i16; MAX_COMPONENTS]);
-                            // Section G.1.2.2
-                            eob_run.replace(0);
-                        }
-                        Err(JpegError::EOF) => {
-                            format.grb.extend(huffman.view_buffer());
-                            return Err(JpegError::EOF);
-                        }
-                        Err(e) => return Err(e),
                     }
                 }
                 Ok(false)
@@ -478,6 +478,7 @@ impl JpegDecoder {
             &mut self.non_zero_coefficients[scan_info.component_indices[scan_component_index]];
         let subsequent_successive_approximation = scan_info.successive_approximation_high > 0;
         match if !subsequent_successive_approximation {
+            huffman.clear_buffer();
             decode_block(
                 &mut self.input,
                 coefficients,
@@ -502,10 +503,7 @@ impl JpegDecoder {
                 block_index,
             )
         } {
-            Ok(()) => {
-                huffman.clear_buffer();
-                Ok(())
-            }
+            Ok(()) => Ok(()),
             Err(JpegError::EOF) => {
                 if self.input.processed_len() < self.start_byte {
                     return Err(JpegError::Malformatted(
