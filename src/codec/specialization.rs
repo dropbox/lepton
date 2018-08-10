@@ -136,6 +136,9 @@ impl CodecSpecialization for DecoderCodec {
                 *coef |= i16::from(bit) << bit_id;
             }
         }
+        if let Err(_) = err {
+          return Ok(true);
+        }
         self.jpeg_encoder.encode_block(
             &block,
             &scan.info,
@@ -143,9 +146,6 @@ impl CodecSpecialization for DecoderCodec {
             scan.dc_encode_table[scan.info.dc_table_indices[component_index_in_scan]].as_ref(),
             scan.ac_encode_table[scan.info.ac_table_indices[component_index_in_scan]].as_ref(),
         )?;
-        if let Err(_) = err {
-          return Ok(true);
-        }
         Ok(false)
     }
 
