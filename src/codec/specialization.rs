@@ -127,11 +127,12 @@ impl CodecSpecialization for DecoderCodec {
         }
         let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
         let mut block = vec![0i16; n_coefficient_per_block];
+        let mut err = Ok(());
         for coef in &mut block[..].iter_mut() {
             for bit_id in 0..16 {
                 let mut bit = 0u8;
                 let mut default_prior = 0x7f;
-                coder.parse_bit(input, &mut default_prior, &mut bit);
+                err = coder.parse_bit(input, &mut default_prior, &mut bit);
                 *coef |= i16::from(bit) << bit_id;
             }
         }
@@ -142,6 +143,9 @@ impl CodecSpecialization for DecoderCodec {
             scan.dc_encode_table[scan.info.dc_table_indices[component_index_in_scan]].as_ref(),
             scan.ac_encode_table[scan.info.ac_table_indices[component_index_in_scan]].as_ref(),
         )?;
+        if let Err(_) = err {
+          return Ok(true);
+        }
         Ok(false)
     }
 

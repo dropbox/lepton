@@ -8,7 +8,7 @@ pub trait ArithmeticCoder: Send {
         &mut self,
         input_stream: &mut InputStream,
         prior: &mut u8,
-        bit: &mut u8);
+        bit: &mut u8) -> Result<(), ()>;
     fn flush(&mut self) -> &[u8];
 }
 
@@ -30,13 +30,6 @@ impl ArithmeticCoder for ValidatingDecoder {
     fn warm(
         &mut self,
         input_stream: &mut InputStream) {
-        while self.input_offset >= 8 {
-            self.input_offset -= 8;
-            self.input >>= 8;
-            if let Ok(byt) = input_stream.read_byte(false) {
-                self.input |= u16::from(byt) << 8;
-            }
-        }
     }
         
 
@@ -45,26 +38,31 @@ impl ArithmeticCoder for ValidatingDecoder {
         input_stream: &mut InputStream,
         prior: &mut u8,
         bit: &mut u8,
-    ) {
+    ) -> Result<(), ()>{
+        if self.input_offset >= 8 {
+            if let Ok(byt) = input_stream.read_byte(false) {
+                self.input_offset -= 8;
+                self.input >>= 8;
+                self.input |= u16::from(byt) << 8;
+            } else {
+                return Err(());
+            }
+        }
+        if self.input_offset >= 8 {
+            if let Ok(byt) = input_stream.read_byte(false) {
+                self.input_offset -= 8;
+                self.input >>= 8;
+                self.input |= u16::from(byt) << 8;
+            } else {
+                return Err(());
+            }
+        }
         assert!(self.input_offset <= 7);
         let desired_prior = (self.input >> (1 + self.input_offset)) & 0xFF;
         *bit = ((self.input >> (self.input_offset)) & 0x1) as u8;
         assert_eq!(desired_prior as u8, *prior);
         self.input_offset += 9;
-        if self.input_offset >= 8 {
-            self.input_offset -= 8;
-            self.input >>= 8;
-            if let Ok(byt) = input_stream.read_byte(false) {
-                self.input |= u16::from(byt) << 8;
-            }
-        }
-        if self.input_offset >= 8 {
-            self.input_offset -= 8;
-            self.input >>= 8;
-            if let Ok(byt) = input_stream.read_byte(false) {
-                self.input |= u16::from(byt) << 8;
-            }
-        }
+        Ok(())
     }
     fn flush(&mut self) -> &[u8] {
         &[]
@@ -84,7 +82,7 @@ impl ArithmeticCoder for ValidatingEncoder {
         _input_stream: &mut InputStream,
         prior: &mut u8,
         bit: &mut u8,
-    ) {
+    ) -> Result<(), ()> {
         assert!(self.output_offset <= 7);
         if *bit != 0 {
             self.cur_output |= 1 << self.output_offset;
@@ -99,6 +97,7 @@ impl ArithmeticCoder for ValidatingEncoder {
             self.cur_output >>= 8;
             self.output_offset -= 8;
         }
+        Ok(())
     }
     fn flush(&mut self) -> &[u8] {
         while self.output_offset != 0 {
