@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use alloc::HeapAlloc;
-use mux::{Mux, StreamDemuxer};
 use arithmetic_coder::ValidatingDecoder;
+use mux::{Mux, StreamDemuxer};
 
 use codec::{create_codecs, CodecError, DecoderCodec, DecoderStateFactory, LeptonCodec};
 use interface::{ErrMsg, LeptonOperationResult, SimpleResult};

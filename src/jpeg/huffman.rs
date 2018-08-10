@@ -45,14 +45,14 @@ impl HuffmanDecoder {
     ) -> HuffmanResult<u8> {
         let (value, size) = table.lut[self.peek_bits(input, LUT_BITS, true)? as usize];
         if size > 0 {
-            self.consume_bits(size);
+            self.consume_bits(input, size)?;
             Ok(value)
         } else {
             let bits = self.peek_bits(input, 16, true)?;
             for i in LUT_BITS..min(16, self.n_bit) {
                 let code = (bits >> (15 - i)) as i32;
                 if code <= table.maxcode[i as usize] {
-                    self.consume_bits(i + 1);
+                    self.consume_bits(input, i + 1)?;
                     let index = (code + table.delta[i as usize]) as usize;
                     return Ok(table.values[index]);
                 }
@@ -75,7 +75,7 @@ impl HuffmanDecoder {
             if run_size != 0 {
                 let run = run_size >> 4;
                 let size = run_size & 0x0f;
-                self.consume_bits(size);
+                self.consume_bits(input, size)?;
                 return Ok(Some((value, run)));
             }
         }
@@ -85,7 +85,7 @@ impl HuffmanDecoder {
     #[inline]
     pub fn get_bits(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<u16> {
         let bits = self.peek_bits(input, count, false)?;
-        self.consume_bits(count);
+        self.consume_bits(input, count)?;
         Ok(bits)
     }
 
@@ -156,7 +156,10 @@ impl HuffmanDecoder {
     }
 
     pub fn clear_buffer(&mut self) {
-        self.buffer.clear()
+        self.buffer.clear();
+        for i in 0..((self.n_bit + 7) / 8) {
+            self.buffer.push((self.bits >> (7 - i) * 8) as u8)
+        }
     }
 
     pub fn view_buffer(&self) -> &[u8] {
@@ -196,15 +199,17 @@ impl HuffmanDecoder {
     }
 
     #[inline]
-    fn consume_bits(&mut self, count: u8) {
-        // FIXME: Return error instead of panicking
-        assert!(count <= self.n_bit);
+    fn consume_bits(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<()> {
+        if count > self.n_bit {
+            self.read_bits(input, count)?;
+        }
         self.bit_start += count;
         self.n_bit -= count;
         while self.bit_start >= 8 {
             self.bit_start -= 8;
             self.bits <<= 8;
         }
+        Ok(())
     }
 
     fn read_bits(&mut self, input: &mut InputStream, count: u8) -> HuffmanResult<()> {

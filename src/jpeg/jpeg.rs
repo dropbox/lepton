@@ -131,15 +131,9 @@ impl ScanTruncation {
         }
     }
 
-    pub fn is_end(&self, component_index_in_scan: usize, block_y: usize, block_x: usize) -> bool {
-        for (v1, v2) in [component_index_in_scan, block_y, block_x]
-            .iter()
-            .zip([self.component_index_in_scan, self.block_y, self.block_x].iter())
-        {
-            if v1 != v2 {
-                return v1 > v2;
-            }
-        }
-        true
+    pub fn equals(&self, component_index_in_scan: usize, block_y: usize, block_x: usize) -> bool {
+        component_index_in_scan == self.component_index_in_scan
+            && block_y == self.block_y
+            && block_x == self.block_x
     }
 }

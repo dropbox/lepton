@@ -1,3 +1,4 @@
+use arithmetic_coder::ArithmeticCoder;
 use bit_writer::{BitWriter, NoEscaping};
 use byte_converter::{BigEndian, ByteConverter};
 use interface::{ErrMsg, SimpleResult};
@@ -5,7 +6,6 @@ use io::{BufferedOutputStream, Write};
 use iostream::{InputError, InputStream, OutputError};
 use jpeg::{mcu_row_offset, n_coefficient_per_block, Component, JpegEncoder, Scan};
 use thread_handoff::ThreadHandoffExt;
-use arithmetic_coder::ArithmeticCoder;
 pub trait CodecSpecialization: Send {
     fn prepare_scan(
         &mut self,
@@ -22,7 +22,7 @@ pub trait CodecSpecialization: Send {
         restart: bool,
         expected_rst: u8,
     ) -> Result<bool, ErrMsg>;
-    fn process_block<Coder:ArithmeticCoder>(
+    fn process_block<Coder: ArithmeticCoder>(
         &mut self,
         input: &mut InputStream,
         coder: &mut Coder,
@@ -32,7 +32,7 @@ pub trait CodecSpecialization: Send {
         component: &Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg>;
-    fn flush<Coder:ArithmeticCoder>(&mut self, coder: &mut Coder) -> SimpleResult<ErrMsg>;
+    fn flush<Coder: ArithmeticCoder>(&mut self, coder: &mut Coder) -> SimpleResult<ErrMsg>;
     fn write_eof(&mut self);
 }
 
@@ -111,7 +111,7 @@ impl CodecSpecialization for DecoderCodec {
         Ok(false)
     }
 
-    fn process_block<Coder:ArithmeticCoder>(
+    fn process_block<Coder: ArithmeticCoder>(
         &mut self,
         input: &mut InputStream,
         coder: &mut Coder,
@@ -137,7 +137,7 @@ impl CodecSpecialization for DecoderCodec {
             }
         }
         if let Err(_) = err {
-          return Ok(true);
+            return Ok(true);
         }
         self.jpeg_encoder.encode_block(
             &block,
@@ -149,7 +149,7 @@ impl CodecSpecialization for DecoderCodec {
         Ok(false)
     }
 
-    fn flush<Coder:ArithmeticCoder>(&mut self, coder: &mut Coder) -> SimpleResult<ErrMsg> {
+    fn flush<Coder: ArithmeticCoder>(&mut self, _coder: &mut Coder) -> SimpleResult<ErrMsg> {
         self.jpeg_encoder.bit_writer.writer.flush()?;
         Ok(())
     }
@@ -213,7 +213,7 @@ impl CodecSpecialization for EncoderCodec {
         }
     }
 
-    fn process_block<Coder:ArithmeticCoder>(
+    fn process_block<Coder: ArithmeticCoder>(
         &mut self,
         input: &mut InputStream,
         coder: &mut Coder,
@@ -224,7 +224,7 @@ impl CodecSpecialization for EncoderCodec {
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
         if let Some(ref truncation) = scan.truncation {
-            if truncation.is_end(component_index_in_scan, y, x) {
+            if truncation.equals(component_index_in_scan, y, x) {
                 return Ok(true);
             }
         }
@@ -246,7 +246,7 @@ impl CodecSpecialization for EncoderCodec {
         Ok(false)
     }
 
-    fn flush<Coder:ArithmeticCoder>(&mut self, coder:&mut Coder) -> SimpleResult<ErrMsg> {
+    fn flush<Coder: ArithmeticCoder>(&mut self, coder: &mut Coder) -> SimpleResult<ErrMsg> {
         self.bit_writer.writer.write(coder.flush());
         Ok(())
     }
