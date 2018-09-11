@@ -10,7 +10,8 @@ AM_CFLAGS = $(C99_FLAGS) $(CODEC_FLAGS) $(THREAD_FLAGS) $(BILLING_FLAGS) $(BENCH
 
 noinst_LIBRARIES = liblocalzlib.a liblocalmd5.a libtestdriver.a liblocalbrotli.a
 
-bin_PROGRAMS = lepton test_suite/test_invariants
+bin_PROGRAMS = lepton
+noinst_PROGRAMS = test_suite/test_invariants
 
 lepton_LDADD = liblocalmd5.a liblocalbrotli.a $(SYSTEM_DEPENDENCIES_LDFLAGS) -lpthread
 
