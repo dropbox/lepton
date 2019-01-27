@@ -5,11 +5,11 @@ use jpeg::{Component, Dimensions, Scan, ScanInfo};
 
 pub fn process_scan<T: Debug>(
     scan: &mut Scan,
-    components: &Vec<Component>, // Components in the scan
+    components: &mut Vec<Component>, // Components in the scan
     mcu_y_start: usize,
     size_in_mcu: &Dimensions,
     mcu_callback: &mut FnMut(usize, usize, bool, u8) -> Result<bool, T>, // Args: (mcu_y, mcu_x, restart, expected rst)
-    block_callback: &mut FnMut(usize, usize, usize, &Component, &mut Scan) -> Result<bool, T>, // Args: (block_y, block_x, component_index_in_scan, component, Scan)
+    block_callback: &mut FnMut(usize, usize, usize, &mut Component, &mut Scan) -> Result<bool, T>, // Args: (block_y, block_x, component_index_in_scan, component, Scan)
 ) -> Result<bool, T> {
     let is_interleaved = components.len() > 1;
     let &size_in_mcu = if is_interleaved {
@@ -45,7 +45,7 @@ pub fn process_scan<T: Debug>(
                 n_mcu_left_until_restart = scan.restart_interval;
             }
             if is_interleaved {
-                for (i, component) in components.iter().enumerate() {
+                for (i, component) in components.iter_mut().enumerate() {
                     for block_y_offset in 0..component.vertical_sampling_factor as usize {
                         for block_x_offset in 0..component.horizontal_sampling_factor as usize {
                             let block_y = mcu_y * component.vertical_sampling_factor as usize
@@ -59,7 +59,7 @@ pub fn process_scan<T: Debug>(
                     }
                 }
             } else {
-                if block_callback(mcu_y, mcu_x, 0, &components[0], scan)? {
+                if block_callback(mcu_y, mcu_x, 0, &mut components[0], scan)? {
                     return Ok(false);
                 }
             }
@@ -71,7 +71,7 @@ pub fn process_scan<T: Debug>(
     Ok(true)
 }
 
-pub fn get_components(component_indices: &[usize], all_components: &[Component]) -> Vec<Component> {
+pub fn get_components(component_indices: &[usize], all_components: &mut [Component]) -> Vec<Component> {
     component_indices
         .iter()
         .map(|&i| all_components[i].clone())

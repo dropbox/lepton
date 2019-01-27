@@ -259,7 +259,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
 
     fn process_scan(&mut self, scan_index: usize) -> SimpleResult<ErrMsg> {
         let scan = &mut self.scans[scan_index];
-        let components = get_components(&scan.info.component_indices, &self.components);
+        let mut components = get_components(&scan.info.component_indices, &mut self.components);
         let input = &mut self.input;
         let specialization = &mut self.specialization;
         specialization.prepare_scan(scan, scan_index)?;
@@ -272,7 +272,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         let mut block_callback = |block_y: usize,
                                   block_x: usize,
                                   component_index_in_scan: usize,
-                                  component: &Component,
+                                  component: &mut Component,
                                   scan: &mut Scan| {
             specialization.borrow_mut().process_block(
                 input,
@@ -285,7 +285,7 @@ impl<Coder: ArithmeticCoder, Specialization: CodecSpecialization>
         };
         if process_scan(
             scan,
-            &components,
+            &mut components,
             if scan_index == 0 {
                 self.mcu_y_start as usize
             } else {

@@ -28,7 +28,7 @@ pub trait CodecSpecialization: Send {
         y: usize,
         x: usize,
         component_index_in_scan: usize,
-        component: &Component,
+        component: &mut Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg>;
     fn flush(&mut self) -> SimpleResult<ErrMsg>;
@@ -114,7 +114,7 @@ impl CodecSpecialization for DecoderCodec {
         _y: usize,
         _x: usize,
         component_index_in_scan: usize,
-        _component: &Component,
+        _component: &mut Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
         let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
@@ -213,7 +213,7 @@ impl CodecSpecialization for EncoderCodec {
         y: usize,
         x: usize,
         component_index_in_scan: usize,
-        component: &Component,
+        component: &mut Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
         if let Some(ref truncation) = scan.truncation {

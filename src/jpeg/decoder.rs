@@ -161,7 +161,7 @@ impl JpegDecoder {
                             "scan encountered before frame".to_owned(),
                         ));
                     }
-                    let frame_info = frame.as_ref().unwrap();
+                    let mut frame_info = frame.as_mut().unwrap();
                     let scan_info = parse_sos(&mut self.input, frame_info)?;
                     if self.is_mjpeg {
                         fill_default_mjpeg_tables(
@@ -317,16 +317,16 @@ impl JpegDecoder {
 
     fn decode_scan(
         &mut self,
-        frame: &FrameInfo,
+        frame: &mut FrameInfo,
         scan: &mut Scan,
         format: &mut FormatInfo,
     ) -> JpegResult<()> {
-        let components: Vec<Component>;
+        let mut components: Vec<Component>;
         let subsequent_successive_approximation: bool;
         {
             let scan_info = &scan.info;
             assert!(scan_info.component_indices.len() <= MAX_COMPONENTS);
-            components = get_components(&scan_info.component_indices, &frame.components);
+            components = get_components(&scan_info.component_indices, &mut frame.components);
             // FIXME: Can use less coefficients for spectral selection
             scan.coefficients = Some(
                 components
@@ -411,7 +411,7 @@ impl JpegDecoder {
             let mut block_callback = |block_y: usize,
                                       block_x: usize,
                                       component_index_in_scan: usize,
-                                      component: &Component,
+                                      component: &mut Component,
                                       scan: &mut Scan| {
                 slf.borrow_mut().decode_block(
                     block_y,
@@ -428,7 +428,7 @@ impl JpegDecoder {
             };
             process_scan(
                 scan,
-                &components,
+                &mut components,
                 0,
                 &frame.size_in_mcu,
                 &mut mcu_callback,
