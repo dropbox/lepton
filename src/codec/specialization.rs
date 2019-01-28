@@ -6,6 +6,7 @@ use iostream::{InputError, InputStream, OutputError};
 use jpeg::{mcu_row_offset, n_coefficient_per_block, Component, JpegEncoder, Scan};
 use thread_handoff::ThreadHandoffExt;
 
+static zeros65i16 : [i16;65]= [0i16; 65];
 pub trait CodecSpecialization: Send {
     fn prepare_scan(
         &mut self,
@@ -111,15 +112,15 @@ impl CodecSpecialization for DecoderCodec {
     fn process_block(
         &mut self,
         input: &mut InputStream,
-        _y: usize,
-        _x: usize,
+        y: usize,
+        x: usize,
         component_index_in_scan: usize,
-        _component: &mut Component,
+        component: &mut Component,
         scan: &mut Scan,
     ) -> Result<bool, ErrMsg> {
         let n_coefficient_per_block = n_coefficient_per_block(&scan.info);
         let mut block_u8 = vec![0; n_coefficient_per_block * 2];
-        let mut block = vec![0i16; n_coefficient_per_block];
+        let mut out_block = vec![0i16; n_coefficient_per_block];
         match input.read(&mut block_u8, true, false) {
             Ok(_) => (),
             Err(InputError::UnexpectedEof) => {
@@ -130,8 +131,27 @@ impl CodecSpecialization for DecoderCodec {
             }
             Err(InputError::UnexpectedSigAbort) => unreachable!(),
         }
-        for (i, coefficient) in block.iter_mut().enumerate() {
-            *coefficient = BigEndian::slice_to_u16(&block_u8[(2 * i)..]) as i16;
+        let mut block_offset =
+            (y * component.size_in_block.width as usize + x) * n_coefficient_per_block;
+        if self.first_mcu {
+            block_offset -= mcu_row_offset(&scan.info, component, self.mcu_y_start);
+        }
+        let blocks = &mut scan.coefficients.as_mut().unwrap()[component_index_in_scan];
+        let (prev_blocks_mut,block) = blocks.split_at_mut(block_offset);
+        let prev_blocks = if prev_blocks_mut.len() < n_coefficient_per_block {
+             &zeros65i16[..]
+        } else {
+             &prev_blocks_mut[..]
+        };
+        {
+            let cur_block = block.split_at_mut(n_coefficient_per_block).0;
+            let prev_block = prev_blocks.split_at(prev_blocks.len() - n_coefficient_per_block).1;
+            let mut prev_coefficient = 0;
+            for (i, ((prev_block_coefficient, coefficient), out_block)) in prev_block.iter().zip(cur_block.iter_mut()).zip(out_block.iter_mut()).enumerate() {
+                *coefficient = BigEndian::slice_to_u16(&block_u8[(2 * i)..]) as i16;
+                *out_block = *coefficient;
+                prev_coefficient = *coefficient
+            }
         }
         self.jpeg_encoder.encode_block(
             &block,
@@ -227,10 +247,19 @@ impl CodecSpecialization for EncoderCodec {
         if self.scan_index_in_thread == 0 {
             block_offset -= mcu_row_offset(&scan.info, component, self.mcu_y_start);
         }
-        let block = &scan.coefficients.as_ref().unwrap()[component_index_in_scan]
-            [block_offset..(block_offset + n_coefficient_per_block)];
-        for &coefficient in block.iter() {
+        let blocks = &scan.coefficients.as_ref().unwrap()[component_index_in_scan];
+        let (mut prev_blocks,block) = blocks.split_at(block_offset);
+        if prev_blocks.len() < n_coefficient_per_block {
+            prev_blocks = &zeros65i16[..];
+eprintln!("ncoefficient {}",n_coefficient_per_block);
+assert!(n_coefficient_per_block <= 65);
+        }
+        let cur_block = block.split_at(n_coefficient_per_block).0;
+        let prev_block = prev_blocks.split_at(prev_blocks.len() - n_coefficient_per_block).1;
+        let mut prev_coefficient = 0;
+        for (&prev_block_coefficient, &coefficient) in prev_block.iter().zip(cur_block) {
             self.bit_writer.write_bits(coefficient as u16, 16)?;
+            prev_coefficient = coefficient
         }
         Ok(false)
     }
