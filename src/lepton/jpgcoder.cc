@@ -4163,7 +4163,7 @@ bool read_ujpg( void )
                               Sirikata::BrotliCodec::Decompress(compressed_header_buffer.data(),
                                                                 compressed_header_buffer.size(),
                                                                 JpegAllocator<uint8_t>(),
-                                                                max_file_size * 2 + 128 * 1024 * 1024));
+                                                                ((size_t)max_file_size) * 2 + 128 * 1024 * 1024));
                 if (uncompressed_header_buffer.second) {
                     always_assert(false && "Data not properly zlib coded");
                     return false;
