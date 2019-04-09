@@ -3698,6 +3698,12 @@ bool recode_jpeg( void )
         delete storw;
     }
     // store last scan & restart positions
+    if (scnc >= scnp.size()) {
+        delete huffw;
+        fprintf( stderr, MEM_ERRMSG );
+        errorlevel.store(2);
+        return false;
+    }
     scnp.at(scnc) = hufs;
     if ( !rstp.empty() )
         rstp.at(rstc) = hufs;
@@ -4835,15 +4841,15 @@ bool rebuild_header_jpg( void )
     abytewriter* hdrw; // new header writer
 
     unsigned char  type = 0x00; // type of current marker segment
-    unsigned int   len  = 0; // length of current marker segment
-    unsigned int   hpos = 0; // position in header
+    uint32_t   len  = 0; // length of current marker segment
+    uint32_t   hpos = 0; // position in header
 
 
     // start headerwriter
     hdrw = new abytewriter( 4096 );
 
     // header parser loop
-    while ( hpos < hdrs ) {
+    while ( hpos < hdrs && (uint64_t)hpos + 3 < (uint64_t)hdrs ) {
         type = hpos + 1 < hdrs ?  hdrdata[ hpos + 1 ] : 0;
         len = 2 + B_SHORT( hpos + 2 < hdrs ? hdrdata[ hpos + 2 ]:0, hpos + 3 < hdrs ? hdrdata[ hpos + 3 ] :0);
         // discard any unneeded meta info
@@ -5628,8 +5634,8 @@ bool write_info( void )
     fprintf( fp, " type  length   hpos\n" );
     // header parser loop
     for ( hpos = 0; hpos < hdrs; hpos += len ) {
-        type = hdrdata[ hpos + 1 ];
-        len = 2 + B_SHORT( hdrdata[ hpos + 2 ], hdrdata[ hpos + 3 ] );
+        type = hpos + 1 < hdrs ? hdrdata[ hpos + 1 ] : 0 ;
+        len = 2 + B_SHORT( hpos  + 2 < hdrs ? hdrdata[ hpos + 2 ] : 0, hpos + 3 < hdrs ? hdrdata[ hpos + 3 ] : 0);
         fprintf( fp, " FF%2X  %6i %6i\n", type, len, hpos );
     }
     fprintf( fp, " _END       0 %6i\n", hpos );
