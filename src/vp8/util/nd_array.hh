@@ -30,8 +30,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _SIRIKATA_ARRAY_ND_HPP_
-#define _SIRIKATA_ARRAY_ND_HPP_
+#ifndef SIRIKATA_ARRAY_ND_HPP_
+#define SIRIKATA_ARRAY_ND_HPP_
 #include <assert.h>
 #include <cstddef>
 #include <cstring>

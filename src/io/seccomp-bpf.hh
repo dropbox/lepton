@@ -9,8 +9,8 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-#ifndef _SECCOMP_BPF_H_
-#define _SECCOMP_BPF_H_
+#ifndef SECCOMP_BPF_H_
+#define SECCOMP_BPF_H_
 
 #define _GNU_SOURCE 1
 #include <stdio.h>

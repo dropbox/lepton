@@ -1,5 +1,5 @@
-#ifndef _JPEG_META_HH
-#define _JPEG_META_HH
+#ifndef JPEG_META_HH
+#define JPEG_META_HH
 
 #include <vector>
 #include <type_traits>

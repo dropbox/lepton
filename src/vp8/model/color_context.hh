@@ -1,5 +1,5 @@
-#ifndef _COLOR_CONTEXT_HH_
-#define _COLOR_CONTEXT_HH_
+#ifndef COLOR_CONTEXT_HH_
+#define COLOR_CONTEXT_HH_
 
 enum class BlockType { Y, Cb, Cr
 #ifdef ALLOW_FOUR_COLORS

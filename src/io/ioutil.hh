@@ -1,5 +1,5 @@
-#ifndef _SIRIKIATA_IO_UTIL_HH_
-#define _SIRIKIATA_IO_UTIL_HH_
+#ifndef SIRIKIATA_IO_UTIL_HH_
+#define SIRIKIATA_IO_UTIL_HH_
 #ifndef _WIN32
 #include <unistd.h>
 #include <sys/errno.h>

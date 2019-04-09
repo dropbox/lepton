@@ -1,5 +1,5 @@
-#ifndef _BRANCH_HH_
-#define _BRANCH_HH_
+#ifndef BRANCH_HH_
+#define BRANCH_HH_
 #include "numeric.hh"
 #include <cmath>
 typedef uint8_t Probability;

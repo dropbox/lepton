@@ -1,5 +1,5 @@
-#ifndef _VP8_MODEL_NUMERIC_HH_
-#define _VP8_MODEL_NUMERIC_HH_
+#ifndef VP8_MODEL_NUMERIC_HH_
+#define VP8_MODEL_NUMERIC_HH_
 //#define DEBUGDECODE
 //for uint16_t
 #include <cstdint>
