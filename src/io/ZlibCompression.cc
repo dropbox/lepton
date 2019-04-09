@@ -114,7 +114,7 @@ std::pair<std::vector<uint8_t, JpegAllocator<uint8_t> >,
             }
             if (strm.avail_out == 0) {
                 retval_size += avail_bytes - strm.avail_out;
-                if (retval.first.size() == max_file_size) {
+                if (retval.first.size() >= max_file_size) {
                     retval.second = JpegError::errShortHuffmanData();
                     break;
                 }
