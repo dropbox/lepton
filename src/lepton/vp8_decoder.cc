@@ -346,7 +346,9 @@ std::vector<ThreadHandoff> VP8ComponentDecoder<BoolDecoder>::initialize_decoder_
         th.num_overhang_bits = ThreadHandoff::LEGACY_OVERHANG_BITS; // to make sure we don't use this value
         th.luma_y_end = colldata->block_height(0);
         thread_handoff_.insert(thread_handoff_.end(), mark, th);
-
+        if (mark == 0) { // must be at least 1 to do splits;
+            custom_exit(ExitCode::THREADING_PARTIAL_MCU);
+        }
         std::vector<uint16_t> luma_splits_tmp(mark - 1);
         IOUtil::ReadFull(str_in, luma_splits_tmp.data(), sizeof(uint16_t) * (mark - 1));
         int sfv_lcm = colldata->min_vertical_luma_multiple();
