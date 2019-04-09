@@ -1,5 +1,5 @@
-#ifndef _BLOCK_CONTEXT_HH_
-#define _BLOCK_CONTEXT_HH_
+#ifndef BLOCK_CONTEXT_HH_
+#define BLOCK_CONTEXT_HH_
 #include "options.hh"
 
 #ifndef USE_SCALAR

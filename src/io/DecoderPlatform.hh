@@ -56,8 +56,8 @@ typedef uint8_t byte;
 typedef int8_t int8;
 
 }
-#ifndef _DECODER_PLATFORM_HH_
-#define _DECODER_PLATFORM_HH_
+#ifndef DECODER_PLATFORM_HH_
+#define DECODER_PLATFORM_HH_
 #ifdef _WIN32
 #include <io.h>
 inline int write(int fd, const void*data, unsigned int length) {

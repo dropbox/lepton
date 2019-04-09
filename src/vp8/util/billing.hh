@@ -1,8 +1,8 @@
 #include <atomic>
 #include "memory.hh"
 #include "nd_array.hh"
-#ifndef _BILLING_HH_
-#define _BILLING_HH_
+#ifndef BILLING_HH_
+#define BILLING_HH_
 #define FOREACH_BILLING_TYPE(CB)                \
     CB(HEADER)                                  \
     CB(DELIMITERS)                              \

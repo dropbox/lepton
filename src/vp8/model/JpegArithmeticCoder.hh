@@ -45,8 +45,8 @@
  *
  * Suspension is not currently supported in this module.
  */
-#ifndef _JPEG_ARITHMETIC_CODER_HH_
-#define _JPEG_ARITHMETIC_CODER_HH_
+#ifndef JPEG_ARITHMETIC_CODER_HH_
+#define JPEG_ARITHMETIC_CODER_HH_
 
 #include "../../io/Reader.hh"
 

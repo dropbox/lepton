@@ -1,5 +1,5 @@
-#ifndef _ALIGNED_BLOCK_HH_
-#define _ALIGNED_BLOCK_HH_
+#ifndef ALIGNED_BLOCK_HH_
+#define ALIGNED_BLOCK_HH_
 #include <assert.h>
 #include "nd_array.hh"
 #include "jpeg_meta.hh"

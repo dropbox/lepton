@@ -1,5 +1,5 @@
-#ifndef _OPTIONS_HH_
-#define _OPTIONS_HH_
+#ifndef OPTIONS_HH_
+#define OPTIONS_HH_
 
 enum {
     VECTORIZE = 1,

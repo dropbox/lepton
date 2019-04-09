@@ -1,5 +1,5 @@
-#ifndef _MEMORY_HH_
-#define _MEMORY_HH_
+#ifndef MEMORY_HH_
+#define MEMORY_HH_
 #if defined(__cplusplus) || defined(c_plusplus)
 #include <new>
 #include <cstdlib>

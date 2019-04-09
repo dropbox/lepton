@@ -1,5 +1,5 @@
-#ifndef _BLOCK_BASED_IMAGE_HH_
-#define _BLOCK_BASED_IMAGE_HH_
+#ifndef BLOCK_BASED_IMAGE_HH_
+#define BLOCK_BASED_IMAGE_HH_
 #include "memory.hh"
 #include "aligned_block.hh"
 #include "block_context.hh"

@@ -123,7 +123,9 @@ bool g_skip_validation = false;
 #define IPOS(w,v,h)        ( ( v * w ) + h )
 #define NPOS(n1,n2,p)    ( ( ( p / n1 ) * n2 ) + ( p % n1 ) )
 #define ROUND_F(v1)        ( (v1 < 0) ? (int) (v1 - 0.5) : (int) (v1 + 0.5) )
-#define B_SHORT(v1,v2)    ( ( ((int) v1) << 8 ) + ((int) v2) )
+inline uint16_t B_SHORT(uint8_t v1, uint8_t v2) {
+    return ( ( ((int) v1) << 8 ) + ((int) v2) );
+}
 #define CLAMPED(l,h,v)    ( ( v < l ) ? l : ( v > h ) ? h : v )
 
 #define MEM_ERRMSG    "out of memory error"
@@ -3344,7 +3346,8 @@ bool recode_jpeg( void )
         for ( type = 0x00; type != 0xDA; ) {
             if ( hpos >= hdrs ) break;
             type = hpos + 1 < hdrs ? hdrdata[ hpos + 1 ] : 0;
-            len = 2 + B_SHORT( hpos + 2 < hdrs ? hdrdata[ hpos + 2 ]:0, hpos + 3 < hdrs ? hdrdata[ hpos + 3 ] :0);
+            len = 2 + B_SHORT( (size_t)hpos + 2 < (size_t)hdrs ? hdrdata[ (size_t)hpos + 2 ]:0,
+                               (size_t)hpos + 3 < (size_t)hdrs ? hdrdata[ (size_t)hpos + 3 ] :0);
             if ( ( type == 0xC4 ) || ( type == 0xDA ) || ( type == 0xDD ) ) {
                 if ( !parse_jfif_jpg( type, len, len > hdrs - hpos ? hdrs - hpos : len, &( hdrdata[ hpos ] ) ) ) {
                     delete huffw;
@@ -3703,7 +3706,7 @@ bool recode_jpeg( void )
         delete storw;
     }
     // store last scan & restart positions
-    if (scnc >= scnp.size()) {
+    if ((size_t)scnc >= scnp.size()) {
         delete huffw;
         fprintf( stderr, MEM_ERRMSG );
         errorlevel.store(2);

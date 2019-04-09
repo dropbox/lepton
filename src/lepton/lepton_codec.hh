@@ -1,5 +1,5 @@
-#ifndef _LEPTON_CODEC_HH_
-#define _LEPTON_CODEC_HH_
+#ifndef LEPTON_CODEC_HH_
+#define LEPTON_CODEC_HH_
 #include "jpgcoder.hh"
 #include "model.hh"
 #include "bool_decoder.hh"

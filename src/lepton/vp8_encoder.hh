@@ -1,6 +1,6 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-#ifndef _VP8_COMPONENT_ENCODER_HH_
-#define _VP8_COMPONENT_ENCODER_HH_
+#ifndef VP8_COMPONENT_ENCODER_HH_
+#define VP8_COMPONENT_ENCODER_HH_
 #include "base_coders.hh"
 #include "lepton_codec.hh"
 #include "model.hh"

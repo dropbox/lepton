@@ -1,5 +1,5 @@
-#ifndef _COEFS_HH
-#define _COEFS_HH
+#ifndef COEFS_HH
+#define COEFS_HH
 
 #include "bool_decoder.hh"
 #include "model.hh"
