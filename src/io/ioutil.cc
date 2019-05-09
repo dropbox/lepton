@@ -4,6 +4,7 @@
 #include <io.h>
 #include <fcntl.h>
 #include <thread>
+#include <functional>
 #define S_IWUSR 0
 #define S_IRUSR 0
 #else
