@@ -730,8 +730,8 @@ SubprocessConnection start_subprocess(int argc, const char **argv, bool pipe_std
         retval.pipe_stderr = -1;
     }
     if (simpler == false && !pipe_stderr) {
-        std::thread discard_stderr(std::bind(&discard_stderr, retval.pipe_stderr));
-        discard_stderr.detach();
+        std::thread discard_stderr_t(std::bind(&discard_stderr, retval.pipe_stderr));
+        discard_stderr_t.detach();
         retval.pipe_stderr = -1;
     }
     CloseHandle(hChildStd_OUT_Wr);
