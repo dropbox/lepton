@@ -4274,12 +4274,12 @@ bool read_ujpg( void )
             ReadFull(header_reader, ujpg_mrk, 4);
             grbs = LEtoUint32(ujpg_mrk);
             grbgdata = aligned_alloc(grbs);
-            memset(grbgdata, 0, sizeof(grbs));
             if ( grbgdata == NULL ) {
                 fprintf( stderr, MEM_ERRMSG );
                 errorlevel.store(2);
                 return false;
             }
+            memset(grbgdata, 0, grbs);
             // read garbage data
             ReadFull(header_reader, grbgdata, grbs );
         }
