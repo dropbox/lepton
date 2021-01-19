@@ -234,6 +234,7 @@ ZlibDecoderCompressionWriter::ZlibDecoderCompressionWriter(DecoderWriter *w,
             break;
           case Z_STREAM_ERROR:
             always_assert(ret == Z_OK && "Specified integrity check but not supported");
+			break;
           default:
             always_assert(ret == Z_OK && "the stream decoder was not initialized properly");
         }
