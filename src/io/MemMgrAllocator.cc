@@ -142,7 +142,7 @@ void memmgr_destroy() {
     if (memmgr_allocated_threads.load()) {
         while ((last = --memmgr_allocated_threads) > 0) { // there needed to be at least one
         }
-        while (last < 0) {
+        while (last++ < 0) {
             ++memmgr_allocated_threads; // this shouldn't hit
         }
     }
