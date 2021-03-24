@@ -1,3 +1,7 @@
+#ifdef __aarch64__
+#define USE_SCALAR 1
+#endif
+
 #ifndef USE_SCALAR
 #include <immintrin.h>
 #endif

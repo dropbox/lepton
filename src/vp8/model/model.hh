@@ -13,6 +13,10 @@
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 
+#ifdef __aarch64__
+#define USE_SCALAR 1
+#endif
+
 #ifndef USE_SCALAR
 #include <tmmintrin.h>
 #include "../util/mm_mullo_epi32.hh"
