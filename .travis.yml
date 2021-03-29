@@ -7,4 +7,22 @@ compiler:
 os:
 - linux
 - osx
-script: sh autogen.sh && ./configure CXXFLAGS="-O2 -g -mssse3" --enable-custom-allocator && make liblocalzlib.a && make -j4 && make check && make clean && ./configure CXXFLAGS="-O2 -g -mssse3" --disable-advanced-jpeg-features --enable-custom-allocator && make liblocalzlib.a && make -j4 && make check && make clean && CXXFLAGS="-O2 -mssse3 -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS" ./configure CXXFLAGS="-O2 -mssse3 -g" && make liblocalzlib.a && make -j4 && make check && make clean && ./configure CXXFLAGS="-O2 -mssse3 -g" --disable-vectorization --enable-custom-allocator  && make liblocalzlib.a && make -j4 && make check && make clean && ./configure CXXFLAGS="-O2 -mssse3 -g" --enable-ans-experimental && make liblocalzlib.a && make -j4 && make check
+env:
+  global:
+      - CXX_EXTRA="-mssse3"
+matrix:
+  include:
+    - os: linux
+      arch: arm64
+      compiler: gcc
+      env:
+       - CXX_EXTRA=""
+
+    - os: linux
+      arch: arm64
+      compiler: clang
+      env:
+       - CXX_EXTRA=""
+       - CONFIGURE_EXTRA="--disable-native-opt"
+
+script: sh autogen.sh && ./configure CXXFLAGS="-O2 -g $CXX_EXTRA" $CONFIGURE_EXTRA --enable-custom-allocator && make liblocalzlib.a && make -j4 && make check && make clean && ./configure CXXFLAGS="-O2 -g $CXX_EXTRA" $CONFIGURE_EXTRA --disable-advanced-jpeg-features --enable-custom-allocator && make liblocalzlib.a && make -j4 && make check && make clean && CXXFLAGS="-O2 $CXX_EXTRA -DALLOW_3_OR_4_SCALING_FACTOR -DALLOW_FOUR_COLORS" ./configure CXXFLAGS="-O2 $CXX_EXTRA -g" $CONFIGURE_EXTRA && make liblocalzlib.a && make -j4 && make check && make clean && ./configure CXXFLAGS="-O2 $CXX_EXTRA -g" $CONFIGURE_EXTRA --disable-vectorization --enable-custom-allocator  && make liblocalzlib.a && make -j4 && make check && make clean && ./configure CXXFLAGS="-O2 $CXX_EXTRA -g" $CONFIGURE_EXTRA --enable-ans-experimental && make liblocalzlib.a && make -j4 && make check
