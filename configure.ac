@@ -31,14 +31,13 @@ AC_SUBST(NODEBUG_CXXFLAGS)
 # Add optimizer flags
 
 AC_ARG_ENABLE([native-opt],
-  [AS_HELP_STRING([--disable-vectorization])])
-AC_ARG_ENABLE([vectorization],
-  [AS_HELP_STRING([--disable-vectorization])])
-
+  [AS_HELP_STRING([--disable-native-opt])])
 ARCH_FLAGS="-march=native"
-AS_IF([test "x$enable_vectorization" = "xno"], [
+AS_IF([test "x$enable_native_opt" = "xno"], [
   ARCH_FLAGS=""])
 
+AC_ARG_ENABLE([vectorization],
+  [AS_HELP_STRING([--disable-vectorization])])
 AS_IF([test "x$enable_vectorization" = "xno"], [
   ARCH_FLAGS="$ARCH_FLAGS -DUSE_SCALAR"])
 AC_SUBST([ARCH_FLAGS])
