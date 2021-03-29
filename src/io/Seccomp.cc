@@ -13,6 +13,8 @@
 #  define ARCH_NR AUDIT_ARCH_I386
 #elif defined(__x86_64__)
 #  define ARCH_NR AUDIT_ARCH_X86_64
+#elif defined(__aarch64__)
+#  define ARCH_NR AUDIT_ARCH_AARCH64
 #elif defined(__arm__)
 /*
  * <linux/audit.h> includes <linux/elf-em.h>, which does not define EM_ARM.

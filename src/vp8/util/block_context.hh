@@ -2,6 +2,10 @@
 #define BLOCK_CONTEXT_HH_
 #include "options.hh"
 
+#ifdef __aarch64__
+#define USE_SCALAR 1
+#endif
+
 #ifndef USE_SCALAR
 #include "tmmintrin.h"
 #endif

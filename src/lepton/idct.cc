@@ -1,4 +1,8 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+#ifdef __aarch64__
+#define USE_SCALAR 1
+#endif
+
 #ifndef USE_SCALAR
 #include <immintrin.h>
 #include <tmmintrin.h>
