@@ -7,6 +7,16 @@ This can be used to archive large photo collections, or to serve images live and
 
 [![Build Status](https://travis-ci.org/dropbox/lepton.svg?branch=master)](https://travis-ci.org/dropbox/lepton)
 
+## Weissman Score
+
+Tentative Weissman Score = 1.21
+
+Tested via Weissman Score application (https://weissmanscore.ru).
+
+Tested image is Lena image (1920, 1080).
+
+Tested on Macbook Pro 13 2016 (i5, 4 RAM, 256 SSD)
+
 
 ## Build directions
 Using a single core
