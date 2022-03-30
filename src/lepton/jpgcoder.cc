@@ -58,6 +58,10 @@ volatile int volatile1024 = 1024;
 
 #endif
 
+#ifdef __aarch64__
+#define USE_SCALAR 1
+#endif
+
 #ifndef USE_SCALAR
 #include <emmintrin.h>
 #include <immintrin.h>
@@ -844,6 +848,7 @@ int app_main( int argc, char** argv )
                            &avx2upgrade);
 #ifndef __AVX2__
 #ifndef __clang__
+#ifndef __aarch64__
 #ifndef _ARCH_PPC        
 #ifndef _WIN32
         if (avx2upgrade &&
@@ -864,6 +869,7 @@ int app_main( int argc, char** argv )
             execvp(command, argv);
             argv[0] = old_command; // exec failed
         }
+#endif
 #endif
 #endif
 #endif
