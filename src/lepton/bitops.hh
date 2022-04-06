@@ -56,6 +56,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../io/ioutil.hh"
 #include "../vp8/util/vpx_config.hh"
 
+extern void aligned_dealloc(unsigned char*);
+extern unsigned char * aligned_alloc(size_t);
+
 /* -----------------------------------------------
 	class to write arrays bitwise
 	----------------------------------------------- */
@@ -129,7 +132,7 @@ public:
                 adds <<= 1;
             }
             int new_size = dsize + adds;
-            unsigned char * tmp = (unsigned char*)custom_malloc(new_size);
+            unsigned char * tmp = aligned_alloc(new_size);
             if ( tmp == NULL ) {
                 error = true;
                 custom_exit(ExitCode::MALLOCED_NULL);
@@ -137,7 +140,7 @@ public:
             }
             memset(tmp + dsize, 0, adds);
             memcpy(tmp, data2, dsize);
-            custom_free(data2);
+            aligned_dealloc(data2);
             data2 = tmp;
             dsize = new_size;
         }
@@ -357,8 +360,6 @@ private:
 /* -----------------------------------------------
 	class to write arrays bytewise
 	----------------------------------------------- */
-extern void aligned_dealloc(unsigned char*);
-extern unsigned char * aligned_alloc(size_t);
 
 class abytewriter
 {

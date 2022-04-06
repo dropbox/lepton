@@ -4878,7 +4878,7 @@ bool rebuild_header_jpg( void )
     }
 
     // replace current header with the new one
-    custom_free( hdrdata );
+    aligned_dealloc( hdrdata );
     hdrdata = hdrw->getptr_aligned();
     hdrs    = hdrw->getpos();
     delete( hdrw );
