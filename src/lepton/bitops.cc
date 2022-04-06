@@ -83,7 +83,7 @@ abitwriter::abitwriter( int size , int max_file_size)
     error = false;
     fmem  = true;
     dsize = ( size > 0 ) ? size : adds;
-    data2 = ( unsigned char* ) custom_calloc (dsize);
+    data2 = aligned_alloc(dsize);
     if ( data2 == NULL ) {
         error = true;
         custom_exit(ExitCode::MALLOCED_NULL);
@@ -99,12 +99,14 @@ abitwriter::abitwriter( int size , int max_file_size)
 abitwriter::~abitwriter( void )
 {
 	// free memory if pointer was not given out
-    if ( fmem )	custom_free( data2 );
+    if ( fmem )	aligned_dealloc( data2 );
 }
 
 
 void aligned_dealloc(unsigned char *data) {
     if (!data) return;
+    always_assert(((size_t)(data - 0) & 0xf) == 0);
+    always_assert(data[-1] <= 0x10);
     data -= data[-1];
     custom_free(data);
 }
