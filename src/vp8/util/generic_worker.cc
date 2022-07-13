@@ -1,12 +1,16 @@
 #include "memory.hh"
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
+#ifndef USE_SCALAR
+# if __ARM_NEON
+#include <arm_neon.h>
+# else
+#include <emmintrin.h>
+# endif
 #endif
 
-#ifndef USE_SCALAR
-#include <emmintrin.h>
-#endif
+# if __ARM_ACLE
+#include <arm_acle.h>
+# endif
 
 #include <assert.h>
 #ifdef _WIN32
@@ -36,6 +40,8 @@
 void _cross_platform_pause() {
 #if !defined(USE_SCALAR) && defined(__i386__)
         _mm_pause();
+#elif __ARM_ACLE
+        __yield();
 #else
 #ifdef _WIN32 
         Sleep(0);

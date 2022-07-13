@@ -10,14 +10,14 @@
 #include <assert.h>
 #include "../util/memory.hh"
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
+# if __ARM_NEON
+#include <arm_neon.h>
+# else
 #include <immintrin.h>
 #include <tmmintrin.h>
 #include "../util/mm_mullo_epi32.hh"
+# endif
 #endif
 
 #ifdef __GNUC__
@@ -321,7 +321,7 @@ template <uint16_t denom> constexpr uint32_t templ_divide16bit(uint32_t num) {
     >> DivisorAndLog2Table[denom].len;
 }
 
-#ifndef USE_SCALAR
+#if !defined(USE_SCALAR) && !defined(__ARM_NEON)
 template <uint16_t denom> __m128i divide16bit_vec_signed(__m128i num) {
     static_assert(denom < 1024, "Only works for denominators < 1024");
     __m128i m = _mm_set1_epi32(DivisorAndLog2Table[denom].divisor);

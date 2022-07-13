@@ -2,12 +2,12 @@
 #define BLOCK_CONTEXT_HH_
 #include "options.hh"
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
+# ifdef __ARM_NEON
+#include <arm_neon.h>
+# else
 #include "tmmintrin.h"
+# endif
 #endif
 
 enum {
@@ -39,8 +39,17 @@ struct NeighborSummary {
         return &edge_pixels[8];
     }
 
+#if __ARM_NEON
+#define shift_right_round_zero_epi16(vec, imm8)  __extension__ ({ \
+    int16x8_t sign = vreinterpretq_s16_u16(vcltzq_s16(vec)); \
+    int16x8_t rslt = vshrq_n_s16(vabsq_s16(vec), imm8); \
+    /* ((x^0xffff) - 0xffff == not(x)+1 */ \
+    rslt = veorq_s16(rslt, sign); \
+    vsubq_s16(rslt, sign); \
+})
+#else
 #define shift_right_round_zero_epi16(vec, imm8) (_mm_sign_epi16(_mm_srli_epi16(_mm_sign_epi16(vec, vec), imm8), vec));
-
+#endif
     void set_horizontal(int16_t * data_aligned, uint16_t* quantization_table, int16_t dc) {
 #ifdef USE_SCALAR
         for (int i = 0; i < 8 ; ++i) {
@@ -48,6 +57,14 @@ struct NeighborSummary {
             //if (i == 7) delta = 0;
             edge_pixels[i + 8] = dc * quantization_table[0] + data_aligned[i + 56] + 128 * xIDCTSCALE + (delta/2);
         }
+#elif __ARM_NEON
+        int16x8_t cur_row = vld1q_s16(data_aligned + 56),
+                  prev_row = vld1q_s16(data_aligned + 48),
+                  delta = vsubq_s16(cur_row, prev_row),
+                  half_delta = shift_right_round_zero_epi16(delta, 1),
+                  pred_row = vaddq_s16(vaddq_s16(cur_row, half_delta), vmovq_n_s16(128 * xIDCTSCALE));
+        pred_row = vaddq_s16(pred_row, vmovq_n_s16(quantization_table[0] * dc));
+        vst1q_s16(&edge_pixels[8], pred_row);
 #else
         __m128i cur_row = _mm_load_si128((const __m128i*)(data_aligned + 56));
         __m128i prev_row = _mm_load_si128((const __m128i*)(data_aligned + 48));
@@ -64,8 +81,35 @@ struct NeighborSummary {
         for (int i = 0; i < 8 ; ++i) {
             int delta = data[i * 8 + 7] - data[i * 8 + 6];
             //if (i == 7) delta = 0;
-            edge_pixels[i] = dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + (delta/2);
+                edge_pixels[i] = dc * quantization_table[0] + data[i * 8 + 7] + 128 * xIDCTSCALE + (delta/2);
         }
+#elif __ARM_NEON
+        int16_t cur_row_a[] = {
+            data[7],
+            data[15],
+            data[23],
+            data[31],
+            data[39],
+            data[47],
+            data[55],
+            data[63],
+        }, prev_row_a[] = {
+            data[6],
+            data[14],
+            data[22],
+            data[30],
+            data[38],
+            data[46],
+            data[54],
+            data[62],
+        };
+        int16x8_t cur_row = vld1q_s16(cur_row_a),
+                  prev_row = vld1q_s16(prev_row_a),
+                  delta = vsubq_s16(cur_row,prev_row),
+                  half_delta = shift_right_round_zero_epi16(delta, 1),
+                  pred_row = vaddq_s16(vaddq_s16(cur_row, half_delta), vmovq_n_s16(128 * xIDCTSCALE));
+        pred_row = vaddq_s16(pred_row, vmovq_n_s16(quantization_table[0] * dc));
+        vst1q_s16(&edge_pixels[0], pred_row);
 #else
         __m128i cur_row = _mm_set_epi16(data[63], data[55], data[47], data[39], data[31], data[23], data[15], data[7]);
         __m128i prev_row = _mm_set_epi16(data[62], data[54], data[46], data[38], data[30], data[22], data[14], data[6]);

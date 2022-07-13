@@ -1,9 +1,9 @@
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
+# if __ARM_NEON
+#include <arm_neon.h>
+# else
 #include <immintrin.h>
+# endif
 #endif
 
 #include "options.hh"
@@ -134,6 +134,10 @@ void custom_free(void* ptr) {
 void * bzero32(void *aligned_32) {
 #if __AVX2__
     _mm256_store_si256((__m256i*)aligned_32, _mm256_setzero_si256());
+#elif __ARM_NEON && !defined(USE_SCALAR)
+    int32x4_t z = vmovq_n_s32(0);
+    vst1q_s32((int32_t *) aligned_32, z);
+    vst1q_s32((int32_t *) aligned_32 + 4, z);
 #elif !defined(USE_SCALAR)
     _mm_store_si128((__m128i*)aligned_32, _mm_setzero_si128());
     _mm_store_si128(((__m128i*)aligned_32) + 1, _mm_setzero_si128());
