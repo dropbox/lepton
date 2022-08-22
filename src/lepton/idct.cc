@@ -358,8 +358,8 @@ void idct_neon(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64
 #else /* At least SSE2 is available { */
 
 template<int which_vec, int offset, int stride> __m128i vget_raster(const AlignedBlock&block) {
-                         block.coefficients_raster(which_vec + 2 * stride + offset),
     return _mm_set_epi32(block.coefficients_raster(which_vec + 3 * stride + offset),
+                         block.coefficients_raster(which_vec + 2 * stride + offset),
                          block.coefficients_raster(which_vec + 1 * stride + offset),
                          block.coefficients_raster(which_vec + offset));
 }
