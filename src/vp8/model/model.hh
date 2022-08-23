@@ -692,8 +692,7 @@ public:
 #ifndef USE_SCALAR
 # if __ARM_NEON
             if (all_present || above_present) { //above goes first to prime the cache
-                int16x8_t neighbor_above = vld1q_s16(context.neighbor_context_above_unchecked()
-                                                         .horizontal_ptr());
+                int16x8_t neighbor_above = vld1q_s16(context.neighbor_context_above_unchecked().horizontal_ptr());
                 int16x8_t pixels_sans_dc_reg = vld1q_s16(pixels_sans_dc);
                 int16x8_t pixels2_sans_dc_reg = vld1q_s16(pixels_sans_dc + 8);
                 int16x8_t pixels_delta = vsubq_s16(pixels_sans_dc_reg, pixels2_sans_dc_reg);
@@ -712,18 +711,18 @@ public:
                     pixels_sans_dc[0],
                     pixels_sans_dc[8],
                     pixels_sans_dc[16],
+                    pixels_sans_dc[24],
                     pixels_sans_dc[32],
                     pixels_sans_dc[40],
-                    pixels_sans_dc[24],
                     pixels_sans_dc[48],
                     pixels_sans_dc[56],
                 }, pixels_sans_dc_2[] = {
                     pixels_sans_dc[1],
                     pixels_sans_dc[9],
                     pixels_sans_dc[17],
+                    pixels_sans_dc[25],
                     pixels_sans_dc[33],
                     pixels_sans_dc[41],
-                    pixels_sans_dc[25],
                     pixels_sans_dc[49],
                     pixels_sans_dc[57],
                 };
