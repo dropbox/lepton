@@ -8,10 +8,6 @@
 # endif
 #endif
 
-# if __ARM_ACLE
-#include <arm_acle.h>
-# endif
-
 #include <assert.h>
 #ifdef _WIN32
 #include <io.h>
@@ -40,8 +36,8 @@
 void _cross_platform_pause() {
 #if !defined(USE_SCALAR) && defined(__i386__)
         _mm_pause();
-#elif __ARM_ACLE
-        __yield();
+#elif __ARM_NEON
+        __asm__ __volatile__("dmb ish");
 #else
 #ifdef _WIN32 
         Sleep(0);
