@@ -37,7 +37,7 @@ void _cross_platform_pause() {
 #if !defined(USE_SCALAR) && defined(__i386__)
         _mm_pause();
 #elif __ARM_NEON
-        __asm__ __volatile__("dmb ish");
+        __asm__ __volatile__("isb");
 #else
 #ifdef _WIN32 
         Sleep(0);
