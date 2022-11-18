@@ -1,3 +1,12 @@
+<blockquote>
+<b>⚠️&nbsp;&nbsp;Deprecation Notice for the Dropbox Lepton project</b><br><br>
+
+<em>Dear Lepton users and developers,<br><br>
+Thank you so much for using and contributing to Lepton over the years! We’ve recently realized that we no longer have sufficient resources to adequately support this project. This includes providing timely fixes to bugs and vulnerabilities such as those that were [recently reported to us](https://github.com/dropbox/lepton/issues/158). While we did ensure that the reported vulnerabilities don’t affect our internal use of Lepton, we unfortunately don’t have the capacity to properly fix these and future issues in this public repo. Therefore, after some consideration, we’ve decided to deprecate and archive the project. We apologize for any inconvenience and appreciate your understanding.<br><br>
+    
+If you would like to continue using Lepton, please check out various forks of the project (or start your own!) or alternatively consider switching to other lossless compression methods such as [Brotli](https://dropbox.tech/infrastructure/lossless-compression-with-brotli) or to modern image formats such as [WebP](https://en.wikipedia.org/wiki/WebP) or [JPEG XL](https://en.wikipedia.org/wiki/JPEG_XL).</em>
+</blockquote>
+
 # Lepton
 
 Lepton is a tool and file format for losslessly compressing JPEGs by an average of 22%.
