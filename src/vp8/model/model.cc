@@ -8,15 +8,16 @@
 #include <fstream>
 #include <iostream>
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
-#include <emmintrin.h>
+# if __ARM_NEON
+#  include <arm_neon.h>
+# else
+#  include <emmintrin.h>
+# endif
 #endif
 
 #include "model.hh"
+
 bool all_branches_identity(const Branch * start, const Branch * end) {
     for (const Branch * i = start;i != end; ++i) {
         if (!i->is_identity()){
@@ -99,6 +100,40 @@ void set_branch_range_identity(Branch * start, Branch * end) {
         _mm_store_si128(write_cursor + 2, r2);
         write_cursor += 3;
     }
+#elif __ARM_NEON && !defined(USE_SCALAR)
+    for (int i = 0;i < 32; ++i) {
+        start[i].set_identity();
+    }
+    for (int i = 1; i <= 32; ++i) {
+        end[-i].set_identity();
+    }
+    char * data = (char *)(void*)start;
+    uint64x1x4_t r0 = vld4_u64((const uint64_t*)data);
+    uint64x1x4_t r1 = vld4_u64((const uint64_t*)(data + 32));
+    uint64x1x4_t r2 = vld4_u64((const uint64_t*)(data + 64));
+    size_t offset = data - (char*)0;
+    size_t align = 32 - (offset % 32);
+    char * dataend = (char*)end;
+    size_t offsetend = dataend - (char*)0;
+    uint64_t *write_end = (uint64_t *) (dataend - (offsetend % 32));
+    uint64_t *write_cursor = (uint64_t *) (data + align);
+    switch(align % 3) {
+        case 2:
+            vst4_u64(write_cursor, r1);
+            write_cursor += 4;
+        case 1:
+            vst4_u64(write_cursor, r2);
+            write_cursor += 4;
+        case 0:
+            break;
+    }
+    while(write_cursor + 2 < write_end) {
+        vst4_u64(write_cursor + 0, r0);
+        vst4_u64(write_cursor + 1, r1);
+        vst4_u64(write_cursor + 2, r2);
+        write_cursor += 3;
+    }
+
 #else
     for (;start != end; ++start) {
         start->set_identity();

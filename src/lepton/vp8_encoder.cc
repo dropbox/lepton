@@ -162,7 +162,27 @@ uint32_t aligned_block_cost_scalar(const AlignedBlock &block) {
 }
 
 uint32_t aligned_block_cost(const AlignedBlock &block) {
-#if defined(__SSE2__) && !defined(USE_SCALAR) /* SSE2 or higher instruction set available { */
+#if __ARM_NEON && !defined(USE_SCALAR)
+    int16x8_t zero = vmovq_n_s16(0);
+    int16x8_t cost;
+    for (int i = 0; i < 64; i += 8) {
+        int16x8_t vrow;
+
+        cost = vmovq_n_s16(0);
+        vrow = vabsq_s16(vld1q_s16(block.raw_data() + i));
+        while (vmaxvq_s16(vrow)) {
+            int16x8_t mask = vreinterpretq_s16_u16(vcgtq_s16(vrow, zero));
+            cost = vaddq_s16(cost, vandq_s16(mask, vmovq_n_s16(2)));
+            vrow = vshrq_n_s16(vrow, 1);
+        }
+        cost = vaddq_s16(cost, vshrq_n_s16(cost, 8));
+        cost = vaddq_s16(cost, vshrq_n_s16(cost, 4));
+        cost = vaddq_s16(cost, vshrq_n_s16(cost, 2));
+    }
+    uint16_t rslt = 16 + vgetq_lane_s16(cost, 0);
+    //dprintf(3, "cost=%d, should=%d\n", rslt, aligned_block_cost_scalar(block));
+    return rslt;
+#elif defined(__SSE2__) && !defined(USE_SCALAR) /* SSE2 or higher instruction set available { */
     const __m128i zero = _mm_setzero_si128();
      __m128i v_cost;
     for (int i = 0; i < 64; i+= 8) {

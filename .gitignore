@@ -37,3 +37,4 @@ Makefile.in
 /test_custom_table.sh.log
 /test_custom_table.sh.trs
 .dirstamp
+/cmake-build*/

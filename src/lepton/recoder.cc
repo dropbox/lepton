@@ -60,7 +60,23 @@ int find_aligned_end_64_scalar(const int16_t *block) {
     return end;
 }
 
-#if defined(__AVX2__) && !defined(USE_SCALAR)
+#if __ARM_NEON && !defined(USE_SCALAR)
+int find_aligned_end_64_neon(const int16_t *p) {
+    int l = 0;
+    int16_t va[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    int16x8_t vn = vld1q_s16(va);
+
+    for (int i = 0; i < 8; ++i, vn = vaddq_s16(vn, vmovq_n_s16(8))) {
+        int16x8_t buf = vld1q_s16(p + i * 8);
+        int16x8_t zro = vreinterpretq_s16_u16(vtstq_s16(buf, buf));
+        int16_t val = vmaxvq_s16(vandq_s16(vn, zro));
+        if (val) {
+            l = val;
+        }
+    }
+    return l;
+}
+#elif defined(__AVX2__) && !defined(USE_SCALAR)
 int find_aligned_end_64_avx2(const int16_t *block) {
     uint32_t mask = 0;
     int iter;
@@ -110,8 +126,10 @@ int find_aligned_end_64_sse42(const int16_t *block) {
 #endif
 
 int find_aligned_end_64(const int16_t *block) {
-#if defined(USE_SCALAR)
+#ifdef USE_SCALAR
     return find_aligned_end_64_scalar(block);
+#elif __ARM_NEON
+    return find_aligned_end_64_neon(block);
 #elif defined(__AVX2__)
     return find_aligned_end_64_avx2(block);
 #elif defined(__SSE_4_2)
@@ -124,6 +142,8 @@ int find_aligned_end_64(const int16_t *block) {
 static bool aligned_memchr16ff(const unsigned char *local_huff_data) {
 #ifdef USE_SCALAR
     return memchr(local_huff_data, 0xff, 16) != NULL;
+#elif __ARM_NEON
+    return !!vaddlvq_u8(vceqq_u8(vld1q_u8(local_huff_data), vmovq_n_u8(~0)));
 #else
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
     __m128i ff = _mm_set1_epi8(-1);

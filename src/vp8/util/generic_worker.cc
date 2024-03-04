@@ -1,11 +1,11 @@
 #include "memory.hh"
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
+# if __ARM_NEON
+#include <arm_neon.h>
+# else
 #include <emmintrin.h>
+# endif
 #endif
 
 #include <assert.h>
@@ -36,6 +36,8 @@
 void _cross_platform_pause() {
 #if !defined(USE_SCALAR) && defined(__i386__)
         _mm_pause();
+#elif __ARM_NEON
+        __asm__ __volatile__("isb");
 #else
 #ifdef _WIN32 
         Sleep(0);

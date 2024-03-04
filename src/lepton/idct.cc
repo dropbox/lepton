@@ -1,12 +1,13 @@
 /* -*-mode:c++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
 
 #ifndef USE_SCALAR
+# if __ARM_NEON
+#include <arm_neon.h>
+# else
 #include <immintrin.h>
 #include <tmmintrin.h>
 #include "../vp8/util/mm_mullo_epi32.hh"
+# endif
 #endif
 
 #include "../vp8/util/aligned_block.hh"
@@ -31,7 +32,7 @@ enum {
 };
 }
 
-#if ((!defined(__SSE2__)) && !(_M_IX86_FP >= 1)) || defined(USE_SCALAR)
+#if ((!__ARM_NEON) && ((!defined(__SSE2__)) && !(_M_IX86_FP >= 1))) || defined(USE_SCALAR)
 static void
 idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], bool ignore_dc) {
     int32_t intermed[64];
@@ -159,6 +160,201 @@ idct_scalar(const AlignedBlock &block, const uint16_t q[64], int16_t outp[64], b
         //outp[i]>>=3;
     }
 }
+#elif __ARM_NEON
+
+template<int which_vec, int offset, int stride>
+int32x4_t vget_raster(const AlignedBlock &block) {
+    int32_t a[] = {
+        block.coefficients_raster(which_vec + 0 * stride + offset),
+        block.coefficients_raster(which_vec + 1 * stride + offset),
+        block.coefficients_raster(which_vec + 2 * stride + offset),
+        block.coefficients_raster(which_vec + 3 * stride + offset),
+    };
+    return vld1q_s32(a);
+}
+template<int offset, int stride>
+int32x4_t vquantize(int which_vec, int32x4_t vec, const uint16_t q[64]) {
+    int32_t a[] = {
+        q[which_vec + 0 * stride + offset],
+        q[which_vec + 1 * stride + offset],
+        q[which_vec + 2 * stride + offset],
+        q[which_vec + 3 * stride + offset],
+    };
+    return vmulq_s32(vec, vld1q_s32(a));
+}
+
+#define TRANSPOSE_128i(row0, row1, row2, row3, ocol0, ocol1, ocol2, ocol3) \
+    do { \
+            int64x2_t intermed0 = vreinterpretq_s64_s32(vzip1q_s32(row0, row1)); \
+            int64x2_t intermed1 = vreinterpretq_s64_s32(vzip1q_s32(row2, row3)); \
+            int64x2_t intermed2 = vreinterpretq_s64_s32(vzip2q_s32(row0, row1)); \
+            int64x2_t intermed3 = vreinterpretq_s64_s32(vzip2q_s32(row2, row3)); \
+            ocol0 = vreinterpretq_s32_s64(vzip1q_s64(intermed0, intermed1)); \
+            ocol1 = vreinterpretq_s32_s64(vzip2q_s64(intermed0, intermed1)); \
+            ocol2 = vreinterpretq_s32_s64(vzip1q_s64(intermed2, intermed3)); \
+            ocol3 = vreinterpretq_s32_s64(vzip2q_s64(intermed2, intermed3)); \
+    }while(0)
+
+
+void idct_neon(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
+    char vintermed_storage[64 * sizeof(int32_t) + 16];
+    // align intermediate storage to 16 bytes
+    int32_t *vintermed = (int32_t*) (vintermed_storage + 16 - ((vintermed_storage - (char*)nullptr) &0xf));
+    using namespace idct_local;
+    // Horizontal 1-D IDCT.
+    for (int yvec = 0; yvec < 64; yvec += 32) {
+        int32x4_t tmp, xv0, xv1, xv2, xv3, xv4, xv5, xv6, xv7, xv8;
+        if (yvec == 0) {
+            xv0 = vget_raster<0, 0, 8>(block);
+            xv1 = vget_raster<0, 4, 8>(block);
+            xv2 = vget_raster<0, 6, 8>(block);
+            xv3 = vget_raster<0, 2, 8>(block);
+            xv4 = vget_raster<0, 1, 8>(block);
+            xv5 = vget_raster<0, 7, 8>(block);
+            xv6 = vget_raster<0, 5, 8>(block);
+            xv7 = vget_raster<0, 3, 8>(block);
+            if (__builtin_expect(ignore_dc, true)) {
+                xv0 = vsetq_lane_s32(0, xv0, 0);
+            }
+        } else {
+            xv0 = vget_raster<32, 0, 8>(block);
+            xv1 = vget_raster<32, 4, 8>(block);
+            xv2 = vget_raster<32, 6, 8>(block);
+            xv3 = vget_raster<32, 2, 8>(block);
+            xv4 = vget_raster<32, 1, 8>(block);
+            xv5 = vget_raster<32, 7, 8>(block);
+            xv6 = vget_raster<32, 5, 8>(block);
+            xv7 = vget_raster<32, 3, 8>(block);
+        }
+        
+        tmp = vquantize<0, 8>(yvec, xv0, q);
+        xv0 = vaddq_s32(vshlq_n_s32(tmp, 11), vmovq_n_s32(128));
+
+        tmp = vquantize<4, 8>(yvec, xv1, q);
+        xv1 = vshlq_n_s32(tmp, 11);
+        
+        xv2 = vquantize<6, 8>(yvec, xv2, q);
+        xv3 = vquantize<2, 8>(yvec, xv3, q);
+        xv4 = vquantize<1, 8>(yvec, xv4, q);
+        xv5 = vquantize<7, 8>(yvec, xv5, q);
+        xv6 = vquantize<5, 8>(yvec, xv6, q);
+        xv7 = vquantize<3, 8>(yvec, xv7, q);
+        
+        // Stage 1.
+        xv8 = vmulq_s32(vmovq_n_s32(w7), vaddq_s32(xv4, xv5));
+        xv4 = vaddq_s32(xv8, vmulq_s32(vmovq_n_s32(w1mw7), xv4));
+        xv5 = vsubq_s32(xv8, vmulq_s32(vmovq_n_s32(w1pw7), xv5));
+
+        xv8 = vmulq_s32(vmovq_n_s32(w3), vaddq_s32(xv6, xv7));
+        xv6 = vsubq_s32(xv8, vmulq_s32(vmovq_n_s32(w3mw5), xv6));
+        xv7 = vsubq_s32(xv8, vmulq_s32(vmovq_n_s32(w3pw5), xv7));
+
+        xv8 = vaddq_s32(xv0, xv1);
+        xv0 = vsubq_s32(xv0, xv1);
+        xv1 = vmulq_s32(vmovq_n_s32(w6), vaddq_s32(xv3, xv2));
+        xv2 = vsubq_s32(xv1, vmulq_s32(vmovq_n_s32(w2pw6), xv2));
+        xv3 = vaddq_s32(xv1, vmulq_s32(vmovq_n_s32(w2mw6), xv3));
+        xv1 = vaddq_s32(xv4, xv6);
+        xv4 = vsubq_s32(xv4, xv6);
+        xv6 = vaddq_s32(xv5, xv7);
+        xv5 = vsubq_s32(xv5, xv7);
+
+        // Stage 3.
+        xv7 = vaddq_s32(xv8, xv3);
+        xv8 = vsubq_s32(xv8, xv3);
+        xv3 = vaddq_s32(xv0, xv2);
+        xv0 = vsubq_s32(xv0, xv2);
+        xv2 = vshrq_n_s32(vaddq_s32(vmulq_s32(vmovq_n_s32(r2),
+                                                           vaddq_s32(xv4, xv5)),
+                                           vmovq_n_s32(128)), 8);
+        xv4 = vshrq_n_s32(vaddq_s32(vmulq_s32(vmovq_n_s32(r2),
+                                                           vsubq_s32(xv4, xv5)),
+                                           vmovq_n_s32(128)), 8);
+        // Stage 4.
+        int index = 0;
+        for (int32x4_t row0 = vshrq_n_s32(vaddq_s32(xv7, xv1), 8),
+                 row1 = vshrq_n_s32(vaddq_s32(xv3, xv2), 8),
+                 row2 = vshrq_n_s32(vaddq_s32(xv0, xv4), 8),
+                 row3 = vshrq_n_s32(vaddq_s32(xv8, xv6), 8);
+             true; // will break if index == 4 at the end of this loop
+             index += 4,
+             row0 = vshrq_n_s32(vsubq_s32(xv8, xv6), 8),
+             row1 = vshrq_n_s32(vsubq_s32(xv0, xv4), 8),
+             row2 = vshrq_n_s32(vsubq_s32(xv3, xv2), 8),
+             row3 = vshrq_n_s32(vsubq_s32(xv7, xv1), 8)) {
+            int32x4_t col0, col1, col2, col3;
+            TRANSPOSE_128i(row0, row1, row2, row3, col0, col1, col2, col3);
+
+            vst1q_s32(vintermed + index +  0 + yvec, col0);
+            vst1q_s32(vintermed + index +  8 + yvec, col1);
+            vst1q_s32(vintermed + index + 16 + yvec, col2);
+            vst1q_s32(vintermed + index + 24 + yvec, col3);
+            if (index == 4) {
+                break; // only iterate twice
+            }
+        }
+    }
+    // Vertical 1-D IDCT.
+    for (uint8_t xvec = 0; xvec < 8; xvec += 4) {
+        int32x4_t yv0, yv1, yv2, yv3, yv4, yv5, yv6, yv7, yv8;
+        yv0 = vaddq_s32(vshlq_n_s32(vld1q_s32(vintermed + xvec), 8),
+                            vmovq_n_s32(8192));
+        yv1 = vshlq_n_s32(vld1q_s32(vintermed + 8 * 4 + xvec), 8);
+        yv2 = vld1q_s32(vintermed + 8 * 6 + xvec);
+        yv3 = vld1q_s32(vintermed + 8 * 2 + xvec);
+        yv4 = vld1q_s32(vintermed + 8 * 1 + xvec);
+        yv5 = vld1q_s32(vintermed + 8 * 7 + xvec);
+        yv6 = vld1q_s32(vintermed + 8 * 5 + xvec);
+        yv7 = vld1q_s32(vintermed + 8 * 3 + xvec);
+
+        // Stage 1.
+        yv8 = vaddq_s32(vmulq_s32(vaddq_s32(yv4, yv5), vmovq_n_s32(w7)), vmovq_n_s32(4));
+        yv4 = vshrq_n_s32(vaddq_s32(yv8, vmulq_s32(vmovq_n_s32(w1mw7), yv4)), 3);
+        yv5 = vshrq_n_s32(vsubq_s32(yv8, vmulq_s32(vmovq_n_s32(w1pw7), yv5)), 3);
+        yv8 = vaddq_s32(vmulq_s32(vmovq_n_s32(w3), vaddq_s32(yv6, yv7)), vmovq_n_s32(4));
+        yv6 = vshrq_n_s32(vsubq_s32(yv8, vmulq_s32(vmovq_n_s32(w3mw5), yv6)), 3);
+        yv7 = vshrq_n_s32(vsubq_s32(yv8, vmulq_s32(vmovq_n_s32(w3pw5), yv7)), 3);
+        // Stage 2.
+        yv8 = vaddq_s32(yv0, yv1);
+        yv0 = vsubq_s32(yv0, yv1);
+        yv1 = vaddq_s32(vmulq_s32(vmovq_n_s32(w6), vaddq_s32(yv3, yv2)), vmovq_n_s32(4));
+        yv2 = vshrq_n_s32(vsubq_s32(yv1, vmulq_s32(vmovq_n_s32(w2pw6), yv2)), 3);
+        yv3 = vshrq_n_s32(vaddq_s32(yv1, vmulq_s32(vmovq_n_s32(w2mw6), yv3)), 3);
+        yv1 = vaddq_s32(yv4, yv6);
+        yv4 = vsubq_s32(yv4, yv6);
+        yv6 = vaddq_s32(yv5, yv7);
+        yv5 = vsubq_s32(yv5, yv7);
+
+        // Stage 3.
+        yv7 = vaddq_s32(yv8, yv3);
+        yv8 = vsubq_s32(yv8, yv3);
+        yv3 = vaddq_s32(yv0, yv2);
+        yv0 = vsubq_s32(yv0, yv2);
+        yv2 = vshrq_n_s32(vaddq_s32(vmulq_s32(vmovq_n_s32(r2),
+                                                           vaddq_s32(yv4, yv5)),
+                                           vmovq_n_s32(128)), 8);
+        yv4 = vshrq_n_s32(vaddq_s32(vmulq_s32(vmovq_n_s32(r2),
+                                                           vsubq_s32(yv4, yv5)),
+                                           vmovq_n_s32(128)), 8);
+        int32x4_t row0 = vshrq_n_s32(vaddq_s32(yv7, yv1), 11);
+        int32x4_t row1 = vshrq_n_s32(vaddq_s32(yv3, yv2), 11);
+        int32x4_t row2 = vshrq_n_s32(vaddq_s32(yv0, yv4), 11);
+        int32x4_t row3 = vshrq_n_s32(vaddq_s32(yv8, yv6), 11);
+        int32x4_t row4 = vshrq_n_s32(vsubq_s32(yv8, yv6), 11);
+        int32x4_t row5 = vshrq_n_s32(vsubq_s32(yv0, yv4), 11);
+        int32x4_t row6 = vshrq_n_s32(vsubq_s32(yv3, yv2), 11);
+        int32x4_t row7 = vshrq_n_s32(vsubq_s32(yv7, yv1), 11);
+        
+        vst1_s16(voutp + 0 * 8 + xvec, vmovn_s32(row0));
+        vst1_s16(voutp + 1 * 8 + xvec, vmovn_s32(row1));
+        vst1_s16(voutp + 2 * 8 + xvec, vmovn_s32(row2));
+        vst1_s16(voutp + 3 * 8 + xvec, vmovn_s32(row3));
+        vst1_s16(voutp + 4 * 8 + xvec, vmovn_s32(row4));
+        vst1_s16(voutp + 5 * 8 + xvec, vmovn_s32(row5));
+        vst1_s16(voutp + 6 * 8 + xvec, vmovn_s32(row6));
+        vst1_s16(voutp + 7 * 8 + xvec, vmovn_s32(row7));
+    }}
+
 #else /* At least SSE2 is available { */
 
 template<int which_vec, int offset, int stride> __m128i vget_raster(const AlignedBlock&block) {
@@ -612,15 +808,13 @@ void
 idct(const AlignedBlock &block, const uint16_t q[64], int16_t voutp[64], bool ignore_dc) {
 #ifdef USE_SCALAR
     idct_scalar(block, q, voutp, ignore_dc);
-#else
-#ifdef __AVX2__
+#elif __ARM_NEON
+    idct_neon(block, q, voutp, ignore_dc);
+#elif defined(__AVX2__)
     idct_avx(block, q, voutp, ignore_dc);
-#else
-#if defined(__SSE2__) || (_M_IX86_FP >= 1)
+#elif defined(__SSE2__) || (_M_IX86_FP >= 1)
     idct_sse(block, q, voutp, ignore_dc);
 #else
     idct_scalar(block, q, voutp, ignore_dc);
-#endif
-#endif
 #endif
 }

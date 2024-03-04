@@ -13,13 +13,13 @@
 #include "../util/aligned_block.hh"
 #include "../util/block_based_image.hh"
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
-#include <tmmintrin.h>
-#include "../util/mm_mullo_epi32.hh"
+# if __ARM_NEON
+#  include <arm_neon.h>
+# else
+#  include <tmmintrin.h>
+#  include "../util/mm_mullo_epi32.hh"
+# endif
 #endif
 
 enum F_TYPE {
@@ -670,7 +670,17 @@ public:
         if (retval > max_value) retval -= adjustment_factor;
         return retval;
     }
+#if __ARM_NEON
+#define shift_right_round_zero_epi16(vec, imm8)  __extension__ ({ \
+    int16x8_t sign = vreinterpretq_s16_u16(vcltzq_s16(vec)); \
+    int16x8_t rslt = vshrq_n_s16(vabsq_s16(vec), imm8); \
+    /* ((x^0xffff) - 0xffff == not(x)+1 */ \
+    rslt = veorq_s16(rslt, sign); \
+    vsubq_s16(rslt, sign); \
+})
+#else
 #define shift_right_round_zero_epi16(vec, imm8) (_mm_sign_epi16(_mm_srli_epi16(_mm_sign_epi16(vec, vec), imm8), vec));
+#endif
     int adv_predict_dc_pix(const ConstBlockContext&context, int16_t*pixels_sans_dc, int32_t *uncertainty_val, int32_t *uncertainty2_val) {
         uint16_t *q = ProbabilityTablesBase::quantization_table((int)color);
         idct(context.here(), q, pixels_sans_dc, true);
@@ -680,6 +690,53 @@ public:
         int32_t avgmed = 0;
         if(all_present || left_present || above_present) {
 #ifndef USE_SCALAR
+# if __ARM_NEON
+            if (all_present || above_present) { //above goes first to prime the cache
+                int16x8_t neighbor_above = vld1q_s16(context.neighbor_context_above_unchecked().horizontal_ptr());
+                int16x8_t pixels_sans_dc_reg = vld1q_s16(pixels_sans_dc);
+                int16x8_t pixels2_sans_dc_reg = vld1q_s16(pixels_sans_dc + 8);
+                int16x8_t pixels_delta = vsubq_s16(pixels_sans_dc_reg, pixels2_sans_dc_reg);
+                int16x8_t pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
+                int16x8_t pixels_sans_dc_recentered = vaddq_s16(pixels_sans_dc_reg,
+                                                                  vmovq_n_s16(1024));
+                int16x8_t above_dc_estimate = vsubq_s16(vsubq_s16(neighbor_above, pixels_delta_div2),
+                                                          pixels_sans_dc_recentered);
+
+                vst1q_s16(dc_estimates.begin() + ((all_present || left_present) ? 8 : 0), above_dc_estimate);
+            }
+            if (all_present || left_present) {
+                const int16_t * horiz_data = context.neighbor_context_left_unchecked().vertical_ptr_except_7();
+                int16x8_t neighbor_horiz = vld1q_s16(horiz_data);
+                int16_t pixels_sans_dc_1[] = {
+                    pixels_sans_dc[0],
+                    pixels_sans_dc[8],
+                    pixels_sans_dc[16],
+                    pixels_sans_dc[24],
+                    pixels_sans_dc[32],
+                    pixels_sans_dc[40],
+                    pixels_sans_dc[48],
+                    pixels_sans_dc[56],
+                }, pixels_sans_dc_2[] = {
+                    pixels_sans_dc[1],
+                    pixels_sans_dc[9],
+                    pixels_sans_dc[17],
+                    pixels_sans_dc[25],
+                    pixels_sans_dc[33],
+                    pixels_sans_dc[41],
+                    pixels_sans_dc[49],
+                    pixels_sans_dc[57],
+                };
+                int16x8_t pixels_sans_dc_reg = vld1q_s16(pixels_sans_dc_1),
+                          pixels_delta = vsubq_s16(pixels_sans_dc_reg, vld1q_s16(pixels_sans_dc_2));
+
+                int16x8_t pixels_delta_div2 = shift_right_round_zero_epi16(pixels_delta, 1);
+                int16x8_t left_dc_estimate = vsubq_s16(vsubq_s16(neighbor_horiz, pixels_delta_div2),
+                                                          vaddq_s16(pixels_sans_dc_reg,
+                                                                        vmovq_n_s16(1024)));
+
+                vst1q_s16(dc_estimates.begin(), left_dc_estimate);
+            }
+# else
             if (all_present || above_present) { //above goes first to prime the cache
                 __m128i neighbor_above = _mm_loadu_si128((const __m128i*)(const char*)context
                                                          .neighbor_context_above_unchecked()
@@ -727,6 +784,7 @@ public:
 
                 _mm_store_si128((__m128i*)(char*)dc_estimates.begin(), left_dc_estimate);
             }
+# endif
 #else
             if (all_present || left_present) {
                 for (int i = 0; i < 8;++i) {
@@ -870,6 +928,48 @@ public:
         //}
     }
 #if defined(OPTIMIZED_7x7) && !defined(USE_SCALAR)
+# if __ARM_NEON
+    bool aavrg_vec_matches(int16x8_t &retval, unsigned int aligned_zz, ConstBlockContext context) {
+        int16_t ret[8], correct[8];
+        vst1q_s16(ret, retval);
+        for (int i = 0; i < 8; ++i) {
+            if (ret[i] != compute_aavrg(aligned_to_raster.at(aligned_zz + i), aligned_zz + i, context)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    void compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context, short* aligned_retval) {
+        vst1q_s16(aligned_retval, compute_aavrg_vec(aligned_zz, context));
+    }
+    int16x8_t compute_aavrg_vec(unsigned int aligned_zz, ConstBlockContext context) {
+        if (all_present == false && left_present == false && above_present == false) {
+            return vmovq_n_s16(0);
+        }
+        int16x8_t left = vmovq_n_s16(0);
+        if (all_present || left_present) {
+            left = vabsq_s16(vld1q_s16(&context.left_unchecked().coef.at(aligned_zz)));
+            if ((!all_present) && !above_present) {
+                return left;
+            }
+        }
+        int16x8_t above = vmovq_n_s16(0);
+        if (all_present || above_present) {
+            above = vabsq_s16(vld1q_s16(&context.above_unchecked().coef.at(aligned_zz)));
+            if (all_present == false && !left_present) {
+                return above;
+            }
+        }
+        constexpr unsigned int log_weight = 5;
+        int16x8_t total = vaddq_s16(left, above);
+        total = vmulq_n_s16(total, 13); // approximate (a*2+b*2 + c)/5 as (a *13 + b * 13 + c * 6)/32
+        int16x8_t aboveleft = vabsq_s16(vld1q_s16(&context.above_left_unchecked().coef.at(aligned_zz)));
+        total = vaddq_s16(total, vmulq_n_s16(aboveleft, 6));
+        int16x8_t retval = vshrq_n_s16(total, log_weight);
+        dev_assert(aavrg_vec_matches(retval, aligned_zz, context));
+        return retval;
+        }
+# else
     bool aavrg_vec_matches(__m128i retval, unsigned int aligned_zz, ConstBlockContext context) {
         short ret[8];
         _mm_storeu_si128((__m128i*)(char*)ret, retval);
@@ -922,9 +1022,116 @@ public:
         //total += abs(block.context().above_right.get()->coefficients().at(0));
         //}
     }
+# endif // !__ARM_NEON
 #endif
 
 #ifndef USE_SCALAR
+# if __ARM_NEON
+    static inline int32x4_t vsignq_s32(int32x4_t v, int32x4_t m) {
+        // v[] * ((m[]<0 ? ~0:0) | ((m[]>0 ? ~0:0) & 1))
+        return vmulq_s32(v, vreinterpretq_s32_u32(vorrq_u32(vcltzq_s32(m), vandq_u32(vcgtzq_s32(m), vmovq_n_u32(1)))));
+    }
+
+    static int32_t compute_lak_vec(int32x4_t coeffs_x_low, int32x4_t coeffs_x_high, int32x4_t coeffs_a_low, int32x4_t indirect_coeffs_a_high, const int32_t *icos_deq) {
+        int32_t sign_mask_a[] = {1, -1, 1, -1}; // ((i & 1) ? -1 : 1)
+        int32x4_t sign_mask = vld1q_s32(sign_mask_a);
+
+        //coeffs_x[i] = ((i & 1) ? -1 : 1) * coeffs_a[i] - coeffs_x[i];
+        coeffs_a_low = vsignq_s32(coeffs_a_low, sign_mask);
+        int32x4_t coeffs_a_high = vsignq_s32(indirect_coeffs_a_high, sign_mask);
+        coeffs_x_low = vsubq_s32(coeffs_a_low, coeffs_x_low);
+        coeffs_x_high = vsubq_s32(coeffs_a_high, coeffs_x_high);
+
+        int32x4_t icos_low = vld1q_s32(icos_deq);
+        int32x4_t icos_high = vld1q_s32(icos_deq + 4);
+        // coeffs_x[i] *= icos[i]
+        int32x4_t deq_low = vmulq_s32(coeffs_x_low, icos_low);
+        int32x4_t deq_high = vmulq_s32(coeffs_x_high, icos_high);
+
+        int32_t prediction = vaddvq_s32(vaddq_s32(deq_low, deq_high));
+        return prediction / icos_deq[0];
+    }
+
+#define ITER(x_var, a_var, i, step) do { \
+        int32_t xa[] = {                  \
+            i == 0 ? 0 : context.here().coefficients_raster(band + step * (i)), \
+            context.here().coefficients_raster(band + step * ((i) + 1)), \
+            context.here().coefficients_raster(band + step * ((i) + 2)), \
+            context.here().coefficients_raster(band + step * ((i) + 3)), \
+        };                              \
+        x_var = vld1q_s32(xa);          \
+        int32_t aa[] = {                \
+            neighbor.coefficients_raster(band + step * (i)),      \
+            neighbor.coefficients_raster(band + step * ((i) + 1)), \
+            neighbor.coefficients_raster(band + step * ((i) + 2)), \
+            neighbor.coefficients_raster(band + step * ((i) + 3)), \
+        };                              \
+        a_var = vld1q_s32(aa);          \
+    } while(0)
+
+    template<int band>
+#ifndef _WIN32
+    __attribute__((always_inline))
+#endif
+    int32_t compute_lak_templ(const ConstBlockContext&context) {
+        int32x4_t coeffs_x_low;
+        int32x4_t coeffs_x_high;
+        int32x4_t coeffs_a_low;
+        int32x4_t coeffs_a_high;
+        const int32_t * icos = nullptr;
+        static_assert((band & 7) == 0 || (band >> 3) == 0, "This function only works on edges");
+        if ((band >> 3) == 0) {
+            if(all_present == false && !above_present) {
+                return 0;
+            }
+            const auto &neighbor = context.above_unchecked();
+            ITER(coeffs_x_low, coeffs_a_low, 0, 8);
+            ITER(coeffs_x_high, coeffs_a_high, 4, 8);
+            icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+        } else {
+            if (all_present == false && !left_present) {
+                return 0;
+            }
+            const auto &neighbor = context.left_unchecked();
+            ITER(coeffs_x_low, coeffs_a_low, 0, 1);
+            ITER(coeffs_x_high, coeffs_a_high, 4, 1);
+            icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+        }
+        return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
+    }
+    int32_t compute_lak_horizontal(const ConstBlockContext&context, unsigned int band) {
+        if (all_present == false && !above_present) {
+            return 0;
+        }
+        int32x4_t coeffs_x_low;
+        int32x4_t coeffs_x_high;
+        int32x4_t coeffs_a_low;
+        int32x4_t coeffs_a_high;
+        dev_assert(band/8 == 0 && "this function only works for the top edge");
+        const auto &neighbor = context.above_unchecked();
+        ITER(coeffs_x_low, coeffs_a_low, 0, 8);
+        ITER(coeffs_x_high, coeffs_a_high, 4, 8);
+        const int32_t * icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_x((int)COLOR) + band * 8;
+        return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high, icos);
+    }
+    int32_t compute_lak_vertical(const ConstBlockContext&context, unsigned int band) {
+        dev_assert((band & 7) == 0 && "Must be used for veritcal");
+        if (all_present == false && !left_present) {
+            return 0;
+        }
+        int32x4_t coeffs_x_low;
+        int32x4_t coeffs_x_high;
+        int32x4_t coeffs_a_low;
+        int32x4_t coeffs_a_high;
+        const auto &neighbor = context.left_unchecked();
+        ITER(coeffs_x_low, coeffs_a_low, 0, 1);
+        ITER(coeffs_x_high, coeffs_a_high, 4, 1);
+#undef ITER
+        const int32_t *icos = ProbabilityTablesBase::icos_idct_edge_8192_dequantized_y((int)COLOR) + band;
+        return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
+                               icos);
+    }
+# else
     static int32_t compute_lak_vec(__m128i coeffs_x_low, __m128i coeffs_x_high, __m128i coeffs_a_low, __m128i 
 #ifdef _WIN32
         &
@@ -1029,6 +1236,7 @@ public:
         return compute_lak_vec(coeffs_x_low, coeffs_x_high, coeffs_a_low, coeffs_a_high,
                         icos);
     }
+# endif // !__ARM_NEON
 #endif
     int32_t compute_lak(const ConstBlockContext&context, unsigned int band) {
         int coeffs_x[8];

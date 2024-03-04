@@ -58,13 +58,13 @@ volatile int volatile1024 = 1024;
 
 #endif
 
-#ifdef __aarch64__
-#define USE_SCALAR 1
-#endif
-
 #ifndef USE_SCALAR
+# if __ARM_NEON
+#include <arm_neon.h>
+# else
 #include <emmintrin.h>
 #include <immintrin.h>
+# endif
 #endif
 
 #include "jpgcoder.hh"
@@ -2476,6 +2476,8 @@ enum MergeJpegStreamingStatus{
 bool aligned_memchr16ff(const unsigned char *local_huff_data) {
 #if USE_SCALAR
     return memchr(local_huff_data, 0xff, 16) != NULL;
+#elif __ARM_NEON
+    return !!vaddlvq_u8(vceqq_u8(vld1q_u8(local_huff_data), vmovq_n_u8(~0)));
 #else
     __m128i buf = _mm_load_si128((__m128i const*)local_huff_data);
     __m128i ff = _mm_set1_epi8(-1);
