@@ -248,7 +248,11 @@ void custom_exit(ExitCode exit_code) {
         }
     }
 #ifdef __linux__
+# ifdef USE_STRICT_SECCOMP
     syscall(SYS_exit, (int)exit_code);
+# else
+    syscall(SYS_exit_group, (int)exit_code);
+# endif
 #else
     exit((int)exit_code);
 #endif

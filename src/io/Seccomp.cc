@@ -92,6 +92,7 @@ bool installStrictSyscallFilter(bool verbose) {
 #endif
 #endif
         ALLOW_SYSCALL(exit),
+        ALLOW_SYSCALL(exit_group),
         ALLOW_SYSCALL(read),
         ALLOW_SYSCALL(write),
         KILL_PROCESS,
@@ -100,21 +101,21 @@ bool installStrictSyscallFilter(bool verbose) {
     prog.len = (unsigned short)(sizeof(filter)/sizeof(filter[0]));
     prog.filter = filter;
     if (
-#ifdef USE_STANDARD_MEMORY_ALLOCATORS
+#if defined USE_STANDARD_MEMORY_ALLOCATORS || ! defined USE_STRICT_SECCOMP
         true
 #else
         prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT)
 #endif
         ) {
-#ifndef USE_STANDARD_MEMORY_ALLOCATORS
+#if ! defined USE_STANDARD_MEMORY_ALLOCATORS && defined USE_STRICT_SECCOMP
         if (verbose) {
             perror("prctl(SECCOMP)");
         }
-#endif
         if (errno == EINVAL && verbose) {
             fprintf(stderr, "SECCOMP_MODE_STRICT is not available.\n%s",
                 "Trying to set a filter to emulate strict mode\n");
         }
+#endif
         if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
             if (verbose) {
                 perror("prctl(NO_NEW_PRIVS)");
